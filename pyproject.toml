@@ -8,7 +8,7 @@ authors = [
     { name = "Your Name", email = "your.email@example.com" }
 ]
 dependencies = [
-    "psutil>=5.9.0",
+    "psutil>=7.0.0",
     "pandas>=2.0.0",
     "numpy>=1.24.0",
     "matplotlib>=3.7.0",
@@ -17,11 +17,13 @@ dependencies = [
     "jc>=1.23.0",
     "influxdb-client>=1.36.0",
 ]
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.3.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
+    "psutil>=7.0.0",
     "black>=23.0.0",
     "flake8>=6.0.0",
     "pydocstyle>=6.3.0",
@@ -35,7 +37,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 py-modules = ["benchmark_config", "orchestrator", "data_handler", "reporter"]
-packages = ["metric_collectors", "workload_generators"]
+
+[tool.setuptools.packages.find]
+include = ["metric_collectors*", "workload_generators*"]
+exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [tool.black]
 line-length = 88
@@ -58,7 +63,7 @@ exclude = '''
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --strict-markers --cov=linux_benchmark_lib"
+addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
@@ -83,3 +88,9 @@ strict_equality = true
 inherit = false
 ignore = "D100,D104,D203,D213"
 match-dir = "(?!tests).*"
+
+[dependency-groups]
+dev = [
+    "psutil>=7.0.0",
+    "pytest>=8.4.1",
+]

@@ -66,6 +66,11 @@ class DataHandler:
                 # Convert to DataFrame for easier processing
                 df = pd.DataFrame(collector_data)
                 
+                # Convert timestamp to datetime and set as index if present
+                if "timestamp" in df.columns:
+                    df["timestamp"] = pd.to_datetime(df["timestamp"])
+                    df.set_index("timestamp", inplace=True)
+                
                 # Process based on collector type
                 if collector_name == "PSUtilCollector":
                     rep_summary.update(self._process_psutil_data(df))

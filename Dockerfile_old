@@ -1,0 +1,42 @@
+# Use the official uv base image matching the project's Python version
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+# Install system dependencies required by the benchmark tools
+# Do this early as it's less likely to change than app code
+RUN apt-get update && apt-get install -y \
+    git \
+    stress-ng \
+    iperf3 \
+    fio \
+    sysstat \
+    --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set the working directory
+WORKDIR /app
+
+# Set uv environment variables for optimal container builds
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+
+# Copy the entire project first (needed for editable installs)
+COPY . /app
+
+# Install the project's dependencies using the lockfile.
+# This creates a venv in /app/.venv
+# We install all dependency groups, including 'dev' for testing.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --all-groups
+
+# Add the virtual environment's bin directory to the PATH
+# This makes `pytest` and other installed tools available directly
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Set the working directory
+WORKDIR /app
+
+# Reset the entrypoint from the base image
+ENTRYPOINT []
+
+# Set the default command to run the tests using uvx which handles the environment properly
+CMD ["uvx", "pytest", "tests/"]

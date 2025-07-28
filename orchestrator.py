@@ -13,6 +13,7 @@ from typing import List, Dict, Any, Optional
 import platform
 import subprocess
 import json
+from json import JSONEncoder
 
 from benchmark_config import BenchmarkConfig
 from metric_collectors import PSUtilCollector, CLICollector, PerfCollector, EBPFCollector
@@ -21,6 +22,14 @@ from data_handler import DataHandler
 
 
 logger = logging.getLogger(__name__)
+
+
+class DateTimeEncoder(JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 
 
 class Orchestrator:
@@ -250,13 +259,19 @@ class Orchestrator:
                     ["sync"],
                     check=True
                 )
-                subprocess.run(
-                    ["sudo", "sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"],
-                    check=True
-                )
-                logger.info("Cleared filesystem caches")
+                # Try to clear caches only if we have sudo access
+                # In Docker containers, this often fails and that's OK
+                try:
+                    subprocess.run(
+                        ["sudo", "-n", "sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"],
+                        check=True,
+                        capture_output=True
+                    )
+                    logger.info("Cleared filesystem caches")
+                except:
+                    logger.debug("Skipping cache clearing (no sudo access)")
             except Exception as e:
-                logger.warning(f"Failed to clear filesystem caches: {e}")
+                logger.warning(f"Failed to perform pre-test cleanup: {e}")
     
     def run_benchmark(self, test_type: str) -> None:
         """
@@ -322,7 +337,7 @@ class Orchestrator:
         # Save raw results
         results_file = self.config.output_dir / f"{test_name}_results.json"
         with open(results_file, "w") as f:
-            json.dump(results, f, indent=2)
+            json.dump(results, f, indent=2, cls=DateTimeEncoder)
         
         logger.info(f"Saved raw results to {results_file}")
         

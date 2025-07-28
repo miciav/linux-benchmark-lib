@@ -99,7 +99,7 @@ class BaseCollector(ABC):
                 metrics = self._collect_metrics()
                 
                 # Add timestamp and collector info
-                metrics["timestamp"] = datetime.now()
+                metrics["timestamp"] = datetime.now().isoformat()
                 metrics["collector"] = self.name
                 
                 # Store data thread-safely
@@ -139,6 +139,7 @@ class BaseCollector(ABC):
         
         df = pd.DataFrame(data)
         if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
             df.set_index("timestamp", inplace=True)
         
         return df
