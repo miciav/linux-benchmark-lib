@@ -90,6 +90,12 @@ def multipass_vm():
         # Teardown
         print(f"Tearing down VM: {VM_NAME}...")
         subprocess.run(["multipass", "delete", VM_NAME, "--purge"], stderr=subprocess.DEVNULL)
+        # Remove generated SSH keys if present
+        for key_path in (SSH_KEY_PATH, SSH_PUB_KEY_PATH):
+            try:
+                key_path.unlink()
+            except FileNotFoundError:
+                pass
         if SSH_KEY_PATH.exists():
             SSH_KEY_PATH.unlink()
         if SSH_PUB_KEY_PATH.exists():
@@ -136,7 +142,7 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     os.environ["ANSIBLE_CONFIG"] = str(Path("ansible/ansible.cfg").absolute())
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
     
-    executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir)
+    executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)
     orchestrator = BenchmarkOrchestrator(config, executor=executor)
 
     # Execute

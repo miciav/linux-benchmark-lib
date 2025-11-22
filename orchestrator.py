@@ -74,6 +74,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         self,
         private_data_dir: Optional[Path] = None,
         runner_fn: Optional[Callable[..., Any]] = None,
+        stream_output: bool = False,
     ):
         """
         Initialize the executor.
@@ -82,10 +83,13 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             private_data_dir: Directory used by ansible-runner.
             runner_fn: Optional runner callable for testing. Defaults to
                 ansible_runner.run when not provided.
+            stream_output: When True, stream Ansible stdout events to the local
+                process (useful for visibility in long-running tasks).
         """
         self.private_data_dir = private_data_dir or Path("ansible")
         self.private_data_dir.mkdir(parents=True, exist_ok=True)
         self._runner_fn = runner_fn
+        self.stream_output = stream_output
 
     def run_playbook(
         self,
@@ -117,6 +121,8 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             inventory=str(inventory_path),
             extravars=extravars or {},
             tags=",".join(tags) if tags else None,
+            quiet=self.stream_output,  # suppress runner's own stdout when streaming ourselves
+            event_handler=self._event_handler if self.stream_output else None,
         )
 
         rc = getattr(result, "rc", 1)
@@ -164,6 +170,17 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                 "Install it with `uv pip install ansible-runner`."
             ) from exc
         return ansible_runner.run
+
+    @staticmethod
+    def _event_handler(event: Dict[str, Any]) -> None:
+        """Stream Ansible runner stdout events to the local console."""
+        stdout = event.get("stdout")
+        if stdout:
+            # Avoid printing duplicate consecutive lines sometimes emitted by runner
+            last = getattr(AnsibleRunnerExecutor._event_handler, "_last_stdout", None)
+            if stdout != last:
+                print(stdout, flush=True)
+                AnsibleRunnerExecutor._event_handler._last_stdout = stdout
 
 
 class BenchmarkOrchestrator:

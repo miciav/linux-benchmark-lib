@@ -68,6 +68,9 @@ exclude = '''
 minversion = "7.0"
 addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')"
+]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"

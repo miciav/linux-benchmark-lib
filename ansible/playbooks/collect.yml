@@ -7,6 +7,7 @@
     run_id: "{{ run_id | default('unknown') }}"
     remote_output_root: "{{ remote_output_root | default('/tmp/benchmark_results') }}"
     data_export_root: "{{ data_export_root | default('/tmp/data_exports') }}"
+    per_host_output: "{{ per_host_output | default({}) }}"
 
   tasks:
     - name: Archive host benchmark data
@@ -15,9 +16,35 @@
         -C {{ remote_output_root }} {{ inventory_hostname }}
       when: remote_output_root is defined
 
+    - name: Ensure local host output dir exists
+      ansible.builtin.file:
+        path: "{{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      run_once: false
+
     - name: Fetch archived data
       fetch:
         src: "/tmp/{{ inventory_hostname }}-{{ run_id }}.tar.gz"
-        dest: "{{ data_export_root }}/"
+        dest: "{{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}/"
         flat: true
-      when: output_root is defined
+      when: per_host_output is defined
+
+    - name: Choose tar binary on controller
+      ansible.builtin.set_fact:
+        archive_tool: "{{ (lookup('ansible.builtin.pipe', 'command -v gtar', errors='ignore') | default('', true) | trim) or 'tar' }}"
+      delegate_to: localhost
+      delegate_facts: true
+      run_once: false
+
+    - name: Unarchive downloaded data locally
+      ansible.builtin.command: >
+        {{ archive_tool | default('tar') }} -xzf
+        {{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}/{{ inventory_hostname }}-{{ run_id }}.tar.gz
+        -C {{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}
+        --strip-components=1
+      delegate_to: localhost
+      run_once: false
+      when:
+        - per_host_output is defined
