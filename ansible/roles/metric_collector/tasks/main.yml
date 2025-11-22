@@ -1,0 +1,16 @@
+- name: Ensure collector output directory exists
+  file:
+    path: "{{ collector_output_dir | default('/tmp') }}"
+    state: directory
+    mode: "0755"
+
+- name: Placeholder metric collection
+  copy:
+    dest: "{{ collector_output_dir | default('/tmp') }}/metrics-{{ run_id | default('run') }}-{{ inventory_hostname }}.json"
+    content: |
+      {
+        "host": "{{ inventory_hostname }}",
+        "run_id": "{{ run_id | default('run') }}",
+        "timestamp": "{{ ansible_date_time.iso8601 }}",
+        "collector_config": {{ collector_config | default({}) | to_json }}
+      }

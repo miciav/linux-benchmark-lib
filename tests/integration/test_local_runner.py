@@ -10,9 +10,9 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from benchmark_config import BenchmarkConfig, MetricCollectorConfig, PerfConfig
-from orchestrator import Orchestrator
+from local_runner import LocalRunner
 
-class TestOrchestratorIntegration(unittest.TestCase):
+class TestLocalRunnerIntegration(unittest.TestCase):
 
     def setUp(self):
         """Imposta una directory temporanea per gli output dei test."""
@@ -25,10 +25,10 @@ class TestOrchestratorIntegration(unittest.TestCase):
         """Pulisce la directory temporanea."""
         shutil.rmtree(self.test_output_dir)
 
-    @patch('orchestrator.DataHandler')
-    @patch('orchestrator.StressNGGenerator')
-    @patch('orchestrator.PSUtilCollector')
-    @patch('orchestrator.Orchestrator._pre_test_cleanup')
+    @patch('local_runner.DataHandler')
+    @patch('local_runner.StressNGGenerator')
+    @patch('local_runner.PSUtilCollector')
+    @patch('local_runner.LocalRunner._pre_test_cleanup')
     def test_run_stress_ng_benchmark(self, mock_cleanup, mock_psutil_collector, mock_stress_ng_generator, mock_data_handler):
         """
         Testa un'esecuzione completa del benchmark stress-ng.
@@ -69,8 +69,8 @@ class TestOrchestratorIntegration(unittest.TestCase):
         )
 
         # Crea ed esegue l'orchestratore
-        orchestrator = Orchestrator(config)
-        orchestrator.run_benchmark("stress_ng")
+        runner = LocalRunner(config)
+        runner.run_benchmark("stress_ng")
 
         # --- Asserzioni ---
         # Verifica che il metodo di pulizia sia stato chiamato

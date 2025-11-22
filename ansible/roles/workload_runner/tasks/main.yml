@@ -1,0 +1,82 @@
+- name: Select workload runner mode
+  debug:
+    msg: >-
+      Workload runner mode={{ workload_runner_mode | default('execute') }}
+      tests={{ workload_runner_tests | default([]) }}
+      output={{ workload_runner_output_dir | default('/tmp') }}
+
+- name: Define workload runner workdir
+  set_fact:
+    workload_runner_workdir: "{{ workload_runner_workdir | default('/tmp/linux-benchmark-lib') }}"
+
+- name: Create workload runner workdir
+  file:
+    path: "{{ workload_runner_workdir }}"
+    state: directory
+    mode: "0755"
+
+- name: Synchronize project to remote host
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../{{ item }}"
+    dest: "{{ workload_runner_workdir }}/{{ item }}"
+    mode: preserve
+  loop:
+    - benchmark_config.py
+    - local_runner.py
+    - data_handler.py
+    - reporter.py
+    - metric_collectors
+    - workload_generators
+    - pyproject.toml
+    - uv.lock
+  when: workload_runner_mode == "execute"
+
+- name: Ensure workload output directory exists
+  file:
+    path: "{{ workload_runner_output_dir | default('/tmp') }}"
+    state: directory
+    mode: "0755"
+
+- name: Prepare benchmark configuration for this host
+  set_fact:
+    workload_runner_config_rendered: >-
+      {{
+        (workload_runner_config | default({}))
+        | combine({
+            'output_dir': workload_runner_output_dir | default('/tmp'),
+            'report_dir': (workload_runner_output_dir | default('/tmp')) ~ '/reports',
+            'data_export_dir': (workload_runner_output_dir | default('/tmp')) ~ '/exports',
+          }, recursive=True)
+      }}
+
+- name: Write benchmark configuration file
+  copy:
+    dest: "{{ workload_runner_workdir }}/benchmark_config.generated.json"
+    content: "{{ workload_runner_config_rendered | to_nice_json }}"
+
+- name: Install project in editable mode (explicit)
+  ansible.builtin.command:
+    cmd: "{{ workload_runner_workdir }}/.venv/bin/pip install -e ."
+    chdir: "{{ workload_runner_workdir }}"
+  when: workload_runner_install_deps | default(false)
+
+- name: Run configured benchmarks via local runner
+  ansible.builtin.shell: |
+    {{ workload_runner_workdir }}/.venv/bin/python - <<'PY'
+    from pathlib import Path
+    from benchmark_config import BenchmarkConfig
+    from local_runner import LocalRunner
+
+    config_path = Path("benchmark_config.generated.json")
+    with config_path.open() as fh:
+        cfg = BenchmarkConfig.from_json(fh.read())
+
+    runner = LocalRunner(cfg)
+    for test_name in {{ workload_runner_tests | default([]) | to_json }}:
+        runner.run_benchmark(test_name)
+    PY
+  args:
+    chdir: "{{ workload_runner_workdir }}"
+  when:
+    - workload_runner_mode == "execute"
+    - workload_runner_tests | default([]) | length > 0

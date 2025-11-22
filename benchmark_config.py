@@ -94,6 +94,55 @@ class MetricCollectorConfig:
     ])
     perf_config: PerfConfig = field(default_factory=PerfConfig)
     enable_ebpf: bool = False  # eBPF requires special privileges
+
+
+@dataclass
+class RemoteHostConfig:
+    """Configuration for a remote benchmark host."""
+
+    name: str = "localhost"
+    address: str = "127.0.0.1"
+    port: int = 22
+    user: str = "root"
+    become: bool = True
+    become_method: str = "sudo"
+    vars: Dict[str, Any] = field(default_factory=dict)
+
+    def ansible_host_line(self) -> str:
+        """Render the host as an Ansible inventory line."""
+        base = (
+            f"{self.name} ansible_host={self.address} "
+            f"ansible_port={self.port} ansible_user={self.user}"
+        )
+        become = ""
+        if self.become:
+            become = " ansible_become=true"
+            if self.become_method:
+                become += f" ansible_become_method={self.become_method}"
+        
+        extras_parts = []
+        for k, v in self.vars.items():
+            val_str = str(v)
+            if " " in val_str or "=" in val_str:
+                val_str = f'"{val_str}"'
+            extras_parts.append(f" {k}={val_str}")
+            
+        extras = "".join(extras_parts)
+        return f"{base}{become}{extras}"
+
+
+@dataclass
+class RemoteExecutionConfig:
+    """Configuration for remote execution via Ansible."""
+
+    enabled: bool = False
+    inventory_path: Optional[Path] = None
+    run_setup: bool = True
+    run_collect: bool = True
+    setup_playbook: Path = Path("ansible/playbooks/setup.yml")
+    run_playbook: Path = Path("ansible/playbooks/run_benchmark.yml")
+    collect_playbook: Path = Path("ansible/playbooks/collect.yml")
+    use_container_fallback: bool = False
     
     
 @dataclass
@@ -120,6 +169,10 @@ class BenchmarkConfig:
     
     # Metric collector configuration
     collectors: MetricCollectorConfig = field(default_factory=MetricCollectorConfig)
+
+    # Remote execution configuration
+    remote_hosts: List[RemoteHostConfig] = field(default_factory=list)
+    remote_execution: RemoteExecutionConfig = field(default_factory=RemoteExecutionConfig)
     
     # System information collection
     collect_system_info: bool = True
@@ -177,6 +230,18 @@ class BenchmarkConfig:
             if "perf_config" in data["collectors"]:
                 data["collectors"]["perf_config"] = PerfConfig(**data["collectors"]["perf_config"])
             data["collectors"] = MetricCollectorConfig(**data["collectors"])
+        if "remote_hosts" in data:
+            data["remote_hosts"] = [
+                RemoteHostConfig(**host_cfg) for host_cfg in data["remote_hosts"]
+            ]
+        if "remote_execution" in data:
+            remote_exec = data["remote_execution"]
+            if "inventory_path" in remote_exec and isinstance(remote_exec["inventory_path"], str):
+                remote_exec["inventory_path"] = Path(remote_exec["inventory_path"])
+            for key in ["setup_playbook", "run_playbook", "collect_playbook"]:
+                if key in remote_exec and isinstance(remote_exec[key], str):
+                    remote_exec[key] = Path(remote_exec[key])
+            data["remote_execution"] = RemoteExecutionConfig(**remote_exec)
         
         # Convert string paths to Path objects
         for key in ["output_dir", "report_dir", "data_export_dir"]:

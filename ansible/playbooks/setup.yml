@@ -1,0 +1,28 @@
+- name: Prepare benchmark hosts
+  hosts: all
+  gather_facts: false
+  become: true
+
+  vars:
+    run_id: "{{ run_id | default('unknown') }}"
+    use_container_fallback: "{{ use_container_fallback | default(false) }}"
+
+  tasks:
+    - name: Ensure base packages are installed
+      package:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - stress-ng
+          - iperf3
+          - fio
+          - sysstat
+        state: present
+        update_cache: true
+
+    - name: Include workload setup role
+      include_role:
+        name: workload_runner
+      vars:
+        workload_runner_mode: "prepare"

@@ -6,7 +6,8 @@ This module collects system metrics by invoking external CLI tools and parsing t
 
 import subprocess
 import logging
-from typing import Dict, Any
+import shlex
+from typing import Dict, Any, List
 from ._base_collector import BaseCollector
 import jc
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class CLICollector(BaseCollector):
     """Metric collector using CLI commands."""
     
-    def __init__(self, name: str = "CLICollector", interval_seconds: float = 1.0, commands: list = None):
+    def __init__(self, name: str = "CLICollector", interval_seconds: float = 1.0, commands: List[str] = None):
         """
         Initialize the CLI collector.
 
@@ -39,16 +40,30 @@ class CLICollector(BaseCollector):
         metrics = {}
         for command in self.commands:
             try:
-                # Run the command and decode the output
-                result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, check=True)
-                output = result.stdout.decode().strip()
+                # Run the command safely with a timeout to avoid hanging collectors
+                # Use shell=True to support pipes/redirections in custom commands
+                result = subprocess.run(
+                    command,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=True,
+                    timeout=self.interval_seconds + 1.0,
+                )
+                output = result.stdout.strip()
 
-                # Parse the output using jc (assuming JSON-like parsing available)
-                parsed = jc.parse(command.split()[0], output)
+                # Parse the output using jc; handle list/dict results
+                # We need the first token of the command for jc to know which parser to use
+                tool_name = shlex.split(command)[0]
+                parsed = jc.parse(tool_name, output)
+                if isinstance(parsed, list):
+                    parsed = parsed[0] if parsed and isinstance(parsed[0], dict) else {}
+                if isinstance(parsed, dict):
+                    metrics.update(parsed)
 
-                # Merge parsed results into metrics
-                metrics.update(parsed)
-
+            except subprocess.TimeoutExpired:
+                logger.error(f"Command '{command}' timed out after {self.interval_seconds}s")
             except subprocess.CalledProcessError as e:
                 logger.error(f"Command '{command}' failed to execute: {e}")
             except Exception as e:
@@ -83,4 +98,3 @@ class CLICollector(BaseCollector):
         """
         result = subprocess.run(["which", tool], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return result.returncode == 0
-

@@ -1,0 +1,23 @@
+- name: Collect benchmark artifacts
+  hosts: all
+  gather_facts: false
+  become: false
+
+  vars:
+    run_id: "{{ run_id | default('unknown') }}"
+    remote_output_root: "{{ remote_output_root | default('/tmp/benchmark_results') }}"
+    data_export_root: "{{ data_export_root | default('/tmp/data_exports') }}"
+
+  tasks:
+    - name: Archive host benchmark data
+      command: >
+        tar -czf /tmp/{{ inventory_hostname }}-{{ run_id }}.tar.gz
+        -C {{ remote_output_root }} {{ inventory_hostname }}
+      when: remote_output_root is defined
+
+    - name: Fetch archived data
+      fetch:
+        src: "/tmp/{{ inventory_hostname }}-{{ run_id }}.tar.gz"
+        dest: "{{ data_export_root }}/"
+        flat: true
+      when: output_root is defined

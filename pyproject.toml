@@ -3,7 +3,7 @@ name = "linux-benchmark-lib"
 version = "0.1.0"
 description = "A robust and configurable Python library for benchmarking Linux computational node performance"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 authors = [
     { name = "Your Name", email = "your.email@example.com" }
 ]
@@ -16,6 +16,8 @@ dependencies = [
     "iperf3>=0.1.11",
     "jc>=1.23.0",
     "influxdb-client>=1.36.0",
+    "ansible-runner>=2.4.0",
+    "ansible-core>=2.15.0",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +31,7 @@ dev = [
     "pydocstyle>=6.3.0",
     "mypy>=1.0.0",
     "pre-commit>=3.2.0",
+    "ansible-runner>=2.4.0",
 ]
 
 [build-system]
@@ -36,7 +39,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["benchmark_config", "orchestrator", "data_handler", "reporter"]
+py-modules = ["benchmark_config", "orchestrator", "local_runner", "data_handler", "reporter"]
 
 [tool.setuptools.packages.find]
 include = ["metric_collectors*", "workload_generators*"]
@@ -44,7 +47,7 @@ exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [tool.black]
 line-length = 88
-target-version = ['py313']
+target-version = ['py312']
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -70,7 +73,7 @@ python_classes = "Test*"
 python_functions = "test_*"
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

@@ -13,6 +13,7 @@ Questa libreria permette l'estrazione di array di valori dettagliati per diverse
 - **Aggregazione Dati Intelligente**: DataFrame Pandas con metriche come indici e ripetizioni come colonne
 - **Report Completi**: Report testuali e visualizzazioni grafiche
 - **Altamente Configurabile**: Configurazione centralizzata tramite dataclasses
+- **Esecuzione Remota**: Controller Python + Ansible Runner per orchestrare benchmark su host remoti o su `localhost`
 
 ## Requisiti
 
@@ -66,7 +67,9 @@ uv pip install -e ".[dev]"
 
 ```python
 from benchmark_config import BenchmarkConfig
-from orchestrator import Orchestrator
+from local_runner import LocalRunner
+from orchestrator import BenchmarkOrchestrator
+from benchmark_config import RemoteHostConfig, RemoteExecutionConfig
 
 # Crea configurazione
 config = BenchmarkConfig(
@@ -75,14 +78,19 @@ config = BenchmarkConfig(
     metrics_interval_seconds=1.0
 )
 
-# Crea orchestrator
-orchestrator = Orchestrator(config)
+# Esecuzione locale diretta (senza Ansible)
+runner = LocalRunner(config)
+runner.run_benchmark("stress_ng")
 
-# Esegui benchmark CPU/Memory
-orchestrator.run_benchmark("stress_ng")
-
-# Esegui tutti i benchmark
-orchestrator.run_all_benchmarks()
+# Esecuzione remota (inventory dinamico, usa ansible-runner)
+# Questo è il metodo consigliato per benchmark completi
+remote_config = BenchmarkConfig(
+    remote_hosts=[RemoteHostConfig(name="node1", address="192.168.1.10", user="ubuntu")],
+    remote_execution=RemoteExecutionConfig(enabled=True),
+)
+orchestrator = BenchmarkOrchestrator(remote_config)
+summary = orchestrator.run(["stress_ng"], run_id="demo-run")
+print(summary.per_host_output)
 ```
 
 ## Struttura del Progetto
@@ -90,7 +98,8 @@ orchestrator.run_all_benchmarks()
 ```
 linux-benchmark-lib/
 ├── benchmark_config.py      # Configurazione centralizzata
-├── orchestrator.py          # Gestione del processo di benchmark
+├── orchestrator.py          # Orchestratore remoto basato su Ansible Runner
+├── local_runner.py          # Agente locale per esecuzione benchmark su singolo nodo
 ├── data_handler.py          # Elaborazione e aggregazione dati
 ├── reporter.py              # Generazione report e visualizzazioni
 ├── metric_collectors/       # Collezionisti di metriche
@@ -107,6 +116,15 @@ linux-benchmark-lib/
 │   ├── iperf3_generator.py
 │   ├── dd_generator.py
 │   └── fio_generator.py
+├── ansible/                 # Playbook e ruoli per esecuzione remota
+│   ├── ansible.cfg
+│   ├── playbooks/
+│   │   ├── setup.yml
+│   │   ├── run_benchmark.yml
+│   │   └── collect.yml
+│   └── roles/
+│       ├── workload_runner/
+│       └── metric_collector/
 ├── tests/                   # Test unitari e di integrazione
 ├── docs/                    # Documentazione
 └── pyproject.toml          # Configurazione progetto
@@ -147,6 +165,17 @@ I risultati vengono salvati in tre directory:
 - `benchmark_results/`: Dati raw delle metriche
 - `reports/`: Report testuali e grafici
 - `data_exports/`: Dati aggregati in formato CSV/JSON
+- In modalità remota i risultati sono separati per `run_id/host` (es. `benchmark_results/run-YYYYmmdd-HHMMSS/node1/...`).
+
+## Esecuzione remota con Ansible Runner
+
+- Configura i target con `RemoteHostConfig` e abilita `remote_execution`.
+- Il controller usa `ansible-runner` e i playbook in `ansible/playbooks`:
+  - `setup.yml`: prepara i pacchetti di base.
+  - `run_benchmark.yml`: invoca ruoli `workload_runner` e `metric_collector`.
+  - `collect.yml`: archivia e scarica gli artefatti per host.
+- Puoi usare `localhost` come host per prove rapide (`user` coerente con la tua macchina).
+- Installa la dipendenza: `uv pip install ansible-runner`.
 
 Il DataFrame finale ha questa struttura:
 - **Indice**: Nomi delle metriche (es. `cpu_usage_percent_avg`)
