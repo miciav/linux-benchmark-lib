@@ -32,6 +32,8 @@ class TestBenchmarkConfig:
         assert isinstance(config.iperf3, IPerf3Config)
         assert isinstance(config.dd, DDConfig)
         assert isinstance(config.fio, FIOConfig)
+        assert "stress_ng" in config.workloads
+        assert config.workloads["stress_ng"].plugin == "stress_ng"
         
     def test_custom_config_creation(self):
         """Test creating a config with custom values."""
@@ -44,6 +46,7 @@ class TestBenchmarkConfig:
         assert config.repetitions == 5
         assert config.test_duration_seconds == 120
         assert config.stress_ng.cpu_workers == 4
+        assert config.workloads["stress_ng"].options["cpu_workers"] == 4
         
     def test_config_directories_creation(self):
         """Test that output directories are created."""
@@ -67,6 +70,7 @@ class TestBenchmarkConfig:
         assert data["repetitions"] == 7
         assert "stress_ng" in data
         assert "collectors" in data
+        assert "workloads" in data
         
     def test_config_save_load(self):
         """Test saving and loading config."""
@@ -88,6 +92,7 @@ class TestBenchmarkConfig:
             assert loaded_config.repetitions == 10
             assert loaded_config.test_duration_seconds == 90
             assert loaded_config.stress_ng.cpu_workers == 8
+            assert loaded_config.workloads["stress_ng"].options["cpu_workers"] == 8
             
         finally:
             config_path.unlink()

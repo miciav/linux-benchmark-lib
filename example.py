@@ -35,7 +35,7 @@ def setup_logging():
 
 def create_custom_config() -> BenchmarkConfig:
     """Create a custom benchmark configuration."""
-    return BenchmarkConfig(
+    config = BenchmarkConfig(
         # Test execution parameters
         repetitions=3,
         test_duration_seconds=30,  # Shorter duration for example
@@ -89,6 +89,9 @@ def create_custom_config() -> BenchmarkConfig:
             enable_ebpf=False  # Requires root and BCC tools
         )
     )
+    # Example of tweaking a workload via the plugin configuration
+    config.workloads["stress_ng"].options["cpu_workers"] = 2
+    return config
 
 
 def run_single_benchmark(config: BenchmarkConfig, test_type: str):

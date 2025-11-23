@@ -33,6 +33,7 @@
     - local_runner.py
     - data_handler.py
     - reporter.py
+    - plugins
     - metric_collectors
     - workload_generators
     - pyproject.toml
@@ -108,6 +109,7 @@
     sys.path.insert(0, str(workdir))
     sys.path.insert(0, str(workdir / "metric_collectors"))
     sys.path.insert(0, str(workdir / "workload_generators"))
+    sys.path.insert(0, str(workdir / "plugins"))
     from benchmark_config import BenchmarkConfig
     from local_runner import LocalRunner
 
@@ -126,7 +128,8 @@
   args:
     chdir: "{{ workload_runner_workdir }}"
   environment:
-    PYTHONPATH: "{{ workload_runner_workdir }}:{{ lookup('env', 'PYTHONPATH') | default('') }}"
+    PYTHONPATH: >-
+      {{ workload_runner_workdir }}:{{ workload_runner_workdir }}/plugins:{{ lookup('env', 'PYTHONPATH') | default('') }}
     PYTHONUNBUFFERED: "1"
   loop: "{{ workload_runner_tests | default([]) }}"
   loop_control:

@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol
 
 from benchmark_config import BenchmarkConfig, RemoteHostConfig
+from plugins.builtin import builtin_plugins
+from plugins.registry import PluginRegistry, print_plugin_table
 
 
 logger = logging.getLogger(__name__)
@@ -233,6 +235,9 @@ class BenchmarkOrchestrator:
     ):
         self.config = config
         self.executor = executor or AnsibleRunnerExecutor()
+        self.plugin_registry = PluginRegistry(builtin_plugins())
+        enabled = {name: wl.enabled for name, wl in self.config.workloads.items()}
+        print_plugin_table(self.plugin_registry, enabled=enabled)
 
     def run(
         self,

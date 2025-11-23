@@ -5,20 +5,24 @@ This module coordinates the execution of workload generators and metric collecto
 managing the overall benchmark workflow.
 """
 
+from __future__ import annotations
+
+import json
 import logging
-import time
-from datetime import datetime
-from pathlib import Path
-from typing import List, Dict, Any, Optional
 import platform
 import subprocess
-import json
+import time
+from datetime import datetime
 from json import JSONEncoder
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from benchmark_config import BenchmarkConfig
-from metric_collectors import PSUtilCollector, CLICollector, PerfCollector, EBPFCollector
-from workload_generators import StressNGGenerator, IPerf3Generator, DDGenerator, FIOGenerator
+from benchmark_config import BenchmarkConfig, WorkloadConfig
 from data_handler import DataHandler
+from metric_collectors import CLICollector, EBPFCollector, PSUtilCollector, PerfCollector
+from plugins.builtin import builtin_plugins
+from plugins.registry import PluginRegistry, print_plugin_table
+from workload_generators import DDGenerator, FIOGenerator, IPerf3Generator, StressNGGenerator
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +39,7 @@ class DateTimeEncoder(JSONEncoder):
 class LocalRunner:
     """Local agent for executing benchmarks on a single node."""
     
-    def __init__(self, config: BenchmarkConfig):
+    def __init__(self, config: BenchmarkConfig, registry: PluginRegistry | None = None):
         """
         Initialize the local runner.
         
@@ -46,6 +50,8 @@ class LocalRunner:
         self.data_handler = DataHandler()
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
+        self.plugin_registry = registry or PluginRegistry(builtin_plugins())
+        self._print_available_plugins()
         
     def collect_system_info(self) -> Dict[str, Any]:
         """
@@ -291,37 +297,26 @@ class LocalRunner:
         Run a complete benchmark test.
         
         Args:
-            test_type: Type of test to run ('stress_ng', 'iperf3', 'dd', 'fio')
+            test_type: Name of the workload to run (plugin id)
         """
         logger.info(f"Starting benchmark: {test_type}")
         
         # Collect system info if enabled
         if self.config.collect_system_info and not self.system_info:
             self.collect_system_info()
-        
-        # Create generator based on test type
-        if test_type == "stress_ng":
-            generator_class = StressNGGenerator
-            generator_config = self.config.stress_ng
-        elif test_type == "iperf3":
-            generator_class = IPerf3Generator
-            generator_config = self.config.iperf3
-        elif test_type == "dd":
-            generator_class = DDGenerator
-            generator_config = self.config.dd
-        elif test_type == "fio":
-            generator_class = FIOGenerator
-            generator_config = self.config.fio
-        else:
-            raise ValueError(f"Unknown test type: {test_type}")
-        
+
+        workload_cfg = self._resolve_workload(test_type)
+        plugin_name = workload_cfg.plugin
+
         # Run multiple repetitions
         test_results = []
         for rep in range(1, self.config.repetitions + 1):
             logger.info(f"Starting repetition {rep}/{self.config.repetitions}")
             
             try:
-                generator = generator_class(generator_config)
+                generator = self.plugin_registry.create_generator(
+                    plugin_name, workload_cfg.options
+                )
                 result = self._run_single_test(
                     test_name=test_type,
                     generator=generator,
@@ -362,13 +357,28 @@ class LocalRunner:
             csv_file = self.config.data_export_dir / f"{test_name}_aggregated.csv"
             aggregated_df.to_csv(csv_file)
             logger.info(f"Saved aggregated results to {csv_file}")
+
+    def _resolve_workload(self, name: str) -> WorkloadConfig:
+        """Return the workload configuration ensuring it is enabled."""
+        workload = self.config.workloads.get(name)
+        if workload is None:
+            raise ValueError(f"Unknown workload: {name}")
+        if not workload.enabled:
+            raise ValueError(f"Workload '{name}' is disabled in the configuration")
+        return workload
+
+    def _print_available_plugins(self) -> None:
+        """Print the available workload plugins at startup."""
+        enabled = {name: wl.enabled for name, wl in self.config.workloads.items()}
+        print_plugin_table(self.plugin_registry, enabled=enabled)
     
     def run_all_benchmarks(self) -> None:
         """Run all configured benchmark tests."""
-        test_types = ["stress_ng", "iperf3", "dd", "fio"]
-        
-        for test_type in test_types:
+        for test_name, workload in self.config.workloads.items():
+            if not workload.enabled:
+                logger.info("Skipping disabled workload '%s'", test_name)
+                continue
             try:
-                self.run_benchmark(test_type)
+                self.run_benchmark(test_name)
             except Exception as e:
-                logger.error(f"Failed to run {test_type} benchmark: {e}", exc_info=True)
+                logger.error(f"Failed to run {test_name} benchmark: {e}", exc_info=True)

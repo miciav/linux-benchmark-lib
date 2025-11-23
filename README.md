@@ -9,7 +9,7 @@ Run repeatable workloads and collect detailed system metrics under synthetic loa
 ## Key Features
 
 - **Multi-level metrics**: PSUtil, Linux CLI tools, perf events, optional eBPF
-- **Flexible workloads**: stress-ng, iperf3, dd, fio
+- **Plugin workloads**: stress-ng, iperf3, dd, fio shipped as plugins, extensible via entry points
 - **Data aggregation**: Pandas DataFrames with metrics as index, repetitions as columns
 - **Reporting**: Text reports and plots
 - **Centralized config**: Typed dataclasses for all knobs
@@ -32,7 +32,7 @@ seaborn>=0.12.0
 iperf3>=0.1.11
 performance>=0.3.0
 jc>=1.23.0
-influxdb-client>=1.36.0
+influxdb-client>=1.36.0   # opzionale, usato solo per esportare su InfluxDB
 ```
 
 ### Required External Software
@@ -57,6 +57,20 @@ cd linux-benchmark-lib
 uv venv
 uv pip install -e .
 ```
+
+Tip: if you want the `lb` CLI available globally without activating the venv,
+you can install it as a user tool:
+```bash
+uv tool install -e .
+```
+
+### CLI (lb)
+
+See `CLI.md` for the full command reference. Highlights:
+- Config and defaults: `lb config init`, `lb config set-default`, `lb config edit`, `lb config workloads`, `lb plugins --enable/--disable NAME` (shows enabled state with checkmarks).
+- Discovery and run: `lb plugins`, `lb hosts`, `lb run [tests...]` (follows config for local/remote unless overridden).
+- Health checks: `lb doctor controller`, `lb doctor local-tools`, `lb doctor multipass`, `lb doctor all`.
+- Integration helper: `lb test multipass` (artifacts to `tests/results` by default).
 
 3. Install development dependencies:
 ```bash
@@ -91,6 +105,17 @@ remote_config = BenchmarkConfig(
 orchestrator = BenchmarkOrchestrator(remote_config)
 summary = orchestrator.run(["stress_ng"], run_id="demo-run")
 print(summary.per_host_output)
+
+# Add a custom workload plugin (packaged in your project)
+# 1. expose it via an entry point "linux_benchmark.workloads"
+# 2. add its configuration under config.workloads["my_workload"]
+from benchmark_config import WorkloadConfig
+config.workloads["my_workload"] = WorkloadConfig(
+    plugin="my_workload",  # matches the entry point name
+    enabled=True,
+    options={"threads": 4},
+)
+runner.run_benchmark("my_workload")
 ```
 
 ## Project Layout

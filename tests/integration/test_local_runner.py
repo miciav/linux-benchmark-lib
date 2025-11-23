@@ -26,10 +26,9 @@ class TestLocalRunnerIntegration(unittest.TestCase):
         shutil.rmtree(self.test_output_dir)
 
     @patch('local_runner.DataHandler')
-    @patch('local_runner.StressNGGenerator')
     @patch('local_runner.PSUtilCollector')
     @patch('local_runner.LocalRunner._pre_test_cleanup')
-    def test_run_stress_ng_benchmark(self, mock_cleanup, mock_psutil_collector, mock_stress_ng_generator, mock_data_handler):
+    def test_run_stress_ng_benchmark(self, mock_cleanup, mock_psutil_collector, mock_data_handler):
         """
         Testa un'esecuzione completa del benchmark stress-ng.
         Simula il generatore di carico e i collettori effettivi per evitare di eseguire comandi di sistema.
@@ -38,7 +37,6 @@ class TestLocalRunnerIntegration(unittest.TestCase):
         # Mock dell'istanza del generatore
         mock_gen_instance = MagicMock()
         mock_gen_instance.get_result.return_value = {"status": "success"}
-        mock_stress_ng_generator.return_value = mock_gen_instance
 
         # Mock dell'istanza del collettore
         mock_col_instance = MagicMock()
@@ -68,8 +66,11 @@ class TestLocalRunnerIntegration(unittest.TestCase):
             collectors=MetricCollectorConfig(cli_commands=None, perf_config=PerfConfig(events=None), enable_ebpf=False)
         )
 
+        registry = MagicMock()
+        registry.create_generator.return_value = mock_gen_instance
+
         # Crea ed esegue l'orchestratore
-        runner = LocalRunner(config)
+        runner = LocalRunner(config, registry=registry)
         runner.run_benchmark("stress_ng")
 
         # --- Asserzioni ---
@@ -77,7 +78,7 @@ class TestLocalRunnerIntegration(unittest.TestCase):
         mock_cleanup.assert_called_once()
 
         # Verifica che il generatore sia stato inizializzato e utilizzato
-        mock_stress_ng_generator.assert_called_once_with(config.stress_ng)
+        registry.create_generator.assert_called()
         mock_gen_instance.start.assert_called_once()
         mock_gen_instance.stop.assert_called_once()
 

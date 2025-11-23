@@ -5,7 +5,7 @@ This module provides centralized configuration management for all benchmark test
 including test parameters, workload generator settings, and metric collector settings.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import json
@@ -146,6 +146,15 @@ class RemoteExecutionConfig:
     
     
 @dataclass
+class WorkloadConfig:
+    """Configuration wrapper for workload plugins."""
+
+    plugin: str
+    enabled: bool = True
+    options: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class BenchmarkConfig:
     """Main configuration for benchmark tests."""
     
@@ -170,6 +179,9 @@ class BenchmarkConfig:
     # Metric collector configuration
     collectors: MetricCollectorConfig = field(default_factory=MetricCollectorConfig)
 
+    # Workload plugin configuration (name -> config)
+    workloads: Dict[str, WorkloadConfig] = field(default_factory=dict)
+
     # Remote execution configuration
     remote_hosts: List[RemoteHostConfig] = field(default_factory=list)
     remote_execution: RemoteExecutionConfig = field(default_factory=RemoteExecutionConfig)
@@ -189,6 +201,8 @@ class BenchmarkConfig:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.report_dir.mkdir(parents=True, exist_ok=True)
         self.data_export_dir.mkdir(parents=True, exist_ok=True)
+        if not self.workloads:
+            self.workloads = self._build_default_workloads()
     
     def to_json(self) -> str:
         """Convert configuration to JSON string."""
@@ -201,6 +215,8 @@ class BenchmarkConfig:
                 return {k: _convert(v) for k, v in obj.__dict__.items()}
             elif isinstance(obj, Path):
                 return str(obj)
+            elif isinstance(obj, dict):
+                return {k: _convert(v) for k, v in obj.items()}
             elif isinstance(obj, list):
                 return [_convert(item) for item in obj]
             else:
@@ -247,6 +263,16 @@ class BenchmarkConfig:
         for key in ["output_dir", "report_dir", "data_export_dir"]:
             if key in data and isinstance(data[key], str):
                 data[key] = Path(data[key])
+
+        if "workloads" in data:
+            data["workloads"] = {
+                name: WorkloadConfig(
+                    plugin=cfg.get("plugin", name),
+                    enabled=cfg.get("enabled", True),
+                    options=cfg.get("options", {}),
+                )
+                for name, cfg in data["workloads"].items()
+            }
         
         return cls(**data)
     
@@ -261,6 +287,40 @@ class BenchmarkConfig:
         with open(filepath, "r") as f:
             return cls.from_json(f.read())
 
+    def _build_default_workloads(self) -> Dict[str, "WorkloadConfig"]:
+        """Create workload entries from legacy config fields."""
+        return {
+            "stress_ng": WorkloadConfig(
+                plugin="stress_ng",
+                enabled=True,
+                options=asdict(self.stress_ng),
+            ),
+            "iperf3": WorkloadConfig(
+                plugin="iperf3",
+                enabled=True,
+                options=asdict(self.iperf3),
+            ),
+            "dd": WorkloadConfig(
+                plugin="dd",
+                enabled=True,
+                options=asdict(self.dd),
+            ),
+            "fio": WorkloadConfig(
+                plugin="fio",
+                enabled=True,
+                options=asdict(self.fio),
+            ),
+        }
+
 
 # Default configuration instance
 default_config = BenchmarkConfig()
+
+
+@dataclass
+class WorkloadConfig:
+    """Configuration wrapper for workload plugins."""
+
+    plugin: str
+    enabled: bool = True
+    options: Dict[str, Any] = field(default_factory=dict)

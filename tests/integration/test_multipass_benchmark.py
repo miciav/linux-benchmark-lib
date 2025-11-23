@@ -105,6 +105,11 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     """
     Test the full remote benchmark execution flow on a Multipass VM.
     """
+    base_dir = Path(os.environ.get("LB_TEST_RESULTS_DIR", tmp_path))
+    output_dir = base_dir / "results"
+    report_dir = base_dir / "reports"
+    export_dir = base_dir / "exports"
+
     # Create configuration
     host_config = RemoteHostConfig(
         name=multipass_vm["name"],
@@ -119,9 +124,9 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
 
     # Run a very short stress-ng test
     config = BenchmarkConfig(
-        output_dir=tmp_path / "results",
-        report_dir=tmp_path / "reports",
-        data_export_dir=tmp_path / "exports",
+        output_dir=output_dir,
+        report_dir=report_dir,
+        data_export_dir=export_dir,
         remote_hosts=[host_config],
         remote_execution=RemoteExecutionConfig(
             enabled=True,
