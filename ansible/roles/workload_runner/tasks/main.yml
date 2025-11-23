@@ -78,11 +78,19 @@
     - workload_runner_mode == "execute"
     - workload_runner_install_deps | default(false)
 
-- name: Run configured benchmarks via local runner
+- name: Run benchmark via local runner
   ansible.builtin.shell: |
     {{ workload_runner_workdir }}/.venv/bin/python - <<'PY' | tee -a "{{ workload_runner_output_dir | default('/tmp') }}/runner.log"
     from pathlib import Path
     import sys
+    import logging
+
+    # Configure logging to ensure output is captured
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        stream=sys.stdout
+    )
 
     # __file__ is not defined in stdin scripts; use cwd provided by Ansible
     workdir = Path.cwd().resolve()
@@ -97,18 +105,20 @@
         cfg = BenchmarkConfig.from_json(fh.read())
 
     runner = LocalRunner(cfg)
-    tests = {{ workload_runner_tests | default([]) | to_json }}
-    print(f"Running benchmarks: {tests}", flush=True)
-    for test_name in tests:
-        print(f"\n>>> Starting {test_name}", flush=True)
-        runner.run_benchmark(test_name)
-        print(f"<<< Finished {test_name}\n", flush=True)
+    test_name = "{{ item }}"
+    print(f"Running benchmark: {test_name}", flush=True)
+    
+    print(f"\n>>> Starting {test_name}", flush=True)
+    runner.run_benchmark(test_name)
+    print(f"<<< Finished {test_name}\n", flush=True)
     PY
   args:
     chdir: "{{ workload_runner_workdir }}"
   environment:
     PYTHONPATH: "{{ workload_runner_workdir }}:{{ lookup('env', 'PYTHONPATH') | default('') }}"
     PYTHONUNBUFFERED: "1"
+  loop: "{{ workload_runner_tests | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
   when:
     - workload_runner_mode == "execute"
-    - workload_runner_tests | default([]) | length > 0
