@@ -95,9 +95,18 @@ class StressNGGenerator(BaseGenerator):
                 text=True
             )
             
-            # Wait for process to complete
-            stdout, stderr = self._process.communicate()
-            
+            # Wait for process to complete with a safety timeout
+            # Add 5 seconds buffer to the configured timeout
+            safety_timeout = self.config.timeout + 5
+            try:
+                stdout, stderr = self._process.communicate(timeout=safety_timeout)
+            except subprocess.TimeoutExpired:
+                logger.error(f"stress-ng timed out after {safety_timeout}s")
+                self._process.kill()
+                stdout, stderr = self._process.communicate()
+                self._result = {"error": "TimeoutExpired", "stdout": stdout, "stderr": stderr}
+                return
+
             # Store the result
             self._result = {
                 "stdout": stdout,

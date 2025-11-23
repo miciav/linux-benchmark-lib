@@ -502,21 +502,25 @@ name = "linux-benchmark-lib"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "ansible-core" },
-    { name = "ansible-runner" },
-    { name = "influxdb-client" },
     { name = "iperf3" },
     { name = "jc" },
-    { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "psutil" },
     { name = "rich" },
-    { name = "seaborn" },
     { name = "typer" },
 ]
 
 [package.optional-dependencies]
+controller = [
+    { name = "ansible-core" },
+    { name = "ansible-runner" },
+    { name = "influxdb-client" },
+    { name = "matplotlib" },
+    { name = "seaborn" },
+]
+
+[package.dev-dependencies]
 dev = [
     { name = "ansible-runner" },
     { name = "black" },
@@ -530,43 +534,35 @@ dev = [
     { name = "pytest-mock" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "psutil" },
-    { name = "pytest" },
-]
-
 [package.metadata]
 requires-dist = [
-    { name = "ansible-core", specifier = ">=2.15.0" },
-    { name = "ansible-runner", specifier = ">=2.4.0" },
-    { name = "ansible-runner", marker = "extra == 'dev'", specifier = ">=2.4.0" },
-    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
-    { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0" },
-    { name = "influxdb-client", specifier = ">=1.36.0" },
+    { name = "ansible-core", marker = "extra == 'controller'", specifier = ">=2.15.0" },
+    { name = "ansible-runner", marker = "extra == 'controller'", specifier = ">=2.4.0" },
+    { name = "influxdb-client", marker = "extra == 'controller'", specifier = ">=1.36.0" },
     { name = "iperf3", specifier = ">=0.1.11" },
     { name = "jc", specifier = ">=1.23.0" },
-    { name = "matplotlib", specifier = ">=3.7.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "matplotlib", marker = "extra == 'controller'", specifier = ">=3.7.0" },
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "pandas", specifier = ">=2.0.0" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.2.0" },
     { name = "psutil", specifier = ">=7.0.0" },
-    { name = "psutil", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "pydocstyle", marker = "extra == 'dev'", specifier = ">=6.3.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.3.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.10.0" },
     { name = "rich", specifier = ">=13.7.0" },
-    { name = "seaborn", specifier = ">=0.12.0" },
+    { name = "seaborn", marker = "extra == 'controller'", specifier = ">=0.12.0" },
     { name = "typer", specifier = ">=0.12.5" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["controller"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "ansible-runner", specifier = ">=2.4.0" },
+    { name = "black", specifier = ">=23.0.0" },
+    { name = "flake8", specifier = ">=6.0.0" },
+    { name = "mypy", specifier = ">=1.0.0" },
+    { name = "pre-commit", specifier = ">=3.2.0" },
     { name = "psutil", specifier = ">=7.0.0" },
-    { name = "pytest", specifier = ">=8.4.1" },
+    { name = "pydocstyle", specifier = ">=6.3.0" },
+    { name = "pytest", specifier = ">=7.3.0" },
+    { name = "pytest-cov", specifier = ">=4.0.0" },
+    { name = "pytest-mock", specifier = ">=3.10.0" },
 ]
 
 [[package]]

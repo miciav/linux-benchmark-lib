@@ -26,9 +26,8 @@ class TestLocalRunnerIntegration(unittest.TestCase):
         shutil.rmtree(self.test_output_dir)
 
     @patch('local_runner.DataHandler')
-    @patch('local_runner.PSUtilCollector')
     @patch('local_runner.LocalRunner._pre_test_cleanup')
-    def test_run_stress_ng_benchmark(self, mock_cleanup, mock_psutil_collector, mock_data_handler):
+    def test_run_stress_ng_benchmark(self, mock_cleanup, mock_data_handler):
         """
         Testa un'esecuzione completa del benchmark stress-ng.
         Simula il generatore di carico e i collettori effettivi per evitare di eseguire comandi di sistema.
@@ -45,7 +44,6 @@ class TestLocalRunnerIntegration(unittest.TestCase):
             {'timestamp': '2025-01-01T12:00:00', 'cpu_percent': 50.0},
             {'timestamp': '2025-01-01T12:00:01', 'cpu_percent': 55.0},
         ]
-        mock_psutil_collector.return_value = mock_col_instance
         
         # Mock del DataHandler
         mock_data_handler_instance = MagicMock()
@@ -68,6 +66,7 @@ class TestLocalRunnerIntegration(unittest.TestCase):
 
         registry = MagicMock()
         registry.create_generator.return_value = mock_gen_instance
+        registry.create_collectors.return_value = [mock_col_instance]
 
         # Crea ed esegue il controller locale
         runner = LocalRunner(config, registry=registry)
@@ -83,7 +82,7 @@ class TestLocalRunnerIntegration(unittest.TestCase):
         mock_gen_instance.stop.assert_called_once()
 
         # Verifica che il collettore sia stato inizializzato e utilizzato
-        mock_psutil_collector.assert_called_once()
+        registry.create_collectors.assert_called_once()
         mock_col_instance.start.assert_called_once()
         mock_col_instance.stop.assert_called_once()
         mock_col_instance.save_data.assert_called_once()
