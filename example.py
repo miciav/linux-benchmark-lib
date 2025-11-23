@@ -17,8 +17,10 @@ from benchmark_config import (
     MetricCollectorConfig,
     PerfConfig
 )
-from orchestrator import Orchestrator
+from local_runner import LocalRunner
 from reporter import Reporter
+from plugins.builtin import builtin_plugins
+from plugins.registry import PluginRegistry
 
 
 def setup_logging():
@@ -35,7 +37,7 @@ def setup_logging():
 
 def create_custom_config() -> BenchmarkConfig:
     """Create a custom benchmark configuration."""
-    return BenchmarkConfig(
+    config = BenchmarkConfig(
         # Test execution parameters
         repetitions=3,
         test_duration_seconds=30,  # Shorter duration for example
@@ -89,18 +91,25 @@ def create_custom_config() -> BenchmarkConfig:
             enable_ebpf=False  # Requires root and BCC tools
         )
     )
+    # Example of tweaking a workload via the plugin configuration
+    config.workloads["stress_ng"].options["cpu_workers"] = 2
+    return config
 
 
-def run_single_benchmark(config: BenchmarkConfig, test_type: str):
+def run_single_benchmark(
+    config: BenchmarkConfig,
+    test_type: str,
+    registry: PluginRegistry,
+) -> None:
     """Run a single benchmark test."""
     print(f"\n{'='*60}")
     print(f"Running {test_type} benchmark")
     print(f"{'='*60}\n")
     
-    orchestrator = Orchestrator(config)
+    runner = LocalRunner(config, registry=registry)
     
     # Collect system information
-    system_info = orchestrator.collect_system_info()
+    system_info = runner.collect_system_info()
     print("System Information:")
     print(f"  Platform: {system_info['platform']['system']} {system_info['platform']['release']}")
     print(f"  Machine: {system_info['platform']['machine']}")
@@ -108,7 +117,7 @@ def run_single_benchmark(config: BenchmarkConfig, test_type: str):
     
     # Run the benchmark
     try:
-        orchestrator.run_benchmark(test_type)
+        runner.run_benchmark(test_type)
         print(f"\n✅ {test_type} benchmark completed successfully!")
     except Exception as e:
         print(f"\n❌ {test_type} benchmark failed: {e}")
@@ -162,7 +171,8 @@ def main():
     # - fio: Should work if installed
     
     # Example: Run only stress-ng benchmark
-    run_single_benchmark(config, "stress_ng")
+    registry = PluginRegistry(builtin_plugins())
+    run_single_benchmark(config, "stress_ng", registry)
     
     # Uncomment to run other benchmarks:
     # run_single_benchmark(config, "dd")

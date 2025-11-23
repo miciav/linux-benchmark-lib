@@ -1,24 +1,26 @@
 """
-Orchestrator module for managing the benchmark process.
+Local controller module for managing the benchmark process.
 
 This module coordinates the execution of workload generators and metric collectors,
 managing the overall benchmark workflow.
 """
 
+from __future__ import annotations
+
+import json
 import logging
+import platform
+import shutil
+import subprocess
 import time
 from datetime import datetime
-from pathlib import Path
-from typing import List, Dict, Any, Optional
-import platform
-import subprocess
-import json
 from json import JSONEncoder
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from benchmark_config import BenchmarkConfig
-from metric_collectors import PSUtilCollector, CLICollector, PerfCollector, EBPFCollector
-from workload_generators import StressNGGenerator, IPerf3Generator, DDGenerator, FIOGenerator
+from benchmark_config import BenchmarkConfig, WorkloadConfig
 from data_handler import DataHandler
+from plugins.registry import PluginRegistry, print_plugin_table
 
 
 logger = logging.getLogger(__name__)
@@ -32,12 +34,12 @@ class DateTimeEncoder(JSONEncoder):
         return super().default(obj)
 
 
-class Orchestrator:
-    """Main orchestrator for benchmark execution."""
+class LocalRunner:
+    """Local agent for executing benchmarks on a single node."""
     
-    def __init__(self, config: BenchmarkConfig):
+    def __init__(self, config: BenchmarkConfig, registry: PluginRegistry):
         """
-        Initialize the orchestrator.
+        Initialize the local runner.
         
         Args:
             config: Benchmark configuration
@@ -46,6 +48,7 @@ class Orchestrator:
         self.data_handler = DataHandler()
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
+        self.plugin_registry = registry
         
     def collect_system_info(self) -> Dict[str, Any]:
         """
@@ -56,6 +59,12 @@ class Orchestrator:
         """
         logger.info("Collecting system information")
         
+        try:
+            import psutil
+        except ImportError:
+            logger.warning("psutil not found, system info will be limited")
+            psutil = None
+
         info = {
             "timestamp": datetime.now().isoformat(),
             "platform": {
@@ -72,46 +81,45 @@ class Orchestrator:
             }
         }
         
-        # Collect additional Linux-specific information
+        if psutil:
+            # CPU information via psutil
+            try:
+                info["cpu_count_logical"] = psutil.cpu_count(logical=True)
+                info["cpu_count_physical"] = psutil.cpu_count(logical=False)
+                # Frequency might be None on some systems
+                freq = psutil.cpu_freq()
+                if freq:
+                    info["cpu_freq_current"] = freq.current
+                    info["cpu_freq_min"] = freq.min
+                    info["cpu_freq_max"] = freq.max
+            except Exception as e:
+                logger.debug(f"Failed to collect CPU info via psutil: {e}")
+
+            # Memory information via psutil
+            try:
+                vm = psutil.virtual_memory()
+                info["memory_total_bytes"] = vm.total
+                info["memory_available_bytes"] = vm.available
+                swap = psutil.swap_memory()
+                info["swap_total_bytes"] = swap.total
+            except Exception as e:
+                logger.debug(f"Failed to collect memory info via psutil: {e}")
+
+        # Collect additional Linux-specific information (Distribution)
         if platform.system() == "Linux":
-            # CPU information
             try:
-                with open("/proc/cpuinfo", "r") as f:
-                    cpuinfo = f.read()
-                    # Extract model name
-                    for line in cpuinfo.split("\n"):
-                        if "model name" in line:
-                            info["cpu_model"] = line.split(":")[1].strip()
-                            break
-                    # Count physical cores
-                    info["cpu_cores"] = len(set(line.split(":")[1].strip() 
-                                               for line in cpuinfo.split("\n") 
-                                               if "physical id" in line))
-            except:
-                pass
-            
-            # Memory information
-            try:
-                with open("/proc/meminfo", "r") as f:
-                    meminfo = f.read()
-                    for line in meminfo.split("\n"):
-                        if "MemTotal" in line:
-                            info["memory_total_kb"] = int(line.split()[1])
-                            break
-            except:
-                pass
-            
-            # Distribution information
-            try:
-                result = subprocess.run(
-                    ["lsb_release", "-a"],
-                    capture_output=True,
-                    text=True
-                )
-                if result.returncode == 0:
-                    info["distribution"] = result.stdout
-            except:
-                pass
+                # robustly check for lsb_release
+                if shutil.which("lsb_release"):
+                    result = subprocess.run(
+                        ["lsb_release", "-a"],
+                        capture_output=True,
+                        text=True,
+                        timeout=2
+                    )
+                    if result.returncode == 0:
+                        info["distribution"] = result.stdout.strip()
+            except Exception as e:
+                logger.debug(f"Failed to collect distribution info: {e}")
         
         self.system_info = info
         return info
@@ -123,42 +131,7 @@ class Orchestrator:
         Returns:
             List of collector instances
         """
-        collectors = []
-        
-        # Always add PSUtil collector
-        collectors.append(
-            PSUtilCollector(
-                interval_seconds=self.config.metrics_interval_seconds
-            )
-        )
-        
-        # Add CLI collector if commands are specified
-        if self.config.collectors.cli_commands:
-            collectors.append(
-                CLICollector(
-                    interval_seconds=self.config.metrics_interval_seconds,
-                    commands=self.config.collectors.cli_commands
-                )
-            )
-        
-        # Add Perf collector if events are specified
-        if self.config.collectors.perf_config.events:
-            collectors.append(
-                PerfCollector(
-                    interval_seconds=self.config.metrics_interval_seconds,
-                    events=self.config.collectors.perf_config.events
-                )
-            )
-        
-        # Add eBPF collector if enabled
-        if self.config.collectors.enable_ebpf:
-            collectors.append(
-                EBPFCollector(
-                    interval_seconds=self.config.metrics_interval_seconds
-                )
-            )
-        
-        return collectors
+        return self.plugin_registry.create_collectors(self.config)
     
     def _run_single_test(
         self,
@@ -185,53 +158,79 @@ class Orchestrator:
         # Pre-test cleanup
         self._pre_test_cleanup()
         
-        # Start collectors
-        for collector in collectors:
-            try:
-                collector.start()
-            except Exception as e:
-                logger.error(f"Failed to start collector {collector.name}: {e}")
-        
-        # Warmup period
-        if self.config.warmup_seconds > 0:
-            logger.info(f"Warmup period: {self.config.warmup_seconds} seconds")
-            time.sleep(self.config.warmup_seconds)
-        
-        # Start workload generator
-        test_start_time = datetime.now()
+        generator_started = False
+        test_start_time = None
+        test_end_time = None
+
         try:
+            # Start collectors
+            for collector in collectors:
+                try:
+                    collector.start()
+                except Exception as e:
+                    logger.error(f"Failed to start collector {collector.name}: {e}")
+            
+            # Warmup period
+            if self.config.warmup_seconds > 0:
+                logger.info(f"Warmup period: {self.config.warmup_seconds} seconds")
+                time.sleep(self.config.warmup_seconds)
+            
+            # Start workload generator
+            test_start_time = datetime.now()
             generator.start()
+            generator_started = True
+            
+            # Run for the specified duration
+            logger.info(f"Running test for {self.config.test_duration_seconds} seconds")
+            
+            # Loop to provide progress feedback
+            duration = self.config.test_duration_seconds
+            for i in range(duration):
+                time.sleep(1)
+                # Calculate percentage
+                percent = int(((i + 1) / duration) * 100)
+                # Print progress marker for the controller to pick up
+                # We use print directly to ensure it goes to stdout cleanly for parsing
+                if duration < 10 or (i + 1) % 5 == 0 or (i + 1) == duration:
+                    print(f"BENCHMARK_PROGRESS: {percent}%", flush=True)
+            
+            # Stop workload generator
+            generator.stop()
+            generator_started = False
+            test_end_time = datetime.now()
+            
+            # Cooldown period
+            if self.config.cooldown_seconds > 0:
+                logger.info(f"Cooldown period: {self.config.cooldown_seconds} seconds")
+                time.sleep(self.config.cooldown_seconds)
+
         except Exception as e:
-            logger.error(f"Failed to start generator: {e}")
+            logger.error(f"Test execution failed: {e}")
+            raise
+
+        finally:
+            # Ensure generator is stopped if an error occurred while it was running
+            if generator_started:
+                try:
+                    logger.info("Stopping generator due to error or interruption...")
+                    generator.stop()
+                except Exception as e:
+                    logger.error(f"Failed to stop generator during cleanup: {e}")
+
             # Stop collectors
             for collector in collectors:
-                collector.stop()
-            raise
-        
-        # Run for the specified duration
-        logger.info(f"Running test for {self.config.test_duration_seconds} seconds")
-        time.sleep(self.config.test_duration_seconds)
-        
-        # Stop workload generator
-        generator.stop()
-        test_end_time = datetime.now()
-        
-        # Cooldown period
-        if self.config.cooldown_seconds > 0:
-            logger.info(f"Cooldown period: {self.config.cooldown_seconds} seconds")
-            time.sleep(self.config.cooldown_seconds)
-        
-        # Stop collectors
-        for collector in collectors:
-            collector.stop()
+                try:
+                    collector.stop()
+                except Exception as e:
+                    logger.error(f"Failed to stop collector {collector.name}: {e}")
         
         # Collect results
         result = {
             "test_name": test_name,
             "repetition": repetition,
-            "start_time": test_start_time.isoformat(),
-            "end_time": test_end_time.isoformat(),
-            "duration_seconds": (test_end_time - test_start_time).total_seconds(),
+            "start_time": test_start_time.isoformat() if test_start_time else None,
+            "end_time": test_end_time.isoformat() if test_end_time else None,
+            "duration_seconds": (test_end_time - test_start_time).total_seconds() if test_start_time and test_end_time else 0,
             "generator_result": generator.get_result(),
             "metrics": {}
         }
@@ -268,7 +267,7 @@ class Orchestrator:
                         capture_output=True
                     )
                     logger.info("Cleared filesystem caches")
-                except:
+                except Exception:
                     logger.debug("Skipping cache clearing (no sudo access)")
             except Exception as e:
                 logger.warning(f"Failed to perform pre-test cleanup: {e}")
@@ -278,37 +277,26 @@ class Orchestrator:
         Run a complete benchmark test.
         
         Args:
-            test_type: Type of test to run ('stress_ng', 'iperf3', 'dd', 'fio')
+            test_type: Name of the workload to run (plugin id)
         """
         logger.info(f"Starting benchmark: {test_type}")
         
         # Collect system info if enabled
         if self.config.collect_system_info and not self.system_info:
             self.collect_system_info()
-        
-        # Create generator based on test type
-        if test_type == "stress_ng":
-            generator_class = StressNGGenerator
-            generator_config = self.config.stress_ng
-        elif test_type == "iperf3":
-            generator_class = IPerf3Generator
-            generator_config = self.config.iperf3
-        elif test_type == "dd":
-            generator_class = DDGenerator
-            generator_config = self.config.dd
-        elif test_type == "fio":
-            generator_class = FIOGenerator
-            generator_config = self.config.fio
-        else:
-            raise ValueError(f"Unknown test type: {test_type}")
-        
+
+        workload_cfg = self._resolve_workload(test_type)
+        plugin_name = workload_cfg.plugin
+
         # Run multiple repetitions
         test_results = []
         for rep in range(1, self.config.repetitions + 1):
             logger.info(f"Starting repetition {rep}/{self.config.repetitions}")
             
             try:
-                generator = generator_class(generator_config)
+                generator = self.plugin_registry.create_generator(
+                    plugin_name, workload_cfg.options
+                )
                 result = self._run_single_test(
                     test_name=test_type,
                     generator=generator,
@@ -349,13 +337,28 @@ class Orchestrator:
             csv_file = self.config.data_export_dir / f"{test_name}_aggregated.csv"
             aggregated_df.to_csv(csv_file)
             logger.info(f"Saved aggregated results to {csv_file}")
+
+    def _resolve_workload(self, name: str) -> WorkloadConfig:
+        """Return the workload configuration ensuring it is enabled."""
+        workload = self.config.workloads.get(name)
+        if workload is None:
+            raise ValueError(f"Unknown workload: {name}")
+        if not workload.enabled:
+            raise ValueError(f"Workload '{name}' is disabled in the configuration")
+        return workload
+
+    def _print_available_plugins(self) -> None:
+        """Print the available workload plugins at startup."""
+        enabled = {name: wl.enabled for name, wl in self.config.workloads.items()}
+        print_plugin_table(self.plugin_registry, enabled=enabled)
     
     def run_all_benchmarks(self) -> None:
         """Run all configured benchmark tests."""
-        test_types = ["stress_ng", "iperf3", "dd", "fio"]
-        
-        for test_type in test_types:
+        for test_name, workload in self.config.workloads.items():
+            if not workload.enabled:
+                logger.info("Skipping disabled workload '%s'", test_name)
+                continue
             try:
-                self.run_benchmark(test_type)
+                self.run_benchmark(test_name)
             except Exception as e:
-                logger.error(f"Failed to run {test_type} benchmark: {e}", exc_info=True)
+                logger.error(f"Failed to run {test_name} benchmark: {e}", exc_info=True)

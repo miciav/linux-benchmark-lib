@@ -14,7 +14,9 @@ from benchmark_config import (
     DDConfig,
     FIOConfig,
     MetricCollectorConfig,
-    PerfConfig
+    PerfConfig,
+    RemoteHostConfig,
+    WorkloadConfig,
 )
 
 
@@ -32,6 +34,8 @@ class TestBenchmarkConfig:
         assert isinstance(config.iperf3, IPerf3Config)
         assert isinstance(config.dd, DDConfig)
         assert isinstance(config.fio, FIOConfig)
+        assert "stress_ng" in config.workloads
+        assert config.workloads["stress_ng"].plugin == "stress_ng"
         
     def test_custom_config_creation(self):
         """Test creating a config with custom values."""
@@ -44,6 +48,7 @@ class TestBenchmarkConfig:
         assert config.repetitions == 5
         assert config.test_duration_seconds == 120
         assert config.stress_ng.cpu_workers == 4
+        assert config.workloads["stress_ng"].options["cpu_workers"] == 4
         
     def test_config_directories_creation(self):
         """Test that output directories are created."""
@@ -67,6 +72,7 @@ class TestBenchmarkConfig:
         assert data["repetitions"] == 7
         assert "stress_ng" in data
         assert "collectors" in data
+        assert "workloads" in data
         
     def test_config_save_load(self):
         """Test saving and loading config."""
@@ -88,9 +94,40 @@ class TestBenchmarkConfig:
             assert loaded_config.repetitions == 10
             assert loaded_config.test_duration_seconds == 90
             assert loaded_config.stress_ng.cpu_workers == 8
+            assert loaded_config.workloads["stress_ng"].options["cpu_workers"] == 8
             
         finally:
             config_path.unlink()
+
+    def test_remote_hosts_require_name(self):
+        """Remote hosts must have a non-empty name."""
+        with pytest.raises(ValueError):
+            BenchmarkConfig(
+                remote_hosts=[
+                    RemoteHostConfig(name="   ", address="192.168.0.1"),
+                ]
+            )
+
+    def test_remote_hosts_names_unique(self):
+        """Remote host names must be unique."""
+        host_a = RemoteHostConfig(name="node1", address="10.0.0.1")
+        host_b = RemoteHostConfig(name="node1", address="10.0.0.2")
+        with pytest.raises(ValueError):
+            BenchmarkConfig(remote_hosts=[host_a, host_b])
+
+    def test_module_does_not_create_default_instance(self):
+        """The module should not instantiate configs at import time."""
+        import benchmark_config as bc
+
+        assert not hasattr(bc, "default_config")
+
+    def test_workloads_use_single_config_class(self):
+        """Ensure workloads are instances of the declared WorkloadConfig."""
+        config = BenchmarkConfig()
+        assert all(isinstance(wl, WorkloadConfig) for wl in config.workloads.values())
+
+        round_trip = BenchmarkConfig.from_dict(config.to_dict())
+        assert all(isinstance(wl, WorkloadConfig) for wl in round_trip.workloads.values())
 
 
 class TestStressNGConfig:

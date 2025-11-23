@@ -10,9 +10,9 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from benchmark_config import BenchmarkConfig, MetricCollectorConfig, PerfConfig
-from orchestrator import Orchestrator
+from local_runner import LocalRunner
 
-class TestOrchestratorIntegration(unittest.TestCase):
+class TestLocalRunnerIntegration(unittest.TestCase):
 
     def setUp(self):
         """Imposta una directory temporanea per gli output dei test."""
@@ -25,11 +25,9 @@ class TestOrchestratorIntegration(unittest.TestCase):
         """Pulisce la directory temporanea."""
         shutil.rmtree(self.test_output_dir)
 
-    @patch('orchestrator.DataHandler')
-    @patch('orchestrator.StressNGGenerator')
-    @patch('orchestrator.PSUtilCollector')
-    @patch('orchestrator.Orchestrator._pre_test_cleanup')
-    def test_run_stress_ng_benchmark(self, mock_cleanup, mock_psutil_collector, mock_stress_ng_generator, mock_data_handler):
+    @patch('local_runner.DataHandler')
+    @patch('local_runner.LocalRunner._pre_test_cleanup')
+    def test_run_stress_ng_benchmark(self, mock_cleanup, mock_data_handler):
         """
         Testa un'esecuzione completa del benchmark stress-ng.
         Simula il generatore di carico e i collettori effettivi per evitare di eseguire comandi di sistema.
@@ -38,7 +36,6 @@ class TestOrchestratorIntegration(unittest.TestCase):
         # Mock dell'istanza del generatore
         mock_gen_instance = MagicMock()
         mock_gen_instance.get_result.return_value = {"status": "success"}
-        mock_stress_ng_generator.return_value = mock_gen_instance
 
         # Mock dell'istanza del collettore
         mock_col_instance = MagicMock()
@@ -47,7 +44,6 @@ class TestOrchestratorIntegration(unittest.TestCase):
             {'timestamp': '2025-01-01T12:00:00', 'cpu_percent': 50.0},
             {'timestamp': '2025-01-01T12:00:01', 'cpu_percent': 55.0},
         ]
-        mock_psutil_collector.return_value = mock_col_instance
         
         # Mock del DataHandler
         mock_data_handler_instance = MagicMock()
@@ -68,21 +64,25 @@ class TestOrchestratorIntegration(unittest.TestCase):
             collectors=MetricCollectorConfig(cli_commands=None, perf_config=PerfConfig(events=None), enable_ebpf=False)
         )
 
-        # Crea ed esegue l'orchestratore
-        orchestrator = Orchestrator(config)
-        orchestrator.run_benchmark("stress_ng")
+        registry = MagicMock()
+        registry.create_generator.return_value = mock_gen_instance
+        registry.create_collectors.return_value = [mock_col_instance]
+
+        # Crea ed esegue il controller locale
+        runner = LocalRunner(config, registry=registry)
+        runner.run_benchmark("stress_ng")
 
         # --- Asserzioni ---
         # Verifica che il metodo di pulizia sia stato chiamato
         mock_cleanup.assert_called_once()
 
         # Verifica che il generatore sia stato inizializzato e utilizzato
-        mock_stress_ng_generator.assert_called_once_with(config.stress_ng)
+        registry.create_generator.assert_called()
         mock_gen_instance.start.assert_called_once()
         mock_gen_instance.stop.assert_called_once()
 
         # Verifica che il collettore sia stato inizializzato e utilizzato
-        mock_psutil_collector.assert_called_once()
+        registry.create_collectors.assert_called_once()
         mock_col_instance.start.assert_called_once()
         mock_col_instance.stop.assert_called_once()
         mock_col_instance.save_data.assert_called_once()

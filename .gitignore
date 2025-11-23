@@ -56,3 +56,5 @@ Thumbs.db
 *.bak
 *.orig
 *.swp
+test_key
+test_key.pub

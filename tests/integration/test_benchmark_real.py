@@ -13,7 +13,9 @@ import json
 import time
 
 from benchmark_config import BenchmarkConfig, StressNGConfig, MetricCollectorConfig
-from orchestrator import Orchestrator
+from local_runner import LocalRunner
+from plugins.builtin import builtin_plugins
+from plugins.registry import PluginRegistry
 
 
 class TestRealBenchmarkIntegration(unittest.TestCase):
@@ -23,6 +25,7 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         """Set up temporary directories for test outputs."""
         self.temp_dir = tempfile.mkdtemp(prefix="benchmark_test_")
         self.temp_path = Path(self.temp_dir)
+        self.registry = PluginRegistry(builtin_plugins())
         
     def tearDown(self):
         """Clean up temporary directories."""
@@ -53,18 +56,18 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             )
         )
         
-        # Create and run orchestrator
-        orchestrator = Orchestrator(config)
+        # Create and run local controller
+        runner = LocalRunner(config, registry=self.registry)
         
         # Collect system info
-        system_info = orchestrator.collect_system_info()
+        system_info = runner.collect_system_info()
         self.assertIsNotNone(system_info)
         self.assertIn("platform", system_info)
         self.assertIn("python", system_info)
         
         # Run the benchmark
         start_time = time.time()
-        orchestrator.run_benchmark("stress_ng")
+        runner.run_benchmark("stress_ng")
         end_time = time.time()
         
         # Verify execution time is reasonable
@@ -120,8 +123,8 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             data_export_dir=self.temp_path / "exports"
         )
         
-        orchestrator = Orchestrator(config)
-        system_info = orchestrator.collect_system_info()
+        runner = LocalRunner(config, registry=self.registry)
+        system_info = runner.collect_system_info()
         
         # Verify basic system info
         self.assertIn("timestamp", system_info)
@@ -164,8 +167,8 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             )
         )
         
-        orchestrator = Orchestrator(config)
-        orchestrator.run_benchmark("stress_ng")
+        runner = LocalRunner(config, registry=self.registry)
+        runner.run_benchmark("stress_ng")
         
         # Load results
         results_file = config.output_dir / "stress_ng_results.json"

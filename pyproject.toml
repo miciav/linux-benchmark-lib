@@ -1,9 +1,9 @@
 [project]
 name = "linux-benchmark-lib"
-version = "0.1.0"
+version = "0.9"
 description = "A robust and configurable Python library for benchmarking Linux computational node performance"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 authors = [
     { name = "Your Name", email = "your.email@example.com" }
 ]
@@ -11,24 +11,19 @@ dependencies = [
     "psutil>=7.0.0",
     "pandas>=2.0.0",
     "numpy>=1.24.0",
-    "matplotlib>=3.7.0",
-    "seaborn>=0.12.0",
     "iperf3>=0.1.11",
     "jc>=1.23.0",
-    "influxdb-client>=1.36.0",
+    "rich>=13.7.0",
+    "typer>=0.12.5",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.3.0",
-    "pytest-cov>=4.0.0",
-    "pytest-mock>=3.10.0",
-    "psutil>=7.0.0",
-    "black>=23.0.0",
-    "flake8>=6.0.0",
-    "pydocstyle>=6.3.0",
-    "mypy>=1.0.0",
-    "pre-commit>=3.2.0",
+controller = [
+    "ansible-runner>=2.4.0",
+    "ansible-core>=2.15.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "influxdb-client>=1.36.0",
 ]
 
 [build-system]
@@ -36,15 +31,27 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["benchmark_config", "orchestrator", "data_handler", "reporter"]
+py-modules = ["benchmark_config", "controller", "local_runner", "data_handler", "reporter", "cli"]
 
 [tool.setuptools.packages.find]
-include = ["metric_collectors*", "workload_generators*"]
+include = ["metric_collectors*", "workload_generators*", "plugins*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
+
+[project.scripts]
+lb = "cli:app"
+
+[project.entry-points."linux_benchmark.workloads"]
+stress_ng = "plugins.builtin:STRESS_NG_PLUGIN"
+iperf3 = "plugins.builtin:IPERF3_PLUGIN"
+dd = "plugins.builtin:DD_PLUGIN"
+fio = "plugins.builtin:FIO_PLUGIN"
+
+[tool.uv]
+package = true
 
 [tool.black]
 line-length = 88
-target-version = ['py313']
+target-version = ['py312']
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -65,12 +72,15 @@ exclude = '''
 minversion = "7.0"
 addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')"
+]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -91,6 +101,14 @@ match-dir = "(?!tests).*"
 
 [dependency-groups]
 dev = [
+    "pytest>=7.3.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
     "psutil>=7.0.0",
-    "pytest>=8.4.1",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "pydocstyle>=6.3.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.2.0",
+    "ansible-runner>=2.4.0",
 ]

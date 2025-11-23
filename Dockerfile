@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
     stress-ng \
     iperf3 \
     fio \
-    sysstat \	
+    sysstat \
     --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
@@ -30,7 +30,7 @@ RUN uv sync --all-groups
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Reset the entrypoint from the base image
- ENTRYPOINT []
+ENTRYPOINT []
 
 # Default command - run tests
 # When volume is mounted, we need to install the project in editable mode

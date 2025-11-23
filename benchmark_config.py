@@ -5,10 +5,11 @@ This module provides centralized configuration management for all benchmark test
 including test parameters, workload generator settings, and metric collector settings.
 """
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 import json
+from collections import Counter
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -94,8 +95,66 @@ class MetricCollectorConfig:
     ])
     perf_config: PerfConfig = field(default_factory=PerfConfig)
     enable_ebpf: bool = False  # eBPF requires special privileges
+
+
+@dataclass
+class RemoteHostConfig:
+    """Configuration for a remote benchmark host."""
+
+    name: str = "localhost"
+    address: str = "127.0.0.1"
+    port: int = 22
+    user: str = "root"
+    become: bool = True
+    become_method: str = "sudo"
+    vars: Dict[str, Any] = field(default_factory=dict)
+
+    def ansible_host_line(self) -> str:
+        """Render the host as an Ansible inventory line."""
+        base = (
+            f"{self.name} ansible_host={self.address} "
+            f"ansible_port={self.port} ansible_user={self.user}"
+        )
+        become = ""
+        if self.become:
+            become = " ansible_become=true"
+            if self.become_method:
+                become += f" ansible_become_method={self.become_method}"
+        
+        extras_parts = []
+        for k, v in self.vars.items():
+            val_str = str(v)
+            if " " in val_str or "=" in val_str:
+                val_str = f'"{val_str}"'
+            extras_parts.append(f" {k}={val_str}")
+            
+        extras = "".join(extras_parts)
+        return f"{base}{become}{extras}"
+
+
+@dataclass
+class RemoteExecutionConfig:
+    """Configuration for remote execution via Ansible."""
+
+    enabled: bool = False
+    inventory_path: Optional[Path] = None
+    run_setup: bool = True
+    run_collect: bool = True
+    setup_playbook: Path = Path("ansible/playbooks/setup.yml")
+    run_playbook: Path = Path("ansible/playbooks/run_benchmark.yml")
+    collect_playbook: Path = Path("ansible/playbooks/collect.yml")
+    use_container_fallback: bool = False
     
     
+@dataclass
+class WorkloadConfig:
+    """Configuration wrapper for workload plugins."""
+
+    plugin: str
+    enabled: bool = True
+    options: Dict[str, Any] = field(default_factory=dict)
+
+
 @dataclass
 class BenchmarkConfig:
     """Main configuration for benchmark tests."""
@@ -120,6 +179,13 @@ class BenchmarkConfig:
     
     # Metric collector configuration
     collectors: MetricCollectorConfig = field(default_factory=MetricCollectorConfig)
+
+    # Workload plugin configuration (name -> config)
+    workloads: Dict[str, WorkloadConfig] = field(default_factory=dict)
+
+    # Remote execution configuration
+    remote_hosts: List[RemoteHostConfig] = field(default_factory=list)
+    remote_execution: RemoteExecutionConfig = field(default_factory=RemoteExecutionConfig)
     
     # System information collection
     collect_system_info: bool = True
@@ -136,6 +202,9 @@ class BenchmarkConfig:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.report_dir.mkdir(parents=True, exist_ok=True)
         self.data_export_dir.mkdir(parents=True, exist_ok=True)
+        if not self.workloads:
+            self.workloads = self._build_default_workloads()
+        self._validate_remote_hosts()
     
     def to_json(self) -> str:
         """Convert configuration to JSON string."""
@@ -148,12 +217,34 @@ class BenchmarkConfig:
                 return {k: _convert(v) for k, v in obj.__dict__.items()}
             elif isinstance(obj, Path):
                 return str(obj)
+            elif isinstance(obj, dict):
+                return {k: _convert(v) for k, v in obj.items()}
             elif isinstance(obj, list):
                 return [_convert(item) for item in obj]
             else:
                 return obj
         
         return _convert(self)
+
+    def _validate_remote_hosts(self) -> None:
+        """Ensure remote hosts use non-empty, unique names for per-host outputs."""
+        if not self.remote_hosts:
+            return
+
+        names: List[str] = []
+        for host in self.remote_hosts:
+            name = host.name.strip() if host.name is not None else ""
+            if not name:
+                raise ValueError("remote_hosts entries must have a non-empty name.")
+            names.append(name)
+
+        counter = Counter(names)
+        duplicates = [name for name, count in counter.items() if count > 1]
+        if duplicates:
+            dup_list = ", ".join(sorted(duplicates))
+            raise ValueError(
+                f"remote_hosts names must be unique; duplicates: {dup_list}."
+            )
     
     @classmethod
     def from_json(cls, json_str: str) -> "BenchmarkConfig":
@@ -177,11 +268,33 @@ class BenchmarkConfig:
             if "perf_config" in data["collectors"]:
                 data["collectors"]["perf_config"] = PerfConfig(**data["collectors"]["perf_config"])
             data["collectors"] = MetricCollectorConfig(**data["collectors"])
+        if "remote_hosts" in data:
+            data["remote_hosts"] = [
+                RemoteHostConfig(**host_cfg) for host_cfg in data["remote_hosts"]
+            ]
+        if "remote_execution" in data:
+            remote_exec = data["remote_execution"]
+            if "inventory_path" in remote_exec and isinstance(remote_exec["inventory_path"], str):
+                remote_exec["inventory_path"] = Path(remote_exec["inventory_path"])
+            for key in ["setup_playbook", "run_playbook", "collect_playbook"]:
+                if key in remote_exec and isinstance(remote_exec[key], str):
+                    remote_exec[key] = Path(remote_exec[key])
+            data["remote_execution"] = RemoteExecutionConfig(**remote_exec)
         
         # Convert string paths to Path objects
         for key in ["output_dir", "report_dir", "data_export_dir"]:
             if key in data and isinstance(data[key], str):
                 data[key] = Path(data[key])
+
+        if "workloads" in data:
+            data["workloads"] = {
+                name: WorkloadConfig(
+                    plugin=cfg.get("plugin", name),
+                    enabled=cfg.get("enabled", True),
+                    options=cfg.get("options", {}),
+                )
+                for name, cfg in data["workloads"].items()
+            }
         
         return cls(**data)
     
@@ -196,6 +309,27 @@ class BenchmarkConfig:
         with open(filepath, "r") as f:
             return cls.from_json(f.read())
 
-
-# Default configuration instance
-default_config = BenchmarkConfig()
+    def _build_default_workloads(self) -> Dict[str, "WorkloadConfig"]:
+        """Create workload entries from legacy config fields."""
+        return {
+            "stress_ng": WorkloadConfig(
+                plugin="stress_ng",
+                enabled=True,
+                options=asdict(self.stress_ng),
+            ),
+            "iperf3": WorkloadConfig(
+                plugin="iperf3",
+                enabled=True,
+                options=asdict(self.iperf3),
+            ),
+            "dd": WorkloadConfig(
+                plugin="dd",
+                enabled=True,
+                options=asdict(self.dd),
+            ),
+            "fio": WorkloadConfig(
+                plugin="fio",
+                enabled=True,
+                options=asdict(self.fio),
+            ),
+        }
