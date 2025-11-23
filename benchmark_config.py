@@ -333,16 +333,3 @@ class BenchmarkConfig:
                 options=asdict(self.fio),
             ),
         }
-
-
-# Default configuration instance
-default_config = BenchmarkConfig()
-
-
-@dataclass
-class WorkloadConfig:
-    """Configuration wrapper for workload plugins."""
-
-    plugin: str
-    enabled: bool = True
-    options: Dict[str, Any] = field(default_factory=dict)

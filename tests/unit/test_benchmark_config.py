@@ -16,6 +16,7 @@ from benchmark_config import (
     MetricCollectorConfig,
     PerfConfig,
     RemoteHostConfig,
+    WorkloadConfig,
 )
 
 
@@ -113,6 +114,20 @@ class TestBenchmarkConfig:
         host_b = RemoteHostConfig(name="node1", address="10.0.0.2")
         with pytest.raises(ValueError):
             BenchmarkConfig(remote_hosts=[host_a, host_b])
+
+    def test_module_does_not_create_default_instance(self):
+        """The module should not instantiate configs at import time."""
+        import benchmark_config as bc
+
+        assert not hasattr(bc, "default_config")
+
+    def test_workloads_use_single_config_class(self):
+        """Ensure workloads are instances of the declared WorkloadConfig."""
+        config = BenchmarkConfig()
+        assert all(isinstance(wl, WorkloadConfig) for wl in config.workloads.values())
+
+        round_trip = BenchmarkConfig.from_dict(config.to_dict())
+        assert all(isinstance(wl, WorkloadConfig) for wl in round_trip.workloads.values())
 
 
 class TestStressNGConfig:

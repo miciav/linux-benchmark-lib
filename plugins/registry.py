@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, Optional, Type
 
 from metric_collectors._base_collector import BaseCollector
+from workload_generators._base_generator import BaseGenerator
 from benchmark_config import BenchmarkConfig
 
 

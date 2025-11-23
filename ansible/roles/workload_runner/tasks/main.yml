@@ -112,12 +112,15 @@
     sys.path.insert(0, str(workdir / "plugins"))
     from benchmark_config import BenchmarkConfig
     from local_runner import LocalRunner
+    from plugins.builtin import builtin_plugins
+    from plugins.registry import PluginRegistry
 
     config_path = Path("benchmark_config.generated.json")
     with config_path.open() as fh:
         cfg = BenchmarkConfig.from_json(fh.read())
 
-    runner = LocalRunner(cfg)
+    registry = PluginRegistry(builtin_plugins())
+    runner = LocalRunner(cfg, registry=registry)
     test_name = "{{ item }}"
     print(f"Running benchmark: {test_name}", flush=True)
     

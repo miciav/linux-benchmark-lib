@@ -77,10 +77,11 @@ See `CLI.md` for the full command reference. Highlights:
 ## Quick Start
 
 ```python
-from benchmark_config import BenchmarkConfig
+from benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig
 from controller import BenchmarkController
 from local_runner import LocalRunner
-from benchmark_config import RemoteHostConfig, RemoteExecutionConfig
+from plugins.builtin import builtin_plugins
+from plugins.registry import PluginRegistry
 
 # Create a configuration
 config = BenchmarkConfig(
@@ -90,7 +91,8 @@ config = BenchmarkConfig(
 )
 
 # Local execution (Agent Mode)
-runner = LocalRunner(config)
+registry = PluginRegistry(builtin_plugins())
+runner = LocalRunner(config, registry=registry)
 runner.run_benchmark("stress_ng")
 
 # Remote execution (Controller Mode)

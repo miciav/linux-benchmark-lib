@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional
 
 from benchmark_config import BenchmarkConfig, WorkloadConfig
 from data_handler import DataHandler
-from plugins.builtin import builtin_plugins
 from plugins.registry import PluginRegistry, print_plugin_table
 
 
@@ -38,7 +37,7 @@ class DateTimeEncoder(JSONEncoder):
 class LocalRunner:
     """Local agent for executing benchmarks on a single node."""
     
-    def __init__(self, config: BenchmarkConfig, registry: PluginRegistry | None = None):
+    def __init__(self, config: BenchmarkConfig, registry: PluginRegistry):
         """
         Initialize the local runner.
         
@@ -49,7 +48,7 @@ class LocalRunner:
         self.data_handler = DataHandler()
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
-        self.plugin_registry = registry or PluginRegistry(builtin_plugins())
+        self.plugin_registry = registry
         
     def collect_system_info(self) -> Dict[str, Any]:
         """

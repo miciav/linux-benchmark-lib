@@ -696,7 +696,8 @@ def run_benchmarks(
                 console.print("[red]One or more phases failed.[/red]")
                 raise typer.Exit(1)
         else:
-            runner = LocalRunner(cfg)
+            registry = PluginRegistry(builtin_plugins())
+            runner = LocalRunner(cfg, registry=registry)
             for test_name in target_tests:
                 runner.run_benchmark(test_name)
             console.print(Panel.fit("Local benchmarks completed.", border_style="green"))

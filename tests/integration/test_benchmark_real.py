@@ -14,6 +14,8 @@ import time
 
 from benchmark_config import BenchmarkConfig, StressNGConfig, MetricCollectorConfig
 from local_runner import LocalRunner
+from plugins.builtin import builtin_plugins
+from plugins.registry import PluginRegistry
 
 
 class TestRealBenchmarkIntegration(unittest.TestCase):
@@ -23,6 +25,7 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         """Set up temporary directories for test outputs."""
         self.temp_dir = tempfile.mkdtemp(prefix="benchmark_test_")
         self.temp_path = Path(self.temp_dir)
+        self.registry = PluginRegistry(builtin_plugins())
         
     def tearDown(self):
         """Clean up temporary directories."""
@@ -54,7 +57,7 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         )
         
         # Create and run local controller
-        runner = LocalRunner(config)
+        runner = LocalRunner(config, registry=self.registry)
         
         # Collect system info
         system_info = runner.collect_system_info()
@@ -120,7 +123,7 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             data_export_dir=self.temp_path / "exports"
         )
         
-        runner = LocalRunner(config)
+        runner = LocalRunner(config, registry=self.registry)
         system_info = runner.collect_system_info()
         
         # Verify basic system info
@@ -164,7 +167,7 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             )
         )
         
-        runner = LocalRunner(config)
+        runner = LocalRunner(config, registry=self.registry)
         runner.run_benchmark("stress_ng")
         
         # Load results

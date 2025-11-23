@@ -19,6 +19,8 @@ from benchmark_config import (
 )
 from local_runner import LocalRunner
 from reporter import Reporter
+from plugins.builtin import builtin_plugins
+from plugins.registry import PluginRegistry
 
 
 def setup_logging():
@@ -94,13 +96,17 @@ def create_custom_config() -> BenchmarkConfig:
     return config
 
 
-def run_single_benchmark(config: BenchmarkConfig, test_type: str):
+def run_single_benchmark(
+    config: BenchmarkConfig,
+    test_type: str,
+    registry: PluginRegistry,
+) -> None:
     """Run a single benchmark test."""
     print(f"\n{'='*60}")
     print(f"Running {test_type} benchmark")
     print(f"{'='*60}\n")
     
-    runner = LocalRunner(config)
+    runner = LocalRunner(config, registry=registry)
     
     # Collect system information
     system_info = runner.collect_system_info()
@@ -165,7 +171,8 @@ def main():
     # - fio: Should work if installed
     
     # Example: Run only stress-ng benchmark
-    run_single_benchmark(config, "stress_ng")
+    registry = PluginRegistry(builtin_plugins())
+    run_single_benchmark(config, "stress_ng", registry)
     
     # Uncomment to run other benchmarks:
     # run_single_benchmark(config, "dd")
