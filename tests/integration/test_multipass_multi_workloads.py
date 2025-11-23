@@ -11,7 +11,7 @@ from benchmark_config import (
     DDConfig,
     FIOConfig,
 )
-from orchestrator import AnsibleRunnerExecutor, BenchmarkOrchestrator
+from controller import AnsibleRunnerExecutor, BenchmarkController
 from tests.integration.test_multipass_benchmark import multipass_vm
 
 
@@ -36,6 +36,7 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
 
     config = BenchmarkConfig(
         repetitions=1,
+        test_duration_seconds=5,
         warmup_seconds=0,
         cooldown_seconds=0,
         output_dir=tmp_path / "results",
@@ -68,9 +69,9 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)
-    orchestrator = BenchmarkOrchestrator(config, executor=executor)
+    controller = BenchmarkController(config, executor=executor)
 
-    summary = orchestrator.run(["stress_ng", "dd", "fio"], run_id="multi_run")
+    summary = controller.run(["stress_ng", "dd", "fio"], run_id="multi_run")
 
     assert summary.success, f"Benchmark failed. Phases: {summary.phases}"
     for phase in ("setup", "run", "collect"):

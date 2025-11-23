@@ -5,10 +5,11 @@ This module provides centralized configuration management for all benchmark test
 including test parameters, workload generator settings, and metric collector settings.
 """
 
-from dataclasses import dataclass, field, asdict
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 import json
+from collections import Counter
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -203,6 +204,7 @@ class BenchmarkConfig:
         self.data_export_dir.mkdir(parents=True, exist_ok=True)
         if not self.workloads:
             self.workloads = self._build_default_workloads()
+        self._validate_remote_hosts()
     
     def to_json(self) -> str:
         """Convert configuration to JSON string."""
@@ -223,6 +225,26 @@ class BenchmarkConfig:
                 return obj
         
         return _convert(self)
+
+    def _validate_remote_hosts(self) -> None:
+        """Ensure remote hosts use non-empty, unique names for per-host outputs."""
+        if not self.remote_hosts:
+            return
+
+        names: List[str] = []
+        for host in self.remote_hosts:
+            name = host.name.strip() if host.name is not None else ""
+            if not name:
+                raise ValueError("remote_hosts entries must have a non-empty name.")
+            names.append(name)
+
+        counter = Counter(names)
+        duplicates = [name for name, count in counter.items() if count > 1]
+        if duplicates:
+            dup_list = ", ".join(sorted(duplicates))
+            raise ValueError(
+                f"remote_hosts names must be unique; duplicates: {dup_list}."
+            )
     
     @classmethod
     def from_json(cls, json_str: str) -> "BenchmarkConfig":

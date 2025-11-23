@@ -17,7 +17,7 @@ from benchmark_config import (
     MetricCollectorConfig,
     PerfConfig
 )
-from orchestrator import Orchestrator
+from local_runner import LocalRunner
 from reporter import Reporter
 
 
@@ -100,10 +100,10 @@ def run_single_benchmark(config: BenchmarkConfig, test_type: str):
     print(f"Running {test_type} benchmark")
     print(f"{'='*60}\n")
     
-    orchestrator = Orchestrator(config)
+    runner = LocalRunner(config)
     
     # Collect system information
-    system_info = orchestrator.collect_system_info()
+    system_info = runner.collect_system_info()
     print("System Information:")
     print(f"  Platform: {system_info['platform']['system']} {system_info['platform']['release']}")
     print(f"  Machine: {system_info['platform']['machine']}")
@@ -111,7 +111,7 @@ def run_single_benchmark(config: BenchmarkConfig, test_type: str):
     
     # Run the benchmark
     try:
-        orchestrator.run_benchmark(test_type)
+        runner.run_benchmark(test_type)
         print(f"\n✅ {test_type} benchmark completed successfully!")
     except Exception as e:
         print(f"\n❌ {test_type} benchmark failed: {e}")

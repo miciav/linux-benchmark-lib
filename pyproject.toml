@@ -41,7 +41,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["benchmark_config", "orchestrator", "local_runner", "data_handler", "reporter", "cli"]
+py-modules = ["benchmark_config", "controller", "local_runner", "data_handler", "reporter", "cli"]
 
 [tool.setuptools.packages.find]
 include = ["metric_collectors*", "workload_generators*", "plugins*"]

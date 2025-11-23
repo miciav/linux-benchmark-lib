@@ -1,5 +1,5 @@
 """
-Orchestrator module for managing the benchmark process.
+Local controller module for managing the benchmark process.
 
 This module coordinates the execution of workload generators and metric collectors,
 managing the overall benchmark workflow.
@@ -51,7 +51,6 @@ class LocalRunner:
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = registry or PluginRegistry(builtin_plugins())
-        self._print_available_plugins()
         
     def collect_system_info(self) -> Dict[str, Any]:
         """
@@ -226,7 +225,7 @@ class LocalRunner:
             time.sleep(1)
             # Calculate percentage
             percent = int(((i + 1) / duration) * 100)
-            # Print progress marker for the orchestrator to pick up
+            # Print progress marker for the controller to pick up
             # We use print directly to ensure it goes to stdout cleanly for parsing
             if duration < 10 or (i + 1) % 5 == 0 or (i + 1) == duration:
                 print(f"BENCHMARK_PROGRESS: {percent}%", flush=True)

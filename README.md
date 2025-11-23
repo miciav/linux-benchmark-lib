@@ -81,8 +81,8 @@ uv pip install -e ".[dev]"
 
 ```python
 from benchmark_config import BenchmarkConfig
+from controller import BenchmarkController
 from local_runner import LocalRunner
-from orchestrator import BenchmarkOrchestrator
 from benchmark_config import RemoteHostConfig, RemoteExecutionConfig
 
 # Create a configuration
@@ -102,8 +102,9 @@ remote_config = BenchmarkConfig(
     remote_hosts=[RemoteHostConfig(name="node1", address="192.168.1.10", user="ubuntu")],
     remote_execution=RemoteExecutionConfig(enabled=True),
 )
-orchestrator = BenchmarkOrchestrator(remote_config)
-summary = orchestrator.run(["stress_ng"], run_id="demo-run")
+# Use distinct, non-empty `name` values per host; they become per-host output dirs.
+controller = BenchmarkController(remote_config)
+summary = controller.run(["stress_ng"], run_id="demo-run")
 print(summary.per_host_output)
 
 # Add a custom workload plugin (packaged in your project)
@@ -123,7 +124,7 @@ runner.run_benchmark("my_workload")
 ```
 linux-benchmark-lib/
 ├── benchmark_config.py      # Centralized configuration
-├── orchestrator.py          # Remote orchestrator using Ansible Runner
+├── controller.py            # Remote controller using Ansible Runner
 ├── local_runner.py          # Local agent for single-node runs
 ├── data_handler.py          # Data processing and aggregation
 ├── reporter.py              # Reports and plots

@@ -6,9 +6,9 @@ from types import SimpleNamespace
 import pytest
 
 from benchmark_config import BenchmarkConfig, RemoteHostConfig
-from orchestrator import (
+from controller import (
     AnsibleRunnerExecutor,
-    BenchmarkOrchestrator,
+    BenchmarkController,
     ExecutionResult,
     InventorySpec,
     RemoteExecutor,
@@ -39,8 +39,8 @@ class DummyExecutor(RemoteExecutor):
         return ExecutionResult(rc=0, status="successful")
 
 
-def test_orchestrator_creates_output_dirs(tmp_path: Path):
-    """Orchestrator should prepare per-run and per-host directories."""
+def test_controller_creates_output_dirs(tmp_path: Path):
+    """Controller should prepare per-run and per-host directories."""
     config = BenchmarkConfig(
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",
@@ -48,9 +48,9 @@ def test_orchestrator_creates_output_dirs(tmp_path: Path):
         remote_hosts=[RemoteHostConfig(name="node1", address="127.0.0.1")],
     )
     executor = DummyExecutor()
-    orchestrator = BenchmarkOrchestrator(config, executor=executor)
+    controller = BenchmarkController(config, executor=executor)
 
-    summary = orchestrator.run(test_types=["stress_ng"], run_id="run-test")
+    summary = controller.run(test_types=["stress_ng"], run_id="run-test")
 
     host_dir = config.output_dir / "run-test" / "node1"
     report_dir = config.report_dir / "run-test" / "node1"

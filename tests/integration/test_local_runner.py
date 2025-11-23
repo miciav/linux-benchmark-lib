@@ -69,7 +69,7 @@ class TestLocalRunnerIntegration(unittest.TestCase):
         registry = MagicMock()
         registry.create_generator.return_value = mock_gen_instance
 
-        # Crea ed esegue l'orchestratore
+        # Crea ed esegue il controller locale
         runner = LocalRunner(config, registry=registry)
         runner.run_benchmark("stress_ng")
 

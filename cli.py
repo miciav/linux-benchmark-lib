@@ -21,8 +21,8 @@ from rich.panel import Panel
 from rich.table import Table
 
 from benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+from controller import BenchmarkController
 from local_runner import LocalRunner
-from orchestrator import BenchmarkOrchestrator
 from plugins.builtin import builtin_plugins
 from plugins.registry import PluginRegistry, print_plugin_table
 
@@ -365,17 +365,17 @@ def list_plugins(
     print_plugin_table(registry, enabled=enabled_map)
 
 
-@test_app.command("multipass")
+@test_app.command(
+    "multipass",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def test_multipass(
+    ctx: typer.Context,
     artifacts_dir: Path = typer.Option(
         Path("tests/results"),
         "--artifacts-dir",
         "-o",
         help="Where to store collected artifacts (used via LB_TEST_RESULTS_DIR).",
-    ),
-    extra_args: Optional[List[str]] = typer.Argument(
-        None,
-        help="Additional arguments to pass to pytest.",
     ),
 ) -> None:
     """
@@ -404,16 +404,122 @@ def test_multipass(
         "pytest",
         "tests/integration/test_multipass_benchmark.py",
     ]
+    extra_args = list(ctx.args)
     if extra_args:
         cmd.extend(extra_args)
 
-    console.print(f"[cyan]Running Multipass integration test; artifacts -> {artifacts_dir}[/cyan]")
+    summary = Table(title="Multipass Integration Plan", show_edge=False, header_style="bold cyan")
+    summary.add_column("Field", style="bold")
+    summary.add_column("Value")
+    summary.add_row("Pytest target", "tests/integration/test_multipass_benchmark.py")
+    summary.add_row("Iterations", "1 (pytest invocation)")
+    summary.add_row("Workload", "stress_ng")
+    summary.add_row("Duration", "5s (warmup 0s, cooldown 0s)")
+    summary.add_row("Artifacts dir", str(artifacts_dir))
+    summary.add_row("Extra args", " ".join(extra_args) if extra_args else "None")
+    summary.add_row("Config source", "Embedded in test (not user config)")
+    console.print(summary)
+
+    workload_table = Table(title="Workload Parameters", show_edge=False, header_style="bold cyan")
+    workload_table.add_column("Workload", style="bold")
+    workload_table.add_column("Duration")
+    workload_table.add_column("Repetitions")
+    workload_table.add_column("Warmup/Cooldown")
+    workload_table.add_column("Notes")
+    workload_table.add_row(
+        "stress_ng",
+        "5s",
+        "1",
+        "0s/0s",
+        "timeout=5s, cpu_workers=1",
+    )
+    console.print(workload_table)
+
     try:
-        subprocess.run(cmd, check=True, env=env)
+        with console.status(
+            "[cyan]Running Multipass integration test (this can take a few minutes)...[/cyan]",
+            spinner="dots",
+        ):
+            subprocess.run(cmd, check=True, env=env)
     except subprocess.CalledProcessError as exc:
         console.print(f"[red]Integration test failed with exit code {exc.returncode}[/red]")
         raise typer.Exit(exc.returncode)
-    console.print("[green]Integration test completed.[/green]")
+
+    console.print(
+        Panel.fit(
+            f"Artifacts saved to: {artifacts_dir}\nCommand: {' '.join(cmd)}",
+            title="Integration test completed",
+            border_style="green",
+        )
+    )
+
+
+def _run_pytest_targets(
+    targets: List[str],
+    title: str,
+    extra_args: Optional[List[str]] = None,
+    env: Optional[dict] = None,
+) -> None:
+    """Execute pytest against the given targets with friendly console output."""
+    cmd = [sys.executable, "-m", "pytest"]
+    cmd.extend(targets)
+    if extra_args:
+        cmd.extend(extra_args)
+
+    summary = Table(title=title, show_edge=False, header_style="bold cyan")
+    summary.add_column("Field", style="bold")
+    summary.add_column("Value")
+    summary.add_row("Pytest target", " ".join(targets))
+    summary.add_row("Extra args", " ".join(extra_args) if extra_args else "None")
+    console.print(summary)
+
+    try:
+        with console.status(
+            f"[cyan]Running {title.lower()}...[/cyan]",
+            spinner="dots",
+        ):
+            subprocess.run(cmd, check=True, env=env)
+    except subprocess.CalledProcessError as exc:
+        console.print(f"[red]Pytest failed with exit code {exc.returncode}[/red]")
+        raise typer.Exit(exc.returncode)
+
+    console.print(
+        Panel.fit(
+            f"Command: {' '.join(cmd)}",
+            title=f"{title} completed",
+            border_style="green",
+        )
+    )
+
+
+@test_app.command(
+    "all",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def test_all(ctx: typer.Context) -> None:
+    """Run the full test suite (unit + integration)."""
+    env = os.environ.copy()
+    _run_pytest_targets(
+        ["tests"],
+        title="Full test suite",
+        extra_args=list(ctx.args),
+        env=env,
+    )
+
+
+@test_app.command(
+    "integration",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def test_integration(ctx: typer.Context) -> None:
+    """Run only integration tests."""
+    env = os.environ.copy()
+    _run_pytest_targets(
+        ["tests/integration"],
+        title="Integration tests",
+        extra_args=list(ctx.args),
+        env=env,
+    )
 
 
 def _check_import(name: str) -> bool:
@@ -549,7 +655,7 @@ def run_benchmarks(
         help="Force remote mode; default follows config.remote_execution.enabled.",
     ),
 ) -> None:
-    """Run selected workloads locally or via the remote orchestrator."""
+    """Run selected workloads locally or via the remote controller."""
     cfg = _load_config(config)
     target_tests = tests or [
         name for name, workload in cfg.workloads.items() if workload.enabled
@@ -566,8 +672,8 @@ def run_benchmarks(
             if not cfg.remote_hosts:
                 console.print("[red]Remote mode requested but no remote_hosts are configured.[/red]")
                 raise typer.Exit(1)
-            orchestrator = BenchmarkOrchestrator(cfg)
-            summary = orchestrator.run(target_tests, run_id=run_id)
+            controller = BenchmarkController(cfg)
+            summary = controller.run(target_tests, run_id=run_id)
 
             table = Table(title="Run Summary", show_edge=False, header_style="bold cyan")
             table.add_column("Phase", style="bold")

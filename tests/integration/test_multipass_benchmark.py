@@ -6,7 +6,7 @@ import os
 import shutil
 from pathlib import Path
 from benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig, StressNGConfig
-from orchestrator import BenchmarkOrchestrator, AnsibleRunnerExecutor
+from controller import BenchmarkController, AnsibleRunnerExecutor
 
 # Constants
 VM_NAME = "benchmark-test-vm"
@@ -133,6 +133,9 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
             run_setup=True,
             run_collect=True
         ),
+        test_duration_seconds=5,
+        warmup_seconds=0,
+        cooldown_seconds=0,
         stress_ng=StressNGConfig(
             cpu_workers=1,
             timeout=5  # Short timeout for test
@@ -148,11 +151,11 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
     
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)
-    orchestrator = BenchmarkOrchestrator(config, executor=executor)
+    controller = BenchmarkController(config, executor=executor)
 
     # Execute
-    print("Starting benchmark orchestrator...")
-    summary = orchestrator.run(["stress_ng"], run_id="test_run")
+    print("Starting benchmark controller...")
+    summary = controller.run(["stress_ng"], run_id="test_run")
 
     # Verify execution
     assert summary.success, f"Benchmark failed. Phases: {summary.phases}"

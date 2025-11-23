@@ -1,9 +1,8 @@
 """
 Controller module coordinating remote benchmark execution via Ansible.
 
-This module introduces a controller/adapter architecture so the benchmark flow
-can target remote hosts using Ansible Runner while keeping orchestration logic
-inside Python.
+This module keeps orchestration logic inside Python while delegating remote
+execution to Ansible Runner.
 """
 
 import logging
@@ -225,8 +224,8 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                      print(f"\n[Benchmark Output: {task_name}]\n{task_stdout}\n", flush=True)
 
 
-class BenchmarkOrchestrator:
-    """Orchestrator orchestrating remote benchmark runs."""
+class BenchmarkController:
+    """Controller coordinating remote benchmark runs."""
 
     def __init__(
         self,
@@ -236,8 +235,6 @@ class BenchmarkOrchestrator:
         self.config = config
         self.executor = executor or AnsibleRunnerExecutor()
         self.plugin_registry = PluginRegistry(builtin_plugins())
-        enabled = {name: wl.enabled for name, wl in self.config.workloads.items()}
-        print_plugin_table(self.plugin_registry, enabled=enabled)
 
     def run(
         self,

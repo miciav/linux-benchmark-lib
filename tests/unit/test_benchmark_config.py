@@ -14,7 +14,8 @@ from benchmark_config import (
     DDConfig,
     FIOConfig,
     MetricCollectorConfig,
-    PerfConfig
+    PerfConfig,
+    RemoteHostConfig,
 )
 
 
@@ -96,6 +97,22 @@ class TestBenchmarkConfig:
             
         finally:
             config_path.unlink()
+
+    def test_remote_hosts_require_name(self):
+        """Remote hosts must have a non-empty name."""
+        with pytest.raises(ValueError):
+            BenchmarkConfig(
+                remote_hosts=[
+                    RemoteHostConfig(name="   ", address="192.168.0.1"),
+                ]
+            )
+
+    def test_remote_hosts_names_unique(self):
+        """Remote host names must be unique."""
+        host_a = RemoteHostConfig(name="node1", address="10.0.0.1")
+        host_b = RemoteHostConfig(name="node1", address="10.0.0.2")
+        with pytest.raises(ValueError):
+            BenchmarkConfig(remote_hosts=[host_a, host_b])
 
 
 class TestStressNGConfig:

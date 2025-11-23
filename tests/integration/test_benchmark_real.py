@@ -13,7 +13,7 @@ import json
 import time
 
 from benchmark_config import BenchmarkConfig, StressNGConfig, MetricCollectorConfig
-from orchestrator import Orchestrator
+from local_runner import LocalRunner
 
 
 class TestRealBenchmarkIntegration(unittest.TestCase):
@@ -53,18 +53,18 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             )
         )
         
-        # Create and run orchestrator
-        orchestrator = Orchestrator(config)
+        # Create and run local controller
+        runner = LocalRunner(config)
         
         # Collect system info
-        system_info = orchestrator.collect_system_info()
+        system_info = runner.collect_system_info()
         self.assertIsNotNone(system_info)
         self.assertIn("platform", system_info)
         self.assertIn("python", system_info)
         
         # Run the benchmark
         start_time = time.time()
-        orchestrator.run_benchmark("stress_ng")
+        runner.run_benchmark("stress_ng")
         end_time = time.time()
         
         # Verify execution time is reasonable
@@ -120,8 +120,8 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             data_export_dir=self.temp_path / "exports"
         )
         
-        orchestrator = Orchestrator(config)
-        system_info = orchestrator.collect_system_info()
+        runner = LocalRunner(config)
+        system_info = runner.collect_system_info()
         
         # Verify basic system info
         self.assertIn("timestamp", system_info)
@@ -164,8 +164,8 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             )
         )
         
-        orchestrator = Orchestrator(config)
-        orchestrator.run_benchmark("stress_ng")
+        runner = LocalRunner(config)
+        runner.run_benchmark("stress_ng")
         
         # Load results
         results_file = config.output_dir / "stress_ng_results.json"
