@@ -187,6 +187,8 @@ class LocalRunner:
             duration = self.config.test_duration_seconds
             for i in range(duration):
                 time.sleep(1)
+                if not getattr(generator, "_is_running", False):
+                    break
                 # Calculate percentage
                 percent = int(((i + 1) / duration) * 100)
                 # Print progress marker for the controller to pick up
@@ -195,8 +197,9 @@ class LocalRunner:
                     print(f"BENCHMARK_PROGRESS: {percent}%", flush=True)
             
             # Stop workload generator
-            generator.stop()
-            generator_started = False
+            if getattr(generator, "_is_running", False):
+                generator.stop()
+                generator_started = False
             test_end_time = datetime.now()
             
             # Cooldown period

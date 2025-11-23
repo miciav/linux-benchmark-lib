@@ -11,6 +11,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+DEFAULT_TOP500_REPO = "https://github.com/geerlingguy/top500-benchmark.git"
+
 
 @dataclass
 class StressNGConfig:
@@ -144,6 +146,18 @@ class RemoteExecutionConfig:
     run_playbook: Path = Path("ansible/playbooks/run_benchmark.yml")
     collect_playbook: Path = Path("ansible/playbooks/collect.yml")
     use_container_fallback: bool = False
+
+
+@dataclass
+class Top500Config:
+    """Configuration for the Top500 (HPL Linpack) workload plugin."""
+
+    repo_url: str = DEFAULT_TOP500_REPO
+    repo_ref: Optional[str] = None
+    workdir: Path = Path("/opt/top500-benchmark")
+    tags: List[str] = field(default_factory=lambda: ["setup", "benchmark"])
+    inventory_hosts: List[str] = field(default_factory=lambda: ["localhost ansible_connection=local"])
+    config_overrides: Dict[str, Any] = field(default_factory=dict)
     
     
 @dataclass
@@ -176,6 +190,7 @@ class BenchmarkConfig:
     iperf3: IPerf3Config = field(default_factory=IPerf3Config)
     dd: DDConfig = field(default_factory=DDConfig)
     fio: FIOConfig = field(default_factory=FIOConfig)
+    top500: Top500Config = field(default_factory=Top500Config)
     
     # Metric collector configuration
     collectors: MetricCollectorConfig = field(default_factory=MetricCollectorConfig)
@@ -268,6 +283,10 @@ class BenchmarkConfig:
             if "perf_config" in data["collectors"]:
                 data["collectors"]["perf_config"] = PerfConfig(**data["collectors"]["perf_config"])
             data["collectors"] = MetricCollectorConfig(**data["collectors"])
+        if "top500" in data:
+            if "workdir" in data["top500"] and isinstance(data["top500"]["workdir"], str):
+                data["top500"]["workdir"] = Path(data["top500"]["workdir"])
+            data["top500"] = Top500Config(**data["top500"])
         if "remote_hosts" in data:
             data["remote_hosts"] = [
                 RemoteHostConfig(**host_cfg) for host_cfg in data["remote_hosts"]
@@ -331,5 +350,10 @@ class BenchmarkConfig:
                 plugin="fio",
                 enabled=True,
                 options=asdict(self.fio),
+            ),
+            "top500": WorkloadConfig(
+                plugin="top500",
+                enabled=False,
+                options=asdict(self.top500),
             ),
         }

@@ -1,15 +1,23 @@
-import pytest
-import subprocess
 import json
-import time
 import os
 import shutil
+import subprocess
+import time
 from pathlib import Path
-from benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig, StressNGConfig
-from controller import BenchmarkController, AnsibleRunnerExecutor
+
+import pytest
+
+from benchmark_config import (
+    BenchmarkConfig,
+    RemoteExecutionConfig,
+    RemoteHostConfig,
+    StressNGConfig,
+)
+from controller import AnsibleRunnerExecutor, BenchmarkController
 
 # Constants
-VM_NAME = "benchmark-test-vm"
+VM_NAME_PREFIX = "benchmark-test-vm"
+MAX_VM_COUNT = 2
 SSH_KEY_PATH = Path("./test_key")
 SSH_PUB_KEY_PATH = Path("./test_key.pub")
 
@@ -17,14 +25,82 @@ def is_multipass_available():
     """Check if multipass is installed and available."""
     return shutil.which("multipass") is not None
 
+def _vm_count():
+    raw = os.environ.get("LB_MULTIPASS_VM_COUNT", "1")
+    try:
+        count = int(raw)
+    except ValueError:  # pragma: no cover - defensive for manual runs
+        pytest.fail(f"LB_MULTIPASS_VM_COUNT must be an integer, got {raw!r}")
+
+    if count < 1 or count > MAX_VM_COUNT:
+        pytest.fail(
+            f"LB_MULTIPASS_VM_COUNT must be between 1 and {MAX_VM_COUNT}, got {count}"
+        )
+    return count
+
+def _vm_name(index: int, total: int) -> str:
+    if total == 1:
+        return VM_NAME_PREFIX
+    return f"{VM_NAME_PREFIX}-{index + 1}"
+
+def _wait_for_ip(vm_name: str) -> str:
+    for _ in range(10):
+        info_proc = subprocess.run(
+            ["multipass", "info", vm_name, "--format", "json"],
+            capture_output=True,
+            text=True,
+        )
+        if info_proc.returncode == 0:
+            info = json.loads(info_proc.stdout)
+            ipv4 = info["info"][vm_name]["ipv4"]
+            if ipv4:
+                return ipv4[0]
+        time.sleep(2)
+    pytest.fail(f"Could not retrieve VM IP address for {vm_name}.")
+
+def _inject_ssh_key(vm_name: str, pub_key: str) -> None:
+    cmd = (
+        "mkdir -p ~/.ssh && "
+        f"echo '{pub_key}' >> ~/.ssh/authorized_keys && "
+        "chmod 600 ~/.ssh/authorized_keys"
+    )
+    for attempt in range(10):
+        try:
+            subprocess.run(
+                ["multipass", "exec", vm_name, "--", "bash", "-c", cmd],
+                check=True,
+            )
+            return
+        except subprocess.CalledProcessError:
+            if attempt == 9:
+                raise
+            print(f"SSH injection failed for {vm_name}, retrying ({attempt + 1}/10)...")
+            time.sleep(3)
+
+def _launch_vm(vm_name: str, pub_key: str) -> dict:
+    print(f"Launching multipass VM: {vm_name}...")
+    subprocess.run(["multipass", "launch", "--name", vm_name, "lts"], check=True)
+    ip_address = _wait_for_ip(vm_name)
+    print(f"VM {vm_name} started at {ip_address}. Injecting SSH key...")
+    _inject_ssh_key(vm_name, pub_key)
+    return {
+        "name": vm_name,
+        "ip": ip_address,
+        "user": "ubuntu",
+        "key_path": SSH_KEY_PATH.absolute(),
+    }
+
 @pytest.fixture(scope="module")
 def multipass_vm():
     """
-    Fixture to provision a Multipass VM for testing.
-    It generates an SSH key, launches a VM, injects the key, and yields connection info.
+    Fixture to provision one or more Multipass VMs for testing.
+    It generates an SSH key, launches the requested VMs, injects the key, and yields
+    connection info.
     """
     if not is_multipass_available():
         pytest.skip("Multipass not found. Skipping integration test.")
+
+    vm_count = _vm_count()
 
     # Generate SSH key pair if not exists
     if not SSH_KEY_PATH.exists():
@@ -37,97 +113,65 @@ def multipass_vm():
 
     pub_key = SSH_PUB_KEY_PATH.read_text().strip()
 
-    # Launch VM (using lts image)
-    print(f"Launching multipass VM: {VM_NAME}...")
-    # Check if exists, delete if so
-    subprocess.run(["multipass", "delete", VM_NAME], stderr=subprocess.DEVNULL)
+    vm_names = [_vm_name(idx, vm_count) for idx in range(vm_count)]
+    for name in vm_names:
+        subprocess.run(["multipass", "delete", name], stderr=subprocess.DEVNULL)
     subprocess.run(["multipass", "purge"], stderr=subprocess.DEVNULL)
-    
+
+    created_vms = []
     try:
-        subprocess.run(["multipass", "launch", "--name", VM_NAME, "lts"], check=True)
-        
-        # Wait for VM to be ready and get IP
-        # Sometimes IP takes a moment
-        for _ in range(10):
-            info_proc = subprocess.run(
-                ["multipass", "info", VM_NAME, "--format", "json"],
-                capture_output=True,
-                text=True
-            )
-            if info_proc.returncode == 0:
-                info = json.loads(info_proc.stdout)
-                ipv4 = info["info"][VM_NAME]["ipv4"]
-                if ipv4:
-                    ip_address = ipv4[0]
-                    break
-            time.sleep(2)
-        else:
-            pytest.fail("Could not retrieve VM IP address.")
+        for name in vm_names:
+            created_vms.append(_launch_vm(name, pub_key))
 
-        print(f"VM started at {ip_address}. Injecting SSH key...")
-        
-        # Inject SSH key with retries
-        cmd = f"mkdir -p ~/.ssh && echo '{pub_key}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
-        
-        for i in range(10):
-            try:
-                subprocess.run(["multipass", "exec", VM_NAME, "--", "bash", "-c", cmd], check=True)
-                break
-            except subprocess.CalledProcessError:
-                if i == 9:
-                    raise
-                print(f"SSH injection failed, retrying ({i+1}/10)...")
-                time.sleep(3)
-
-        yield {
-            "name": VM_NAME,
-            "ip": ip_address,
-            "user": "ubuntu",
-            "key_path": SSH_KEY_PATH.absolute()
-        }
+        yield created_vms
 
     finally:
         # Teardown
-        print(f"Tearing down VM: {VM_NAME}...")
-        subprocess.run(["multipass", "delete", VM_NAME, "--purge"], stderr=subprocess.DEVNULL)
+        for vm in created_vms:
+            print(f"Tearing down VM: {vm['name']}...")
+            subprocess.run(
+                ["multipass", "delete", vm["name"], "--purge"],
+                stderr=subprocess.DEVNULL,
+            )
+        subprocess.run(["multipass", "purge"], stderr=subprocess.DEVNULL)
         # Remove generated SSH keys if present
         for key_path in (SSH_KEY_PATH, SSH_PUB_KEY_PATH):
             try:
                 key_path.unlink()
             except FileNotFoundError:
                 pass
-        if SSH_KEY_PATH.exists():
-            SSH_KEY_PATH.unlink()
-        if SSH_PUB_KEY_PATH.exists():
-            SSH_PUB_KEY_PATH.unlink()
 
 def test_remote_benchmark_execution(multipass_vm, tmp_path):
     """
     Test the full remote benchmark execution flow on a Multipass VM.
     """
+    multipass_vms = multipass_vm
     base_dir = Path(os.environ.get("LB_TEST_RESULTS_DIR", tmp_path))
     output_dir = base_dir / "results"
     report_dir = base_dir / "reports"
     export_dir = base_dir / "exports"
 
     # Create configuration
-    host_config = RemoteHostConfig(
-        name=multipass_vm["name"],
-        address=multipass_vm["ip"],
-        user=multipass_vm["user"],
-        become=True,
-        vars={
-            "ansible_ssh_private_key_file": str(multipass_vm["key_path"]),
-            "ansible_ssh_common_args": "-o StrictHostKeyChecking=no"
-        }
-    )
+    host_configs = [
+        RemoteHostConfig(
+            name=vm["name"],
+            address=vm["ip"],
+            user=vm["user"],
+            become=True,
+            vars={
+                "ansible_ssh_private_key_file": str(vm["key_path"]),
+                "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
+            },
+        )
+        for vm in multipass_vms
+    ]
 
     # Run a very short stress-ng test
     config = BenchmarkConfig(
         output_dir=output_dir,
         report_dir=report_dir,
         data_export_dir=export_dir,
-        remote_hosts=[host_config],
+        remote_hosts=host_configs,
         remote_execution=RemoteExecutionConfig(
             enabled=True,
             run_setup=True,
@@ -166,17 +210,12 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     assert "collect" in summary.phases
     assert summary.phases["collect"].success
 
-    # Verify artifacts
-    host_output_dir = summary.per_host_output[VM_NAME]
-    assert host_output_dir.exists()
-    
-    # Check if result files were downloaded
-    # There should be a structure like <host_output_dir>/benchmark_results/...
-    # The exact structure depends on the collector role, but we expect *some* files.
-    # 'collect.yml' usually fetches the whole output directory.
-    
-    # List files to debug if needed
-    files = list(host_output_dir.rglob("*"))
-    print(f"Downloaded files: {files}")
-    
-    assert len(files) > 0, "No result files were collected."
+    # Verify artifacts for each VM
+    for vm in multipass_vms:
+        host_output_dir = summary.per_host_output[vm["name"]]
+        assert host_output_dir.exists()
+
+        files = list(host_output_dir.rglob("*"))
+        print(f"Downloaded files for {vm['name']}: {files}")
+
+        assert files, f"No result files were collected for {vm['name']}."

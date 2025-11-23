@@ -45,5 +45,5 @@ Doctor checks (`lb doctor ...`)
 
 Integration helper (`lb test ...`)
 ----------------------------------
-- `lb test multipass [-o DIR] [-- EXTRA_PYTEST_ARGS...]`  
-  Runs the Multipass integration test; artifacts go to `tests/results` by default (override with `-o` or `LB_TEST_RESULTS_DIR`). Requires multipass + ansible/ansible-runner installed locally.
+- `lb test multipass [-o DIR] [--vm-count {1,2}] [--multi-workloads] [-- EXTRA_PYTEST_ARGS...]`  
+  Esegue il test di integrazione Multipass. Gli artefatti finiscono in `tests/results` di default (override con `-o` o `LB_TEST_RESULTS_DIR`). Con `--vm-count` (o `LB_MULTIPASS_VM_COUNT`) puoi avviare 1 o 2 VM in parallelo. Aggiungi `--multi-workloads` per eseguire la variante che lancia stress_ng, dd e fio nello stesso giro. Richiede multipass + ansible/ansible-runner installati localmente.

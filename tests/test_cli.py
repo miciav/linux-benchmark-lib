@@ -47,6 +47,7 @@ def test_plugins_shows_enabled_column(monkeypatch: pytest.MonkeyPatch, tmp_path:
     # Check that the table includes the Enabled column and a known plugin name
     assert "Enabled" in result.output
     assert "stress_ng" in result.output
+    assert "top500" in result.output
 
 
 def test_doctor_controller_uses_checks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -114,7 +115,63 @@ def test_multipass_helper_sets_artifacts_env(monkeypatch: pytest.MonkeyPatch, tm
     assert result.exit_code == 0, result.output
 
     assert called["env"]["LB_TEST_RESULTS_DIR"] == str(artifacts)
+    assert called["env"]["LB_MULTIPASS_VM_COUNT"] == "1"
     cmd = called.get("cmd")
     assert cmd is not None
     assert cmd[0] == sys.executable
     assert "pytest" in cmd
+    assert "tests/integration/test_multipass_benchmark.py" in cmd
+
+
+def test_multipass_helper_allows_vm_count_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cli = _load_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+
+    monkeypatch.setattr(cli, "_check_command", lambda name: True)
+    monkeypatch.setattr(cli, "_check_import", lambda name: True)
+
+    called = {}
+
+    def fake_run(cmd, check, env):
+        called["cmd"] = cmd
+        called["env"] = env
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    result = runner.invoke(cli.app, ["test", "multipass", "--vm-count", "2"])
+    assert result.exit_code == 0, result.output
+    assert called["env"]["LB_MULTIPASS_VM_COUNT"] == "2"
+    cmd = called.get("cmd")
+    assert cmd is not None
+    assert "tests/integration/test_multipass_benchmark.py" in cmd
+    assert "VM count" in result.output
+    assert "2 (multi-VM)" in result.output
+
+
+def test_multipass_helper_runs_multi_workloads(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cli = _load_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+
+    monkeypatch.setattr(cli, "_check_command", lambda name: True)
+    monkeypatch.setattr(cli, "_check_import", lambda name: True)
+
+    called = {}
+
+    def fake_run(cmd, check, env):
+        called["cmd"] = cmd
+        called["env"] = env
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    result = runner.invoke(
+        cli.app,
+        ["test", "multipass", "--multi-workloads", "--vm-count", "2", "--", "-k", "smoke"],
+    )
+    assert result.exit_code == 0, result.output
+    assert called["env"]["LB_MULTIPASS_VM_COUNT"] == "2"
+    cmd = called["cmd"]
+    assert "tests/integration/test_multipass_multi_workloads.py" in cmd
+    # extra args should pass through
+    assert "-k" in cmd and "smoke" in cmd

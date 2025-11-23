@@ -72,7 +72,8 @@ See `CLI.md` for the full command reference. Highlights:
 - Config and defaults: `lb config init`, `lb config set-default`, `lb config edit`, `lb config workloads`, `lb plugins --enable/--disable NAME` (shows enabled state with checkmarks).
 - Discovery and run: `lb plugins`, `lb hosts`, `lb run [tests...]` (follows config for local/remote unless overridden).
 - Health checks: `lb doctor controller`, `lb doctor local-tools`, `lb doctor multipass`, `lb doctor all`.
-- Integration helper: `lb test multipass` (artifacts to `tests/results` by default).
+- Integration helper: `lb test multipass --vm-count {1,2} [--multi-workloads]` (artifacts to `tests/results` by default).
+- Optional workload: `top500` (HPL Linpack via geerlingguy/top500-benchmark playbook), disabled by default; enable with `lb plugins --enable top500`.
 
 ## Quick Start
 

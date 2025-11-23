@@ -2,8 +2,8 @@
 
 from typing import List
 
-from benchmark_config import DDConfig, FIOConfig, IPerf3Config, StressNGConfig, BenchmarkConfig
-from workload_generators import DDGenerator, FIOGenerator, IPerf3Generator, StressNGGenerator
+from benchmark_config import BenchmarkConfig, DDConfig, FIOConfig, IPerf3Config, StressNGConfig, Top500Config
+from workload_generators import DDGenerator, FIOGenerator, IPerf3Generator, StressNGGenerator, Top500Generator
 from metric_collectors import CLICollector, EBPFCollector, PSUtilCollector, PerfCollector
 
 from .registry import WorkloadPlugin, CollectorPlugin
@@ -35,6 +35,13 @@ FIO_PLUGIN = WorkloadPlugin(
     description="Flexible disk I/O via fio",
     config_cls=FIOConfig,
     factory=FIOGenerator,
+)
+
+TOP500_PLUGIN = WorkloadPlugin(
+    name="top500",
+    description="HPL Linpack via geerlingguy/top500-benchmark playbook",
+    config_cls=Top500Config,
+    factory=Top500Generator,
 )
 
 
@@ -104,6 +111,7 @@ def builtin_plugins() -> List[WorkloadPlugin | CollectorPlugin]:
         IPERF3_PLUGIN,
         DD_PLUGIN,
         FIO_PLUGIN,
+        TOP500_PLUGIN,
         PSUTIL_COLLECTOR,
         CLI_COLLECTOR,
         PERF_COLLECTOR,

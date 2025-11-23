@@ -23,16 +23,20 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
     Workloads: stress-ng, dd, fio. Durations and sizes are trimmed to keep
     runtime reasonable in CI.
     """
-    host_config = RemoteHostConfig(
-        name=multipass_vm["name"],
-        address=multipass_vm["ip"],
-        user=multipass_vm["user"],
-        become=True,
-        vars={
-            "ansible_ssh_private_key_file": str(multipass_vm["key_path"]),
-            "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
-        },
-    )
+    multipass_vms = multipass_vm
+    host_configs = [
+        RemoteHostConfig(
+            name=vm["name"],
+            address=vm["ip"],
+            user=vm["user"],
+            become=True,
+            vars={
+                "ansible_ssh_private_key_file": str(vm["key_path"]),
+                "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
+            },
+        )
+        for vm in multipass_vms
+    ]
 
     config = BenchmarkConfig(
         repetitions=1,
@@ -42,7 +46,7 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
         output_dir=tmp_path / "results",
         report_dir=tmp_path / "reports",
         data_export_dir=tmp_path / "exports",
-        remote_hosts=[host_config],
+        remote_hosts=host_configs,
         remote_execution=RemoteExecutionConfig(
             enabled=True,
             run_setup=True,
@@ -77,7 +81,8 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
     for phase in ("setup", "run", "collect"):
         assert phase in summary.phases and summary.phases[phase].success
 
-    host_output_dir = summary.per_host_output[multipass_vm["name"]]
-    assert host_output_dir.exists()
-    files = list(host_output_dir.rglob("*"))
-    assert files, "No result files were collected."
+    for vm in multipass_vms:
+        host_output_dir = summary.per_host_output[vm["name"]]
+        assert host_output_dir.exists()
+        files = list(host_output_dir.rglob("*"))
+        assert files, f"No result files were collected for {vm['name']}."

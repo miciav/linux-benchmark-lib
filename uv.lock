@@ -499,7 +499,7 @@ wheels = [
 
 [[package]]
 name = "linux-benchmark-lib"
-version = "0.1.0"
+version = "0.9"
 source = { editable = "." }
 dependencies = [
     { name = "iperf3" },
@@ -507,6 +507,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "psutil" },
+    { name = "pyyaml" },
     { name = "rich" },
     { name = "typer" },
 ]
@@ -545,6 +546,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "psutil", specifier = ">=7.0.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.7.0" },
     { name = "seaborn", marker = "extra == 'controller'", specifier = ">=0.12.0" },
     { name = "typer", specifier = ">=0.12.5" },

@@ -377,9 +377,22 @@ def test_multipass(
         "-o",
         help="Where to store collected artifacts (used via LB_TEST_RESULTS_DIR).",
     ),
+    vm_count: int = typer.Option(
+        1,
+        "--vm-count",
+        "-n",
+        min=1,
+        max=2,
+        help="Number of Multipass VMs to launch (default 1, max 2).",
+    ),
+    multi_workloads: bool = typer.Option(
+        False,
+        "--multi-workloads",
+        help="Run the multi-workload Multipass integration (stress_ng + dd + fio).",
+    ),
 ) -> None:
     """
-    Run the Multipass integration test via pytest.
+    Run the Multipass integration test via pytest (launch 1–2 VMs).
 
     Requires multipass + ansible/ansible-runner installed locally.
     """
@@ -397,12 +410,20 @@ def test_multipass(
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["LB_TEST_RESULTS_DIR"] = str(artifacts_dir)
+    env["LB_MULTIPASS_VM_COUNT"] = str(vm_count)
     # Propagate standard env (ANSIBLE_ROLES_PATH/ANSIBLE_CONFIG are set in test)
+    target = (
+        "tests/integration/test_multipass_multi_workloads.py"
+        if multi_workloads
+        else "tests/integration/test_multipass_benchmark.py"
+    )
+    target_label = "multi-workloads" if multi_workloads else "benchmark"
+    vm_count_label = f"{vm_count} (multi-VM)" if vm_count > 1 else "1"
     cmd = [
         sys.executable,
         "-m",
         "pytest",
-        "tests/integration/test_multipass_benchmark.py",
+        target,
     ]
     extra_args = list(ctx.args)
     if extra_args:
@@ -411,10 +432,16 @@ def test_multipass(
     summary = Table(title="Multipass Integration Plan", show_edge=False, header_style="bold cyan")
     summary.add_column("Field", style="bold")
     summary.add_column("Value")
-    summary.add_row("Pytest target", "tests/integration/test_multipass_benchmark.py")
+    summary.add_row("Pytest target", target)
     summary.add_row("Iterations", "1 (pytest invocation)")
-    summary.add_row("Workload", "stress_ng")
-    summary.add_row("Duration", "5s (warmup 0s, cooldown 0s)")
+    summary.add_row("Workload(s)", "stress_ng, dd, fio" if multi_workloads else "stress_ng")
+    summary.add_row(
+        "Duration",
+        "stress_ng 5s; dd 32MiB; fio 64MiB"
+        if multi_workloads
+        else "5s (warmup 0s, cooldown 0s)",
+    )
+    summary.add_row("VM count", vm_count_label)
     summary.add_row("Artifacts dir", str(artifacts_dir))
     summary.add_row("Extra args", " ".join(extra_args) if extra_args else "None")
     summary.add_row("Config source", "Embedded in test (not user config)")
@@ -426,18 +453,23 @@ def test_multipass(
     workload_table.add_column("Repetitions")
     workload_table.add_column("Warmup/Cooldown")
     workload_table.add_column("Notes")
-    workload_table.add_row(
-        "stress_ng",
-        "5s",
-        "1",
-        "0s/0s",
-        "timeout=5s, cpu_workers=1",
-    )
+    workload_rows = [
+        ("stress_ng", "5s", "1", "0s/0s", "timeout=5s, cpu_workers=1"),
+    ]
+    if multi_workloads:
+        workload_rows = [
+            ("stress_ng", "5s", "1", "0s/0s", "timeout=3s, cpu_workers=1"),
+            ("dd", "approx 32MiB", "1", "0s/0s", "bs=1M, count=32"),
+            ("fio", "5s", "1", "0s/0s", "size=64M, randrw, bs=4k, numjobs=1, iodepth=4"),
+        ]
+    for row in workload_rows:
+        workload_table.add_row(*row)
     console.print(workload_table)
 
     try:
         with console.status(
-            "[cyan]Running Multipass integration test (this can take a few minutes)...[/cyan]",
+            f"[cyan]Running Multipass {target_label} test on {vm_count_label} VM(s) "
+            "(this can take a few minutes)...[/cyan]",
             spinner="dots",
         ):
             subprocess.run(cmd, check=True, env=env)
