@@ -174,13 +174,53 @@ class AnsibleRunnerExecutor(RemoteExecutor):
     @staticmethod
     def _event_handler(event: Dict[str, Any]) -> None:
         """Stream Ansible runner stdout events to the local console."""
+        import sys
+        
+        # 1. Handle standard runner stdout (the Ansible UI output)
         stdout = event.get("stdout")
         if stdout:
-            # Avoid printing duplicate consecutive lines sometimes emitted by runner
-            last = getattr(AnsibleRunnerExecutor._event_handler, "_last_stdout", None)
-            if stdout != last:
-                print(stdout, flush=True)
-                AnsibleRunnerExecutor._event_handler._last_stdout = stdout
+            # Check for progress marker
+            if "BENCHMARK_PROGRESS:" in stdout:
+                # Extract percentage and show dynamically
+                try:
+                    # stdout might contain other text, try to isolate the progress
+                    parts = stdout.split("BENCHMARK_PROGRESS:")
+                    if len(parts) > 1:
+                        progress = parts[1].strip()
+                        sys.stdout.write(f"\r>>> Progress: {progress}   ")
+                        sys.stdout.flush()
+                except Exception:
+                    pass # Fallback to standard printing if parsing fails
+            else:
+                # Avoid printing duplicate consecutive lines sometimes emitted by runner
+                last = getattr(AnsibleRunnerExecutor._event_handler, "_last_stdout", None)
+                if stdout != last:
+                    # If we were printing progress, move to a new line before printing normal logs
+                    if getattr(AnsibleRunnerExecutor._event_handler, "_was_progress", False):
+                         print("", flush=True)
+                    
+                    print(stdout, flush=True)
+                    AnsibleRunnerExecutor._event_handler._last_stdout = stdout
+                    AnsibleRunnerExecutor._event_handler._was_progress = False
+
+            # Mark if we just printed progress so we can newline later
+            if "BENCHMARK_PROGRESS:" in stdout:
+                AnsibleRunnerExecutor._event_handler._was_progress = True
+        
+        # 2. Handle task completion events to show command output
+        # "runner_on_ok" or "runner_on_failed" usually contain the module result
+        if event.get("event") in ("runner_on_ok", "runner_on_failed"):
+            event_data = event.get("event_data", {})
+            task_name = event_data.get("task", "")
+            
+            # Only show detailed output for the benchmark execution task to reduce noise
+            if "Run benchmark" in task_name:
+                res = event_data.get("res", {})
+                # Try multiple sources of output. 'stdout' is preferred for shell commands.
+                task_stdout = res.get("stdout") or res.get("msg") or res.get("stderr")
+                
+                if task_stdout:
+                     print(f"\n[Benchmark Output: {task_name}]\n{task_stdout}\n", flush=True)
 
 
 class BenchmarkOrchestrator:

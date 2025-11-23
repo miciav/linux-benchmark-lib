@@ -80,16 +80,27 @@
 
 - name: Run benchmark via local runner
   ansible.builtin.shell: |
-    {{ workload_runner_workdir }}/.venv/bin/python - <<'PY' | tee -a "{{ workload_runner_output_dir | default('/tmp') }}/runner.log"
+    {{ workload_runner_workdir }}/.venv/bin/python - <<'PY'
     from pathlib import Path
     import sys
     import logging
 
-    # Configure logging to ensure output is captured
+    # Configure logging
+    output_dir = Path("{{ workload_runner_output_dir | default('/tmp') }}")
+    log_file = output_dir / "runner.log"
+    
+    # Ensure output directory exists (it should, but to be safe)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    handlers = [
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(log_file)
+    ]
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        stream=sys.stdout
+        handlers=handlers
     )
 
     # __file__ is not defined in stdin scripts; use cwd provided by Ansible

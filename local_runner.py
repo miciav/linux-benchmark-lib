@@ -213,7 +213,17 @@ class LocalRunner:
         
         # Run for the specified duration
         logger.info(f"Running test for {self.config.test_duration_seconds} seconds")
-        time.sleep(self.config.test_duration_seconds)
+        
+        # Loop to provide progress feedback
+        duration = self.config.test_duration_seconds
+        for i in range(duration):
+            time.sleep(1)
+            # Calculate percentage
+            percent = int(((i + 1) / duration) * 100)
+            # Print progress marker for the orchestrator to pick up
+            # We use print directly to ensure it goes to stdout cleanly for parsing
+            if duration < 10 or (i + 1) % 5 == 0 or (i + 1) == duration:
+                print(f"BENCHMARK_PROGRESS: {percent}%", flush=True)
         
         # Stop workload generator
         generator.stop()
