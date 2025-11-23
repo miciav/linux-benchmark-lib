@@ -1,10 +1,10 @@
 """
 Top500 (HPL Linpack) workload generator using the upstream Ansible playbook.
 
-This generator clones the geerlingguy/top500-benchmark repository onto the host,
-renders a config/hosts inventory, and executes the playbook via ansible-playbook.
-It is intended for single-node runs by default (localhost inventory), but users can
-override the inventory hosts to target multiple nodes the playbook can reach.
+This generator runs on the remote host via workload_runner, so tests can mix with
+other workloads. It clones the geerlingguy/top500-benchmark repository onto the
+host, renders a local inventory (single node), and executes the playbook via
+ansible-playbook.
 """
 
 from __future__ import annotations

@@ -277,7 +277,7 @@ class BenchmarkController:
 
         extravars = {
             "run_id": resolved_run_id,
-            "tests": test_types,
+            "tests": [t for t in test_types if t != "top500"],
             "output_root": str(output_root),
             "remote_output_root": remote_output_root,
             "report_root": str(report_root),
@@ -290,9 +290,10 @@ class BenchmarkController:
 
         phases: Dict[str, ExecutionResult] = {}
 
+        phases: Dict[str, ExecutionResult] = {}
+
+        # Run top500 first if requested (controller-driven playbook)
         if "top500" in test_types:
-            if len(test_types) > 1:
-                raise ValueError("The top500 workload must be run alone for now.")
             top500 = self.config.top500
             top500_vars = {
                 "top500_repo_url": top500.repo_url,
@@ -307,7 +308,8 @@ class BenchmarkController:
                 inventory=inventory,
                 extravars=top500_vars,
             )
-        else:
+
+        if extravars["tests"]:
             if self.config.remote_execution.run_setup:
                 phases["setup"] = self.executor.run_playbook(
                     self.config.remote_execution.setup_playbook,
