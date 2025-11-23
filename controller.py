@@ -105,7 +105,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
 
         inventory_path = self._prepare_inventory(inventory)
         runner_fn = self._runner_fn or self._import_runner()
-        
+
         # Ensure playbook path is absolute so runner can find it
         # regardless of private_data_dir location
         abs_playbook_path = playbook_path.resolve()
@@ -116,11 +116,14 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             len(inventory.hosts),
         )
 
+        merged_extravars = extravars.copy() if extravars else {}
+        merged_extravars.setdefault("_lb_inventory_path", str(inventory_path))
+
         result = runner_fn(
             private_data_dir=str(self.private_data_dir),
             playbook=str(abs_playbook_path),
             inventory=str(inventory_path),
-            extravars=extravars or {},
+            extravars=merged_extravars,
             tags=",".join(tags) if tags else None,
             quiet=self.stream_output,  # suppress runner's own stdout when streaming ourselves
             event_handler=self._event_handler if self.stream_output else None,
@@ -156,6 +159,10 @@ class AnsibleRunnerExecutor(RemoteExecutor):
     def _render_inventory(hosts: List[RemoteHostConfig]) -> str:
         """Render an INI inventory from host configs."""
         lines = ["[all]"]
+        for host in hosts:
+            lines.append(host.ansible_host_line())
+        lines.append("")
+        lines.append("[cluster]")
         for host in hosts:
             lines.append(host.ansible_host_line())
         return "\n".join(lines) + "\n"
@@ -283,25 +290,43 @@ class BenchmarkController:
 
         phases: Dict[str, ExecutionResult] = {}
 
-        if self.config.remote_execution.run_setup:
-            phases["setup"] = self.executor.run_playbook(
-                self.config.remote_execution.setup_playbook,
+        if "top500" in test_types:
+            if len(test_types) > 1:
+                raise ValueError("The top500 workload must be run alone for now.")
+            top500 = self.config.top500
+            top500_vars = {
+                "top500_repo_url": top500.repo_url,
+                "top500_repo_ref": top500.repo_ref,
+                "top500_workdir": str(top500.workdir),
+                "top500_tags": top500.tags,
+                "top500_config_overrides": top500.config_overrides,
+                "top500_run_id": resolved_run_id,
+            }
+            phases["top500"] = self.executor.run_playbook(
+                Path("ansible/playbooks/top500.yml"),
+                inventory=inventory,
+                extravars=top500_vars,
+            )
+        else:
+            if self.config.remote_execution.run_setup:
+                phases["setup"] = self.executor.run_playbook(
+                    self.config.remote_execution.setup_playbook,
+                    inventory=inventory,
+                    extravars=extravars,
+                )
+
+            phases["run"] = self.executor.run_playbook(
+                self.config.remote_execution.run_playbook,
                 inventory=inventory,
                 extravars=extravars,
             )
 
-        phases["run"] = self.executor.run_playbook(
-            self.config.remote_execution.run_playbook,
-            inventory=inventory,
-            extravars=extravars,
-        )
-
-        if self.config.remote_execution.run_collect:
-            phases["collect"] = self.executor.run_playbook(
-                self.config.remote_execution.collect_playbook,
-                inventory=inventory,
-                extravars=extravars,
-            )
+            if self.config.remote_execution.run_collect:
+                phases["collect"] = self.executor.run_playbook(
+                    self.config.remote_execution.collect_playbook,
+                    inventory=inventory,
+                    extravars=extravars,
+                )
 
         success = all(result.success for result in phases.values())
 
