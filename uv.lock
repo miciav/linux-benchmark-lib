@@ -499,7 +499,7 @@ wheels = [
 
 [[package]]
 name = "linux-benchmark-lib"
-version = "0.9"
+version = "0.9.1"
 source = { editable = "." }
 dependencies = [
     { name = "iperf3" },
@@ -541,7 +541,7 @@ requires-dist = [
     { name = "ansible-runner", marker = "extra == 'controller'", specifier = ">=2.4.0" },
     { name = "influxdb-client", marker = "extra == 'controller'", specifier = ">=1.36.0" },
     { name = "iperf3", specifier = ">=0.1.11" },
-    { name = "jc", specifier = ">=1.23.0" },
+    { name = "jc", specifier = ">=1.25.0" },
     { name = "matplotlib", marker = "extra == 'controller'", specifier = ">=3.7.0" },
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "pandas", specifier = ">=2.0.0" },
