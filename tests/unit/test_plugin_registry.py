@@ -27,6 +27,9 @@ class DummyGenerator(BaseGenerator):
     def _validate_environment(self) -> bool:
         return True
 
+    def _stop_workload(self) -> None:
+        pass
+
 
 def test_registry_creates_generator_from_plugin():
     """Plugin registry should instantiate generators with provided options."""

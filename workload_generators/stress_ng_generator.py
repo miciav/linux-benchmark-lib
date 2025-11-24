@@ -126,16 +126,15 @@ class StressNGGenerator(BaseGenerator):
             self._process = None
             self._is_running = False
     
-    def stop(self) -> None:
-        """Stop stress-ng if it's running."""
-        if self._process and self._process.poll() is None:
+    def _stop_workload(self) -> None:
+        """Stop stress-ng process."""
+        proc = self._process
+        if proc and proc.poll() is None:
             logger.info("Terminating stress-ng process")
-            self._process.terminate()
+            proc.terminate()
             try:
-                self._process.wait(timeout=5)
+                proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 logger.warning("Force killing stress-ng process")
-                self._process.kill()
-                self._process.wait()
-        
-        super().stop()
+                proc.kill()
+                proc.wait()

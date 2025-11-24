@@ -124,15 +124,15 @@ class Top500Generator(BaseGenerator):
             self._process = None
             self._is_running = False
 
-    def stop(self) -> None:
-        """Terminate ansible-playbook if running."""
-        if self._process and self._process.poll() is None:
+    def _stop_workload(self) -> None:
+        """Terminate ansible-playbook process."""
+        proc = self._process
+        if proc and proc.poll() is None:
             logger.info("Terminating Top500 playbook process")
-            self._process.terminate()
+            proc.terminate()
             try:
-                self._process.wait(timeout=10)
+                proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 logger.warning("Force killing Top500 playbook process")
-                self._process.kill()
-                self._process.wait()
-        super().stop()
+                proc.kill()
+                proc.wait()

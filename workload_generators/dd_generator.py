@@ -133,16 +133,15 @@ class DDGenerator(BaseGenerator):
             self._process = None
             self._is_running = False
     
-    def stop(self) -> None:
-        """Stop dd if it's running."""
-        if self._process and self._process.poll() is None:
+    def _stop_workload(self) -> None:
+        """Stop dd process."""
+        proc = self._process
+        if proc and proc.poll() is None:
             logger.info("Terminating dd process")
-            self._process.terminate()
+            proc.terminate()
             try:
-                self._process.wait(timeout=5)
+                proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 logger.warning("Force killing dd process")
-                self._process.kill()
-                self._process.wait()
-        
-        super().stop()
+                proc.kill()
+                proc.wait()

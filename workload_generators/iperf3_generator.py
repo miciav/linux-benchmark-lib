@@ -66,7 +66,10 @@ class IPerf3Generator(BaseGenerator):
             logger.error(f"Error running iperf3: {e}")
             self._result = {"error": str(e)}
 
-    def stop(self) -> None:
+    def _stop_workload(self) -> None:
         """Stop iperf3 client."""
-        logger.info("Stopping iperf3 client")
-        super().stop()
+        logger.info("Stopping iperf3 client (no-op as iperf3 client is blocking)")
+        # iperf3 client.run() is blocking and doesn't expose a stop method
+        # In a real implementation, we might need to run it in a separate process
+        # similar to other generators if we need hard stopping capability.
+        pass

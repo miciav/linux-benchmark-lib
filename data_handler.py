@@ -56,6 +56,10 @@ class DataHandler:
             rep_num = result["repetition"]
             metrics = result["metrics"]
             
+            # Parse test start/end times
+            start_time = pd.to_datetime(result["start_time"]) if result.get("start_time") else None
+            end_time = pd.to_datetime(result["end_time"]) if result.get("end_time") else None
+            
             # Extract and aggregate metrics from each collector
             rep_summary = {}
             
@@ -69,6 +73,18 @@ class DataHandler:
                 # Convert timestamp to datetime and set as index if present
                 if "timestamp" in df.columns:
                     df["timestamp"] = pd.to_datetime(df["timestamp"])
+                    
+                    # Filter data based on test start/end times (exclude warmup/cooldown)
+                    if start_time and end_time:
+                        df = df[
+                            (df["timestamp"] >= start_time) & 
+                            (df["timestamp"] <= end_time)
+                        ]
+                    
+                    if df.empty:
+                        logger.warning(f"Collector {collector_name} has no data after filtering by test duration")
+                        continue
+
                     df.set_index("timestamp", inplace=True)
                 
                 # Process based on collector type
@@ -116,6 +132,9 @@ class DataHandler:
         Returns:
             Dictionary of aggregated metrics
         """
+        if df.empty:
+            return {}
+
         summary = {}
         
         # CPU metrics
@@ -130,10 +149,12 @@ class DataHandler:
             summary["memory_usage_percent_max"] = df["memory_usage"].max()
         
         # Disk I/O metrics
-        if "disk_read_bytes" in df.columns:
+        if "disk_read_bytes" in df.columns and len(df) > 0:
             # Calculate rates (bytes per second)
             time_diff = (df.index[-1] - df.index[0]).total_seconds() if len(df) > 1 else 1
-            
+            if time_diff <= 0:
+                 time_diff = 1
+
             read_diff = df["disk_read_bytes"].iloc[-1] - df["disk_read_bytes"].iloc[0]
             write_diff = df["disk_write_bytes"].iloc[-1] - df["disk_write_bytes"].iloc[0]
             
@@ -141,8 +162,10 @@ class DataHandler:
             summary["disk_write_mbps_avg"] = (write_diff / time_diff) / (1024 * 1024)
         
         # Network I/O metrics
-        if "net_bytes_sent" in df.columns:
+        if "net_bytes_sent" in df.columns and len(df) > 0:
             time_diff = (df.index[-1] - df.index[0]).total_seconds() if len(df) > 1 else 1
+            if time_diff <= 0:
+                 time_diff = 1
             
             sent_diff = df["net_bytes_sent"].iloc[-1] - df["net_bytes_sent"].iloc[0]
             recv_diff = df["net_bytes_recv"].iloc[-1] - df["net_bytes_recv"].iloc[0]

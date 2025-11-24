@@ -47,6 +47,16 @@ class BaseGenerator(ABC):
             True if the environment is valid, False otherwise
         """
         pass
+    
+    @abstractmethod
+    def _stop_workload(self) -> None:
+        """
+        Stop the actual workload process.
+
+        This method must be implemented by subclasses to ensure the
+        underlying process (e.g., subprocess) is terminated correctly.
+        """
+        pass
 
     def start(self) -> None:
         """Start the workload generation in a background thread."""
@@ -68,6 +78,9 @@ class BaseGenerator(ABC):
         if not self._is_running:
             logger.warning(f"{self.name} generator is not running")
             return
+        
+        # Signal the workload to stop
+        self._stop_workload()
             
         self._is_running = False
         if self._thread:

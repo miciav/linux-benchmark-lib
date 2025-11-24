@@ -19,6 +19,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.rule import Rule
 
 from benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 from controller import BenchmarkController
@@ -494,34 +495,37 @@ def _run_pytest_targets(
 ) -> None:
     """Execute pytest against the given targets with friendly console output."""
     cmd = [sys.executable, "-m", "pytest"]
+    
+    # Add default flags for cleaner output
+    # -v: verbose (shows test names)
+    # --tb=short: shorter tracebacks on failure
+    cmd.extend(["-v", "--tb=short"])
+    
     cmd.extend(targets)
     if extra_args:
         cmd.extend(extra_args)
 
-    summary = Table(title=title, show_edge=False, header_style="bold cyan")
-    summary.add_column("Field", style="bold")
-    summary.add_column("Value")
-    summary.add_row("Pytest target", " ".join(targets))
-    summary.add_row("Extra args", " ".join(extra_args) if extra_args else "None")
-    console.print(summary)
+    # Visual separation
+    console.print()
+    console.print(Rule(f"[bold cyan]{title}[/bold cyan]"))
+    
+    # Show command details in a compact way
+    console.print(f"[dim]Running: {' '.join(cmd)}[/dim]")
+    console.print()
 
     try:
-        with console.status(
-            f"[cyan]Running {title.lower()}...[/cyan]",
-            spinner="dots",
-        ):
-            subprocess.run(cmd, check=True, env=env)
+        # Run directly to stdout/stderr to avoid buffering issues and allow
+        # real-time feedback. We removed the spinner because it conflicts
+        # with pytest's live output.
+        subprocess.run(cmd, check=True, env=env)
+        
+        console.print()
+        console.print(f"[bold green]✔ {title} Passed[/bold green]")
+        
     except subprocess.CalledProcessError as exc:
-        console.print(f"[red]Pytest failed with exit code {exc.returncode}[/red]")
+        console.print()
+        console.print(f"[bold red]✘ {title} Failed[/bold red] (Exit Code: {exc.returncode})")
         raise typer.Exit(exc.returncode)
-
-    console.print(
-        Panel.fit(
-            f"Command: {' '.join(cmd)}",
-            title=f"{title} completed",
-            border_style="green",
-        )
-    )
 
 
 @test_app.command(
@@ -529,14 +533,37 @@ def _run_pytest_targets(
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def test_all(ctx: typer.Context) -> None:
-    """Run the full test suite (unit + integration)."""
+    """Run the full test suite (Unit + Integration) sequentially."""
     env = os.environ.copy()
-    _run_pytest_targets(
-        ["tests"],
-        title="Full test suite",
-        extra_args=list(ctx.args),
-        env=env,
-    )
+    extra_args = list(ctx.args)
+
+    console.print(Panel("Starting Full Test Suite", style="bold magenta"))
+
+    # 1. Run Unit Tests
+    try:
+        _run_pytest_targets(
+            ["tests/unit"],
+            title="Unit Tests",
+            extra_args=extra_args,
+            env=env,
+        )
+    except typer.Exit:
+        console.print("[red]Stopping suite due to unit test failure.[/red]")
+        raise
+
+    # 2. Run Integration Tests
+    try:
+        _run_pytest_targets(
+            ["tests/integration"],
+            title="Integration Tests",
+            extra_args=extra_args,
+            env=env,
+        )
+    except typer.Exit:
+        raise
+
+    console.print()
+    console.print(Panel("[bold green]All Tests Suites Completed Successfully[/bold green]", border_style="green"))
 
 
 @test_app.command(
