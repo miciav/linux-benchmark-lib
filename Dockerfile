@@ -14,8 +14,6 @@ RUN apt-get update && apt-get install -y \
     sysstat \
     --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install -U ansible
 # END GENERATED PLUGIN PACKAGES
 
 # Set the working directory
