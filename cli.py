@@ -307,8 +307,10 @@ def _select_plugins_interactively(
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         ui.show_error("Interactive selection requires a TTY.")
         return None
+    # Show the same table used by `lb plugin` before asking for input.
+    print_plugin_table(registry, enabled=enabled_map, ui_adapter=ui)
     plugins = {name: getattr(plugin, "description", "") or "" for name, plugin in registry.available().items()}
-    selection = prompt_plugins(plugins, enabled_map, force=False)
+    selection = prompt_plugins(plugins, enabled_map, force=False, show_table=False)
     if selection is None:
         ui.show_warning("Selection cancelled.")
     return selection

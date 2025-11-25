@@ -25,7 +25,10 @@ def _check_tty() -> bool:
 
 
 def prompt_plugins(
-    plugins: Dict[str, str], enabled: Dict[str, bool], force: bool = False
+    plugins: Dict[str, str],
+    enabled: Dict[str, bool],
+    force: bool = False,
+    show_table: bool = True,
 ) -> Optional[Set[str]]:
     """
     Prompt for plugin selection using a simple rich table + comma-separated input.
@@ -35,15 +38,16 @@ def prompt_plugins(
     if not (_check_tty() or force):
         return None
 
-    table = Table(title="Workload plugins", show_lines=False)
-    table.add_column("Enabled")
-    table.add_column("Plugin")
-    table.add_column("Description")
-    for name, description in sorted(plugins.items()):
-        marker = "[green]✓[/green]" if enabled.get(name, False) else "[dim]·[/dim]"
-        table.add_row(marker, name, description or "-")
+    if show_table:
+        table = Table(title="Workload plugins", show_lines=False)
+        table.add_column("Enabled")
+        table.add_column("Plugin")
+        table.add_column("Description")
+        for name, description in sorted(plugins.items()):
+            marker = "[green]✓[/green]" if enabled.get(name, False) else "[dim]·[/dim]"
+            table.add_row(marker, name, description or "-")
 
-    console.print(table)
+        console.print(table)
     current = ",".join(sorted(name for name, state in enabled.items() if state))
     raw = Prompt.ask(
         "Enable plugins (comma separated, blank to keep current, 'all' for every plugin)",
