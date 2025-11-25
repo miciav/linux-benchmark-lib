@@ -43,6 +43,7 @@ TEST_CLI_ENABLED = bool(
 config_service = ConfigService()
 run_service = RunService(registry_factory=create_registry)
 doctor_service = DoctorService(ui_adapter=ui, config_service=config_service)
+test_service = TestService(ui_adapter=ui)
 
 
 @app.callback(invoke_without_command=True)
@@ -361,6 +362,83 @@ else:
             "Run `LB_ENABLE_TEST_CLI=1 lb test ...` or create .lb_dev_cli to override."
         )
         raise typer.Exit(1)
+
+
+@test_app.command("multipass")
+def test_multipass(
+    output: Path = typer.Option(
+        Path("tests/results"),
+        "--output",
+        "-o",
+        help="Directory to store test artifacts.",
+    ),
+    vm_count: int = typer.Option(
+        1,
+        "--vm-count",
+        help="Number of Multipass VMs to launch.",
+    ),
+    multi_workloads: bool = typer.Option(
+        False,
+        "--multi-workloads",
+        help="Run the multi-workload Multipass scenario.",
+    ),
+    top500: bool = typer.Option(
+        False,
+        "--top500",
+        help="Run the Top500 (setup-only) Multipass scenario.",
+    ),
+    extra_args: List[str] = typer.Argument(
+        [],
+        help="Additional pytest arguments after '--'.",
+        show_default=False,
+        metavar="PYTEST_ARGS...",
+    ),
+) -> None:
+    """Run the Multipass integration test helper."""
+    if not _check_command("multipass"):
+        ui.show_error("multipass not found in PATH.")
+        raise typer.Exit(1)
+    if not _check_import("pytest"):
+        ui.show_error("pytest is not installed.")
+        raise typer.Exit(1)
+
+    output = output.expanduser()
+    output.mkdir(parents=True, exist_ok=True)
+
+    scenario_choice, level = test_service.select_multipass(
+        multi_workloads=multi_workloads,
+        top500=top500,
+        default_level="medium",
+    )
+    intensity = test_service.get_multipass_intensity()
+    scenario = test_service.build_multipass_scenario(intensity, scenario_choice)
+
+    env = os.environ.copy()
+    env["LB_TEST_RESULTS_DIR"] = str(output)
+    env["LB_MULTIPASS_VM_COUNT"] = str(vm_count)
+    env["LB_MULTIPASS_FORCE"] = level
+    for key, value in scenario.env_vars.items():
+        env[key] = value
+
+    cmd: List[str] = [sys.executable, "-m", "pytest", scenario.target]
+    if extra_args:
+        cmd.extend(extra_args)
+
+    label = "multi-VM" if vm_count > 1 else "single-VM"
+    typer.echo(f"VM count: {vm_count} ({label})")
+    ui.show_info(f"VM count: {vm_count} ({label})")
+    ui.show_info(f"Scenario: {scenario.workload_label} -> {scenario.target_label}")
+    ui.show_info(f"Artifacts: {output}")
+
+    try:
+        result = subprocess.run(cmd, check=False, env=env)
+    except Exception as exc:
+        ui.show_error(f"Failed to launch Multipass test: {exc}")
+        raise typer.Exit(1)
+
+    if result.returncode != 0:
+        ui.show_error(f"`pytest` exited with {result.returncode}")
+        raise typer.Exit(result.returncode)
 
 
 @app.command("run")
