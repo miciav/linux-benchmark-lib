@@ -15,6 +15,8 @@ from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
+from ui import get_ui_adapter
+
 
 console = Console()
 
@@ -107,12 +109,9 @@ def prompt_multipass(options: Iterable[str], default_level: str = "medium") -> O
         "top500": "Top500 setup only",
     }
 
-    table = Table(title="Multipass scenarios", show_lines=False)
-    table.add_column("Scenario")
-    table.add_column("Description")
-    for name in options_list:
-        table.add_row(name, descriptions.get(name, "-"))
-    console.print(table)
+    ui = get_ui_adapter()
+    rows = [[name, descriptions.get(name, "-")] for name in options_list]
+    ui.show_table("Multipass Scenarios", ["Scenario", "Description"], rows)
 
     from InquirerPy import inquirer
 
