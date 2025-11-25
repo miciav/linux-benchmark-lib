@@ -77,7 +77,6 @@ bash tools/switch_mode.sh dev         # dev + all extras
 ## CLI (lb)
 
 See `CLI.md` for the full command reference. Highlights:
-- Launch the Textual TUI: `lb tui` (or simply `lb --tui` with no subcommand in a TTY).
 - Config and defaults: `lb config init`, `lb config set-default`, `lb config edit`, `lb config workloads`, `lb plugin list --select/--enable/--disable NAME` (shows enabled state with checkmarks).
 - Discovery and run: `lb plugin list`, `lb hosts`, `lb run [tests...]` (follows config for local/remote unless overridden).
 - Interactive toggle: `lb plugin select` to enable/disable plugins with arrows + space (Textual).
@@ -87,10 +86,9 @@ See `CLI.md` for the full command reference. Highlights:
 - Test helpers (`lb test ...`) are available in dev mode (create `.lb_dev_cli` or export `LB_ENABLE_TEST_CLI=1`).
 
 ### UI layer
-- The interactive experience is a dark, minimalist Textual TUI inspired by modern developer tools; screens share a common top bar, sidebar, and status bar.
-- Launch the full-screen app with `lb tui` or force it via `lb --tui`; headless rendering stays available for CI and piping.
+- Progress bars and tables are text-friendly; headless output works in CI and when piping.
 - Force headless output with `LB_HEADLESS_UI=1` when running under CI or when piping output.
-- Progress bars and tables remain text-friendly; the same services power both the TUI and the headless adapter used by tests.
+- The UI adapter powers both interactive prompts and headless rendering used by tests.
 
 ### Plugin manifests and generated assets
 - Each workload declares its install needs in `plugins/manifests/<name>.yaml`:

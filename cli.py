@@ -770,16 +770,6 @@ def doctor_all() -> None:
         raise typer.Exit(1)
 
 
-@app.command("tui")
-def launch_tui(
-    config: Optional[Path] = typer.Option(
-        None, "--config", "-c", help="Config file to load when launching the TUI."
-    )
-) -> None:
-    """Notify users that the legacy Textual TUI has been removed."""
-    ui.show_warning("The Textual TUI has been removed. Use the standard CLI commands instead.")
-
-
 @app.command("hosts")
 def show_hosts(config: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to BenchmarkConfig JSON file.")) -> None:
     """Display remote hosts configured in the provided config."""
