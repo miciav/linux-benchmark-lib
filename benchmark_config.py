@@ -10,6 +10,20 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+
+@dataclass
+class StressNGConfig:
+    """Compatibility config for stress-ng (matches workload_generators version)."""
+
+    cpu_workers: int = 0  # 0 means use all available CPUs
+    cpu_method: str = "all"  # CPU stress method
+    vm_workers: int = 1  # Virtual memory workers
+    vm_bytes: str = "1G"  # Memory per VM worker
+    io_workers: int = 1  # I/O workers
+    timeout: int = 60  # Timeout in seconds
+    metrics_brief: bool = True  # Use brief metrics output
+    extra_args: List[str] = field(default_factory=list)
+
 DEFAULT_TOP500_REPO = "https://github.com/geerlingguy/top500-benchmark.git"
 
 # Legacy configs kept here until all plugins are refactored
@@ -82,6 +96,22 @@ class RemoteHostConfig:
     become_method: str = "sudo"
     vars: Dict[str, Any] = field(default_factory=dict)
 
+    def ansible_host_line(self) -> str:
+        """Render an INI-style inventory line for this host (compat helper)."""
+        parts = [
+            self.name,
+            f"ansible_host={self.address}",
+            f"ansible_port={self.port}",
+            f"ansible_user={self.user}",
+        ]
+        if self.become:
+            parts.append("ansible_become=true")
+        if self.become_method:
+            parts.append(f"ansible_become_method={self.become_method}")
+        for key, value in self.vars.items():
+            parts.append(f"{key}={value}")
+        return " ".join(parts)
+
 @dataclass
 class RemoteExecutionConfig:
     """Configuration for remote execution via Ansible."""
@@ -128,6 +158,7 @@ class BenchmarkConfig:
     data_export_dir: Path = Path("./data_exports")
     
     # Legacy hardcoded fields (temporarily kept for non-migrated plugins)
+    stress_ng: StressNGConfig = field(default_factory=StressNGConfig)
     iperf3: IPerf3Config = field(default_factory=IPerf3Config)
     dd: DDConfig = field(default_factory=DDConfig)
     fio: FIOConfig = field(default_factory=FIOConfig)
@@ -158,6 +189,8 @@ class BenchmarkConfig:
     influxdb_bucket: str = "performance"
     
     def __post_init__(self) -> None:
+        if self.stress_ng and "stress_ng" not in self.plugin_settings:
+            self.plugin_settings["stress_ng"] = self.stress_ng
         self._hydrate_plugin_settings()
         if not self.workloads:
             self.workloads = self._build_default_workloads()
@@ -318,7 +351,14 @@ class BenchmarkConfig:
         def _add_plugin_default(name: str, config_cls: Any, enabled: bool) -> None:
             existing = self.plugin_settings.get(name, {})
             try:
-                cfg_obj = existing if isinstance(existing, config_cls) else config_cls(**(existing or {}))
+                if isinstance(existing, config_cls):
+                    cfg_obj = existing
+                elif isinstance(existing, dict):
+                    cfg_obj = config_cls(**existing)
+                elif hasattr(existing, "__dict__"):
+                    cfg_obj = config_cls(**asdict(existing))
+                else:
+                    cfg_obj = config_cls()
                 # Persist hydrated config for downstream services
                 self.plugin_settings[name] = cfg_obj
                 defaults[name] = WorkloadConfig(name, enabled, asdict(cfg_obj))
