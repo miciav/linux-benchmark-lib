@@ -2,11 +2,12 @@
 
 import logging
 import shutil
+import subprocess
 import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional, Any, Union
 
 from plugins.builtin import builtin_plugins
 from plugins.registry import PluginRegistry, USER_PLUGIN_DIR
@@ -27,21 +28,25 @@ class PluginInstaller:
         self.plugin_dir = USER_PLUGIN_DIR
         self.plugin_dir.mkdir(parents=True, exist_ok=True)
 
-    def install(self, source_path: Path, manifest_path: Optional[Path] = None, force: bool = False) -> str:
+    def install(self, source_path: Union[Path, str], manifest_path: Optional[Path] = None, force: bool = False) -> str:
         """
-        Install a plugin from a file (.py), directory, or archive (.zip, .tar.gz).
+        Install a plugin from a file (.py), directory, archive (.zip, .tar.gz), or git URL.
         Returns the name of the installed plugin.
         """
-        source_path = Path(source_path).resolve()
+        if isinstance(source_path, Path):
+            raw_source = str(source_path)
+        else:
+            raw_source = source_path
+
+        if self._looks_like_git_url(raw_source):
+            return self._install_from_git(raw_source, force)
+
+        source_path = Path(raw_source).resolve()
         if not source_path.exists():
             raise FileNotFoundError(f"Source not found: {source_path}")
 
         if source_path.is_dir():
-            # Package the directory into a temporary tarball before installing
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                archive_path = Path(tmp_dir) / f"{source_path.name}.tar.gz"
-                self._package_directory(source_path, archive_path)
-                return self._install_archive(archive_path, force)
+            return self._install_directory(source_path, force)
 
         if source_path.suffix == ".py":
             return self._install_file(source_path, manifest_path, force)
@@ -154,6 +159,25 @@ class PluginInstaller:
             # Install
             return self._install_file(main_py, main_manifest, force)
 
+    def _install_directory(self, source_dir: Path, force: bool) -> str:
+        """Install a plugin directly from a directory."""
+        py_files = [
+            f
+            for f in source_dir.rglob("*.py")
+            if f.name != "__init__.py" and not f.name.startswith(("test_", "._"))
+        ]
+        if not py_files:
+            raise ValueError("No valid Python plugin file found in directory.")
+
+        main_py = next((f for f in py_files if f.stem == source_dir.name), None) or py_files[0]
+
+        manifest_files = list(source_dir.rglob("*.yaml")) + list(source_dir.rglob("*.yml"))
+        main_manifest = next((f for f in manifest_files if f.stem == main_py.stem), None)
+        if not main_manifest and manifest_files:
+            main_manifest = manifest_files[0]
+
+        return self._install_file(main_py, main_manifest, force)
+
     def _package_directory(self, source_dir: Path, archive_path: Path) -> Path:
         """Tar/gzip a plugin directory into the given archive path."""
         archive_path = archive_path.resolve()
@@ -171,6 +195,37 @@ class PluginInstaller:
         suffixes = path.suffixes
         combined = "".join(suffixes[-2:]) if len(suffixes) >= 2 else ""
         return path.suffix in {".zip", ".gz", ".tar", ".tgz"} or combined in {".tar.gz", ".tar.bz2", ".tar.xz"}
+
+    # --- Git helpers ---
+
+    def _looks_like_git_url(self, value: str) -> bool:
+        """Return True when the provided string resembles a git clone URL."""
+        lowered = value.lower()
+        if lowered.startswith(("http://", "https://", "ssh://", "git@", "file://")):
+            return True
+        return lowered.endswith(".git") and ("://" in lowered or lowered.startswith("git@"))
+
+    def _install_from_git(self, url: str, force: bool) -> str:
+        """Clone a git repository and install the plugin from the checked-out tree."""
+        if shutil.which("git") is None:
+            raise RuntimeError("git is required to install plugins from repositories.")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            clone_path = Path(tmp_dir) / "plugin_repo"
+            try:
+                subprocess.run(
+                    ["git", "clone", "--depth", "1", url, str(clone_path)],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                stdout = exc.stdout.strip() if exc.stdout else ""
+                stderr = exc.stderr.strip() if exc.stderr else ""
+                msg = f"git clone failed for {url}: {stderr or stdout or exc}"
+                raise RuntimeError(msg) from exc
+
+            return self.install(clone_path, force=force)
 
 
 def regenerate_plugin_assets(ui: Optional[Any] = None) -> None:

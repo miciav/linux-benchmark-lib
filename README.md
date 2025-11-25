@@ -80,6 +80,16 @@ See `CLI.md` for the full command reference. Highlights:
 - Config and defaults: `lb config init`, `lb config set-default`, `lb config edit`, `lb config workloads`, `lb plugin list --select/--enable/--disable NAME` (shows enabled state with checkmarks).
 - Discovery and run: `lb plugin list`, `lb hosts`, `lb run [tests...]` (follows config for local/remote unless overridden).
 - Interactive toggle: `lb plugin select` to enable/disable plugins with arrows + space; `lb config select-workloads` to toggle configured workloads the same way.
+- Install plugins from a path or git repo: `lb plugin install ./plugins/packages/sysbench_plugin.tar.gz` or `lb plugin install https://github.com/miciav/unixbench-lb-plugin.git`.
+- Example (UnixBench from git): 
+  ```bash
+  lb plugin install https://github.com/miciav/unixbench-lb-plugin.git
+  lb plugin list --enable unixbench
+  ```
+  Then set options in `benchmark_config.json` if needed:
+  ```json
+  "workloads": {"unixbench": {"plugin": "unixbench", "enabled": true, "options": {"concurrency": 4}}}
+  ```
 - Health checks: `lb doctor controller`, `lb doctor local-tools`, `lb doctor multipass`, `lb doctor all`.
 - Integration helper: `lb test multipass --vm-count {1,2} [--multi-workloads]` (artifacts to `tests/results` by default).
 - Optional workload: `top500` (HPL Linpack via geerlingguy/top500-benchmark playbook), disabled by default; enable with `lb plugin list --enable top500` or interactively with `lb plugin list --select`.
@@ -104,6 +114,7 @@ See `CLI.md` for the full command reference. Highlights:
   ```
   This updates the generated apt/pip install block in `Dockerfile` and rewrites `ansible/roles/workload_runner/tasks/plugins.generated.yml`.
 - Commit both the manifest and generated files so remote setup and the container stay in sync with available plugins.
+- See `docs/PLUGIN_DEVELOPMENT.md` for a full plugin authoring guide (WorkloadPlugin interface, manifests, packaging, git installs).
 
 ## Quick Start
 

@@ -1,3 +1,5 @@
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -60,6 +62,38 @@ def test_install_from_compressed_export(monkeypatch: pytest.MonkeyPatch, tmp_pat
 
     registry = create_registry()
     assert "sysbench" in registry.available()
+
+
+def test_install_from_git_url(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """PluginInstaller should clone and install from a git repository URL."""
+    if shutil.which("git") is None:
+        pytest.skip("git is required for this test")
+
+    plugin_dir = _patch_plugin_dir(monkeypatch, tmp_path)
+    source = tmp_path / "git_src"
+    shutil.copytree(PACKAGE_ROOT, source)
+
+    subprocess.run(["git", "init", "-b", "main"], cwd=source, check=True, capture_output=True)
+    subprocess.run(["git", "add", "."], cwd=source, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "init"],
+        cwd=source,
+        check=True,
+        capture_output=True,
+    )
+
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", str(remote)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "symbolic-ref", "HEAD", "refs/heads/main"], cwd=remote, check=True, capture_output=True
+    )
+    subprocess.run(["git", "push", str(remote), "main"], cwd=source, check=True, capture_output=True)
+
+    installer = PluginInstaller()
+    name = installer.install(remote.as_uri(), force=True)
+    assert name == "sysbench"
+    assert (plugin_dir / "sysbench.py").exists()
+    assert (plugin_dir / "sysbench.yaml").exists()
 
 
 def test_uninstall_and_config_cleanup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):

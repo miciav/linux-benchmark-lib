@@ -21,6 +21,10 @@ Top-level commands
   Show plugins with enabled state; optionally enable/disable a workload in the config or open an interactive selector (arrows + space). (`lb plugins` remains as a compatibility alias.)
 - `lb plugin select [-c FILE] [--set-default]`  
   Directly open the interactive selector to toggle plugins with arrows + space.
+- `lb plugin install PATH|URL [--manifest FILE] [--force] [--regen-assets/--no-regen-assets]`  
+  Install a plugin from a .py file, directory, archive (.zip/.tar.gz), or git repository URL.
+- `lb plugin uninstall NAME [--purge-config/--keep-config] [--regen-assets/--no-regen-assets]`  
+  Remove a user plugin and optionally delete its config entries.
 - `lb hosts [-c FILE]`  
   Show remote hosts from the resolved config.
 - `lb run [TEST ...] [-c FILE] [--run-id ID] [--remote/--no-remote]`  

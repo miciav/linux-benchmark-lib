@@ -735,7 +735,10 @@ def plugin_select(
 
 @plugin_app.command("install")
 def plugin_install(
-    path: Path = typer.Argument(..., help="Path to the plugin file (.py), directory, or archive (.zip/.tar.gz)."),
+    path: str = typer.Argument(
+        ...,
+        help="Path/URL to the plugin (.py, directory, archive .zip/.tar.gz, or git repo URL).",
+    ),
     manifest: Optional[Path] = typer.Option(None, "--manifest", "-m", help="Optional YAML manifest (only for .py installation)."),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing plugin."),
     regen_assets: bool = typer.Option(
@@ -744,7 +747,7 @@ def plugin_install(
         help="Regenerate Dockerfile/Ansible plugin assets after installation.",
     ),
 ) -> None:
-    """Install a user plugin from a file or archive."""
+    """Install a user plugin from a path or git repository."""
     installer = PluginInstaller()
     try:
         name = installer.install(path, manifest, force)
