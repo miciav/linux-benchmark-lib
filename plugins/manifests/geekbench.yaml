@@ -1,0 +1,7 @@
+name: geekbench
+description: Geekbench 6 cross-platform benchmark
+apt_packages:
+  - wget
+  - tar
+  - gzip
+pip_packages: []

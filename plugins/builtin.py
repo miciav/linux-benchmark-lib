@@ -2,8 +2,8 @@
 
 from typing import List
 
-from benchmark_config import BenchmarkConfig, DDConfig, FIOConfig, IPerf3Config, StressNGConfig, Top500Config
-from workload_generators import DDGenerator, FIOGenerator, IPerf3Generator, StressNGGenerator, Top500Generator
+from benchmark_config import BenchmarkConfig, DDConfig, FIOConfig, IPerf3Config, StressNGConfig, Top500Config, GeekbenchConfig
+from workload_generators import DDGenerator, FIOGenerator, IPerf3Generator, StressNGGenerator, Top500Generator, GeekbenchGenerator
 from metric_collectors import CLICollector, EBPFCollector, PSUtilCollector, PerfCollector
 
 from .registry import WorkloadPlugin, CollectorPlugin
@@ -42,6 +42,13 @@ TOP500_PLUGIN = WorkloadPlugin(
     description="HPL Linpack via geerlingguy/top500-benchmark playbook",
     config_cls=Top500Config,
     factory=Top500Generator,
+)
+
+GEEKBENCH_PLUGIN = WorkloadPlugin(
+    name="geekbench",
+    description="Cross-platform benchmark (Geekbench 6)",
+    config_cls=GeekbenchConfig,
+    factory=GeekbenchGenerator,
 )
 
 
@@ -112,6 +119,7 @@ def builtin_plugins() -> List[WorkloadPlugin | CollectorPlugin]:
         DD_PLUGIN,
         FIO_PLUGIN,
         TOP500_PLUGIN,
+        GEEKBENCH_PLUGIN,
         PSUTIL_COLLECTOR,
         CLI_COLLECTOR,
         PERF_COLLECTOR,

@@ -10,6 +10,7 @@ from .iperf3_generator import IPerf3Generator
 from .dd_generator import DDGenerator
 from .fio_generator import FIOGenerator
 from .top500_generator import Top500Generator
+from .geekbench_generator import GeekbenchGenerator
 
 __all__ = [
     "StressNGGenerator",
@@ -17,4 +18,5 @@ __all__ = [
     "DDGenerator",
     "FIOGenerator",
     "Top500Generator",
+    "GeekbenchGenerator",
 ]

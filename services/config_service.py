@@ -56,10 +56,14 @@ class ConfigService:
         """
         Return (resolved_config, stale_pointer_target).
 
-        Respects explicit path, stored pointer, or local benchmark_config.json.
+        Respects explicit path, environment variable LB_CONFIG_PATH, stored pointer, or local benchmark_config.json.
         """
         if config_path is not None:
             return Path(config_path).expanduser(), None
+
+        env_path = os.environ.get("LB_CONFIG_PATH")
+        if env_path:
+            return Path(env_path), None
 
         saved, stale = self._read_saved_config_path()
         if saved:

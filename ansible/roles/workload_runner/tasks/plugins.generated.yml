@@ -4,9 +4,12 @@
     name:
       - fio
       - git
+      - gzip
       - iperf3
       - procps
       - stress-ng
       - sysstat
+      - tar
+      - wget
     state: present
     update_cache: true

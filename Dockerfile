@@ -8,10 +8,13 @@ FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 RUN apt-get update && apt-get install -y \
     fio \
     git \
+    gzip \
     iperf3 \
     procps \
     stress-ng \
     sysstat \
+    tar \
+    wget \
     --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 # END GENERATED PLUGIN PACKAGES

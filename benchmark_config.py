@@ -162,8 +162,18 @@ class Top500Config:
     tags: List[str] = field(default_factory=lambda: ["setup", "benchmark"])
     inventory_hosts: List[str] = field(default_factory=lambda: ["localhost ansible_connection=local"])
     config_overrides: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class GeekbenchConfig:
+    """Configuration for Geekbench 6 workload."""
     
-    
+    version: str = "6.3.0"
+    url_override: Optional[str] = None
+    upload: bool = True
+    timeout: int = 600  # 10 minutes
+
+
 @dataclass
 class WorkloadConfig:
     """Configuration wrapper for workload plugins."""
@@ -195,6 +205,7 @@ class BenchmarkConfig:
     dd: DDConfig = field(default_factory=DDConfig)
     fio: FIOConfig = field(default_factory=FIOConfig)
     top500: Top500Config = field(default_factory=Top500Config)
+    geekbench: GeekbenchConfig = field(default_factory=GeekbenchConfig)
     
     # Metric collector configuration
     collectors: MetricCollectorConfig = field(default_factory=MetricCollectorConfig)
@@ -293,6 +304,8 @@ class BenchmarkConfig:
             if "workdir" in data["top500"] and isinstance(data["top500"]["workdir"], str):
                 data["top500"]["workdir"] = Path(data["top500"]["workdir"])
             data["top500"] = Top500Config(**data["top500"])
+        if "geekbench" in data:
+            data["geekbench"] = GeekbenchConfig(**data["geekbench"])
         if "remote_hosts" in data:
             data["remote_hosts"] = [
                 RemoteHostConfig(**host_cfg) for host_cfg in data["remote_hosts"]
@@ -361,5 +374,10 @@ class BenchmarkConfig:
                 plugin="top500",
                 enabled=False,
                 options=asdict(self.top500),
+            ),
+            "geekbench": WorkloadConfig(
+                plugin="geekbench",
+                enabled=False,
+                options=asdict(self.geekbench),
             ),
         }
