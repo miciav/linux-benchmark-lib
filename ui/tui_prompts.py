@@ -38,27 +38,7 @@ def prompt_plugins(
     if not (_check_tty() or force):
         return None
 
-    # Prefer interactive checkbox selection when InquirerPy is available.
-    if _check_tty() or force:
-        try:
-            from InquirerPy import inquirer
-        except ImportError:
-            inquirer = None
-        if inquirer is not None:
-            choices = []
-            for name, description in sorted(plugins.items()):
-                label = f"{name} — {description}" if description else name
-                choices.append(
-                    {"name": label, "value": name, "enabled": enabled.get(name, False)}
-                )
-            result = inquirer.checkbox(
-                message="Select workload plugins",
-                choices=choices,
-                instruction="Space to toggle, Enter to confirm",
-                transformer=lambda values: ", ".join(values),
-                cycle=True,
-            ).execute()
-            return set(result) if result is not None else None
+    from InquirerPy import inquirer
 
     if show_table:
         table = Table(title="Workload plugins", show_lines=False)
@@ -70,17 +50,21 @@ def prompt_plugins(
             table.add_row(marker, name, description or "-")
 
         console.print(table)
-    current = ",".join(sorted(name for name, state in enabled.items() if state))
-    raw = Prompt.ask(
-        "Enable plugins (comma separated, blank to keep current, 'all' for every plugin)",
-        default=current,
-    ).strip()
-    if raw.lower() in ("", "cancel"):
-        return None
-    if raw.lower() == "all":
-        return set(plugins.keys())
-    selected = {item.strip() for item in raw.split(",") if item.strip()}
-    return selected
+
+    choices = []
+    for name, description in sorted(plugins.items()):
+        label = f"{name} — {description}" if description else name
+        choices.append(
+            {"name": label, "value": name, "enabled": enabled.get(name, False)}
+        )
+    result = inquirer.checkbox(
+        message="Select workload plugins",
+        choices=choices,
+        instruction="Space to toggle, Enter to confirm",
+        transformer=lambda values: ", ".join(values),
+        cycle=True,
+    ).execute()
+    return set(result) if result is not None else None
 
 
 @dataclass
@@ -130,34 +114,25 @@ def prompt_multipass(options: Iterable[str], default_level: str = "medium") -> O
         table.add_row(name, descriptions.get(name, "-"))
     console.print(table)
 
-    try:
-        from InquirerPy import inquirer
-    except ImportError:
-        inquirer = None
+    from InquirerPy import inquirer
 
-    if inquirer is not None:
-        choices = [
-            {"name": f"{name} — {descriptions.get(name, '')}".strip(" —"), "value": name}
-            for name in options_list
-        ]
-        selection = inquirer.checkbox(
-            message="Select one Multipass scenario",
-            choices=choices,
-            default=[options_list[0]] if options_list else None,
-            instruction="Space to toggle, Enter to confirm",
-            validate=lambda result: len(result) == 1 or "Select exactly one scenario",
-        ).execute()
-        if not selection:
-            return None
-        scenario = selection[0]
-        level = inquirer.select(
-            message="Select intensity",
-            choices=["low", "medium", "high"],
-            default=default_level,
-        ).execute()
-        return scenario, level
-
-    # Fallback to simple prompts
-    scenario = Prompt.ask("Scenario", default=next(iter(options_list), "stress_ng"))
-    level = Prompt.ask("Intensity (low/medium/high)", choices=["low", "medium", "high"], default=default_level)
+    choices = [
+        {"name": f"{name} — {descriptions.get(name, '')}".strip(" —"), "value": name}
+        for name in options_list
+    ]
+    selection = inquirer.checkbox(
+        message="Select one Multipass scenario",
+        choices=choices,
+        default=[options_list[0]] if options_list else None,
+        instruction="Space to toggle, Enter to confirm",
+        validate=lambda result: len(result) == 1 or "Select exactly one scenario",
+    ).execute()
+    if not selection:
+        return None
+    scenario = selection[0]
+    level = inquirer.select(
+        message="Select intensity",
+        choices=["low", "medium", "high"],
+        default=default_level,
+    ).execute()
     return scenario, level
