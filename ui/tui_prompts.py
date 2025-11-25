@@ -112,9 +112,52 @@ def prompt_multipass(options: Iterable[str], default_level: str = "medium") -> O
     """Prompt for Multipass scenario and intensity."""
     if not _check_tty():
         return None
-    console.print("[bold]Select Multipass scenario[/bold]")
-    for name in options:
-        console.print(f"- {name}")
-    scenario = Prompt.ask("Scenario", default=next(iter(options), "stress_ng"))
+
+    options_list = list(options)
+    descriptions = {
+        "stress_ng": "CPU/memory stress (default)",
+        "dd": "Disk throughput (dd)",
+        "fio": "Random I/O (fio)",
+        "iperf3": "Network throughput",
+        "multi": "stress_ng + dd + fio combo",
+        "top500": "Top500 setup only",
+    }
+
+    table = Table(title="Multipass scenarios", show_lines=False)
+    table.add_column("Scenario")
+    table.add_column("Description")
+    for name in options_list:
+        table.add_row(name, descriptions.get(name, "-"))
+    console.print(table)
+
+    try:
+        from InquirerPy import inquirer
+    except ImportError:
+        inquirer = None
+
+    if inquirer is not None:
+        choices = [
+            {"name": f"{name} — {descriptions.get(name, '')}".strip(" —"), "value": name}
+            for name in options_list
+        ]
+        selection = inquirer.checkbox(
+            message="Select one Multipass scenario",
+            choices=choices,
+            default=[options_list[0]] if options_list else None,
+            instruction="Space to toggle, Enter to confirm",
+            validate=lambda result: len(result) == 1 or "Select exactly one scenario",
+        ).execute()
+        if not selection:
+            return None
+        scenario = selection[0]
+        level = inquirer.select(
+            message="Select intensity",
+            choices=["low", "medium", "high"],
+            default=default_level,
+        ).execute()
+        return scenario, level
+
+    # Fallback to simple prompts
+    scenario = Prompt.ask("Scenario", default=next(iter(options_list), "stress_ng"))
     level = Prompt.ask("Intensity (low/medium/high)", choices=["low", "medium", "high"], default=default_level)
     return scenario, level
