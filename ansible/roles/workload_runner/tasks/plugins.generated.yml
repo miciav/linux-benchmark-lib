@@ -10,9 +10,3 @@
       - sysstat
     state: present
     update_cache: true
-
-- name: Install workload plugin pip packages
-  ansible.builtin.pip:
-    name:
-      - ansible
-    executable: pip3

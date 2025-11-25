@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol
+import sys
 
 from benchmark_config import BenchmarkConfig, RemoteHostConfig
 from plugins.builtin import builtin_plugins
@@ -94,7 +95,16 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         self.private_data_dir.mkdir(parents=True, exist_ok=True)
         self._runner_fn = runner_fn
         self.stream_output = stream_output
-        self.output_callback = output_callback
+        if stream_output and output_callback is None:
+            # Default to streaming to stdout when caller requests streaming but
+            # doesn't provide a handler.
+            def _default_cb(text: str, end: str = "") -> None:
+                sys.stdout.write(text + end)
+                sys.stdout.flush()
+
+            self.output_callback = _default_cb
+        else:
+            self.output_callback = output_callback
 
     def run_playbook(
         self,

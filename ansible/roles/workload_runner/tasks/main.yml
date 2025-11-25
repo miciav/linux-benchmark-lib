@@ -45,6 +45,8 @@
     - local_runner.py
     - data_handler.py
     - reporter.py
+    - ui
+    - services
     - plugins
     - metric_collectors
     - workload_generators
@@ -136,6 +138,8 @@
     sys.path.insert(0, str(workdir / "metric_collectors"))
     sys.path.insert(0, str(workdir / "workload_generators"))
     sys.path.insert(0, str(workdir / "plugins"))
+    sys.path.insert(0, str(workdir / "ui"))
+    sys.path.insert(0, str(workdir / "services"))
     from benchmark_config import BenchmarkConfig
     from local_runner import LocalRunner
     from plugins.builtin import builtin_plugins
