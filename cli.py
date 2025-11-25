@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -696,13 +697,12 @@ def test_multipass(
         ["Workload", "Duration", "Repetitions", "Warmup/Cooldown", "Notes"],
         [list(row) for row in scenario.workload_rows],
     )
-
+    status_title = (
+        f"Running Multipass {scenario.target_label} test on {vm_count_label} VM(s) "
+        "(this can take a few minutes)..."
+    )
     try:
-        with ui.status(
-            f"Running Multipass {scenario.target_label} test on {vm_count_label} VM(s) "
-            "(this can take a few minutes)..."
-        ):
-            subprocess.run(cmd, check=True, env=env)
+        _stream_command_with_status(cmd, env, status_title)
     except subprocess.CalledProcessError as exc:
         ui.show_error(f"Integration test failed with exit code {exc.returncode}")
         raise typer.Exit(exc.returncode)
@@ -780,6 +780,36 @@ def test_all(ctx: typer.Context) -> None:
         )
     except typer.Exit:
         raise
+
+
+def _stream_command_with_status(cmd: List[str], env: dict, title: str) -> None:
+    """
+    Run a command while streaming stdout and updating a status line with the last Ansible task.
+    """
+    process = subprocess.Popen(
+        cmd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    last_task = ""
+    task_pattern = re.compile(r"TASK \\[(.+?)\\]")
+
+    assert process.stdout is not None
+    with ui.status(title) as status:
+        for line in process.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            match = task_pattern.search(line)
+            if match:
+                last_task = match.group(1)
+                status.update(f"[accent]{title}[/accent]\\n[dim]Task:[/dim] {last_task}")
+
+        ret = process.wait()
+        if ret != 0:
+            raise subprocess.CalledProcessError(ret, cmd)
 
     ui.show_panel("All Tests Suites Completed Successfully", border_style="green")
 
