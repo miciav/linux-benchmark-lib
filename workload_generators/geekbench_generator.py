@@ -10,13 +10,25 @@ import platform
 import shutil
 import subprocess
 import tarfile
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Type
 
 from ._base_generator import BaseGenerator
-from benchmark_config import GeekbenchConfig
+from plugins.interface import WorkloadPlugin
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class GeekbenchConfig:
+    """Configuration for Geekbench 6 workload."""
+    
+    version: str = "6.3.0"
+    url_override: Optional[str] = None
+    upload: bool = True
+    timeout: int = 600  # 10 minutes
+
 
 class GeekbenchGenerator(BaseGenerator):
     """Workload generator using Geekbench 6."""
@@ -49,8 +61,6 @@ class GeekbenchGenerator(BaseGenerator):
         filename = url.split("/")[-1]
         
         # Guess the extract directory name based on filename
-        # e.g. Geekbench-6.3.0-Linux.tar.gz -> Geekbench-6.3.0-Linux
-        # Geekbench-6.3.0-LinuxARMPreview.tar.gz -> Geekbench-6.3.0-LinuxARMPreview
         extract_dir_name = filename.replace(".tar.gz", "")
         extract_dir = self._cache_dir / extract_dir_name
         
@@ -158,3 +168,28 @@ class GeekbenchGenerator(BaseGenerator):
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 proc.kill()
+
+
+class GeekbenchPlugin(WorkloadPlugin):
+    """Plugin definition for Geekbench."""
+    
+    @property
+    def name(self) -> str:
+        return "geekbench"
+
+    @property
+    def description(self) -> str:
+        return "Cross-platform benchmark (Geekbench 6)"
+
+    @property
+    def config_cls(self) -> Type[GeekbenchConfig]:
+        return GeekbenchConfig
+
+    def create_generator(self, config: GeekbenchConfig) -> GeekbenchGenerator:
+        return GeekbenchGenerator(config)
+    
+    def get_required_apt_packages(self) -> List[str]:
+        return ["wget", "tar", "gzip"]
+
+# Exposed Plugin Instance
+PLUGIN = GeekbenchPlugin()

@@ -9,7 +9,6 @@ import tempfile
 
 from benchmark_config import (
     BenchmarkConfig,
-    StressNGConfig,
     IPerf3Config,
     DDConfig,
     FIOConfig,
@@ -18,6 +17,8 @@ from benchmark_config import (
     RemoteHostConfig,
     WorkloadConfig,
 )
+from workload_generators.stress_ng_generator import StressNGConfig
+from workload_generators.sysbench_generator import SysbenchConfig
 
 
 class TestBenchmarkConfig:
@@ -30,24 +31,26 @@ class TestBenchmarkConfig:
         assert config.repetitions == 3
         assert config.test_duration_seconds == 60
         assert config.metrics_interval_seconds == 1.0
-        assert isinstance(config.stress_ng, StressNGConfig)
+        assert isinstance(config.plugin_settings["stress_ng"], StressNGConfig)
+        assert isinstance(config.plugin_settings["sysbench"], SysbenchConfig)
         assert isinstance(config.iperf3, IPerf3Config)
         assert isinstance(config.dd, DDConfig)
         assert isinstance(config.fio, FIOConfig)
         assert "stress_ng" in config.workloads
         assert config.workloads["stress_ng"].plugin == "stress_ng"
+        assert "sysbench" in config.workloads
         
     def test_custom_config_creation(self):
         """Test creating a config with custom values."""
         config = BenchmarkConfig(
             repetitions=5,
             test_duration_seconds=120,
-            stress_ng=StressNGConfig(cpu_workers=4)
+            plugin_settings={"stress_ng": StressNGConfig(cpu_workers=4)},
         )
         
         assert config.repetitions == 5
         assert config.test_duration_seconds == 120
-        assert config.stress_ng.cpu_workers == 4
+        assert config.plugin_settings["stress_ng"].cpu_workers == 4
         assert config.workloads["stress_ng"].options["cpu_workers"] == 4
         
     def test_config_directories_creation(self):
@@ -72,7 +75,7 @@ class TestBenchmarkConfig:
         
         data = json.loads(json_str)
         assert data["repetitions"] == 7
-        assert "stress_ng" in data
+        assert "stress_ng" in data["plugin_settings"]
         assert "collectors" in data
         assert "workloads" in data
         
@@ -86,7 +89,7 @@ class TestBenchmarkConfig:
             config = BenchmarkConfig(
                 repetitions=10,
                 test_duration_seconds=90,
-                stress_ng=StressNGConfig(cpu_workers=8)
+                plugin_settings={"stress_ng": StressNGConfig(cpu_workers=8)},
             )
             config.save(config_path)
             
@@ -95,7 +98,7 @@ class TestBenchmarkConfig:
             
             assert loaded_config.repetitions == 10
             assert loaded_config.test_duration_seconds == 90
-            assert loaded_config.stress_ng.cpu_workers == 8
+            assert loaded_config.plugin_settings["stress_ng"].cpu_workers == 8
             assert loaded_config.workloads["stress_ng"].options["cpu_workers"] == 8
             
         finally:

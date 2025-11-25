@@ -128,6 +128,40 @@ def test_plugin_root_defaults_to_list(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert "Available Workload Plugins" in result.output
 
 
+def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cli = _load_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+
+    cfg = BenchmarkConfig()
+    cfg_path = tmp_path / "cfg.json"
+    cfg.save(cfg_path)
+
+    called = {}
+
+    def fake_execute(context, run_id, output_callback=None, ui_adapter=None):
+        called["context"] = context
+        called["run_id"] = run_id
+        return None
+
+    monkeypatch.setattr(cli.run_service, "execute", fake_execute)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "run",
+            "-c",
+            str(cfg_path),
+            "--run-id",
+            "test-run",
+            "--docker-no-build",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert called["run_id"] == "test-run"
+    assert called["context"].config.repetitions == cfg.repetitions
+
+
 def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()

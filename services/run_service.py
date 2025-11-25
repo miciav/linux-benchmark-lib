@@ -29,6 +29,7 @@ class RunContext:
     docker_engine: str = "docker"
     docker_build: bool = True
     docker_no_cache: bool = False
+    docker_workdir: Path | None = None
 
 
 @dataclass
@@ -133,6 +134,9 @@ class RunService:
             name for name, workload in cfg.workloads.items() if workload.enabled
         ]
         use_remote = remote_override if remote_override is not None else cfg.remote_execution.enabled
+
+        # Use repo root (where Dockerfile lives) as the container build context
+        project_root = Path(__file__).resolve().parent.parent
         return RunContext(
             config=cfg,
             target_tests=target_tests,
@@ -144,6 +148,7 @@ class RunService:
             docker_engine=docker_engine,
             docker_build=docker_build,
             docker_no_cache=docker_no_cache,
+            docker_workdir=project_root if docker else None,
         )
 
     def execute(
@@ -155,7 +160,7 @@ class RunService:
     ) -> RunResult:
         """Execute benchmarks using the provided context."""
         if context.use_container:
-            root = context.config.output_dir.parent.parent.resolve()
+            root = context.docker_workdir or context.config.output_dir.parent.parent.resolve()
             spec = ContainerRunSpec(
                 tests=context.target_tests,
                 cfg_path=context.config_path,

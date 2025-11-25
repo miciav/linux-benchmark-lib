@@ -1,18 +1,27 @@
 """
 Metric collectors package for Linux performance benchmarking.
 
-This package contains various implementations for collecting system metrics
-during benchmark tests.
+Collectors are exposed lazily to avoid importing optional dependencies at
+module import time.
 """
 
-from .psutil_collector import PSUtilCollector
-from .cli_collector import CLICollector
-from .perf_collector import PerfCollector
-from .ebpf_collector import EBPFCollector
+from __future__ import annotations
 
-__all__ = [
-    "PSUtilCollector",
-    "CLICollector", 
-    "PerfCollector",
-    "EBPFCollector",
-]
+import importlib
+from typing import Any, Dict
+
+__all__ = ["PSUtilCollector", "CLICollector", "PerfCollector", "EBPFCollector"]
+
+_LAZY_MODULES: Dict[str, str] = {
+    "PSUtilCollector": "psutil_collector",
+    "CLICollector": "cli_collector",
+    "PerfCollector": "perf_collector",
+    "EBPFCollector": "ebpf_collector",
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _LAZY_MODULES:
+        module = importlib.import_module(f"{__name__}.{_LAZY_MODULES[name]}")
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

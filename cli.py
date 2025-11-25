@@ -17,7 +17,8 @@ import typer
 
 from benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 from plugins.registry import PluginRegistry, print_plugin_table
-from services import ConfigService, RunService, create_registry
+from services import ConfigService, RunService
+from services.plugin_service import create_registry, PluginInstaller
 from services.doctor_service import DoctorService
 from services.test_service import TestService
 from ui import get_ui_adapter
@@ -362,6 +363,93 @@ else:
         raise typer.Exit(1)
 
 
+@app.command("run")
+def run(
+    tests: List[str] = typer.Argument(
+        None,
+        help="Workload names to run; defaults to enabled workloads in the config.",
+    ),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Config file to load; uses saved default or local benchmark_config.json when omitted.",
+    ),
+    run_id: Optional[str] = typer.Option(
+        None,
+        "--run-id",
+        help="Optional run identifier for tracking results.",
+    ),
+    remote: Optional[bool] = typer.Option(
+        None,
+        "--remote/--no-remote",
+        help="Override remote execution from the config.",
+    ),
+    docker: bool = typer.Option(
+        False,
+        "--docker",
+        help="Run inside the container image (build if needed).",
+    ),
+    docker_image: str = typer.Option(
+        "linux-benchmark-lib:dev",
+        "--docker-image",
+        help="Docker image tag to use when --docker is set.",
+    ),
+    docker_engine: str = typer.Option(
+        "docker",
+        "--docker-engine",
+        help="Container engine to use with --docker (docker or podman).",
+    ),
+    docker_no_build: bool = typer.Option(
+        False,
+        "--docker-no-build",
+        help="Skip building the image when using --docker.",
+    ),
+    docker_no_cache: bool = typer.Option(
+        False,
+        "--docker-no-cache",
+        help="Disable cache when building the image with --docker.",
+    ),
+) -> None:
+    """Run workloads locally, remotely, or inside the container image."""
+    cfg, resolved, stale = config_service.load_for_read(config)
+    if stale:
+        ui.show_warning(f"Saved default config not found: {stale}")
+    if resolved:
+        ui.show_success(f"Loaded config: {resolved}")
+    else:
+        ui.show_warning("No config file found; using built-in defaults.")
+
+    cfg.ensure_output_dirs()
+
+    target_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+    if not target_tests:
+        ui.show_warning("No workloads selected to run.")
+        raise typer.Exit(1)
+
+    registry = create_registry()
+    _print_run_plan(cfg, target_tests, registry=registry, docker_mode=docker)
+
+    try:
+        context = run_service.build_context(
+            cfg,
+            target_tests,
+            remote_override=remote,
+            docker=docker,
+            docker_image=docker_image,
+            docker_engine=docker_engine,
+            docker_build=not docker_no_build,
+            docker_no_cache=docker_no_cache,
+            config_path=resolved,
+        )
+        run_service.execute(context, run_id, ui_adapter=ui)
+    except Exception as exc:
+        ui.show_error(f"Run failed: {exc}")
+        raise typer.Exit(1)
+
+    ui.show_success("Run completed.")
+
+
 def _select_plugins_interactively(
     registry: PluginRegistry, enabled_map: Dict[str, bool]
 ) -> Optional[Set[str]]:
@@ -565,6 +653,93 @@ def plugin_select(
     _list_plugins_command(config=config, enable=None, disable=None, set_default=set_default, select=True)
 
 
+@plugin_app.command("install")
+def plugin_install(
+    path: Path = typer.Argument(..., help="Path to the plugin file (.py), directory, or archive (.zip/.tar.gz)."),
+    manifest: Optional[Path] = typer.Option(None, "--manifest", "-m", help="Optional YAML manifest (only for .py installation)."),
+    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing plugin."),
+    regen_assets: bool = typer.Option(
+        True,
+        "--regen-assets/--no-regen-assets",
+        help="Regenerate Dockerfile/Ansible plugin assets after installation.",
+    ),
+) -> None:
+    """Install a user plugin from a file or archive."""
+    installer = PluginInstaller()
+    try:
+        name = installer.install(path, manifest, force)
+        ui.show_success(f"Plugin installed: {name}")
+        ui.show_info("Run `lb plugin list` to verify.")
+        
+        if regen_assets:
+            from services.plugin_service import regenerate_plugin_assets
+
+            regenerate_plugin_assets(ui)
+        elif manifest or path.suffix in ['.zip', '.tar', '.gz', '.tgz']:
+             ui.show_warning("If the plugin has dependencies, run `uv run python tools/gen_plugin_assets.py` to update assets.")
+    except Exception as e:
+        ui.show_error(f"Installation failed: {e}")
+        raise typer.Exit(1)
+
+
+@plugin_app.command("uninstall")
+def plugin_uninstall(
+    name: str = typer.Argument(..., help="Name of the plugin to uninstall."),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Optional config file to purge plugin references from.",
+    ),
+    purge_config: bool = typer.Option(
+        True,
+        "--purge-config/--keep-config",
+        help="Also remove the plugin entry from the config file when present.",
+    ),
+    regen_assets: bool = typer.Option(
+        True,
+        "--regen-assets/--no-regen-assets",
+        help="Regenerate Dockerfile/Ansible plugin assets after uninstall.",
+    ),
+) -> None:
+    """Uninstall a user plugin."""
+    installer = PluginInstaller()
+    config_path: Optional[Path] = None
+    config_stale: Optional[Path] = None
+    removed_config = False
+    try:
+        removed_files = installer.uninstall(name)
+
+        if purge_config:
+            try:
+                _, config_path, config_stale, removed_config = config_service.remove_plugin(name, config)
+            except FileNotFoundError:
+                if config is not None:
+                    ui.show_warning(f"Config file not found: {config}")
+            except Exception as exc:
+                ui.show_warning(f"Config cleanup failed: {exc}")
+
+        if removed_files:
+            ui.show_success(f"Plugin '{name}' uninstalled.")
+        else:
+            ui.show_warning(f"Plugin '{name}' not found or not a user plugin.")
+
+        if removed_config and config_path:
+            ui.show_info(f"Removed '{name}' from config {config_path}")
+        elif purge_config and config_path:
+            ui.show_info(f"No config entries for '{name}' found in {config_path}")
+        if config_stale:
+            ui.show_warning(f"Saved default config not found: {config_stale}")
+
+        if regen_assets and (removed_files or removed_config):
+            from services.plugin_service import regenerate_plugin_assets
+
+            regenerate_plugin_assets(ui)
+    except Exception as e:
+        ui.show_error(f"Uninstall failed: {e}")
+        raise typer.Exit(1)
+
+
 @app.command("plugins")
 def list_plugins(
     config: Optional[Path] = typer.Option(
@@ -592,436 +767,3 @@ def list_plugins(
     _list_plugins_command(
         config=config, enable=enable, disable=disable, set_default=set_default, select=select
     )
-
-
-@test_app.command(
-    "multipass",
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-)
-def test_multipass(
-    ctx: typer.Context,
-    artifacts_dir: Path = typer.Option(
-        Path("tests/results"),
-        "--artifacts-dir",
-        "-o",
-        help="Where to store collected artifacts (used via LB_TEST_RESULTS_DIR).",
-    ),
-    vm_count: int = typer.Option(
-        1,
-        "--vm-count",
-        "-n",
-        min=1,
-        max=2,
-        help="Number of Multipass VMs to launch (default 1, max 2).",
-    ),
-    multi_workloads: bool = typer.Option(
-        False,
-        "--multi-workloads",
-        help="Run the multi-workload Multipass integration (stress_ng + dd + fio).",
-    ),
-    top500: bool = typer.Option(
-        False,
-        "--top500",
-        help="Run the Top500 Multipass integration (setup tag only, no HPL run).",
-    ),
-) -> None:
-    """
-    Run the Multipass integration test via pytest (launch 1–2 VMs).
-
-    Requires multipass + ansible/ansible-runner installed locally.
-    """
-    if not _check_command("multipass"):
-        ui.show_error("multipass not found in PATH; install it to run this test.")
-        raise typer.Exit(1)
-    if not _check_import("ansible_runner"):
-        ui.show_error("ansible-runner python package not available.")
-        raise typer.Exit(1)
-    if not _check_command("ansible-playbook"):
-        ui.show_error("ansible-playbook not available in PATH.")
-        raise typer.Exit(1)
-    if multi_workloads and top500:
-        ui.show_error("--multi-workloads and --top500 are mutually exclusive.")
-        raise typer.Exit(1)
-
-    test_service = TestService(ui)
-
-    # Interactive selection when no mode flags and TTY available
-    env_force = os.environ.get("LB_MULTIPASS_FORCE", "medium").strip().lower()
-
-    selection, env_force = test_service.select_multipass(
-        multi_workloads, top500, default_level=env_force or "medium"
-    )
-
-    intensity = test_service.get_multipass_intensity(env_force)
-    scenario = test_service.build_multipass_scenario(intensity, selection)
-
-    artifacts_dir = artifacts_dir.expanduser().resolve()
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    env = os.environ.copy()
-    env["LB_TEST_RESULTS_DIR"] = str(artifacts_dir)
-    env["LB_MULTIPASS_VM_COUNT"] = str(vm_count)
-    env["LB_MULTIPASS_FORCE"] = env_force
-    
-    # Apply scenario-specific env vars (e.g. workload selection)
-    env.update(scenario.env_vars)
-    
-    vm_count_label = f"{vm_count} (multi-VM)" if vm_count > 1 else "1"
-    cmd = [
-        sys.executable,
-        "-m",
-        "pytest",
-        scenario.target,
-    ]
-    extra_args = list(ctx.args)
-    if extra_args:
-        cmd.extend(extra_args)
-
-    ui.show_table(
-        "Multipass Integration Plan",
-        ["Field", "Value"],
-        [
-            ["Pytest target", scenario.target],
-            ["Iterations", "1 (pytest invocation)"],
-            ["Workload(s)", scenario.workload_label],
-            ["Duration", scenario.duration_label],
-            ["Intensity", intensity["level"]],
-            ["VM count", vm_count_label],
-            ["Artifacts dir", str(artifacts_dir)],
-            ["Extra args", " ".join(extra_args) if extra_args else "None"],
-            ["Config source", "Embedded in test (not user config)"],
-        ],
-    )
-
-    ui.show_table(
-        "Workload Parameters",
-        ["Workload", "Duration", "Repetitions", "Warmup/Cooldown", "Notes"],
-        [list(row) for row in scenario.workload_rows],
-    )
-    status_title = (
-        f"Running Multipass {scenario.target_label} test on {vm_count_label} VM(s) "
-        "(this can take a few minutes)..."
-    )
-    try:
-        _stream_command_with_status(cmd, env, status_title)
-    except subprocess.CalledProcessError as exc:
-        ui.show_error(f"Integration test failed with exit code {exc.returncode}")
-        raise typer.Exit(exc.returncode)
-
-    ui.show_panel(
-        f"Artifacts saved to: {artifacts_dir}\nCommand: {' '.join(cmd)}",
-        title="Integration test completed",
-        border_style="green",
-    )
-
-
-def _run_pytest_targets(
-    targets: List[str],
-    title: str,
-    extra_args: Optional[List[str]] = None,
-    env: Optional[dict] = None,
-) -> None:
-    """Execute pytest against the given targets with friendly console output."""
-    cmd = [sys.executable, "-m", "pytest"]
-    
-    # Add default flags for cleaner output
-    # -v: verbose (shows test names)
-    # --tb=short: shorter tracebacks on failure
-    cmd.extend(["-v", "--tb=short"])
-    
-    cmd.extend(targets)
-    if extra_args:
-        cmd.extend(extra_args)
-
-    ui.show_rule(title)
-    ui.show_info(f"Running: {' '.join(cmd)}")
-
-    try:
-        # Run directly to stdout/stderr to avoid buffering issues and allow
-        # real-time feedback. We removed the spinner because it conflicts
-        # with pytest's live output.
-        subprocess.run(cmd, check=True, env=env)
-
-        ui.show_success(f"✔ {title} Passed")
-    except subprocess.CalledProcessError as exc:
-        ui.show_error(f"✘ {title} Failed (Exit Code: {exc.returncode})")
-        raise typer.Exit(exc.returncode)
-
-
-@test_app.command(
-    "all",
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-)
-def test_all(ctx: typer.Context) -> None:
-    """Run the full test suite (Unit + Integration) sequentially."""
-    env = os.environ.copy()
-    extra_args = list(ctx.args)
-
-    ui.show_panel("Starting Full Test Suite", border_style="magenta")
-
-    # 1. Run Unit Tests
-    try:
-        _run_pytest_targets(
-            ["tests/unit"],
-            title="Unit Tests",
-            extra_args=extra_args,
-            env=env,
-        )
-    except typer.Exit:
-        ui.show_error("Stopping suite due to unit test failure.")
-        raise
-
-    # 2. Run Integration Tests
-    try:
-        _run_pytest_targets(
-            ["tests/integration"],
-            title="Integration Tests",
-            extra_args=extra_args,
-            env=env,
-        )
-    except typer.Exit:
-        raise
-
-
-def _stream_command_with_status(cmd: List[str], env: dict, title: str) -> None:
-    """
-    Run a command while streaming stdout and updating a status line with the last Ansible task.
-    """
-    process = subprocess.Popen(
-        cmd,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
-    last_task = ""
-    task_pattern = re.compile(r"TASK \\[(.+?)\\]")
-
-    assert process.stdout is not None
-    with ui.status(title) as status:
-        for line in process.stdout:
-            sys.stdout.write(line)
-            sys.stdout.flush()
-            match = task_pattern.search(line)
-            if match:
-                last_task = match.group(1)
-                status.update(f"[accent]{title}[/accent]\\n[dim]Task:[/dim] {last_task}")
-
-        ret = process.wait()
-        if ret != 0:
-            raise subprocess.CalledProcessError(ret, cmd)
-
-    ui.show_panel("All Tests Suites Completed Successfully", border_style="green")
-
-
-@test_app.command(
-    "integration",
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-)
-def test_integration(ctx: typer.Context) -> None:
-    """Run only integration tests."""
-    env = os.environ.copy()
-    _run_pytest_targets(
-        ["tests/integration"],
-        title="Integration tests",
-        extra_args=list(ctx.args),
-        env=env,
-    )
-
-
-@doctor_app.command("controller")
-def doctor_controller() -> None:
-    """Check controller-side requirements (Python deps, ansible-runner)."""
-    failures = doctor_service.check_controller()
-    if failures:
-        raise typer.Exit(1)
-
-
-@doctor_app.command("local-tools")
-def doctor_local_tools() -> None:
-    """Check local workload tools (only needed for local runs)."""
-    failures = doctor_service.check_local_tools()
-    if failures:
-        raise typer.Exit(1)
-
-
-@doctor_app.command("multipass")
-def doctor_multipass() -> None:
-    """Check if Multipass is installed (used by integration test)."""
-    failures = doctor_service.check_multipass()
-    if failures:
-        raise typer.Exit(1)
-
-
-@doctor_app.command("all")
-def doctor_all() -> None:
-    """Run all doctor checks."""
-    failures = doctor_service.check_all()
-    if failures:
-        raise typer.Exit(1)
-
-
-@app.command("hosts")
-def show_hosts(config: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to BenchmarkConfig JSON file.")) -> None:
-    """Display remote hosts configured in the provided config."""
-    cfg = _load_config(config)
-    if not cfg.remote_hosts:
-        ui.show_warning("No remote hosts configured.")
-        return
-
-    rows = [
-        [host.name, host.address, host.user, "yes" if host.become else "no"]
-        for host in cfg.remote_hosts
-    ]
-    ui.show_table("Configured Remote Hosts", ["Name", "Address", "User", "Become"], rows)
-
-
-@app.command("run")
-def run_benchmarks(
-    tests: Optional[List[str]] = typer.Argument(
-        None,
-        help="Workloads to run; default is all enabled workloads in the config.",
-    ),
-    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to BenchmarkConfig JSON file."),
-    run_id: Optional[str] = typer.Option(None, "--run-id", help="Override run identifier."),
-    remote: Optional[bool] = typer.Option(
-        None,
-        "--remote/--no-remote",
-        help="Force remote mode; default follows config.remote_execution.enabled.",
-    ),
-    docker: bool = typer.Option(
-        False,
-        "--docker/--no-docker",
-        help="Execute via the container image instead of locally/remotely.",
-    ),
-    docker_image: str = typer.Option(
-        "linux-benchmark-lib:dev",
-        "--docker-image",
-        help="Container image tag to build/use for --docker runs.",
-    ),
-    docker_engine: str = typer.Option(
-        "docker",
-        "--docker-engine",
-        help="Container engine to use (docker or podman).",
-    ),
-    docker_no_cache: bool = typer.Option(
-        False,
-        "--docker-no-cache",
-        help="Disable cache when building the container image.",
-    ),
-    docker_no_build: bool = typer.Option(
-        False,
-        "--docker-no-build",
-        help="Skip building the image before running (assumes it already exists).",
-    ),
-) -> None:
-    """Run selected workloads locally or via the remote controller."""
-    resolved_cfg, _ = config_service.resolve_config_path(config)
-    cfg = _load_config(config)
-    context = run_service.build_context(
-        cfg,
-        tests,
-        remote,
-        docker=docker,
-        docker_image=docker_image,
-        docker_engine=docker_engine,
-        docker_build=not docker_no_build,
-        docker_no_cache=docker_no_cache,
-        config_path=resolved_cfg,
-    )
-    if not context.use_remote and not context.use_container:
-        available: list[str] = []
-        skipped: list[str] = []
-        for name in context.target_tests:
-            workload = cfg.workloads.get(name)
-            if workload is None:
-                skipped.append(name)
-                continue
-            try:
-                gen = context.registry.create_generator(workload.plugin, workload.options)
-                # Use public API if available
-                checker = getattr(gen, "check_prerequisites", None)
-                if callable(checker):
-                    can_run = checker()
-                else:
-                    # Fallback
-                    validator = getattr(gen, "_validate_environment", None)
-                    can_run = validator() if callable(validator) else True
-
-                if can_run:
-                    available.append(name)
-                else:
-                    skipped.append(name)
-            except Exception:
-                skipped.append(name)
-        if skipped:
-            skipped_list = ", ".join(sorted(skipped))
-            ui.show_warning(f"Skipping workloads due to missing prerequisites: {skipped_list}")
-        context.target_tests = available
-
-    if context.use_container:
-        # Ensure host-side artifact directory exists for bind mount
-        cfg.ensure_output_dirs()
-    if not context.target_tests:
-        ui.show_warning("No workloads to run (none specified, enabled, or available).")
-        raise typer.Exit(0)
-    if context.use_remote and not cfg.remote_hosts:
-        ui.show_error("Remote mode requested but no remote_hosts are configured.")
-        raise typer.Exit(1)
-
-    try:
-        if context.use_remote:
-            _print_run_plan(cfg, context.target_tests, registry=context.registry)
-            if not cfg.remote_hosts:
-                ui.show_error("Remote mode requested but no remote_hosts are configured.")
-                raise typer.Exit(1)
-            
-            def console_callback(text: str, end: str = "\n") -> None:
-                ui.show_info(text.rstrip("\n") + ("" if end == "" else end))
-
-            result = run_service.execute(
-                context,
-                run_id=run_id,
-                output_callback=console_callback,
-                ui_adapter=ui,
-            )
-            summary = result.summary
-            if summary is None:
-                ui.show_error("Remote run failed to produce a summary.")
-                raise typer.Exit(1)
-
-            rows = []
-            for phase, result in summary.phases.items():
-                status_label = result.status
-                if result.success:
-                    status_label = f"{result.status} (ok)"
-                rows.append([phase, status_label, str(result.rc)])
-            ui.show_table("Run Summary", ["Phase", "Status", "RC"], rows)
-
-            if summary.success:
-                ui.show_panel(
-                    f"Output: {summary.output_root}\nReports: {summary.report_root}\nExports: {summary.data_export_root}",
-                    title="Success",
-                    border_style="green",
-                )
-            else:
-                ui.show_error("One or more phases failed.")
-                raise typer.Exit(1)
-        else:
-            _print_run_plan(
-                cfg, 
-                context.target_tests, 
-                registry=context.registry,
-                docker_mode=context.use_container
-            )
-            run_service.execute(context, run_id=run_id, ui_adapter=ui)
-            ui.show_panel("Local benchmarks completed.", border_style="green")
-    except typer.Exit:
-        raise
-    except Exception as exc:  # pragma: no cover - runtime errors routed to user
-        ui.show_error(f"Run failed: {exc}")
-        raise typer.Exit(1)
-
-
-if __name__ == "__main__":  # pragma: no cover
-    app()

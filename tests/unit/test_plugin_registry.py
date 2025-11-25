@@ -5,7 +5,8 @@ from dataclasses import dataclass
 import importlib.metadata
 import pytest
 
-from plugins.registry import PluginRegistry, WorkloadPlugin
+from plugins.registry import PluginRegistry
+from plugins.interface import WorkloadPlugin
 from workload_generators._base_generator import BaseGenerator
 
 
@@ -36,12 +37,23 @@ class DummyGenerator(BaseGenerator):
 
 def test_registry_creates_generator_from_plugin():
     """Plugin registry should instantiate generators with provided options."""
-    plugin = WorkloadPlugin(
-        name="dummy",
-        description="Test plugin",
-        config_cls=DummyConfig,
-        factory=DummyGenerator,
-    )
+    class DummyPlugin(WorkloadPlugin):
+        @property
+        def name(self) -> str:
+            return "dummy"
+
+        @property
+        def description(self) -> str:
+            return "Test plugin"
+
+        @property
+        def config_cls(self):
+            return DummyConfig
+
+        def create_generator(self, config: DummyConfig) -> DummyGenerator:
+            return DummyGenerator(config)
+
+    plugin = DummyPlugin()
 
     registry = PluginRegistry(plugins=[plugin])
     generator = registry.create_generator("dummy", {"flag": True})

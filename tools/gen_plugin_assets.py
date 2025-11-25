@@ -1,10 +1,11 @@
 """
-Generate plugin-dependent assets for Docker and Ansible from manifest files.
+Generate plugin-dependent assets for Docker and Ansible.
 
 Usage:
     uv run python tools/gen_plugin_assets.py
 
-This script reads plugin manifests from plugins/manifests/*.yaml and writes:
+This script queries the PluginRegistry (built-in + user plugins) and reads legacy manifests 
+to generate:
 - Dockerfile: updates the generated package installation block.
 - ansible/roles/workload_runner/tasks/plugins.generated.yml: installs plugin deps.
 """
@@ -19,8 +20,13 @@ from typing import Iterable, List, Sequence
 
 import yaml
 
-
+# Add project root to sys.path to allow imports
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from plugins.registry import PluginRegistry, USER_PLUGIN_DIR
+from plugins.interface import WorkloadPlugin
+
 MANIFEST_DIR = ROOT / "plugins" / "manifests"
 DOCKERFILE_PATH = ROOT / "Dockerfile"
 ANSIBLE_TASKS_PATH = ROOT / "ansible" / "roles" / "workload_runner" / "tasks" / "plugins.generated.yml"
@@ -33,35 +39,75 @@ BASE_APT_PACKAGES = ["git", "procps", "sysstat"]
 
 
 @dataclasses.dataclass
-class PluginManifest:
-    """Minimal manifest describing dependency needs for a workload plugin."""
-
+class PluginDependencies:
+    """Dependencies for a workload plugin."""
     name: str
     apt_packages: List[str]
     pip_packages: List[str]
 
-    @classmethod
-    def from_dict(cls, data: dict) -> "PluginManifest":
-        name = data.get("name")
-        if not name:
-            raise ValueError("Manifest missing required 'name'")
-        apt = data.get("apt_packages") or []
-        pip = data.get("pip_packages") or []
-        if not isinstance(apt, list) or not isinstance(pip, list):
-            raise ValueError(f"Manifest {name} has invalid package lists")
-        return cls(name=name, apt_packages=apt, pip_packages=pip)
 
+def load_legacy_manifests() -> List[PluginDependencies]:
+    """Load legacy manifests from the source manifest directory."""
+    deps: List[PluginDependencies] = []
+    if MANIFEST_DIR.exists():
+        for path in sorted(MANIFEST_DIR.glob("*.yaml")):
+            try:
+                with path.open() as fh:
+                    data = yaml.safe_load(fh) or {}
+                    name = data.get("name")
+                    if name:
+                        deps.append(PluginDependencies(
+                            name=name,
+                            apt_packages=data.get("apt_packages") or [],
+                            pip_packages=data.get("pip_packages") or []
+                        ))
+            except Exception as e:
+                print(f"Warning: Failed to parse manifest {path}: {e}")
+    return deps
 
-def load_manifests() -> List[PluginManifest]:
-    """Load all manifests from the manifest directory."""
-    manifests: List[PluginManifest] = []
-    for path in sorted(MANIFEST_DIR.glob("*.yaml")):
-        with path.open() as fh:
-            data = yaml.safe_load(fh) or {}
-        manifests.append(PluginManifest.from_dict(data))
-    if not manifests:
-        raise RuntimeError(f"No manifests found under {MANIFEST_DIR}")
-    return manifests
+def load_user_manifests() -> List[PluginDependencies]:
+    """Load manifests from the user config directory."""
+    deps: List[PluginDependencies] = []
+    if USER_PLUGIN_DIR.exists():
+        for path in sorted(USER_PLUGIN_DIR.glob("*.yaml")):
+            try:
+                with path.open() as fh:
+                    data = yaml.safe_load(fh) or {}
+                    name = data.get("name")
+                    if name:
+                        deps.append(PluginDependencies(
+                            name=name,
+                            apt_packages=data.get("apt_packages") or [],
+                            pip_packages=data.get("pip_packages") or []
+                        ))
+            except Exception as e:
+                print(f"Warning: Failed to parse user manifest {path}: {e}")
+    return deps
+
+def load_registry_dependencies() -> List[PluginDependencies]:
+    """Query the PluginRegistry for dependencies defined in Python code."""
+    # We need to create the registry, which loads built-ins and user plugins
+    # We import builtin_plugins here to register them manually if needed,
+    # but PluginRegistry does entry points and user plugins automatically.
+    # For built-ins, we need to make sure they are registered.
+    from plugins.builtin import builtin_plugins
+    
+    registry = PluginRegistry(plugins=builtin_plugins())
+    
+    deps: List[PluginDependencies] = []
+    for name, plugin in registry.available().items():
+        apt = []
+        pip = []
+        
+        # Check if it's a new-style plugin with get_required_* methods
+        if isinstance(plugin, WorkloadPlugin):
+            apt = plugin.get_required_apt_packages()
+            pip = plugin.get_required_pip_packages()
+            
+        if apt or pip:
+            deps.append(PluginDependencies(name=name, apt_packages=apt, pip_packages=pip))
+            
+    return deps
 
 
 def render_docker_block(apt_packages: Sequence[str], pip_packages: Sequence[str]) -> str:
@@ -77,9 +123,7 @@ def render_docker_block(apt_packages: Sequence[str], pip_packages: Sequence[str]
     lines.extend(install_lines)
 
     if pip_packages:
-        lines.append(
-            "RUN --mount=type=cache,target=/root/.cache/uv \\"
-        )
+        lines.append("RUN --mount=type=cache,target=/root/.cache/uv \\")
         pip_list = " ".join(sorted(pip_packages))
         lines.append(f"    uv pip install -U {pip_list}")
 
@@ -146,16 +190,26 @@ def unique(seq: Iterable[str]) -> List[str]:
 
 def generate() -> None:
     """Generate Docker and Ansible assets from manifests."""
-    manifests = load_manifests()
+    
+    # Collect all dependencies from all sources
+    all_deps = []
+    all_deps.extend(load_legacy_manifests())
+    all_deps.extend(load_user_manifests())
+    all_deps.extend(load_registry_dependencies())
 
     apt_packages: List[str] = []
     pip_packages: List[str] = []
-    for manifest in manifests:
-        apt_packages.extend(manifest.apt_packages)
-        pip_packages.extend(manifest.pip_packages)
+    
+    for dep in all_deps:
+        apt_packages.extend(dep.apt_packages)
+        pip_packages.extend(dep.pip_packages)
 
     apt_packages = unique(BASE_APT_PACKAGES + apt_packages)
     pip_packages = unique(pip_packages)
+
+    print(f"Generating assets for {len(all_deps)} plugin source(s)...")
+    print(f"APT packages: {len(apt_packages)}")
+    print(f"PIP packages: {len(pip_packages)}")
 
     docker_block = render_docker_block(apt_packages, pip_packages)
     replace_block(DOCKERFILE_PATH, DOCKER_START, DOCKER_END, docker_block)
@@ -165,7 +219,7 @@ def generate() -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate plugin assets from manifests.")
+    parser = argparse.ArgumentParser(description="Generate plugin assets from manifests and registry.")
     parser.parse_args(argv)
     generate()
     return 0

@@ -1,0 +1,5 @@
+name: sysbench
+description: Sysbench workload plugin for CPU, memory, and file I/O benchmarks
+apt_packages:
+  - sysbench
+pip_packages: []

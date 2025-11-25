@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     iperf3 \
     procps \
     stress-ng \
+    sysbench \
     sysstat \
     tar \
     wget \
