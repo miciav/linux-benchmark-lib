@@ -70,6 +70,8 @@ class ConfigService:
         local = Path("benchmark_config.json")
         if local.exists():
             return local, None
+        if self.default_target.exists():
+            return self.default_target, None
         return None, None
 
     def load_for_read(self, config_path: Optional[Path]) -> Tuple[BenchmarkConfig, Optional[Path], Optional[Path]]:

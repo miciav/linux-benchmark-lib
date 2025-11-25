@@ -31,12 +31,34 @@ def prompt_plugins(
     show_table: bool = True,
 ) -> Optional[Set[str]]:
     """
-    Prompt for plugin selection using a simple rich table + comma-separated input.
+    Prompt for plugin selection using a checkbox selector; fall back to text input.
 
     Returns a set of enabled plugin names, or None if cancelled/non-interactive.
     """
     if not (_check_tty() or force):
         return None
+
+    # Prefer interactive checkbox selection when InquirerPy is available.
+    if _check_tty() or force:
+        try:
+            from InquirerPy import inquirer
+        except ImportError:
+            inquirer = None
+        if inquirer is not None:
+            choices = []
+            for name, description in sorted(plugins.items()):
+                label = f"{name} — {description}" if description else name
+                choices.append(
+                    {"name": label, "value": name, "enabled": enabled.get(name, False)}
+                )
+            result = inquirer.checkbox(
+                message="Select workload plugins",
+                choices=choices,
+                instruction="Space to toggle, Enter to confirm",
+                transformer=lambda values: ", ".join(values),
+                cycle=True,
+            ).execute()
+            return set(result) if result is not None else None
 
     if show_table:
         table = Table(title="Workload plugins", show_lines=False)
