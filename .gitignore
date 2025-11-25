@@ -42,6 +42,7 @@ htmlcov/
 
 # Specific to benchmark results
 /benchmark_results/  # Directory per i risultati dei benchmark
+/benchmark_results
 /reports/            # Directory per i report generati
 /data_exports/       # Directory per le esportazioni CSV/JSON
 /tests/results
