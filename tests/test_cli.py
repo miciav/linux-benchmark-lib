@@ -261,3 +261,26 @@ def test_multipass_helper_runs_multi_workloads(monkeypatch: pytest.MonkeyPatch, 
     assert "tests/integration/test_multipass_multi_workloads.py" in cmd
     # extra args should pass through
     assert "-k" in cmd and "smoke" in cmd
+
+
+def test_multipass_helper_accepts_pytest_flags_without_separator(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cli = _load_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+
+    monkeypatch.setattr(cli, "_check_command", lambda name: True)
+    monkeypatch.setattr(cli, "_check_import", lambda name: True)
+
+    called = {}
+
+    def fake_run(cmd, check, env):
+        called["cmd"] = cmd
+        called["env"] = env
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    result = runner.invoke(cli.app, ["test", "multipass", "-v", "-s"])
+    assert result.exit_code == 0, result.output
+    cmd = called.get("cmd")
+    assert cmd is not None
+    assert "-v" in cmd and "-s" in cmd

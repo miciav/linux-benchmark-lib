@@ -364,8 +364,15 @@ else:
         raise typer.Exit(1)
 
 
-@test_app.command("multipass")
+@test_app.command(
+    "multipass",
+    context_settings={
+        "allow_extra_args": True,
+        "ignore_unknown_options": True,
+    },
+)
 def test_multipass(
+    ctx: typer.Context,
     output: Path = typer.Option(
         Path("tests/results"),
         "--output",
@@ -386,12 +393,6 @@ def test_multipass(
         False,
         "--top500",
         help="Run the Top500 (setup-only) Multipass scenario.",
-    ),
-    extra_args: Optional[List[str]] = typer.Argument(
-        None,
-        help="Additional pytest arguments after '--'.",
-        show_default=False,
-        metavar="PYTEST_ARGS...",
     ),
 ) -> None:
     """Run the Multipass integration test helper."""
@@ -420,6 +421,7 @@ def test_multipass(
     for key, value in scenario.env_vars.items():
         env[key] = value
 
+    extra_args = list(ctx.args) if ctx.args else []
     cmd: List[str] = [sys.executable, "-m", "pytest", scenario.target]
     if extra_args:
         cmd.extend(extra_args)
