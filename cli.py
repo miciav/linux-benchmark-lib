@@ -387,8 +387,8 @@ def test_multipass(
         "--top500",
         help="Run the Top500 (setup-only) Multipass scenario.",
     ),
-    extra_args: List[str] = typer.Argument(
-        [],
+    extra_args: Optional[List[str]] = typer.Argument(
+        None,
         help="Additional pytest arguments after '--'.",
         show_default=False,
         metavar="PYTEST_ARGS...",
