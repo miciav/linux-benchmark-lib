@@ -87,7 +87,8 @@ class TestService:
 
         cfg_preview = BenchmarkConfig()._build_default_workloads()
         names = sorted(cfg_preview.keys())
-        options = names + ["multi", "top500"]
+        # Deduplicate while preserving order to avoid repeated entries (e.g., top500)
+        options = list(dict.fromkeys(names + ["multi", "top500"]).keys())
 
         if sys.stdin.isatty():
             result = prompt_multipass(options, default_level=default_level)
