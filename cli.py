@@ -283,6 +283,67 @@ def config_disable_workload(
     ui.show_success(f"Workload '{name}' disabled in {target}")
 
 
+def _select_workloads_interactively(
+    cfg: BenchmarkConfig,
+    registry: PluginRegistry,
+    config: Optional[Path],
+    set_default: bool,
+) -> None:
+    """Interactively toggle configured workloads using arrows + space."""
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        ui.show_error("Interactive selection requires a TTY.")
+        raise typer.Exit(1)
+
+    available_plugins = registry.available()
+    enabled_map = {name: wl.enabled for name, wl in cfg.workloads.items()}
+    descriptions: Dict[str, str] = {}
+    rows = []
+    for name, wl in sorted(cfg.workloads.items()):
+        plugin_obj = available_plugins.get(wl.plugin)
+        description = getattr(plugin_obj, "description", "") if plugin_obj else ""
+        descriptions[name] = description or ""
+        rows.append([name, wl.plugin, "✓" if wl.enabled else "✗", description or "-"])
+
+    ui.show_table("Configured Workloads", ["Workload", "Plugin", "Enabled", "Description"], rows)
+
+    selection = prompt_plugins(descriptions, enabled_map, force=False, show_table=False)
+    if selection is None:
+        ui.show_warning("Selection cancelled.")
+        raise typer.Exit(1)
+
+    cfg_write, target, stale, _ = config_service.load_for_write(config, allow_create=True)
+    for name, wl in cfg_write.workloads.items():
+        wl.enabled = name in selection
+        cfg_write.workloads[name] = wl
+    cfg_write.save(target)
+    if set_default:
+        config_service.write_saved_config_path(target)
+    if stale:
+        ui.show_warning(f"Saved default config not found: {stale}")
+    ui.show_success(f"Workload selection saved to {target}")
+
+
+@config_app.command("select-workloads")
+def config_select_workloads(
+    config: Optional[Path] = typer.Option(
+        None, "--config", "-c", help="Config file to update after selection."
+    ),
+    set_default: bool = typer.Option(
+        False,
+        "--set-default/--no-set-default",
+        help="Remember the config after saving selection.",
+    ),
+) -> None:
+    """Interactively enable/disable workloads using arrows + space."""
+    cfg = _load_config(config)
+    if not cfg.workloads:
+        ui.show_warning("No workloads configured yet. Enable plugins first with `lb plugin list --enable NAME`.")
+        return
+
+    registry = create_registry()
+    _select_workloads_interactively(cfg, registry, config, set_default)
+
+
 app.add_typer(config_app, name="config")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(plugin_app, name="plugin")
