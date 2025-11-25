@@ -1,0 +1,5 @@
+name: top500
+description: HPL Linpack (Top500) workload
+apt_packages: []
+pip_packages:
+  - ansible

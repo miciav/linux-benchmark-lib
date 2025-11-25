@@ -76,6 +76,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         private_data_dir: Optional[Path] = None,
         runner_fn: Optional[Callable[..., Any]] = None,
         stream_output: bool = False,
+        output_callback: Optional[Callable[[str, str], None]] = None,
     ):
         """
         Initialize the executor.
@@ -86,11 +87,14 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                 ansible_runner.run when not provided.
             stream_output: When True, stream Ansible stdout events to the local
                 process (useful for visibility in long-running tasks).
+            output_callback: Optional callback to handle stdout stream. 
+                             Signature: (text: str, end: str) -> None
         """
         self.private_data_dir = private_data_dir or Path("ansible")
         self.private_data_dir.mkdir(parents=True, exist_ok=True)
         self._runner_fn = runner_fn
         self.stream_output = stream_output
+        self.output_callback = output_callback
 
     def run_playbook(
         self,
@@ -119,14 +123,71 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         merged_extravars = extravars.copy() if extravars else {}
         merged_extravars.setdefault("_lb_inventory_path", str(inventory_path))
 
+        repo_roles = Path("ansible/roles").resolve()
+        runner_roles = (self.private_data_dir / "roles").resolve()
+        envvars = {
+            "ANSIBLE_ROLES_PATH": f"{runner_roles}:{repo_roles}",
+        }
+
+        # State for event handler closure
+        state = {"last_stdout": None, "was_progress": False}
+
+        def event_handler(event: Dict[str, Any]) -> None:
+            """Stream Ansible runner stdout events via callback."""
+            if not self.output_callback:
+                return
+
+            # 1. Handle standard runner stdout (the Ansible UI output)
+            stdout = event.get("stdout")
+            if stdout:
+                # Check for progress marker
+                if "BENCHMARK_PROGRESS:" in stdout:
+                    # Extract percentage and show dynamically
+                    try:
+                        # stdout might contain other text, try to isolate the progress
+                        parts = stdout.split("BENCHMARK_PROGRESS:")
+                        if len(parts) > 1:
+                            progress = parts[1].strip()
+                            self.output_callback(f"\\r>>> Progress: {progress}   ", "")
+                    except Exception:
+                        pass # Fallback if parsing fails
+                else:
+                    # Avoid printing duplicate consecutive lines sometimes emitted by runner
+                    if stdout != state["last_stdout"]:
+                        # If we were printing progress, move to a new line before printing normal logs
+                        if state["was_progress"]:
+                             self.output_callback("", "\\n")
+                        
+                        self.output_callback(stdout, "\\n")
+                        state["last_stdout"] = stdout
+                        state["was_progress"] = False
+
+                # Mark if we just printed progress so we can newline later
+                if "BENCHMARK_PROGRESS:" in stdout:
+                    state["was_progress"] = True
+            
+            # 2. Handle task completion events to show command output
+            if event.get("event") in ("runner_on_ok", "runner_on_failed"):
+                event_data = event.get("event_data", {})
+                task_name = event_data.get("task", "")
+                
+                # Only show detailed output for the benchmark execution task to reduce noise
+                if "Run benchmark" in task_name:
+                    res = event_data.get("res", {})
+                    task_stdout = res.get("stdout") or res.get("msg") or res.get("stderr")
+                    
+                    if task_stdout:
+                         self.output_callback(f"\\n[Benchmark Output: {task_name}]\\n{task_stdout}\\n", "\\n")
+
         result = runner_fn(
             private_data_dir=str(self.private_data_dir),
             playbook=str(abs_playbook_path),
-            inventory=str(inventory_path),
+            inventory=str(inventory_path.resolve()),
             extravars=merged_extravars,
             tags=",".join(tags) if tags else None,
             quiet=self.stream_output,  # suppress runner's own stdout when streaming ourselves
-            event_handler=self._event_handler if self.stream_output else None,
+            event_handler=event_handler if self.stream_output else None,
+            envvars=envvars,
         )
 
         rc = getattr(result, "rc", 1)
@@ -179,57 +240,6 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             ) from exc
         return ansible_runner.run
 
-    @staticmethod
-    def _event_handler(event: Dict[str, Any]) -> None:
-        """Stream Ansible runner stdout events to the local console."""
-        import sys
-        
-        # 1. Handle standard runner stdout (the Ansible UI output)
-        stdout = event.get("stdout")
-        if stdout:
-            # Check for progress marker
-            if "BENCHMARK_PROGRESS:" in stdout:
-                # Extract percentage and show dynamically
-                try:
-                    # stdout might contain other text, try to isolate the progress
-                    parts = stdout.split("BENCHMARK_PROGRESS:")
-                    if len(parts) > 1:
-                        progress = parts[1].strip()
-                        sys.stdout.write(f"\r>>> Progress: {progress}   ")
-                        sys.stdout.flush()
-                except Exception:
-                    pass # Fallback to standard printing if parsing fails
-            else:
-                # Avoid printing duplicate consecutive lines sometimes emitted by runner
-                last = getattr(AnsibleRunnerExecutor._event_handler, "_last_stdout", None)
-                if stdout != last:
-                    # If we were printing progress, move to a new line before printing normal logs
-                    if getattr(AnsibleRunnerExecutor._event_handler, "_was_progress", False):
-                         print("", flush=True)
-                    
-                    print(stdout, flush=True)
-                    AnsibleRunnerExecutor._event_handler._last_stdout = stdout
-                    AnsibleRunnerExecutor._event_handler._was_progress = False
-
-            # Mark if we just printed progress so we can newline later
-            if "BENCHMARK_PROGRESS:" in stdout:
-                AnsibleRunnerExecutor._event_handler._was_progress = True
-        
-        # 2. Handle task completion events to show command output
-        # "runner_on_ok" or "runner_on_failed" usually contain the module result
-        if event.get("event") in ("runner_on_ok", "runner_on_failed"):
-            event_data = event.get("event_data", {})
-            task_name = event_data.get("task", "")
-            
-            # Only show detailed output for the benchmark execution task to reduce noise
-            if "Run benchmark" in task_name:
-                res = event_data.get("res", {})
-                # Try multiple sources of output. 'stdout' is preferred for shell commands.
-                task_stdout = res.get("stdout") or res.get("msg") or res.get("stderr")
-                
-                if task_stdout:
-                     print(f"\n[Benchmark Output: {task_name}]\n{task_stdout}\n", flush=True)
-
 
 class BenchmarkController:
     """Controller coordinating remote benchmark runs."""
@@ -238,9 +248,10 @@ class BenchmarkController:
         self,
         config: BenchmarkConfig,
         executor: Optional[RemoteExecutor] = None,
+        output_callback: Optional[Callable[[str, str], None]] = None,
     ):
         self.config = config
-        self.executor = executor or AnsibleRunnerExecutor()
+        self.executor = executor or AnsibleRunnerExecutor(output_callback=output_callback)
         self.plugin_registry = PluginRegistry(builtin_plugins())
 
     def run(
@@ -277,7 +288,7 @@ class BenchmarkController:
 
         extravars = {
             "run_id": resolved_run_id,
-            "tests": [t for t in test_types if t != "top500"],
+            "tests": list(test_types),
             "output_root": str(output_root),
             "remote_output_root": remote_output_root,
             "report_root": str(report_root),
@@ -289,25 +300,6 @@ class BenchmarkController:
         }
 
         phases: Dict[str, ExecutionResult] = {}
-
-        phases: Dict[str, ExecutionResult] = {}
-
-        # Run top500 first if requested (controller-driven playbook)
-        if "top500" in test_types:
-            top500 = self.config.top500
-            top500_vars = {
-                "top500_repo_url": top500.repo_url,
-                "top500_repo_ref": top500.repo_ref,
-                "top500_workdir": str(top500.workdir),
-                "top500_tags": top500.tags,
-                "top500_config_overrides": top500.config_overrides,
-                "top500_run_id": resolved_run_id,
-            }
-            phases["top500"] = self.executor.run_playbook(
-                Path("ansible/playbooks/top500.yml"),
-                inventory=inventory,
-                extravars=top500_vars,
-            )
 
         if extravars["tests"]:
             if self.config.remote_execution.run_setup:

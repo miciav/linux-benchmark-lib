@@ -66,14 +66,46 @@ Installs all dependencies including test and linting tools.
 uv sync --all-extras --dev
 ```
 
+Switch between modes quickly with the helper script:
+
+```bash
+bash tools/switch_mode.sh base        # core only
+bash tools/switch_mode.sh controller  # adds controller extra
+bash tools/switch_mode.sh dev         # dev + all extras
+```
+
 ## CLI (lb)
 
 See `CLI.md` for the full command reference. Highlights:
-- Config and defaults: `lb config init`, `lb config set-default`, `lb config edit`, `lb config workloads`, `lb plugins --enable/--disable NAME` (shows enabled state with checkmarks).
-- Discovery and run: `lb plugins`, `lb hosts`, `lb run [tests...]` (follows config for local/remote unless overridden).
+- Launch the Textual TUI: `lb tui` (or simply `lb --tui` with no subcommand in a TTY).
+- Config and defaults: `lb config init`, `lb config set-default`, `lb config edit`, `lb config workloads`, `lb plugin list --select/--enable/--disable NAME` (shows enabled state with checkmarks).
+- Discovery and run: `lb plugin list`, `lb hosts`, `lb run [tests...]` (follows config for local/remote unless overridden).
+- Interactive toggle: `lb plugin select` to enable/disable plugins with arrows + space (Textual).
 - Health checks: `lb doctor controller`, `lb doctor local-tools`, `lb doctor multipass`, `lb doctor all`.
 - Integration helper: `lb test multipass --vm-count {1,2} [--multi-workloads]` (artifacts to `tests/results` by default).
-- Optional workload: `top500` (HPL Linpack via geerlingguy/top500-benchmark playbook), disabled by default; enable with `lb plugins --enable top500`.
+- Optional workload: `top500` (HPL Linpack via geerlingguy/top500-benchmark playbook), disabled by default; enable with `lb plugin list --enable top500` or interactively with `lb plugin list --select`.
+- Test helpers (`lb test ...`) are available in dev mode (create `.lb_dev_cli` or export `LB_ENABLE_TEST_CLI=1`).
+
+### UI layer
+- The interactive experience is a dark, minimalist Textual TUI inspired by modern developer tools; screens share a common top bar, sidebar, and status bar.
+- Launch the full-screen app with `lb tui` or force it via `lb --tui`; headless rendering stays available for CI and piping.
+- Force headless output with `LB_HEADLESS_UI=1` when running under CI or when piping output.
+- Progress bars and tables remain text-friendly; the same services power both the TUI and the headless adapter used by tests.
+
+### Plugin manifests and generated assets
+- Each workload declares its install needs in `plugins/manifests/<name>.yaml`:
+  ```yaml
+  name: stress_ng
+  description: CPU and memory stress workload
+  apt_packages: [stress-ng]
+  pip_packages: []
+  ```
+- Regenerate Docker/Ansible assets after adding or updating a manifest:
+  ```
+  uv run python tools/gen_plugin_assets.py
+  ```
+  This updates the generated apt/pip install block in `Dockerfile` and rewrites `ansible/roles/workload_runner/tasks/plugins.generated.yml`.
+- Commit both the manifest and generated files so remote setup and the container stay in sync with available plugins.
 
 ## Quick Start
 

@@ -88,6 +88,14 @@ class BaseGenerator(ABC):
             
         logger.info(f"{self.name} generator stopped")
 
+    def check_prerequisites(self) -> bool:
+        """
+        Check if the generator's prerequisites are met.
+        
+        Delegates to the protected _validate_environment method.
+        """
+        return self._validate_environment()
+
     def get_result(self) -> Any:
         """
         Get the result of the workload generation.

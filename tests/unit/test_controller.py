@@ -62,6 +62,25 @@ def test_controller_creates_output_dirs(tmp_path: Path):
     assert len(executor.calls) == 3
 
 
+def test_top500_runs_via_workload_runner(tmp_path: Path):
+    """Top500 workload should flow through the workload runner like other plugins."""
+    config = BenchmarkConfig(
+        output_dir=tmp_path / "out",
+        report_dir=tmp_path / "rep",
+        data_export_dir=tmp_path / "exp",
+        remote_hosts=[RemoteHostConfig(name="node1", address="127.0.0.1")],
+    )
+    executor = DummyExecutor()
+    controller = BenchmarkController(config, executor=executor)
+
+    summary = controller.run(test_types=["top500"], run_id="run-top500")
+
+    assert summary.success
+    assert len(executor.calls) == 3
+    assert all("top500" in call["extravars"]["tests"] for call in executor.calls)
+    assert all("top500.yml" not in str(call["playbook"]) for call in executor.calls)
+
+
 def test_ansible_runner_renders_inventory(tmp_path: Path):
     """AnsibleRunnerExecutor should write inventory and pass parameters to runner."""
     called_kwargs = {}

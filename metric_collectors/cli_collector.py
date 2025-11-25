@@ -29,6 +29,7 @@ class CLICollector(BaseCollector):
         """
         super().__init__(name, interval_seconds)
         self.commands = commands if commands else []
+        self._failed_commands: set[str] = set()
 
     def _collect_metrics(self) -> Dict[str, Any]:
         """
@@ -39,6 +40,8 @@ class CLICollector(BaseCollector):
         """
         metrics = {}
         for command in self.commands:
+            if command in self._failed_commands:
+                continue
             try:
                 # Run the command safely with a timeout to avoid hanging collectors
                 # Use shell=True to support pipes/redirections in custom commands
@@ -53,10 +56,20 @@ class CLICollector(BaseCollector):
                 )
                 output = result.stdout.strip()
 
-                # Parse the output using jc; handle list/dict results
-                # We need the first token of the command for jc to know which parser to use
                 tool_name = shlex.split(command)[0]
-                parsed = jc.parse(tool_name, output)
+                parsed = None
+
+                # Special-case sar: jc may not ship a parser; fall back to manual parsing
+                if tool_name == "sar":
+                    parsed = self._parse_sar(output)
+                else:
+                    try:
+                        parsed = jc.parse(tool_name, output)
+                    except Exception as e:  # jc may not ship a parser; treat as non-fatal
+                        logger.warning("Failed to parse output for '%s' (%s); disabling this command", tool_name, e)
+                        self._failed_commands.add(command)
+                        continue
+
                 if isinstance(parsed, list):
                     parsed = parsed[0] if parsed and isinstance(parsed[0], dict) else {}
                 if isinstance(parsed, dict):
@@ -64,12 +77,59 @@ class CLICollector(BaseCollector):
 
             except subprocess.TimeoutExpired:
                 logger.error(f"Command '{command}' timed out after {self.interval_seconds}s")
+                self._failed_commands.add(command)
             except subprocess.CalledProcessError as e:
                 logger.error(f"Command '{command}' failed to execute: {e}")
+                self._failed_commands.add(command)
             except Exception as e:
                 logger.error(f"Error parsing output for command '{command}': {e}")
+                self._failed_commands.add(command)
 
         return metrics
+
+    def _parse_sar(self, output: str) -> Dict[str, Any]:
+        """
+        Minimal parser for `sar -u` output when jc lacks a parser.
+
+        Returns an empty dict when parsing fails.
+        """
+        lines = [ln for ln in output.splitlines() if ln.strip()]
+        if not lines:
+            return {}
+
+        # Find the last data line (skip header)
+        data_line = None
+        for ln in reversed(lines):
+            # Skip lines starting with "Average:" or blank; prefer numeric timestamp rows
+            parts = ln.split()
+            if len(parts) < 3:
+                continue
+            # crude check: first token contains ':' (time)
+            if ":" in parts[0]:
+                data_line = parts
+                break
+            if parts[0].lower() == "average:":
+                data_line = parts[1:]
+                break
+
+        if not data_line or len(data_line) < 5:
+            return {}
+
+        # sar -u typically: time user nice system iowait steal idle
+        try:
+            # align columns from the end to be safer
+            user, nice, system, iowait, steal, idle = map(float, data_line[-6:])
+        except Exception:
+            return {}
+
+        return {
+            "sar_user_pct": user,
+            "sar_nice_pct": nice,
+            "sar_system_pct": system,
+            "sar_iowait_pct": iowait,
+            "sar_steal_pct": steal,
+            "sar_idle_pct": idle,
+        }
 
     def _validate_environment(self) -> bool:
         """

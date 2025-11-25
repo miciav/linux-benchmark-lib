@@ -35,7 +35,7 @@ build-backend = "setuptools.build_meta"
 py-modules = ["benchmark_config", "controller", "local_runner", "data_handler", "reporter", "cli"]
 
 [tool.setuptools.packages.find]
-include = ["metric_collectors*", "workload_generators*", "plugins*", "services*"]
+include = ["metric_collectors*", "workload_generators*", "plugins*", "services*", "ui*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [project.scripts]

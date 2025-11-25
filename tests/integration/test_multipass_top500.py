@@ -3,28 +3,20 @@ from pathlib import Path
 
 import pytest
 
-from benchmark_config import (
-    BenchmarkConfig,
-    RemoteExecutionConfig,
-    RemoteHostConfig,
-    StressNGConfig,
-    DDConfig,
-    FIOConfig,
-)
+from benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig, Top500Config
 from controller import AnsibleRunnerExecutor, BenchmarkController
 from tests.integration.test_multipass_benchmark import multipass_vm
 from tests.integration.multipass_utils import get_intensity
 
 
 @pytest.mark.integration
-def test_remote_multiple_workloads(multipass_vm, tmp_path):
+def test_remote_top500_setup_only(multipass_vm, tmp_path):
     """
-    Run a short multipass-based integration across multiple workloads.
+    Run a lightweight Top500 playbook (setup tag only) on Multipass VM(s).
 
-    Workloads: stress-ng, dd, fio. Durations and sizes are trimmed to keep
-    runtime reasonable in CI.
+    This validates the Top500 workload path without running the full HPL benchmark.
     """
-    intensity = get_intensity()
+    _ = get_intensity()  # keep interface consistent; no runtime change for top500 setup
     multipass_vms = multipass_vm
     host_configs = [
         RemoteHostConfig(
@@ -54,20 +46,9 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
             run_setup=True,
             run_collect=True,
         ),
-        stress_ng=StressNGConfig(cpu_workers=1, timeout=intensity["stress_timeout"]),
-        dd=DDConfig(bs="1M", count=intensity["dd_count"], of_path="/tmp/dd_test"),
-        fio=FIOConfig(
-            runtime=intensity["fio_runtime"],
-            size=intensity["fio_size"],
-            numjobs=1,
-            iodepth=4,
-            directory="/tmp",
-            name="benchmark",
-            rw="randrw",
-            bs="4k",
-            output_format="json",
-        ),
+        top500=Top500Config(tags=["setup"]),
     )
+    config.workloads["top500"].enabled = True
 
     ansible_dir = tmp_path / "ansible_data"
     os.environ["ANSIBLE_ROLES_PATH"] = str(Path("ansible/roles").absolute())
@@ -77,7 +58,7 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)
     controller = BenchmarkController(config, executor=executor)
 
-    summary = controller.run(["stress_ng", "dd", "fio"], run_id="multi_run")
+    summary = controller.run(["top500"], run_id="top500_setup")
 
     assert summary.success, f"Benchmark failed. Phases: {summary.phases}"
     for phase in ("setup", "run", "collect"):

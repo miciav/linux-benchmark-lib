@@ -6,13 +6,21 @@ DataFrames suitable for analysis and reporting.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TypedDict
 import pandas as pd
 import numpy as np
 from datetime import datetime
 
 
 logger = logging.getLogger(__name__)
+
+
+class TestResult(TypedDict):
+    """Structure of a single test repetition result."""
+    repetition: int
+    metrics: Dict[str, List[Dict[str, Any]]]
+    start_time: Optional[str]
+    end_time: Optional[str]
 
 
 class DataHandler:
@@ -33,7 +41,7 @@ class DataHandler:
     def process_test_results(
         self,
         test_name: str,
-        results: List[Dict[str, Any]]
+        results: List[TestResult]
     ) -> Optional[pd.DataFrame]:
         """
         Process test results and create aggregated DataFrame.

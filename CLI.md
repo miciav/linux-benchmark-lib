@@ -5,6 +5,7 @@ Setup
 -----
 - Install in a venv: `uv venv && uv pip install -e .`
 - Make `lb` globally available (optional): `uv tool install -e .`
+- Enable shell completion: `lb --install-completion` (bash/zsh/fish) and restart your shell.
 
 Config resolution
 -----------------
@@ -16,12 +17,16 @@ Order used by commands that need a config:
 
 Top-level commands
 ------------------
-- `lb plugins [--enable NAME | --disable NAME] [-c FILE] [--set-default]`  
-  Show plugins with enabled state; optionally enable/disable a workload in the config.
+- `lb plugin list|ls [--select] [--enable NAME | --disable NAME] [-c FILE] [--set-default]`  
+  Show plugins with enabled state; optionally enable/disable a workload in the config or open an interactive selector (arrows + space). (`lb plugins` remains as a compatibility alias.)
+- `lb plugin select [-c FILE] [--set-default]`  
+  Directly open the interactive selector to toggle plugins with arrows + space.
 - `lb hosts [-c FILE]`  
   Show remote hosts from the resolved config.
 - `lb run [TEST ...] [-c FILE] [--run-id ID] [--remote/--no-remote]`  
   Run workloads locally or remotely (auto-follows config unless overridden).
+- `lb run ... --docker [--docker-image TAG] [--docker-engine docker|podman] [--docker-no-build] [--docker-no-cache]`  
+  Build/use the container image and run the CLI inside it. Mounts the repo read-only and writes artifacts to the container’s `benchmark_results`.
 
 Config management (`lb config ...`)
 -----------------------------------
@@ -43,7 +48,8 @@ Doctor checks (`lb doctor ...`)
 - `lb doctor multipass` — check presence of multipass (optional).
 - `lb doctor all` — run all checks.
 
-Integration helper (`lb test ...`)
-----------------------------------
-- `lb test multipass [-o DIR] [--vm-count {1,2}] [--multi-workloads] [-- EXTRA_PYTEST_ARGS...]`  
-  Esegue il test di integrazione Multipass. Gli artefatti finiscono in `tests/results` di default (override con `-o` o `LB_TEST_RESULTS_DIR`). Con `--vm-count` (o `LB_MULTIPASS_VM_COUNT`) puoi avviare 1 o 2 VM in parallelo. Aggiungi `--multi-workloads` per eseguire la variante che lancia stress_ng, dd e fio nello stesso giro. Richiede multipass + ansible/ansible-runner installati localmente.
+Integration helper (`lb test ...`, dev installs only)
+-----------------------------------------------------
+- Available when `.lb_dev_cli` exists in the project root or `LB_ENABLE_TEST_CLI=1` is set.
+- `lb test multipass [-o DIR] [--vm-count {1,2}] [--multi-workloads|--top500] [-- EXTRA_PYTEST_ARGS...]`  
+  Runs the Multipass integration test. Artifacts go to `tests/results` by default (override with `-o` or `LB_TEST_RESULTS_DIR`). `--vm-count` (or `LB_MULTIPASS_VM_COUNT`) launches 1–2 VMs. Use `--multi-workloads` to run the stress_ng + dd + fio variant, or `--top500` for the Top500 setup-only path. Requires multipass + ansible/ansible-runner locally.

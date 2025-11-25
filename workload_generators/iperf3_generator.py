@@ -6,6 +6,7 @@ This module uses iperf3 to generate network traffic.
 
 import iperf3
 import logging
+import ctypes.util
 from typing import Optional
 from ._base_generator import BaseGenerator
 from benchmark_config import IPerf3Config
@@ -27,7 +28,7 @@ class IPerf3Generator(BaseGenerator):
         """
         super().__init__(name)
         self.config = config
-        self.client = iperf3.Client()
+        self.client: Optional[iperf3.Client] = None
 
     def _validate_environment(self) -> bool:
         """
@@ -36,16 +37,25 @@ class IPerf3Generator(BaseGenerator):
         Returns:
             True if iperf3 is available, False otherwise
         """
+        lib = ctypes.util.find_library("iperf")
+        if not lib:
+            logger.error("iperf3 shared library not found (libiperf). Install iperf3.")
+            return False
         try:
-            iperf3.Client()
+            self.client = iperf3.Client()
             return True
         except Exception as e:
             logger.error(f"Error creating iperf3 client: {e}")
+            self.client = None
             return False
 
     def _run_command(self) -> None:
         """Run iperf3 with configured parameters."""
         logger.info("Starting iperf3 test")
+
+        if self.client is None:
+            self._result = {"error": "iperf3 client not initialized"}
+            return
 
         self.client.server_hostname = self.config.server_host
         self.client.port = self.config.server_port

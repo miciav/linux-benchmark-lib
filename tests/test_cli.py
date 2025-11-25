@@ -12,6 +12,7 @@ from benchmark_config import BenchmarkConfig
 def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Import the CLI module with an isolated config home and cwd."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    monkeypatch.setenv("LB_ENABLE_TEST_CLI", "1")
     monkeypatch.chdir(tmp_path)
     if "cli" in sys.modules:
         del sys.modules["cli"]
@@ -25,14 +26,18 @@ def test_plugins_enable_disable_persists_config(monkeypatch: pytest.MonkeyPatch,
     runner = CliRunner()
     config_path = tmp_path / "cfg.json"
 
-    result = runner.invoke(cli.app, ["plugins", "--enable", "stress_ng", "-c", str(config_path)])
+    result = runner.invoke(
+        cli.app, ["plugin", "list", "--enable", "stress_ng", "-c", str(config_path)]
+    )
     assert result.exit_code == 0, result.output
 
     cfg = BenchmarkConfig.load(config_path)
     assert "stress_ng" in cfg.workloads
     assert cfg.workloads["stress_ng"].enabled is True
 
-    result = runner.invoke(cli.app, ["plugins", "--disable", "stress_ng", "-c", str(config_path)])
+    result = runner.invoke(
+        cli.app, ["plugin", "list", "--disable", "stress_ng", "-c", str(config_path)]
+    )
     assert result.exit_code == 0, result.output
 
     cfg = BenchmarkConfig.load(config_path)
@@ -42,7 +47,7 @@ def test_plugins_enable_disable_persists_config(monkeypatch: pytest.MonkeyPatch,
 def test_plugins_shows_enabled_column(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
-    result = runner.invoke(cli.app, ["plugins"])
+    result = runner.invoke(cli.app, ["plugin", "list"])
     assert result.exit_code == 0, result.output
     # Check that the table includes the Enabled column and a known plugin name
     assert "Enabled" in result.output
@@ -54,8 +59,7 @@ def test_doctor_controller_uses_checks(monkeypatch: pytest.MonkeyPatch, tmp_path
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
 
-    monkeypatch.setattr(cli, "_check_import", lambda name: True)
-    monkeypatch.setattr(cli, "_check_command", lambda name: True)
+    monkeypatch.setattr(cli.doctor_service, "check_controller", lambda: 0)
 
     result = runner.invoke(cli.app, ["doctor", "controller"])
     assert result.exit_code == 0, result.output
@@ -64,7 +68,7 @@ def test_doctor_controller_uses_checks(monkeypatch: pytest.MonkeyPatch, tmp_path
 def test_doctor_local_tools_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
-    monkeypatch.setattr(cli, "_check_command", lambda name: False)
+    monkeypatch.setattr(cli.doctor_service, "check_local_tools", lambda: 1)
     result = runner.invoke(cli.app, ["doctor", "local-tools"])
     assert result.exit_code != 0
 
@@ -72,8 +76,56 @@ def test_doctor_local_tools_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 def test_plugins_conflicting_flags_fail(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
-    result = runner.invoke(cli.app, ["plugins", "--enable", "a", "--disable", "b"])
+    result = runner.invoke(cli.app, ["plugin", "list", "--enable", "a", "--disable", "b"])
     assert result.exit_code != 0
+
+
+def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cli = _load_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+
+    monkeypatch.setattr(
+        cli,
+        "_select_plugins_interactively",
+        lambda registry, enabled: {"stress_ng", "dd"},
+    )
+
+    result = runner.invoke(cli.app, ["plugin", "list", "--select"])
+    assert result.exit_code == 0, result.output
+
+    cfg_path = tmp_path / "xdg" / "lb" / "config.json"
+    cfg = BenchmarkConfig.load(cfg_path)
+    assert cfg.workloads["stress_ng"].enabled is True
+    assert cfg.workloads["dd"].enabled is True
+    assert cfg.workloads["iperf3"].enabled is False
+
+
+def test_plugin_select_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cli = _load_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+
+    monkeypatch.setattr(
+        cli,
+        "_select_plugins_interactively",
+        lambda registry, enabled: {"fio"},
+    )
+
+    result = runner.invoke(cli.app, ["plugin", "select"])
+    assert result.exit_code == 0, result.output
+
+    cfg_path = tmp_path / "xdg" / "lb" / "config.json"
+    cfg = BenchmarkConfig.load(cfg_path)
+    assert cfg.workloads["fio"].enabled is True
+    assert cfg.workloads["stress_ng"].enabled is False
+
+
+def test_plugin_root_defaults_to_list(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cli = _load_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+
+    result = runner.invoke(cli.app, ["plugin"])
+    assert result.exit_code == 0, result.output
+    assert "Available Workload Plugins" in result.output
 
 
 def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):

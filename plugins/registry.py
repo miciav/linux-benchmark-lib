@@ -16,6 +16,8 @@ from typing import Any, Callable, Dict, Iterable, Optional, Type
 from metric_collectors._base_collector import BaseCollector
 from workload_generators._base_generator import BaseGenerator
 from benchmark_config import BenchmarkConfig
+from ui import get_ui_adapter
+from ui.types import UIAdapter
 
 
 logger = logging.getLogger(__name__)
@@ -130,7 +132,13 @@ class PluginRegistry:
             for entry_point in eps:
                 try:
                     plugin = entry_point.load()
-                except Exception:
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to load plugin entry point %s from group %s: %s",
+                        entry_point.name,
+                        group,
+                        exc,
+                    )
                     continue
                 if isinstance(plugin, (WorkloadPlugin, CollectorPlugin)):
                     self.register(plugin)
@@ -139,44 +147,27 @@ class PluginRegistry:
 def print_plugin_table(
     registry: "PluginRegistry",
     enabled: Optional[Dict[str, bool]] = None,
+    ui_adapter: Optional[UIAdapter] = None,
 ) -> None:
     """
-    Render the available plugins using Rich.
-
-    This is a lightweight convenience wrapper to avoid duplicating table setup
-    wherever we want to display the registered workloads.
+    Render the available plugins via the shared UI adapter.
     """
-    try:
-        from rich.console import Console
-        from rich.table import Table
-    except Exception:
-        return
+    ui = ui_adapter or get_ui_adapter()
 
-    try:
-        console = Console()
-        table = Table(
-            title="Available Workload Plugins",
-            header_style="bold cyan",
-            show_edge=False,
-        )
-        table.add_column("Name", style="bold")
-        if enabled is not None:
-            table.add_column("Enabled", justify="center")
-        table.add_column("Description")
-        table.add_column("Config")
-        for name, plugin in sorted(registry.available().items()):
-            description = getattr(plugin, "description", "")
-            if enabled is None:
-                table.add_row(name, description, plugin.config_cls.__name__)
+    rows = []
+    for name, plugin in sorted(registry.available().items()):
+        description = getattr(plugin, "description", "")
+        if enabled is None:
+            rows.append([name, description, plugin.config_cls.__name__])
+        else:
+            status = enabled.get(name)
+            if status is None:
+                status_str = "?"
+            elif status:
+                status_str = "✓"
             else:
-                status = enabled.get(name)
-                if status is None:
-                    status_str = "[yellow]?[/yellow]"
-                elif status:
-                    status_str = "[green]✓[/green]"
-                else:
-                    status_str = "[red]✗[/red]"
-                table.add_row(name, status_str, description, plugin.config_cls.__name__)
-        console.print(table)
-    except Exception:
-        logger.debug("Failed to render plugin list", exc_info=True)
+                status_str = "✗"
+            rows.append([name, status_str, description, plugin.config_cls.__name__])
+
+    headers = ["Name", "Description", "Config"] if enabled is None else ["Name", "Enabled", "Description", "Config"]
+    ui.show_table("Available Workload Plugins", headers, rows)

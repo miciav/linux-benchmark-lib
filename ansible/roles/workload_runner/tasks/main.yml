@@ -9,6 +9,18 @@
   set_fact:
     workload_runner_workdir: "{{ workload_runner_workdir | default('/tmp/linux-benchmark-lib') }}"
 
+- name: Choose Python interpreter for workload runner venv
+  ansible.builtin.shell: |
+    set -e
+    if command -v python3.12 >/dev/null 2>&1; then
+      command -v python3.12
+    else
+      command -v python3
+    fi
+  register: workload_runner_python_bin
+  changed_when: false
+  when: workload_runner_mode == "execute"
+
 - name: Create workload runner workdir
   file:
     path: "{{ workload_runner_workdir }}"
@@ -17,7 +29,7 @@
 
 - name: Create virtual environment for workload runner
   ansible.builtin.command:
-    cmd: "python3 -m venv {{ workload_runner_workdir }}/.venv"
+    cmd: "{{ (workload_runner_python_bin.stdout or 'python3') }} -m venv {{ workload_runner_workdir }}/.venv"
     creates: "{{ workload_runner_workdir }}/.venv/bin/python"
   when:
     - workload_runner_mode == "execute"
@@ -46,6 +58,11 @@
     state: directory
     mode: "0755"
 
+- name: Check if Top500 workload is requested
+  set_fact:
+    workload_runner_top500_enabled: "{{ 'top500' in (workload_runner_tests | default([])) }}"
+  when: workload_runner_mode == "execute"
+
 - name: Prepare benchmark configuration for this host
   set_fact:
     workload_runner_config_rendered: >-
@@ -70,6 +87,15 @@
   when:
     - workload_runner_mode == "execute"
     - workload_runner_install_deps | default(false)
+
+- name: Install Ansible for Top500 workload
+  ansible.builtin.command:
+    cmd: "{{ workload_runner_workdir }}/.venv/bin/pip install ansible"
+    chdir: "{{ workload_runner_workdir }}"
+  when:
+    - workload_runner_mode == "execute"
+    - workload_runner_install_deps | default(false)
+    - workload_runner_top500_enabled | default(false)
 
 - name: Install project in editable mode (explicit)
   ansible.builtin.command:
@@ -134,6 +160,8 @@
     PYTHONPATH: >-
       {{ workload_runner_workdir }}:{{ workload_runner_workdir }}/plugins:{{ lookup('env', 'PYTHONPATH') | default('') }}
     PYTHONUNBUFFERED: "1"
+    PATH: >-
+      {{ workload_runner_workdir }}/.venv/bin:{{ ansible_env.PATH | default('/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin') }}
   loop: "{{ workload_runner_tests | default([]) }}"
   loop_control:
     label: "{{ item }}"

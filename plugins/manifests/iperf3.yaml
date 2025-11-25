@@ -1,0 +1,5 @@
+name: iperf3
+description: Network throughput workload
+apt_packages:
+  - iperf3
+pip_packages: []

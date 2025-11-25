@@ -58,7 +58,9 @@ class TestBenchmarkConfig:
                 report_dir=Path(tmpdir) / "reports",
                 data_export_dir=Path(tmpdir) / "exports"
             )
-            
+            # Directories are created on demand, not during init
+            assert not config.output_dir.exists()
+            config.ensure_output_dirs()
             assert config.output_dir.exists()
             assert config.report_dir.exists()
             assert config.data_export_dir.exists()

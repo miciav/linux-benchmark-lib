@@ -44,6 +44,14 @@ htmlcov/
 /benchmark_results/  # Directory per i risultati dei benchmark
 /reports/            # Directory per i report generati
 /data_exports/       # Directory per le esportazioni CSV/JSON
+/tests/results
+
+# Ansible runtime artifacts
+ansible/artifacts/
+ansible/playbooks/benchmark_results/
+ansible/env/extravars
+ansible/inventory/hosts
+ansible/inventory/hosts.ini
 
 # OS-specific
 .DS_Store
@@ -58,3 +66,4 @@ Thumbs.db
 *.swp
 test_key
 test_key.pub
+.lb_dev_cli

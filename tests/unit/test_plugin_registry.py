@@ -2,6 +2,9 @@
 
 from dataclasses import dataclass
 
+import importlib.metadata
+import pytest
+
 from plugins.registry import PluginRegistry, WorkloadPlugin
 from workload_generators._base_generator import BaseGenerator
 
@@ -45,3 +48,25 @@ def test_registry_creates_generator_from_plugin():
 
     assert isinstance(generator, DummyGenerator)
     assert generator.config.flag is True
+
+
+def test_registry_logs_entrypoint_failures(monkeypatch, caplog):
+    """Registry should emit a warning when an entry point fails to load."""
+
+    class DummyEntryPoint:
+        name = "broken"
+
+        def load(self):
+            raise RuntimeError("boom")
+
+    class DummyEntryPoints:
+        def select(self, group):
+            return [DummyEntryPoint()]
+
+    monkeypatch.setattr(importlib.metadata, "entry_points", lambda: DummyEntryPoints())
+
+    caplog.set_level("WARNING")
+    registry = PluginRegistry()
+    # ensure registry is still usable
+    assert registry.available() == {}
+    assert any("Failed to load plugin entry point" in message for message in caplog.messages)

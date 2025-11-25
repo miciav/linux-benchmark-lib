@@ -93,7 +93,11 @@ class MetricCollectorConfig:
     
     psutil_interval: float = 1.0  # Sampling interval in seconds
     cli_commands: List[str] = field(default_factory=lambda: [
-        "sar", "vmstat", "iostat", "mpstat", "pidstat"
+        "sar -u 1 1",
+        "vmstat 1 1",
+        "iostat -d 1 1",
+        "mpstat 1 1",
+        "pidstat -h 1 1",
     ])
     perf_config: PerfConfig = field(default_factory=PerfConfig)
     enable_ebpf: bool = False  # eBPF requires special privileges
@@ -213,13 +217,15 @@ class BenchmarkConfig:
     influxdb_bucket: str = "performance"
     
     def __post_init__(self) -> None:
-        """Create output directories if they don't exist."""
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.report_dir.mkdir(parents=True, exist_ok=True)
-        self.data_export_dir.mkdir(parents=True, exist_ok=True)
+        """Validate configuration and populate defaults."""
         if not self.workloads:
             self.workloads = self._build_default_workloads()
         self._validate_remote_hosts()
+
+    def ensure_output_dirs(self) -> None:
+        """Ensure output, report, and export directories exist."""
+        for path in (self.output_dir, self.report_dir, self.data_export_dir):
+            path.mkdir(parents=True, exist_ok=True)
     
     def to_json(self) -> str:
         """Convert configuration to JSON string."""

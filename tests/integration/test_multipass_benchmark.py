@@ -12,8 +12,11 @@ from benchmark_config import (
     RemoteExecutionConfig,
     RemoteHostConfig,
     StressNGConfig,
+    DDConfig,
+    FIOConfig,
 )
 from controller import AnsibleRunnerExecutor, BenchmarkController
+from tests.integration.multipass_utils import get_intensity
 
 # Constants
 VM_NAME_PREFIX = "benchmark-test-vm"
@@ -79,7 +82,20 @@ def _inject_ssh_key(vm_name: str, pub_key: str) -> None:
 
 def _launch_vm(vm_name: str, pub_key: str) -> dict:
     print(f"Launching multipass VM: {vm_name}...")
-    subprocess.run(["multipass", "launch", "--name", vm_name, "lts"], check=True)
+    primary = os.environ.get("LB_MULTIPASS_IMAGE", "24.04")
+    fallback = os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts")
+    tried = []
+    for image in [primary, fallback]:
+        if image in tried:
+            continue
+        tried.append(image)
+        try:
+            subprocess.run(["multipass", "launch", "--name", vm_name, image], check=True)
+            break
+        except subprocess.CalledProcessError:
+            print(f"Image '{image}' failed to launch, trying next option...")
+            if image == tried[-1] and len(tried) == 2:
+                raise
     ip_address = _wait_for_ip(vm_name)
     print(f"VM {vm_name} started at {ip_address}. Injecting SSH key...")
     _inject_ssh_key(vm_name, pub_key)
@@ -144,12 +160,17 @@ def multipass_vm():
 def test_remote_benchmark_execution(multipass_vm, tmp_path):
     """
     Test the full remote benchmark execution flow on a Multipass VM.
+    Supports dynamic workloads via LB_MULTIPASS_WORKLOADS (comma-separated).
     """
+    intensity = get_intensity()
     multipass_vms = multipass_vm
     base_dir = Path(os.environ.get("LB_TEST_RESULTS_DIR", tmp_path))
     output_dir = base_dir / "results"
     report_dir = base_dir / "reports"
     export_dir = base_dir / "exports"
+
+    workloads = os.environ.get("LB_MULTIPASS_WORKLOADS", "stress_ng").split(",")
+    workloads = [w.strip() for w in workloads if w.strip()]
 
     # Create configuration
     host_configs = [
@@ -166,25 +187,52 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         for vm in multipass_vms
     ]
 
-    # Run a very short stress-ng test
-    config = BenchmarkConfig(
-        output_dir=output_dir,
-        report_dir=report_dir,
-        data_export_dir=export_dir,
-        remote_hosts=host_configs,
-        remote_execution=RemoteExecutionConfig(
+    # Base config args
+    config_args = {
+        "output_dir": output_dir,
+        "report_dir": report_dir,
+        "data_export_dir": export_dir,
+        "remote_hosts": host_configs,
+        "remote_execution": RemoteExecutionConfig(
             enabled=True,
             run_setup=True,
             run_collect=True
         ),
-        test_duration_seconds=5,
-        warmup_seconds=0,
-        cooldown_seconds=0,
-        stress_ng=StressNGConfig(
+        "test_duration_seconds": intensity["stress_duration"],
+        "warmup_seconds": 0,
+        "cooldown_seconds": 0,
+    }
+
+    # Add workload configs if enabled
+    if "stress_ng" in workloads:
+        config_args["stress_ng"] = StressNGConfig(
             cpu_workers=1,
-            timeout=5  # Short timeout for test
+            timeout=intensity["stress_timeout"]
         )
-    )
+    
+    if "dd" in workloads:
+        config_args["dd"] = DDConfig(
+            bs="1M", 
+            count=intensity["dd_count"], 
+            of_path="/tmp/dd_test"
+        )
+
+    if "fio" in workloads:
+        config_args["fio"] = FIOConfig(
+            runtime=intensity["fio_runtime"],
+            size=intensity["fio_size"],
+            numjobs=1,
+            iodepth=4,
+            directory="/tmp",
+            name="benchmark",
+            rw="randrw",
+            bs="4k",
+            output_format="json",
+        )
+
+    # Note: iperf3 and others can be added here similarly if needed
+
+    config = BenchmarkConfig(**config_args)
 
     # Use a separate temp dir for ansible runner data
     ansible_dir = tmp_path / "ansible_data"
@@ -198,8 +246,8 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     controller = BenchmarkController(config, executor=executor)
 
     # Execute
-    print("Starting benchmark controller...")
-    summary = controller.run(["stress_ng"], run_id="test_run")
+    print(f"Starting benchmark controller for workloads: {workloads}")
+    summary = controller.run(workloads, run_id="test_run")
 
     # Verify execution
     assert summary.success, f"Benchmark failed. Phases: {summary.phases}"

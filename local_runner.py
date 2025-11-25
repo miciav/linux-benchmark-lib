@@ -13,6 +13,7 @@ import platform
 import shutil
 import subprocess
 import time
+import sys
 from datetime import datetime
 from json import JSONEncoder
 from pathlib import Path
@@ -21,6 +22,8 @@ from typing import Any, Dict, List, Optional
 from benchmark_config import BenchmarkConfig, WorkloadConfig
 from data_handler import DataHandler
 from plugins.registry import PluginRegistry, print_plugin_table
+from ui import get_ui_adapter
+from ui.types import UIAdapter
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +40,7 @@ class DateTimeEncoder(JSONEncoder):
 class LocalRunner:
     """Local agent for executing benchmarks on a single node."""
     
-    def __init__(self, config: BenchmarkConfig, registry: PluginRegistry):
+    def __init__(self, config: BenchmarkConfig, registry: PluginRegistry, ui_adapter: UIAdapter | None = None):
         """
         Initialize the local runner.
         
@@ -49,6 +52,7 @@ class LocalRunner:
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = registry
+        self.ui = ui_adapter or get_ui_adapter()
         
     def collect_system_info(self) -> Dict[str, Any]:
         """
@@ -162,7 +166,14 @@ class LocalRunner:
         test_start_time = None
         test_end_time = None
 
+        progress = None
+
         try:
+            progress = self.ui.create_progress(
+                f"{test_name} (rep {repetition})",
+                total=self.config.test_duration_seconds,
+            )
+
             # Start collectors
             for collector in collectors:
                 try:
@@ -189,13 +200,14 @@ class LocalRunner:
                 time.sleep(1)
                 if not getattr(generator, "_is_running", False):
                     break
-                # Calculate percentage
-                percent = int(((i + 1) / duration) * 100)
-                # Print progress marker for the controller to pick up
-                # We use print directly to ensure it goes to stdout cleanly for parsing
-                if duration < 10 or (i + 1) % 5 == 0 or (i + 1) == duration:
-                    print(f"BENCHMARK_PROGRESS: {percent}%", flush=True)
-            
+                if progress:
+                    progress.update(i + 1)
+                else:
+                    step = max(1, duration // 10)
+                    percent = int(((i + 1) / duration) * 100)
+                    if (i + 1) % step == 0 or i + 1 == duration:
+                        self.ui.show_info(f"Progress: {percent}%")
+
             # Stop workload generator
             if getattr(generator, "_is_running", False):
                 generator.stop()
@@ -212,6 +224,8 @@ class LocalRunner:
             raise
 
         finally:
+            if progress:
+                progress.finish()
             # Ensure generator is stopped if an error occurred while it was running
             if generator_started:
                 try:
@@ -283,6 +297,8 @@ class LocalRunner:
             test_type: Name of the workload to run (plugin id)
         """
         logger.info(f"Starting benchmark: {test_type}")
+
+        self._ensure_directories()
         
         # Collect system info if enabled
         if self.config.collect_system_info and not self.system_info:
@@ -300,6 +316,9 @@ class LocalRunner:
                 generator = self.plugin_registry.create_generator(
                     plugin_name, workload_cfg.options
                 )
+                self.ui.show_info(
+                    f"==> Running workload '{test_type}' (repetition {rep}/{self.config.repetitions})"
+                )
                 result = self._run_single_test(
                     test_name=test_type,
                     generator=generator,
@@ -308,8 +327,10 @@ class LocalRunner:
                 test_results.append(result)
                 
             except Exception as e:
-                logger.error(f"Test failed on repetition {rep}: {e}", exc_info=True)
-                continue
+                logger.error(
+                    f"Skipping workload '{test_type}' on repetition {rep}: {e}"
+                )
+                break
         
         # Process and save results
         if test_results:
@@ -350,10 +371,14 @@ class LocalRunner:
             raise ValueError(f"Workload '{name}' is disabled in the configuration")
         return workload
 
+    def _ensure_directories(self) -> None:
+        """Create required local output directories."""
+        self.config.ensure_output_dirs()
+
     def _print_available_plugins(self) -> None:
         """Print the available workload plugins at startup."""
         enabled = {name: wl.enabled for name, wl in self.config.workloads.items()}
-        print_plugin_table(self.plugin_registry, enabled=enabled)
+        print_plugin_table(self.plugin_registry, enabled=enabled, ui_adapter=self.ui)
     
     def run_all_benchmarks(self) -> None:
         """Run all configured benchmark tests."""
