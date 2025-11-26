@@ -4,8 +4,16 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+# import multiprocessing # Removed for multiprocessing context fix
 
 import pytest
+
+# Explicitly set the start method for multiprocessing on macOS
+# This can help with issues related to ansible-runner's worker processes
+# try:
+#     multiprocessing.set_start_method('fork', force=True)
+# except RuntimeError:
+#     pass # Already set, or not supported on this platform/context
 
 from benchmark_config import (
     BenchmarkConfig,
@@ -181,7 +189,7 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
             become=True,
             vars={
                 "ansible_ssh_private_key_file": str(vm["key_path"]),
-                "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
+                "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
             },
         )
         for vm in multipass_vms
@@ -251,12 +259,14 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
 
     # Verify execution
     assert summary.success, f"Benchmark failed. Phases: {summary.phases}"
-    assert "setup" in summary.phases
-    assert summary.phases["setup"].success
-    assert "run" in summary.phases
-    assert summary.phases["run"].success
-    assert "collect" in summary.phases
-    assert summary.phases["collect"].success
+    # Phases: setup_global + per-test phases + collect
+    assert "setup_global" in summary.phases and summary.phases["setup_global"].success
+    for test_name in workloads:
+        assert f"setup_{test_name}" in summary.phases
+        assert summary.phases[f"setup_{test_name}"].success
+        assert f"run_{test_name}" in summary.phases
+        assert summary.phases[f"run_{test_name}"].success
+    assert "collect" in summary.phases and summary.phases["collect"].success
 
     # Verify artifacts for each VM
     for vm in multipass_vms:

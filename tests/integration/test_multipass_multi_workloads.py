@@ -30,15 +30,15 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
         RemoteHostConfig(
             name=vm["name"],
             address=vm["ip"],
-            user=vm["user"],
-            become=True,
-            vars={
-                "ansible_ssh_private_key_file": str(vm["key_path"]),
-                "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
-            },
-        )
-        for vm in multipass_vms
-    ]
+        user=vm["user"],
+        become=True,
+        vars={
+            "ansible_ssh_private_key_file": str(vm["key_path"]),
+            "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
+        },
+    )
+    for vm in multipass_vms
+]
 
     config = BenchmarkConfig(
         repetitions=1,

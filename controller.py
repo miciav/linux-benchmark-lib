@@ -5,7 +5,10 @@ This module keeps orchestration logic inside Python while delegating remote
 execution to Ansible Runner.
 """
 
+import json
 import logging
+import os
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -93,6 +96,9 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         self.private_data_dir.mkdir(parents=True, exist_ok=True)
         self._runner_fn = runner_fn
         self.stream_output = stream_output
+        # Force Ansible temp into a writable location inside the runner dir to avoid host-level permission issues
+        self.local_tmp = self.private_data_dir / "tmp"
+        self.local_tmp.mkdir(parents=True, exist_ok=True)
         if stream_output and output_callback is None:
             # Default to streaming to stdout when caller requests streaming but
             # doesn't provide a handler.
@@ -135,66 +141,18 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         runner_roles = (self.private_data_dir / "roles").resolve()
         envvars = {
             "ANSIBLE_ROLES_PATH": f"{runner_roles}:{repo_roles}",
+            "ANSIBLE_LOCAL_TEMP": str(self.local_tmp),
+            "ANSIBLE_REMOTE_TMP": "/tmp/.ansible",
+            # Force safe stdout callback; ansible-runner's awx_display is broken with newer ansible-core.
+            "ANSIBLE_STDOUT_CALLBACK": "default",
+            "ANSIBLE_CALLBACK_PLUGINS": "",
         }
 
-        # State for event handler closure
-        state = {"last_stdout": None, "was_progress": False}
-
-        def event_handler(event: Dict[str, Any]) -> None:
-            """Stream Ansible runner stdout events via callback."""
-            if not self.output_callback:
-                return
-
-            # 1. Handle standard runner stdout (the Ansible UI output)
-            stdout = event.get("stdout")
-            if stdout:
-                # Check for progress marker
-                if "BENCHMARK_PROGRESS:" in stdout:
-                    # Extract percentage and show dynamically
-                    try:
-                        # stdout might contain other text, try to isolate the progress
-                        parts = stdout.split("BENCHMARK_PROGRESS:")
-                        if len(parts) > 1:
-                            progress = parts[1].strip()
-                            self.output_callback(f"\r>>> Progress: {progress}   ", "")
-                    except Exception:
-                        pass # Fallback if parsing fails
-                else:
-                    # Avoid printing duplicate consecutive lines sometimes emitted by runner
-                    if stdout != state["last_stdout"]:
-                        # If we were printing progress, move to a new line before printing normal logs
-                        if state["was_progress"]:
-                             self.output_callback("", "\n")
-                        
-                        self.output_callback(stdout, "\n")
-                        state["last_stdout"] = stdout
-                        state["was_progress"] = False
-
-                # Mark if we just printed progress so we can newline later
-                if "BENCHMARK_PROGRESS:" in stdout:
-                    state["was_progress"] = True
-            
-            # 2. Handle task completion events to show command output
-            if event.get("event") in ("runner_on_ok", "runner_on_failed"):
-                event_data = event.get("event_data", {})
-                task_name = event_data.get("task", "")
-                
-                # Only show detailed output for the benchmark execution task to reduce noise
-                if "Run benchmark" in task_name:
-                    res = event_data.get("res", {})
-                    task_stdout = res.get("stdout") or res.get("msg") or res.get("stderr")
-                    
-                    if task_stdout:
-                         self.output_callback(f"\n[Benchmark Output: {task_name}]\n{task_stdout}\n", "\n")
-
-        result = runner_fn(
-            private_data_dir=str(self.private_data_dir),
-            playbook=str(abs_playbook_path),
-            inventory=str(inventory_path.resolve()),
+        result = self._run_subprocess_playbook(
+            abs_playbook_path=abs_playbook_path,
+            inventory_path=inventory_path,
             extravars=merged_extravars,
-            tags=",".join(tags) if tags else None,
-            quiet=self.stream_output,  # suppress runner's own stdout when streaming ourselves
-            event_handler=event_handler if self.stream_output else None,
+            tags=tags,
             envvars=envvars,
         )
 
@@ -247,6 +205,68 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                 "Install it with `uv pip install ansible-runner`."
             ) from exc
         return ansible_runner.run
+
+    def _run_subprocess_playbook(
+        self,
+        abs_playbook_path: Path,
+        inventory_path: Path,
+        extravars: Dict[str, Any],
+        tags: Optional[List[str]],
+        envvars: Dict[str, str],
+    ) -> ExecutionResult:
+        """
+        Execute ansible-playbook via subprocess to avoid ansible-runner's awx_display callback.
+        """
+        cmd = [
+            "ansible-playbook",
+            "-i",
+            str(inventory_path.resolve()),
+            str(abs_playbook_path),
+        ]
+        if tags:
+            cmd.extend(["--tags", ",".join(tags)])
+
+        # Write extravars to a transient JSON file.
+        env_dir = self.private_data_dir / "env"
+        env_dir.mkdir(parents=True, exist_ok=True)
+        extravars_file = env_dir / "extravars.json"
+        extravars_file.write_text(json.dumps(extravars))
+        cmd.extend(["-e", f"@{extravars_file}"])
+
+        env = os.environ.copy()
+        env.update(envvars)
+
+        if self.stream_output:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=self.private_data_dir,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                if self.output_callback:
+                    self.output_callback(line.rstrip("\n"), "\n")
+                else:
+                    sys.stdout.write(line)
+            proc.wait()
+            rc = proc.returncode
+        else:
+            completed = subprocess.run(
+                cmd,
+                cwd=self.private_data_dir,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            rc = completed.returncode
+            if rc != 0:
+                logger.error("ansible-playbook failed: %s", completed.stdout)
+
+        status = "successful" if rc == 0 else "failed"
+        return ExecutionResult(rc=rc, status=status, stats={})
 
 
 class BenchmarkController:
@@ -301,6 +321,7 @@ class BenchmarkController:
             "remote_output_root": remote_output_root,
             "report_root": str(report_root),
             "data_export_root": str(data_export_root),
+            "lb_workdir": "/opt/lb",
             "per_host_output": {k: str(v) for k, v in per_host_output.items()},
             "benchmark_config": self.config.to_dict(),
             "use_container_fallback": self.config.remote_execution.use_container_fallback,
@@ -411,9 +432,9 @@ class BenchmarkController:
         run_id: str,
     ) -> tuple[Path, Path, Path]:
         """Create base directories for a run."""
-        output_root = self.config.output_dir / run_id
-        report_root = self.config.report_dir / run_id
-        data_export_root = self.config.data_export_dir / run_id
+        output_root = (self.config.output_dir / run_id).resolve()
+        report_root = (self.config.report_dir / run_id).resolve()
+        data_export_root = (self.config.data_export_dir / run_id).resolve()
         for path in (output_root, report_root, data_export_root):
             path.mkdir(parents=True, exist_ok=True)
         return output_root, report_root, data_export_root

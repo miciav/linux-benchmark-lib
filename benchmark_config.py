@@ -109,7 +109,10 @@ class RemoteHostConfig:
         if self.become_method:
             parts.append(f"ansible_become_method={self.become_method}")
         for key, value in self.vars.items():
-            parts.append(f"{key}={value}")
+            val = str(value)
+            if " " in val:
+                val = f"\"{val}\""
+            parts.append(f"{key}={val}")
         return " ".join(parts)
 
 @dataclass
