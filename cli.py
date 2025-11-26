@@ -786,6 +786,11 @@ def plugin_uninstall(
     ),
 ) -> None:
     """Uninstall a user plugin."""
+    if name.startswith(("http://", "https://", "git@")) or name.endswith(".git"):
+         ui.show_warning(f"'{name}' looks like a URL/path. `uninstall` expects the plugin name (e.g. 'unixbench').")
+         ui.show_info("Run `lb plugin list` to see installed plugins.")
+         raise typer.Exit(1)
+
     installer = PluginInstaller()
     config_path: Optional[Path] = None
     config_stale: Optional[Path] = None
