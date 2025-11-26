@@ -75,16 +75,21 @@ class BaseGenerator(ABC):
 
     def stop(self) -> None:
         """Stop the workload generation."""
-        if not self._is_running:
-            logger.warning(f"{self.name} generator is not running")
-            return
-        
-        # Signal the workload to stop
-        self._stop_workload()
-            
-        self._is_running = False
-        if self._thread:
-            self._thread.join()
+        if self._is_running:
+            # Signal the workload to stop only if it thinks it's running
+            self._stop_workload()
+            self._is_running = False
+        else:
+            logger.debug(f"{self.name} generator was already stopped or finished")
+
+        # Always ensure the thread is joined to avoid zombies
+        if self._thread and self._thread.is_alive():
+            try:
+                self._thread.join(timeout=5.0)
+                if self._thread.is_alive():
+                    logger.warning(f"{self.name} thread did not terminate gracefully")
+            except Exception as e:
+                logger.error(f"Error joining thread for {self.name}: {e}")
             
         logger.info(f"{self.name} generator stopped")
 

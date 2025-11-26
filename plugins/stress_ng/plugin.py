@@ -1,20 +1,20 @@
 """
 Stress-ng workload generator implementation.
-
-This module uses stress-ng to generate various types of system load.
+Modular plugin version.
 """
 
 import subprocess
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional, List, Any, Type
 
-from ._base_generator import BaseGenerator
+# Need to adjust imports since we are now in plugins.stress_ng
+# Assuming the base classes are still accessible via absolute imports
+from workload_generators._base_generator import BaseGenerator
 from plugins.interface import WorkloadPlugin
 
-
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class StressNGConfig:
@@ -123,6 +123,17 @@ class StressNGPlugin(WorkloadPlugin):
     
     def get_required_apt_packages(self) -> List[str]:
         return ["stress-ng"]
+
+    def get_dockerfile_path(self) -> Optional[Path]:
+        return Path(__file__).parent / "Dockerfile"
+
+    def get_ansible_setup_path(self) -> Optional[Path]:
+        path = Path(__file__).parent / "ansible" / "setup.yml"
+        return path if path.exists() else None
+
+    def get_ansible_teardown_path(self) -> Optional[Path]:
+        path = Path(__file__).parent / "ansible" / "teardown.yml"
+        return path if path.exists() else None
 
 # Exposed Plugin Instance
 PLUGIN = StressNGPlugin()

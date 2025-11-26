@@ -10,7 +10,7 @@ from benchmark_config import BenchmarkConfig, DDConfig, FIOConfig, IPerf3Config,
 from .registry import LegacyWorkloadPlugin, CollectorPlugin
 
 # Import Refactored Plugins
-from workload_generators.stress_ng_generator import PLUGIN as STRESS_NG_PLUGIN
+from plugins.stress_ng.plugin import PLUGIN as STRESS_NG_PLUGIN
 from workload_generators.geekbench_generator import PLUGIN as GEEKBENCH_PLUGIN
 from workload_generators.sysbench_generator import PLUGIN as SYSBENCH_PLUGIN
 

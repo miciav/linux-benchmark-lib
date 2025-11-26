@@ -174,7 +174,22 @@ class RunService:
                 build=context.docker_build,
                 no_cache=context.docker_no_cache,
             )
-            self._container_runner.run(spec)
+            
+            # Run each workload in its own container (or shared image)
+            for test_name in context.target_tests:
+                workload_cfg = context.config.workloads.get(test_name)
+                if not workload_cfg:
+                    continue
+                
+                try:
+                    plugin = context.registry.get(workload_cfg.plugin)
+                    self._container_runner.run_workload(spec, test_name, plugin)
+                except Exception as e:
+                    if ui_adapter:
+                        ui_adapter.show_error(f"Failed to run container for {test_name}: {e}")
+                    else:
+                        print(f"Error running {test_name}: {e}")
+
             return RunResult(context=context, summary=None)
 
         if context.use_remote:

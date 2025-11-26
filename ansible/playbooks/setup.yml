@@ -38,9 +38,6 @@
         state: present
         update_cache: true
 
-    - name: Install plugin-provided dependencies
-      ansible.builtin.include_tasks: "{{ playbook_dir }}/../roles/workload_runner/tasks/plugins.generated.yml"
-
     - name: Include workload setup role
       include_role:
         name: workload_runner

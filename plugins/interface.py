@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
 # We avoid importing BaseGenerator here to prevent circular imports,
@@ -13,6 +14,7 @@ class WorkloadPlugin(ABC):
     1. Configuration (schema)
     2. Execution (Generator creation)
     3. Metadata (Name, description)
+    4. Assets (Dockerfile, Ansible playbooks)
     """
 
     @property
@@ -53,3 +55,24 @@ class WorkloadPlugin(ABC):
     def get_required_pip_packages(self) -> List[str]:
         """Return list of Python packages required by this plugin."""
         return []
+
+    def get_dockerfile_path(self) -> Optional[Path]:
+        """
+        Return the path to the Dockerfile for this plugin.
+        The platform will build a dedicated image from this file.
+        """
+        return None
+
+    def get_ansible_setup_path(self) -> Optional[Path]:
+        """
+        Return the path to the Ansible setup playbook.
+        Executed before the workload runs on remote hosts.
+        """
+        return None
+
+    def get_ansible_teardown_path(self) -> Optional[Path]:
+        """
+        Return the path to the Ansible teardown playbook.
+        Executed after the workload runs (even on failure) on remote hosts.
+        """
+        return None

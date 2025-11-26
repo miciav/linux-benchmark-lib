@@ -13,9 +13,7 @@ from typing import Any, Callable, Dict, List, Optional, Protocol
 import sys
 
 from benchmark_config import BenchmarkConfig, RemoteHostConfig
-from plugins.builtin import builtin_plugins
-from plugins.registry import PluginRegistry, print_plugin_table
-
+from services.plugin_service import create_registry
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +156,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                         parts = stdout.split("BENCHMARK_PROGRESS:")
                         if len(parts) > 1:
                             progress = parts[1].strip()
-                            self.output_callback(f"\\r>>> Progress: {progress}   ", "")
+                            self.output_callback(f"\r>>> Progress: {progress}   ", "")
                     except Exception:
                         pass # Fallback if parsing fails
                 else:
@@ -166,9 +164,9 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                     if stdout != state["last_stdout"]:
                         # If we were printing progress, move to a new line before printing normal logs
                         if state["was_progress"]:
-                             self.output_callback("", "\\n")
+                             self.output_callback("", "\n")
                         
-                        self.output_callback(stdout, "\\n")
+                        self.output_callback(stdout, "\n")
                         state["last_stdout"] = stdout
                         state["was_progress"] = False
 
@@ -187,7 +185,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                     task_stdout = res.get("stdout") or res.get("msg") or res.get("stderr")
                     
                     if task_stdout:
-                         self.output_callback(f"\\n[Benchmark Output: {task_name}]\\n{task_stdout}\\n", "\\n")
+                         self.output_callback(f"\n[Benchmark Output: {task_name}]\n{task_stdout}\n", "\n")
 
         result = runner_fn(
             private_data_dir=str(self.private_data_dir),
@@ -262,7 +260,7 @@ class BenchmarkController:
     ):
         self.config = config
         self.executor = executor or AnsibleRunnerExecutor(output_callback=output_callback)
-        self.plugin_registry = PluginRegistry(builtin_plugins())
+        self.plugin_registry = create_registry()
 
     def run(
         self,
@@ -298,7 +296,7 @@ class BenchmarkController:
 
         extravars = {
             "run_id": resolved_run_id,
-            "tests": list(test_types),
+            # 'tests' will be overridden per loop iteration
             "output_root": str(output_root),
             "remote_output_root": remote_output_root,
             "report_root": str(report_root),
@@ -306,39 +304,98 @@ class BenchmarkController:
             "per_host_output": {k: str(v) for k, v in per_host_output.items()},
             "benchmark_config": self.config.to_dict(),
             "use_container_fallback": self.config.remote_execution.use_container_fallback,
-            "workload_runner_install_deps": True,
+            "workload_runner_install_deps": False, # Dependencies are now handled by per-plugin setup
         }
 
         phases: Dict[str, ExecutionResult] = {}
 
-        if extravars["tests"]:
-            if self.config.remote_execution.run_setup:
-                phases["setup"] = self.executor.run_playbook(
-                    self.config.remote_execution.setup_playbook,
-                    inventory=inventory,
-                    extravars=extravars,
-                )
-
-            phases["run"] = self.executor.run_playbook(
-                self.config.remote_execution.run_playbook,
+        # 1. Global Setup
+        if self.config.remote_execution.run_setup:
+            phases["setup_global"] = self.executor.run_playbook(
+                self.config.remote_execution.setup_playbook,
                 inventory=inventory,
                 extravars=extravars,
             )
-
-            if self.config.remote_execution.run_collect:
-                phases["collect"] = self.executor.run_playbook(
-                    self.config.remote_execution.collect_playbook,
-                    inventory=inventory,
-                    extravars=extravars,
+            if not phases["setup_global"].success:
+                logger.error("Global setup failed. Aborting run.")
+                return RunExecutionSummary(
+                    run_id=resolved_run_id,
+                    per_host_output=per_host_output,
+                    phases=phases,
+                    success=False,
+                    output_root=output_root,
+                    report_root=report_root,
+                    data_export_root=data_export_root,
                 )
 
-        success = all(result.success for result in phases.values())
+        # 2. Per-Test Loop
+        all_tests_success = True
+        for test_name in test_types:
+            workload_cfg = self.config.workloads.get(test_name)
+            if not workload_cfg:
+                logger.warning(f"Skipping unknown workload: {test_name}")
+                continue
+            
+            try:
+                plugin = self.plugin_registry.get(workload_cfg.plugin)
+            except Exception as e:
+                logger.error(f"Failed to load plugin for {test_name}: {e}")
+                all_tests_success = False
+                continue
+
+            # A. Plugin Setup
+            setup_pb = plugin.get_ansible_setup_path()
+            if setup_pb:
+                logger.info(f"Running setup for plugin {plugin.name}")
+                res = self.executor.run_playbook(setup_pb, inventory=inventory, extravars=extravars)
+                phases[f"setup_{test_name}"] = res
+                if not res.success:
+                    logger.error(f"Setup failed for {test_name}")
+                    all_tests_success = False
+                    # If setup fails, try teardown then continue
+                    teardown_pb = plugin.get_ansible_teardown_path()
+                    if teardown_pb:
+                         self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=extravars)
+                    continue
+
+            # B. Run Workload
+            logger.info(f"Running workload {test_name}")
+            loop_extravars = extravars.copy()
+            loop_extravars["tests"] = [test_name] # Run only this test
+            
+            res_run = self.executor.run_playbook(
+                self.config.remote_execution.run_playbook,
+                inventory=inventory,
+                extravars=loop_extravars,
+            )
+            phases[f"run_{test_name}"] = res_run
+            if not res_run.success:
+                all_tests_success = False
+
+            # C. Plugin Teardown
+            teardown_pb = plugin.get_ansible_teardown_path()
+            if teardown_pb:
+                logger.info(f"Running teardown for plugin {plugin.name}")
+                res_td = self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=extravars)
+                phases[f"teardown_{test_name}"] = res_td
+                if not res_td.success:
+                    logger.warning(f"Teardown failed for {test_name}")
+
+        # 3. Global Collect
+        if self.config.remote_execution.run_collect:
+             phases["collect"] = self.executor.run_playbook(
+                self.config.remote_execution.collect_playbook,
+                inventory=inventory,
+                extravars=extravars,
+            )
+             if not phases["collect"].success:
+                 all_tests_success = False
 
         return RunExecutionSummary(
             run_id=resolved_run_id,
             per_host_output=per_host_output,
             phases=phases,
-            success=success,
+            success=all_tests_success,
             output_root=output_root,
             report_root=report_root,
             data_export_root=data_export_root,

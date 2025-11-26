@@ -855,3 +855,6 @@ def list_plugins(
     _list_plugins_command(
         config=config, enable=enable, disable=disable, set_default=set_default, select=select
     )
+
+if __name__ == "__main__":
+    app()
