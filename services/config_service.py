@@ -6,6 +6,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Optional, Tuple, Any
+from dataclasses import asdict
 
 from benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
@@ -97,12 +98,49 @@ class ConfigService:
                     # For now we silently fail and leave it as dict, which might cause issues later,
                     # but is safer than crashing the load.
                     pass
+    
+    def create_default_config(self) -> BenchmarkConfig:
+        """Create a fresh BenchmarkConfig populated with all installed plugins."""
+        from services.plugin_service import create_registry
+        registry = create_registry()
+        
+        cfg = BenchmarkConfig()
+        # Clear any legacy hardcoded defaults if BenchmarkConfig still has them (redundant safety)
+        cfg.workloads = {} 
+        
+        for name, plugin in registry.available().items():
+            # Create default plugin config
+            if hasattr(plugin, 'config_cls'):
+                try:
+                    default_settings = plugin.config_cls()
+                    cfg.plugin_settings[name] = default_settings
+                    # Create workload entry
+                    # Default enabled? Maybe False to be safe, or True to be discoverable.
+                    # Let's default to False for clarity, user must enable what they want.
+                    # Exception: maybe we want some core ones enabled? 
+                    # Let's stick to False for a clean slate, or check if it's a builtin.
+                    # For now: False.
+                    cfg.workloads[name] = WorkloadConfig(
+                        plugin=name, 
+                        enabled=False, 
+                        options=asdict(default_settings)
+                    )
+                except Exception:
+                    # Fallback if config_cls cannot be instantiated without args
+                    cfg.workloads[name] = WorkloadConfig(plugin=name, enabled=False)
+            else:
+                cfg.workloads[name] = WorkloadConfig(plugin=name, enabled=False)
+                
+        return cfg
 
     def load_for_read(self, config_path: Optional[Path]) -> Tuple[BenchmarkConfig, Optional[Path], Optional[Path]]:
         """Load a config for read-only scenarios."""
         resolved, stale = self.resolve_config_path(config_path)
         if resolved is None:
-            return BenchmarkConfig(), None, stale
+            # Fallback to creating a default one in memory if none exists on disk?
+            # Or return empty? Current behavior was "using built-in defaults".
+            # Let's use our dynamic defaults.
+            return self.create_default_config(), None, stale
         
         cfg = BenchmarkConfig.load(resolved)
         self._hydrate_config(cfg)
@@ -127,7 +165,7 @@ class ConfigService:
             if not allow_create:
                 raise FileNotFoundError(f"Config file not found: {target}")
             target.parent.mkdir(parents=True, exist_ok=True)
-            cfg = BenchmarkConfig()
+            cfg = self.create_default_config()
             created = True
 
         return cfg, target, stale, created
@@ -142,17 +180,18 @@ class ConfigService:
         """Enable/disable workload and persist the config."""
         cfg, target, stale, _ = self.load_for_write(config, allow_create=True)
         
-        # Ensure we have a config object for this plugin if we are enabling it
-        if enabled and name not in cfg.plugin_settings:
+        # Enforce that the plugin exists if we are enabling it
+        if enabled:
              from services.plugin_service import create_registry
              registry = create_registry()
-             try:
+             if name not in registry.available():
+                 raise ValueError(f"Plugin '{name}' is not installed. Use `lb plugin list` to see available plugins.")
+                 
+             # Initialize default config if missing
+             if name not in cfg.plugin_settings:
                  plugin = registry.get(name)
-                 # Initialize default config
                  if hasattr(plugin, 'config_cls'):
                     cfg.plugin_settings[name] = plugin.config_cls()
-             except (KeyError, TypeError):
-                 pass
 
         workload = cfg.workloads.get(name) or WorkloadConfig(plugin=name, options={})
         workload.enabled = enabled

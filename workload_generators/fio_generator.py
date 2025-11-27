@@ -7,8 +7,9 @@ This module uses fio (Flexible I/O Tester) to generate advanced disk I/O workloa
 import subprocess
 import json
 import logging
-from typing import Optional, List
+from typing import Optional, List, Type
 from ._base_generator import BaseGenerator
+from plugins.interface import WorkloadPlugin
 from benchmark_config import FIOConfig
 
 
@@ -164,3 +165,31 @@ class FIOGenerator(BaseGenerator):
                 logger.warning("Force killing fio process")
                 proc.kill()
                 proc.wait()
+
+
+class FIOPlugin(WorkloadPlugin):
+    """Plugin definition for FIO."""
+    
+    @property
+    def name(self) -> str:
+        return "fio"
+
+    @property
+    def description(self) -> str:
+        return "Flexible disk I/O via fio"
+
+    @property
+    def config_cls(self) -> Type[FIOConfig]:
+        return FIOConfig
+
+    def create_generator(self, config: FIOConfig) -> FIOGenerator:
+        return FIOGenerator(config)
+    
+    def get_required_apt_packages(self) -> List[str]:
+        return ["fio"]
+
+    def get_required_local_tools(self) -> List[str]:
+        return ["fio"]
+
+
+PLUGIN = FIOPlugin()

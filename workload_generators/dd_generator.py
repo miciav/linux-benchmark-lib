@@ -7,8 +7,9 @@ This module uses dd command to generate disk I/O load.
 import subprocess
 import logging
 import os
-from typing import Optional, List
+from typing import Optional, List, Type
 from ._base_generator import BaseGenerator
+from plugins.interface import WorkloadPlugin
 from benchmark_config import DDConfig
 
 
@@ -145,3 +146,28 @@ class DDGenerator(BaseGenerator):
                 logger.warning("Force killing dd process")
                 proc.kill()
                 proc.wait()
+
+
+class DDPlugin(WorkloadPlugin):
+    """Plugin definition for dd."""
+    
+    @property
+    def name(self) -> str:
+        return "dd"
+
+    @property
+    def description(self) -> str:
+        return "Sequential disk I/O via dd"
+
+    @property
+    def config_cls(self) -> Type[DDConfig]:
+        return DDConfig
+
+    def create_generator(self, config: DDConfig) -> DDGenerator:
+        return DDGenerator(config)
+    
+    def get_required_local_tools(self) -> List[str]:
+        return ["dd"]
+
+
+PLUGIN = DDPlugin()

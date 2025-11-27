@@ -7,9 +7,10 @@ This module uses iperf3 to generate network traffic.
 import iperf3
 import logging
 import ctypes.util
-from typing import Optional
+from typing import Optional, List, Type
 from ._base_generator import BaseGenerator
 from benchmark_config import IPerf3Config
+from plugins.interface import WorkloadPlugin
 
 
 logger = logging.getLogger(__name__)
@@ -83,3 +84,34 @@ class IPerf3Generator(BaseGenerator):
         # In a real implementation, we might need to run it in a separate process
         # similar to other generators if we need hard stopping capability.
         pass
+
+
+class IPerf3Plugin(WorkloadPlugin):
+    """Plugin definition for iperf3."""
+
+    @property
+    def name(self) -> str:
+        return "iperf3"
+
+    @property
+    def description(self) -> str:
+        return "Network throughput via iperf3 client"
+
+    @property
+    def config_cls(self) -> Type[IPerf3Config]:
+        return IPerf3Config
+
+    def create_generator(self, config: IPerf3Config) -> IPerf3Generator:
+        return IPerf3Generator(config)
+
+    def get_required_apt_packages(self) -> List[str]:
+        return ["iperf3", "libiperf0"]
+    
+    def get_required_pip_packages(self) -> List[str]:
+        return ["iperf3"]
+
+    def get_required_local_tools(self) -> List[str]:
+        return ["iperf3"]
+
+
+PLUGIN = IPerf3Plugin()

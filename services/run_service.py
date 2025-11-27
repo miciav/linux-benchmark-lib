@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import ctypes.util
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Dict, Any
+from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 
 from benchmark_config import BenchmarkConfig
-from controller import BenchmarkController, RunExecutionSummary
+# from controller import BenchmarkController, RunExecutionSummary # Moved inside method
 from local_runner import LocalRunner
 from plugins.registry import PluginRegistry
 from services.container_service import ContainerRunner, ContainerRunSpec
 from ui.types import UIAdapter
+
+if TYPE_CHECKING:
+    from controller import BenchmarkController, RunExecutionSummary
 
 
 @dataclass
@@ -193,6 +196,7 @@ class RunService:
             return RunResult(context=context, summary=None)
 
         if context.use_remote:
+            from controller import BenchmarkController # Runtime import to break circular dependency
             controller = BenchmarkController(context.config, output_callback=output_callback)
             summary = controller.run(context.target_tests, run_id=run_id)
             return RunResult(context=context, summary=summary)

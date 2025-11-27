@@ -1,22 +1,20 @@
 """Built-in workload plugins shipped with the library."""
 
-from typing import List, Any, Optional, Tuple, Callable
 import importlib
 import logging
+import pkgutil
+import sys
+from pathlib import Path
+from typing import List, Any, Optional, Tuple, Callable, Dict
 
-from benchmark_config import BenchmarkConfig, DDConfig, FIOConfig, IPerf3Config, Top500Config
+from benchmark_config import BenchmarkConfig, IPerf3Config, DDConfig, FIOConfig, Top500Config
 
 # Import the registry types
 from .registry import LegacyWorkloadPlugin, CollectorPlugin
 
-# Import Refactored Plugins
-from plugins.stress_ng.plugin import PLUGIN as STRESS_NG_PLUGIN
-from workload_generators.geekbench_generator import PLUGIN as GEEKBENCH_PLUGIN
-from workload_generators.sysbench_generator import PLUGIN as SYSBENCH_PLUGIN
-
-
 logger = logging.getLogger(__name__)
 
+# --- Collector Factories ---
 
 def _safe_import(module: str, attr: str) -> Tuple[Optional[Any], Optional[Exception]]:
     """Import a module attribute, capturing failures for optional deps."""
@@ -27,58 +25,10 @@ def _safe_import(module: str, attr: str) -> Tuple[Optional[Any], Optional[Except
         logger.debug("Optional import failed for %s.%s: %s", module, attr, exc)
         return None, exc
 
-
-DDGenerator, DD_IMPORT_ERROR = _safe_import("workload_generators.dd_generator", "DDGenerator")
-FIOGenerator, FIO_IMPORT_ERROR = _safe_import("workload_generators.fio_generator", "FIOGenerator")
-IPerf3Generator, IPERF3_IMPORT_ERROR = _safe_import("workload_generators.iperf3_generator", "IPerf3Generator")
-Top500Generator, TOP500_IMPORT_ERROR = _safe_import("workload_generators.top500_generator", "Top500Generator")
 PSUtilCollector, PSUTIL_IMPORT_ERROR = _safe_import("metric_collectors.psutil_collector", "PSUtilCollector")
 CLICollector, CLI_IMPORT_ERROR = _safe_import("metric_collectors.cli_collector", "CLICollector")
 PerfCollector, PERF_IMPORT_ERROR = _safe_import("metric_collectors.perf_collector", "PerfCollector")
 EBPFCollector, EBPF_IMPORT_ERROR = _safe_import("metric_collectors.ebpf_collector", "EBPFCollector")
-
-
-def _make_factory(generator_cls: Optional[Any], error: Optional[Exception], label: str) -> Callable[[Any], Any]:
-    """Create a factory that raises a helpful error when a generator is missing."""
-    def _factory(config: Any) -> Any:
-        if generator_cls is None:
-            raise RuntimeError(f"{label} generator unavailable: {error}")
-        return generator_cls(config)
-    return _factory
-
-
-# --- Legacy Plugins (To Be Refactored) ---
-
-IPERF3_PLUGIN = LegacyWorkloadPlugin(
-    name="iperf3",
-    description="Network throughput via iperf3 client",
-    config_cls=IPerf3Config,
-    factory=_make_factory(IPerf3Generator, IPERF3_IMPORT_ERROR, "iperf3"),
-)
-
-DD_PLUGIN = LegacyWorkloadPlugin(
-    name="dd",
-    description="Sequential disk I/O via dd",
-    config_cls=DDConfig,
-    factory=_make_factory(DDGenerator, DD_IMPORT_ERROR, "dd"),
-)
-
-FIO_PLUGIN = LegacyWorkloadPlugin(
-    name="fio",
-    description="Flexible disk I/O via fio",
-    config_cls=FIOConfig,
-    factory=_make_factory(FIOGenerator, FIO_IMPORT_ERROR, "fio"),
-)
-
-TOP500_PLUGIN = LegacyWorkloadPlugin(
-    name="top500",
-    description="HPL Linpack via geerlingguy/top500-benchmark playbook",
-    config_cls=Top500Config,
-    factory=_make_factory(Top500Generator, TOP500_IMPORT_ERROR, "top500"),
-)
-
-
-# --- Collector Factories ---
 
 def _create_psutil(config: BenchmarkConfig) -> PSUtilCollector:
     if PSUtilCollector is None:
@@ -142,17 +92,42 @@ EBPF_COLLECTOR = CollectorPlugin(
 
 
 def builtin_plugins() -> List[Any]:
-    """Return built-in workload and collector plugins."""
-    return [
-        STRESS_NG_PLUGIN,
-        IPERF3_PLUGIN,
-        DD_PLUGIN,
-        FIO_PLUGIN,
-        TOP500_PLUGIN,
-        GEEKBENCH_PLUGIN,
-        SYSBENCH_PLUGIN,
+    """
+    Return built-in workload and collector plugins via dynamic discovery.
+    Scans `workload_generators/` and `plugins/` for `PLUGIN` exports.
+    """
+    plugins = [
         PSUTIL_COLLECTOR,
         CLI_COLLECTOR,
         PERF_COLLECTOR,
         EBPF_COLLECTOR,
     ]
+
+    # 1. Scan workload_generators/*.py
+    wg_path = Path(__file__).parent.parent / "workload_generators"
+    if wg_path.exists():
+        for item in wg_path.glob("*_generator.py"):
+            if item.name.startswith("_"):
+                continue
+            module_name = f"workload_generators.{item.stem}"
+            try:
+                mod = importlib.import_module(module_name)
+                if hasattr(mod, "PLUGIN"):
+                    plugins.append(mod.PLUGIN)
+            except ImportError as e:
+                logger.debug(f"Skipping generator {module_name}: {e}")
+
+    # 2. Scan plugins/*/plugin.py
+    plugins_path = Path(__file__).parent
+    if plugins_path.exists():
+        for item in plugins_path.iterdir():
+            if item.is_dir() and (item / "plugin.py").exists():
+                module_name = f"plugins.{item.name}.plugin"
+                try:
+                    mod = importlib.import_module(module_name)
+                    if hasattr(mod, "PLUGIN"):
+                        plugins.append(mod.PLUGIN)
+                except ImportError as e:
+                    logger.debug(f"Skipping plugin {module_name}: {e}")
+
+    return plugins

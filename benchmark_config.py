@@ -195,8 +195,6 @@ class BenchmarkConfig:
         if self.stress_ng and "stress_ng" not in self.plugin_settings:
             self.plugin_settings["stress_ng"] = self.stress_ng
         self._hydrate_plugin_settings()
-        if not self.workloads:
-            self.workloads = self._build_default_workloads()
         self._validate_remote_hosts()
 
     def ensure_output_dirs(self) -> None:
@@ -337,53 +335,3 @@ class BenchmarkConfig:
             _convert("sysbench", SysbenchConfig)
         except Exception:
             pass
-
-    def _build_default_workloads(self) -> Dict[str, "WorkloadConfig"]:
-        # Helper to build defaults. 
-        # Note: For migrated plugins, we need to check plugin_settings or use defaults.
-        # This is where the coupling was. We should ideally ask the registry.
-        # For now, we just replicate the structure.
-        
-        defaults = {
-            "iperf3": WorkloadConfig("iperf3", True, asdict(self.iperf3)),
-            "dd": WorkloadConfig("dd", True, asdict(self.dd)),
-            "fio": WorkloadConfig("fio", True, asdict(self.fio)),
-            "top500": WorkloadConfig("top500", False, asdict(self.top500)),
-        }
-
-        def _add_plugin_default(name: str, config_cls: Any, enabled: bool) -> None:
-            existing = self.plugin_settings.get(name, {})
-            try:
-                if isinstance(existing, config_cls):
-                    cfg_obj = existing
-                elif isinstance(existing, dict):
-                    cfg_obj = config_cls(**existing)
-                elif hasattr(existing, "__dict__"):
-                    cfg_obj = config_cls(**asdict(existing))
-                else:
-                    cfg_obj = config_cls()
-                # Persist hydrated config for downstream services
-                self.plugin_settings[name] = cfg_obj
-                defaults[name] = WorkloadConfig(name, enabled, asdict(cfg_obj))
-            except Exception:
-                defaults[name] = WorkloadConfig(name, enabled, existing or {})
-
-        try:
-            from workload_generators.stress_ng_generator import StressNGConfig
-            _add_plugin_default("stress_ng", StressNGConfig, True)
-        except Exception:
-            defaults.setdefault("stress_ng", WorkloadConfig("stress_ng", True, {}))
-
-        try:
-            from workload_generators.geekbench_generator import GeekbenchConfig
-            _add_plugin_default("geekbench", GeekbenchConfig, False)
-        except Exception:
-            defaults.setdefault("geekbench", WorkloadConfig("geekbench", False, {}))
-
-        try:
-            from workload_generators.sysbench_generator import SysbenchConfig
-            _add_plugin_default("sysbench", SysbenchConfig, False)
-        except Exception:
-            defaults.setdefault("sysbench", WorkloadConfig("sysbench", False, {}))
-
-        return defaults

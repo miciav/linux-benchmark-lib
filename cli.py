@@ -172,7 +172,7 @@ def config_init(
     target = Path(path).expanduser() if path else config_service.default_target
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    cfg = BenchmarkConfig()
+    cfg = config_service.create_default_config()
     if interactive:
         details = prompt_remote_host(
             {
@@ -263,10 +263,14 @@ def config_enable_workload(
     ),
 ) -> None:
     """Enable a workload in the configuration (creates it if missing)."""
-    cfg, target, stale = config_service.update_workload_enabled(name, True, config, set_default)
-    if stale:
-        ui.show_warning(f"Saved default config not found: {stale}")
-    ui.show_success(f"Workload '{name}' enabled in {target}")
+    try:
+        cfg, target, stale = config_service.update_workload_enabled(name, True, config, set_default)
+        if stale:
+            ui.show_warning(f"Saved default config not found: {stale}")
+        ui.show_success(f"Workload '{name}' enabled in {target}")
+    except ValueError as e:
+        ui.show_error(str(e))
+        raise typer.Exit(1)
 
 
 @config_app.command("disable-workload")
@@ -345,6 +349,43 @@ def config_select_workloads(
 
     registry = create_registry()
     _select_workloads_interactively(cfg, registry, config, set_default)
+
+
+@doctor_app.callback(invoke_without_command=True)
+def doctor_root(ctx: typer.Context) -> None:
+    """Check environment health and prerequisites."""
+    if ctx.invoked_subcommand is None:
+        failures = doctor_service.check_all()
+        if failures > 0:
+            raise typer.Exit(1)
+
+
+@doctor_app.command("all")
+def doctor_all() -> None:
+    """Run all checks."""
+    if doctor_service.check_all() > 0:
+        raise typer.Exit(1)
+
+
+@doctor_app.command("controller")
+def doctor_controller() -> None:
+    """Check controller prerequisites (Ansible, Python deps)."""
+    if doctor_service.check_controller() > 0:
+        raise typer.Exit(1)
+
+
+@doctor_app.command("local")
+def doctor_local() -> None:
+    """Check local workload tools (stress-ng, fio, etc)."""
+    if doctor_service.check_local_tools() > 0:
+        raise typer.Exit(1)
+
+
+@doctor_app.command("multipass")
+def doctor_multipass() -> None:
+    """Check Multipass installation."""
+    if doctor_service.check_multipass() > 0:
+        raise typer.Exit(1)
 
 
 app.add_typer(config_app, name="config")
@@ -608,10 +649,15 @@ def _list_plugins_command(
         raise typer.Exit(1)
 
     cfg_for_table: Optional[BenchmarkConfig] = None
-    if enable:
-        cfg_for_table, _, _ = config_service.update_workload_enabled(enable, True, config, set_default)
-    if disable:
-        cfg_for_table, _, _ = config_service.update_workload_enabled(disable, False, config, set_default)
+    try:
+        if enable:
+            cfg_for_table, _, _ = config_service.update_workload_enabled(enable, True, config, set_default)
+        if disable:
+            cfg_for_table, _, _ = config_service.update_workload_enabled(disable, False, config, set_default)
+    except ValueError as e:
+        ui.show_error(str(e))
+        raise typer.Exit(1)
+
     if cfg_for_table is None:
         cfg_for_table = _load_config(config)
 

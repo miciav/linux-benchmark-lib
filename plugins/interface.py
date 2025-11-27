@@ -56,6 +56,13 @@ class WorkloadPlugin(ABC):
         """Return list of Python packages required by this plugin."""
         return []
 
+    def get_required_local_tools(self) -> List[str]:
+        """
+        Return list of command-line tools required by this plugin for local execution.
+        Used by `lb doctor` to verify the local environment.
+        """
+        return []
+
     def get_dockerfile_path(self) -> Optional[Path]:
         """
         Return the path to the Dockerfile for this plugin.

@@ -66,18 +66,28 @@ class StressNGGenerator(BaseGenerator):
         cmd = self._build_command()
         logger.info(f"Running command: {' '.join(cmd)}")
         try:
+            # Merge stderr into stdout to capture everything in one stream
             self._process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
             )
+            
+            output_lines = []
             safety_timeout = self.config.timeout + 5
-            try:
-                stdout, stderr = self._process.communicate(timeout=safety_timeout)
-            except subprocess.TimeoutExpired:
-                logger.error(f"stress-ng timed out after {safety_timeout}s")
-                self._process.kill()
-                stdout, stderr = self._process.communicate()
-                self._result = {"error": "TimeoutExpired", "stdout": stdout, "stderr": stderr}
-                return
+            
+            # Simple streaming loop (timeout handling is tricky here without select, 
+            # but stress-ng handles its own timeout usually)
+            while True:
+                line = self._process.stdout.readline()
+                if not line and self._process.poll() is not None:
+                    break
+                if line:
+                    print(line, end='', flush=True)
+                    output_lines.append(line)
+            
+            self._process.wait()
+            stdout = "".join(output_lines)
+            stderr = "" # Merged
+
             self._result = {
                 "stdout": stdout,
                 "stderr": stderr,
@@ -122,6 +132,9 @@ class StressNGPlugin(WorkloadPlugin):
         return StressNGGenerator(config)
     
     def get_required_apt_packages(self) -> List[str]:
+        return ["stress-ng"]
+
+    def get_required_local_tools(self) -> List[str]:
         return ["stress-ng"]
 
     def get_dockerfile_path(self) -> Optional[Path]:

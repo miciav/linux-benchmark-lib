@@ -8,6 +8,7 @@ import shutil
 from typing import List, Tuple, Optional
 
 from services.config_service import ConfigService
+from services.plugin_service import create_registry
 from ui import get_ui_adapter
 from ui.types import UIAdapter
 
@@ -75,9 +76,30 @@ class DoctorService:
         return failures
 
     def check_local_tools(self) -> int:
-        """Check local workload tools (only needed for local runs)."""
-        tools = ["stress-ng", "iperf3", "fio", "sar", "vmstat", "iostat", "mpstat", "pidstat", "perf"]
-        items = [(cmd, self._check_command(cmd), True) for cmd in tools]
+        """Check local workload tools required by installed plugins."""
+        registry = create_registry()
+        items: List[Tuple[str, bool, bool]] = []
+        
+        # Common system tools that are always good to have
+        common_tools = ["sar", "vmstat", "iostat", "mpstat", "pidstat"]
+        for tool in common_tools:
+            items.append((f"{tool} (system)", self._check_command(tool), False)) # Not strictly required but recommended
+
+        # Plugin-specific tools
+        for plugin in registry.available().values():
+            # Support both Legacy and new Interface via duck typing or method presence
+            if hasattr(plugin, "get_required_local_tools"):
+                required_tools = plugin.get_required_local_tools()
+                for tool in required_tools:
+                    label = f"{tool} ({plugin.name})"
+                    items.append((label, self._check_command(tool), True))
+
+        if not items:
+             self.ui.show_info("No plugins with local tool requirements found.")
+             return 0
+
+        # Sort by label
+        items.sort(key=lambda x: x[0])
         return self._render_check_table("Local Workload Tools", items)
 
     def check_multipass(self) -> int:

@@ -47,6 +47,10 @@ class LegacyWorkloadPlugin:
             return options
         return self.config_cls(**options)
 
+    def get_required_local_tools(self) -> list[str]:
+        """Legacy plugins do not support dynamic dependency checking yet."""
+        return []
+
 
 @dataclass
 class CollectorPlugin:

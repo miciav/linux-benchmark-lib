@@ -13,12 +13,13 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Type
 
 import yaml
 
 from benchmark_config import Top500Config
 from ._base_generator import BaseGenerator
+from plugins.interface import WorkloadPlugin
 
 
 logger = logging.getLogger(__name__)
@@ -136,3 +137,31 @@ class Top500Generator(BaseGenerator):
                 logger.warning("Force killing Top500 playbook process")
                 proc.kill()
                 proc.wait()
+
+
+class Top500Plugin(WorkloadPlugin):
+    """Plugin definition for Top500."""
+
+    @property
+    def name(self) -> str:
+        return "top500"
+
+    @property
+    def description(self) -> str:
+        return "HPL Linpack via geerlingguy/top500-benchmark playbook"
+
+    @property
+    def config_cls(self) -> Type[Top500Config]:
+        return Top500Config
+
+    def create_generator(self, config: Top500Config) -> Top500Generator:
+        return Top500Generator(config)
+    
+    def get_required_apt_packages(self) -> List[str]:
+        return ["git", "ansible"]
+
+    def get_required_local_tools(self) -> List[str]:
+        return ["git", "ansible-playbook"]
+
+
+PLUGIN = Top500Plugin()
