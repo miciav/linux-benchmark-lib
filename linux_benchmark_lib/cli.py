@@ -308,18 +308,39 @@ def _select_workloads_interactively(
         plugin_obj = available_plugins.get(wl.plugin)
         description = getattr(plugin_obj, "description", "") if plugin_obj else ""
         descriptions[name] = description or ""
-        rows.append([name, wl.plugin, "✓" if wl.enabled else "✗", description or "-"])
+        rows.append([name, wl.plugin, "✓" if wl.enabled else "✗", wl.intensity, description or "-"])
 
-    ui.show_table("Configured Workloads", ["Workload", "Plugin", "Enabled", "Description"], rows)
+    ui.show_table("Configured Workloads", ["Workload", "Plugin", "Enabled", "Intensity", "Description"], rows)
 
     selection = prompt_plugins(descriptions, enabled_map, force=False, show_table=False)
     if selection is None:
         ui.show_warning("Selection cancelled.")
         raise typer.Exit(1)
 
+    # Prompt intensity for enabled workloads
+    def _prompt_intensities(selected: Set[str]) -> Dict[str, str]:
+        from InquirerPy import inquirer
+
+        intensities: Dict[str, str] = {}
+        choices = ["user_defined", "low", "medium", "high"]
+        for name in sorted(selected):
+            current = cfg.workloads.get(name, WorkloadConfig(plugin=name)).intensity
+            default_choice = current if current in choices else "user_defined"
+            intensity = inquirer.select(
+                message=f"Intensity for {name}",
+                choices=choices,
+                default=default_choice,
+            ).execute()
+            intensities[name] = intensity or default_choice
+        return intensities
+
+    intensities = _prompt_intensities(selection)
+
     cfg_write, target, stale, _ = config_service.load_for_write(config, allow_create=True)
     for name, wl in cfg_write.workloads.items():
         wl.enabled = name in selection
+        if wl.enabled and name in intensities:
+            wl.intensity = intensities[name]
         cfg_write.workloads[name] = wl
     cfg_write.save(target)
     if set_default:

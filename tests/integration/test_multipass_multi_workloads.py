@@ -18,6 +18,9 @@ from tests.integration.test_multipass_benchmark import multipass_vm
 from tests.integration.multipass_utils import get_intensity
 from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+ANSIBLE_ROOT = REPO_ROOT / "linux_benchmark_lib" / "ansible"
+
 
 @pytest.mark.integration
 def test_remote_multiple_workloads(multipass_vm, tmp_path):
@@ -84,8 +87,8 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
     )
 
     ansible_dir = tmp_path / "ansible_data"
-    os.environ["ANSIBLE_ROLES_PATH"] = str(Path("ansible/roles").absolute())
-    os.environ["ANSIBLE_CONFIG"] = str(Path("ansible/ansible.cfg").absolute())
+    os.environ["ANSIBLE_ROLES_PATH"] = str((ANSIBLE_ROOT / "roles").absolute())
+    os.environ["ANSIBLE_CONFIG"] = str((ANSIBLE_ROOT / "ansible.cfg").absolute())
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)

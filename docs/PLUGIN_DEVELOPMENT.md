@@ -105,7 +105,7 @@ linux_benchmark_lib/plugins/<plugin_name>/
 ├── __init__.py
 ├── plugin.py       # Contains the Plugin class and Generator implementation
 ├── Dockerfile      # (Optional) Dedicated Docker build for this plugin
-└── ansible/        # (Optional)
+└── linux_benchmark_lib/ansible/  # (Optional) playbooks/roles if you ship remote mode
     ├── setup.yml
     └── teardown.yml
 ```

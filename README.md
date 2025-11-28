@@ -106,7 +106,7 @@ See `CLI.md` for the full command reference. Highlights:
 - Dependencies are defined in the plugin's Python class (`get_required_apt_packages`, etc.).
 - A dedicated Dockerfile can be provided in the plugin directory for containerized execution.
 
-  This updates the generated apt/pip install block in `Dockerfile` and rewrites `ansible/roles/workload_runner/tasks/plugins.generated.yml`.
+  This updates the generated apt/pip install block in `Dockerfile` and rewrites `linux_benchmark_lib/ansible/roles/workload_runner/tasks/plugins.generated.yml`.
 - Commit both the manifest and generated files so remote setup and the container stay in sync with available plugins.
 - See `docs/PLUGIN_DEVELOPMENT.md` for a full plugin authoring guide (WorkloadPlugin interface, manifests, packaging, git installs).
 
@@ -154,8 +154,8 @@ linux-benchmark-lib/
 │   ├── data_handler.py          # Data processing and aggregation
 │   ├── reporter.py              # Reports and plots
 │   ├── metric_collectors/       # Metric collectors (Plugins)
-│   └── plugins/                 # Plugin registry and built-ins
-├── ansible/                     # Playbooks and roles for remote execution
+│   ├── plugins/                 # Plugin registry and built-ins
+│   └── ansible/                 # Playbooks and roles for remote execution
 ├── tests/                       # Unit and integration tests
 ├── tools/                       # Helper scripts (mode switching, etc.)
 └── pyproject.toml               # Project configuration (Core + Extras)

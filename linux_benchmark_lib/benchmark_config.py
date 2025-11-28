@@ -9,6 +9,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+ANSIBLE_ROOT = Path(__file__).resolve().parent / "ansible"
+
 
 @dataclass
 class PerfConfig:
@@ -69,9 +71,9 @@ class RemoteExecutionConfig:
     inventory_path: Optional[Path] = None
     run_setup: bool = True
     run_collect: bool = True
-    setup_playbook: Path = Path("ansible/playbooks/setup.yml")
-    run_playbook: Path = Path("ansible/playbooks/run_benchmark.yml")
-    collect_playbook: Path = Path("ansible/playbooks/collect.yml")
+    setup_playbook: Path = field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "setup.yml")
+    run_playbook: Path = field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "run_benchmark.yml")
+    collect_playbook: Path = field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "collect.yml")
     use_container_fallback: bool = False
 
 @dataclass

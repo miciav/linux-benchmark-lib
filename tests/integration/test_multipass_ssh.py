@@ -399,10 +399,10 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
         env["ANSIBLE_HOST_KEY_CHECKING"] = "False"
         env["ANSIBLE_STDOUT_CALLBACK"] = "default"
         env["ANSIBLE_CALLBACK_PLUGINS"] = ""
-        env["ANSIBLE_CONFIG"] = str(Path("ansible/ansible.cfg").absolute())
-        env["ANSIBLE_ROLES_PATH"] = f"{tmp_path}/roles:{Path('ansible/roles').absolute()}"
+        env["ANSIBLE_CONFIG"] = str((ANSIBLE_ROOT / "ansible.cfg").absolute())
+        env["ANSIBLE_ROLES_PATH"] = f"{tmp_path}/roles:{(ANSIBLE_ROOT / 'roles').absolute()}"
 
-        setup_playbook = Path("ansible/playbooks/setup.yml").absolute()
+        setup_playbook = (ANSIBLE_ROOT / "playbooks" / "setup.yml").absolute()
         subprocess.run(
             [
                 "ansible-playbook",
@@ -427,7 +427,7 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             "-o",
             "UserKnownHostsFile=/dev/null",
             f"ubuntu@{ip_addr}",
-            "test -x /opt/lb/.venv/bin/python && test -f /opt/lb/cli.py",
+            "test -x /opt/lb/.venv/bin/python && test -f /opt/lb/linux_benchmark_lib/cli.py",
         ]
         subprocess.run(ssh_cmd, check=True)
 
@@ -455,7 +455,7 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
                 str(inventory_path),
                 "-e",
                 f"@{extravars_path}",
-                str(Path("ansible/playbooks/run_benchmark.yml").absolute()),
+                str((ANSIBLE_ROOT / "playbooks" / "run_benchmark.yml").absolute()),
             ],
             cwd=tmp_path,
             env=env,

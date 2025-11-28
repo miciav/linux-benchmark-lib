@@ -18,6 +18,9 @@ import pytest
 
 from dataclasses import asdict
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+ANSIBLE_ROOT = REPO_ROOT / "linux_benchmark_lib" / "ansible"
+
 from linux_benchmark_lib.benchmark_config import (
     BenchmarkConfig,
     RemoteExecutionConfig,
@@ -273,8 +276,8 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     ansible_dir = tmp_path / "ansible_data"
     
     # Ensure Ansible finds roles and config
-    os.environ["ANSIBLE_ROLES_PATH"] = str(Path("ansible/roles").absolute())
-    os.environ["ANSIBLE_CONFIG"] = str(Path("ansible/ansible.cfg").absolute())
+    os.environ["ANSIBLE_ROLES_PATH"] = str((ANSIBLE_ROOT / "roles").absolute())
+    os.environ["ANSIBLE_CONFIG"] = str((ANSIBLE_ROOT / "ansible.cfg").absolute())
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
     
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)

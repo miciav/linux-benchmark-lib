@@ -64,7 +64,7 @@
 
     - name: Synchronize benchmark library project to remote host
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../../{{ item }}"
+        src: "{{ playbook_dir }}/../../../{{ item }}"
         dest: "{{ lb_workdir }}/{{ item }}"
         mode: preserve
       loop:

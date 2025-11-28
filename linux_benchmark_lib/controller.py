@@ -19,6 +19,7 @@ from .benchmark_config import BenchmarkConfig, RemoteHostConfig
 from .services.plugin_service import create_registry
 
 logger = logging.getLogger(__name__)
+ANSIBLE_ROOT = Path(__file__).resolve().parent / "ansible"
 
 
 @dataclass
@@ -92,7 +93,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             output_callback: Optional callback to handle stdout stream. 
                              Signature: (text: str, end: str) -> None
         """
-        self.private_data_dir = private_data_dir or Path("ansible")
+        self.private_data_dir = private_data_dir or Path(".ansible_runner")
         self.private_data_dir.mkdir(parents=True, exist_ok=True)
         self._runner_fn = runner_fn
         self.stream_output = stream_output
@@ -137,12 +138,13 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         merged_extravars = extravars.copy() if extravars else {}
         merged_extravars.setdefault("_lb_inventory_path", str(inventory_path))
 
-        repo_roles = Path("ansible/roles").resolve()
+        repo_roles = (ANSIBLE_ROOT / "roles").resolve()
         runner_roles = (self.private_data_dir / "roles").resolve()
         envvars = {
             "ANSIBLE_ROLES_PATH": f"{runner_roles}:{repo_roles}",
             "ANSIBLE_LOCAL_TEMP": str(self.local_tmp),
             "ANSIBLE_REMOTE_TMP": "/tmp/.ansible",
+            "ANSIBLE_CONFIG": str((ANSIBLE_ROOT / "ansible.cfg").resolve()),
             # Force safe stdout callback; ansible-runner's awx_display is broken with newer ansible-core.
             "ANSIBLE_STDOUT_CALLBACK": "default",
             "ANSIBLE_CALLBACK_PLUGINS": "",
