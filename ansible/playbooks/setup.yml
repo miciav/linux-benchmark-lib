@@ -68,16 +68,7 @@
         dest: "{{ lb_workdir }}/{{ item }}"
         mode: preserve
       loop:
-        - benchmark_config.py
-        - local_runner.py
-        - data_handler.py
-        - reporter.py
-        - cli.py
-        - ui
-        - services
-        - plugins
-        - metric_collectors
-        - workload_generators
+        - linux_benchmark_lib
         - pyproject.toml
         - uv.lock # Include uv.lock as it contains dependency info
       # Exclude tools/ directory unless it's explicitly part of the installed package

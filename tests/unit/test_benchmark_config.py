@@ -8,15 +8,15 @@ import tempfile
 
 import pytest
 
-from benchmark_config import (
+from linux_benchmark_lib.benchmark_config import (
     BenchmarkConfig,
     MetricCollectorConfig,
     PerfConfig,
     RemoteHostConfig,
     WorkloadConfig,
 )
-from plugins.stress_ng.plugin import StressNGConfig
-from plugins.iperf3.plugin import IPerf3Config
+from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
+from linux_benchmark_lib.plugins.iperf3.plugin import IPerf3Config
 
 
 class TestBenchmarkConfig:
@@ -116,7 +116,7 @@ class TestBenchmarkConfig:
 
     def test_module_does_not_create_default_instance(self):
         """The module should not instantiate configs at import time."""
-        import benchmark_config as bc
+        import linux_benchmark_lib.benchmark_config as bc
 
         assert not hasattr(bc, "default_config")
 

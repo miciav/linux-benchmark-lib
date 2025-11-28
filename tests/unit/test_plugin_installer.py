@@ -6,19 +6,19 @@ from typing import Type
 
 import pytest
 
-from benchmark_config import BenchmarkConfig
-from services import plugin_service as plugin_service_mod
-from services.config_service import ConfigService
-from services.plugin_service import PluginInstaller, create_registry
-from plugins.interface import WorkloadPlugin
-from plugins.base_generator import BaseGenerator
+from linux_benchmark_lib.benchmark_config import BenchmarkConfig
+from linux_benchmark_lib.services import plugin_service as plugin_service_mod
+from linux_benchmark_lib.services.config_service import ConfigService
+from linux_benchmark_lib.services.plugin_service import PluginInstaller, create_registry
+from linux_benchmark_lib.plugins.interface import WorkloadPlugin
+from linux_benchmark_lib.plugins.base_generator import BaseGenerator
 
 # Dummy plugin content to be written to files
 DUMMY_PLUGIN_CONTENT = """
 from dataclasses import dataclass
 from typing import Type
-from plugins.interface import WorkloadPlugin
-from plugins.base_generator import BaseGenerator
+from linux_benchmark_lib.plugins.interface import WorkloadPlugin
+from linux_benchmark_lib.plugins.base_generator import BaseGenerator
 
 @dataclass
 class DummyConfig:

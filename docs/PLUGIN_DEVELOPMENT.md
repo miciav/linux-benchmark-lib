@@ -3,16 +3,16 @@
 This guide explains how to build, package, and install custom workload plugins for `linux-benchmark-lib`.
 
 ## Plugin anatomy
-- Implement the `WorkloadPlugin` interface (`plugins/interface.py`).
-- Provide a config class (usually a dataclass) and a generator derived from `workload_generators/_base_generator.py`.
+- Implement the `WorkloadPlugin` interface (`linux_benchmark_lib/plugins/interface.py`).
+- Provide a config class (usually a dataclass) and a generator derived from `linux_benchmark_lib/plugins/base_generator.py`.
 - Export a module-level `PLUGIN` variable pointing to your `WorkloadPlugin` instance.
 
 ### Minimal example
 ```python
 from dataclasses import dataclass, field
 from typing import List, Optional, Type
-from plugins.interface import WorkloadPlugin
-from workload_generators._base_generator import BaseGenerator
+from linux_benchmark_lib.plugins.interface import WorkloadPlugin
+from linux_benchmark_lib.plugins.base_generator import BaseGenerator
 
 
 @dataclass
@@ -101,7 +101,7 @@ To pin default options, add to `plugin_settings` or `workloads` in `benchmark_co
 For more complex plugins that require specific Docker environments or Ansible playbooks, use the modular directory structure:
 
 ```text
-plugins/<plugin_name>/
+linux_benchmark_lib/plugins/<plugin_name>/
 ├── __init__.py
 ├── plugin.py       # Contains the Plugin class and Generator implementation
 ├── Dockerfile      # (Optional) Dedicated Docker build for this plugin
@@ -131,10 +131,10 @@ plugins/<plugin_name>/
 
 ### Example: `dd` Plugin
 
-**plugins/dd/plugin.py**:
+**linux_benchmark_lib/plugins/dd/plugin.py**:
 ```python
 from pathlib import Path
-from plugins.interface import WorkloadPlugin
+from linux_benchmark_lib.plugins.interface import WorkloadPlugin
 # ... imports ...
 
 class DDPlugin(WorkloadPlugin):
@@ -150,7 +150,7 @@ class DDPlugin(WorkloadPlugin):
 PLUGIN = DDPlugin()
 ```
 
-**plugins/dd/Dockerfile**:
+**linux_benchmark_lib/plugins/dd/Dockerfile**:
 ```dockerfile
 FROM python:3.12-slim
 RUN apt-get update && apt-get install -y coreutils ...

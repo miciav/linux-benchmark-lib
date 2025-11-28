@@ -12,10 +12,10 @@ from pathlib import Path
 import json
 import time
 
-from benchmark_config import BenchmarkConfig, StressNGConfig, MetricCollectorConfig
-from local_runner import LocalRunner
-from plugins.builtin import builtin_plugins
-from plugins.registry import PluginRegistry
+from linux_benchmark_lib.benchmark_config import BenchmarkConfig, StressNGConfig, MetricCollectorConfig
+from linux_benchmark_lib.local_runner import LocalRunner
+from linux_benchmark_lib.plugins.builtin import builtin_plugins
+from linux_benchmark_lib.plugins.registry import PluginRegistry
 
 
 class TestRealBenchmarkIntegration(unittest.TestCase):

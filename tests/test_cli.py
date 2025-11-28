@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 from typer.testing import CliRunner
 
-from benchmark_config import BenchmarkConfig
+from linux_benchmark_lib.benchmark_config import BenchmarkConfig
 
 
 def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -14,9 +14,9 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
     monkeypatch.setenv("LB_ENABLE_TEST_CLI", "1")
     monkeypatch.chdir(tmp_path)
-    if "cli" in sys.modules:
-        del sys.modules["cli"]
-    cli = importlib.import_module("cli")
+    if "linux_benchmark_lib.cli" in sys.modules:
+        del sys.modules["linux_benchmark_lib.cli"]
+    cli = importlib.import_module("linux_benchmark_lib.cli")
     importlib.reload(cli)
     return cli
 

@@ -5,18 +5,18 @@ from typing import Any
 
 import pytest
 
-from benchmark_config import (
+from linux_benchmark_lib.benchmark_config import (
     BenchmarkConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     StressNGConfig,
     WorkloadConfig,
 )
-from plugins.dd.plugin import DDConfig
-from controller import AnsibleRunnerExecutor, BenchmarkController
+from linux_benchmark_lib.plugins.dd.plugin import DDConfig
+from linux_benchmark_lib.controller import AnsibleRunnerExecutor, BenchmarkController
 from tests.integration.test_multipass_benchmark import multipass_vm
 from tests.integration.multipass_utils import get_intensity
-from plugins.fio.plugin import FIOConfig
+from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
 
 
 @pytest.mark.integration

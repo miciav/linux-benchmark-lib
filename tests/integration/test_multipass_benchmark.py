@@ -18,17 +18,17 @@ import pytest
 
 from dataclasses import asdict
 
-from benchmark_config import (
+from linux_benchmark_lib.benchmark_config import (
     BenchmarkConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     StressNGConfig,
     WorkloadConfig,
 )
-from plugins.dd.plugin import DDConfig
-from controller import AnsibleRunnerExecutor, BenchmarkController
+from linux_benchmark_lib.plugins.dd.plugin import DDConfig
+from linux_benchmark_lib.controller import AnsibleRunnerExecutor, BenchmarkController
 from tests.integration.multipass_utils import get_intensity
-from plugins.fio.plugin import FIOConfig
+from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
 
 # Constants
 VM_NAME_PREFIX = "benchmark-test-vm"

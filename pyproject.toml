@@ -32,21 +32,18 @@ controller = [
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-py-modules = ["benchmark_config", "controller", "local_runner", "data_handler", "reporter", "cli"]
-
 [tool.setuptools.packages.find]
-include = ["metric_collectors*", "plugins*", "services*", "ui*", "tools*"]
+include = ["linux_benchmark_lib*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [project.scripts]
-lb = "cli:app"
+lb = "linux_benchmark_lib.cli:app"
 
 [project.entry-points."linux_benchmark.collectors"]
-psutil = "plugins.builtin:PSUTIL_COLLECTOR"
-cli = "plugins.builtin:CLI_COLLECTOR"
-perf = "plugins.builtin:PERF_COLLECTOR"
-ebpf = "plugins.builtin:EBPF_COLLECTOR"
+psutil = "linux_benchmark_lib.plugins.builtin:PSUTIL_COLLECTOR"
+cli = "linux_benchmark_lib.plugins.builtin:CLI_COLLECTOR"
+perf = "linux_benchmark_lib.plugins.builtin:PERF_COLLECTOR"
+ebpf = "linux_benchmark_lib.plugins.builtin:EBPF_COLLECTOR"
 
 [tool.uv]
 package = true
