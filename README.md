@@ -101,17 +101,11 @@ See `CLI.md` for the full command reference. Highlights:
 - The UI adapter powers both interactive prompts and headless rendering used by tests.
 
 ### Plugin manifests and generated assets
-- Each workload declares its install needs in `plugins/manifests/<name>.yaml`:
-  ```yaml
-  name: stress_ng
-  description: CPU and memory stress workload
-  apt_packages: [stress-ng]
-  pip_packages: []
-  ```
-- Regenerate Docker/Ansible assets after adding or updating a manifest:
-  ```
-  uv run python tools/gen_plugin_assets.py
-  ```
+
+- Each workload is self-contained in `plugins/<name>/`.
+- Dependencies are defined in the plugin's Python class (`get_required_apt_packages`, etc.).
+- A dedicated Dockerfile can be provided in the plugin directory for containerized execution.
+
   This updates the generated apt/pip install block in `Dockerfile` and rewrites `ansible/roles/workload_runner/tasks/plugins.generated.yml`.
 - Commit both the manifest and generated files so remote setup and the container stay in sync with available plugins.
 - See `docs/PLUGIN_DEVELOPMENT.md` for a full plugin authoring guide (WorkloadPlugin interface, manifests, packaging, git installs).

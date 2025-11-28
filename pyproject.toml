@@ -36,18 +36,11 @@ build-backend = "setuptools.build_meta"
 py-modules = ["benchmark_config", "controller", "local_runner", "data_handler", "reporter", "cli"]
 
 [tool.setuptools.packages.find]
-include = ["metric_collectors*", "workload_generators*", "plugins*", "services*", "ui*", "tools*"]
+include = ["metric_collectors*", "plugins*", "services*", "ui*", "tools*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [project.scripts]
 lb = "cli:app"
-
-[project.entry-points."linux_benchmark.workloads"]
-stress_ng = "plugins.builtin:STRESS_NG_PLUGIN"
-iperf3 = "plugins.builtin:IPERF3_PLUGIN"
-dd = "plugins.builtin:DD_PLUGIN"
-fio = "plugins.builtin:FIO_PLUGIN"
-top500 = "plugins.builtin:TOP500_PLUGIN"
 
 [project.entry-points."linux_benchmark.collectors"]
 psutil = "plugins.builtin:PSUTIL_COLLECTOR"

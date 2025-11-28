@@ -2,23 +2,21 @@
 Unit tests for the benchmark_config module.
 """
 
-import pytest
 import json
 from pathlib import Path
 import tempfile
 
+import pytest
+
 from benchmark_config import (
     BenchmarkConfig,
-    IPerf3Config,
-    DDConfig,
-    FIOConfig,
     MetricCollectorConfig,
     PerfConfig,
     RemoteHostConfig,
     WorkloadConfig,
 )
-from workload_generators.stress_ng_generator import StressNGConfig
-from workload_generators.sysbench_generator import SysbenchConfig
+from plugins.stress_ng.plugin import StressNGConfig
+from plugins.iperf3.plugin import IPerf3Config
 
 
 class TestBenchmarkConfig:
@@ -32,13 +30,9 @@ class TestBenchmarkConfig:
         assert config.test_duration_seconds == 60
         assert config.metrics_interval_seconds == 1.0
         assert isinstance(config.plugin_settings["stress_ng"], StressNGConfig)
-        assert isinstance(config.plugin_settings["sysbench"], SysbenchConfig)
-        assert isinstance(config.iperf3, IPerf3Config)
-        assert isinstance(config.dd, DDConfig)
-        assert isinstance(config.fio, FIOConfig)
         assert "stress_ng" in config.workloads
         assert config.workloads["stress_ng"].plugin == "stress_ng"
-        assert "sysbench" in config.workloads
+        assert config.workloads["stress_ng"].enabled is False
         
     def test_custom_config_creation(self):
         """Test creating a config with custom values."""

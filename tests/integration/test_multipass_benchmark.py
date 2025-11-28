@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+from typing import Any
 # import multiprocessing # Removed for multiprocessing context fix
 
 import pytest
@@ -15,16 +16,19 @@ import pytest
 # except RuntimeError:
 #     pass # Already set, or not supported on this platform/context
 
+from dataclasses import asdict
+
 from benchmark_config import (
     BenchmarkConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     StressNGConfig,
-    DDConfig,
-    FIOConfig,
+    WorkloadConfig,
 )
+from plugins.dd.plugin import DDConfig
 from controller import AnsibleRunnerExecutor, BenchmarkController
 from tests.integration.multipass_utils import get_intensity
+from plugins.fio.plugin import FIOConfig
 
 # Constants
 VM_NAME_PREFIX = "benchmark-test-vm"
@@ -211,22 +215,36 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         "cooldown_seconds": 0,
     }
 
-    # Add workload configs if enabled
+    plugin_settings: dict[str, Any] = {}
+    workload_defs: dict[str, WorkloadConfig] = {}
+
     if "stress_ng" in workloads:
-        config_args["stress_ng"] = StressNGConfig(
+        stress_cfg = StressNGConfig(
             cpu_workers=1,
             timeout=intensity["stress_timeout"]
         )
+        plugin_settings["stress_ng"] = stress_cfg
+        workload_defs["stress_ng"] = WorkloadConfig(
+            plugin="stress_ng",
+            enabled=True,
+            options=asdict(stress_cfg),
+        )
     
     if "dd" in workloads:
-        config_args["dd"] = DDConfig(
+        dd_cfg = DDConfig(
             bs="1M", 
             count=intensity["dd_count"], 
             of_path="/tmp/dd_test"
         )
+        plugin_settings["dd"] = dd_cfg
+        workload_defs["dd"] = WorkloadConfig(
+            plugin="dd",
+            enabled=True,
+            options=asdict(dd_cfg),
+        )
 
     if "fio" in workloads:
-        config_args["fio"] = FIOConfig(
+        fio_cfg = FIOConfig(
             runtime=intensity["fio_runtime"],
             size=intensity["fio_size"],
             numjobs=1,
@@ -237,6 +255,15 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
             bs="4k",
             output_format="json",
         )
+        plugin_settings["fio"] = fio_cfg
+        workload_defs["fio"] = WorkloadConfig(
+            plugin="fio",
+            enabled=True,
+            options=asdict(fio_cfg),
+        )
+
+    config_args["plugin_settings"] = plugin_settings
+    config_args["workloads"] = workload_defs
 
     # Note: iperf3 and others can be added here similarly if needed
 

@@ -7,7 +7,7 @@ import pytest
 
 from plugins.registry import PluginRegistry
 from plugins.interface import WorkloadPlugin
-from workload_generators._base_generator import BaseGenerator
+from plugins.base_generator import BaseGenerator
 
 
 @dataclass

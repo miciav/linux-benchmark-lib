@@ -6,6 +6,8 @@
   vars:
     run_id: "{{ run_id | default('unknown') }}"
     use_container_fallback: "{{ use_container_fallback | default(false) }}"
+    # Define a consistent workdir for the benchmark library on remote hosts
+    lb_workdir: "/opt/lb"
 
   tasks:
     - name: Ensure deadsnakes PPA present for Python 3.12 (Debian/Ubuntu)
@@ -27,7 +29,7 @@
         - _python_ppa is defined and _python_ppa is changed
       tags: python
 
-    - name: Ensure base packages are installed
+    - name: Ensure base packages are installed (Python 3.12, venv, pip)
       package:
         name:
           - python3.12
@@ -38,8 +40,61 @@
         state: present
         update_cache: true
 
-    - name: Include workload setup role
-      include_role:
-        name: workload_runner
-      vars:
-        workload_runner_mode: "prepare"
+    - name: Define Python interpreter for the virtual environment
+      ansible.builtin.shell: |
+        set -e
+        if command -v python3.12 >/dev/null 2>&1; then
+          command -v python3.12
+        else
+          command -v python3
+        fi
+      register: lb_python_bin
+      changed_when: false
+
+    - name: Create benchmark library workdir on remote host
+      ansible.builtin.file:
+        path: "{{ lb_workdir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create virtual environment for benchmark library
+      ansible.builtin.command:
+        cmd: "{{ (lb_python_bin.stdout or 'python3') }} -m venv {{ lb_workdir }}/.venv"
+        creates: "{{ lb_workdir }}/.venv/bin/python"
+
+    - name: Synchronize benchmark library project to remote host
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../{{ item }}"
+        dest: "{{ lb_workdir }}/{{ item }}"
+        mode: preserve
+      loop:
+        - benchmark_config.py
+        - local_runner.py
+        - data_handler.py
+        - reporter.py
+        - cli.py
+        - ui
+        - services
+        - plugins
+        - metric_collectors
+        - workload_generators
+        - pyproject.toml
+        - uv.lock # Include uv.lock as it contains dependency info
+      # Exclude tools/ directory unless it's explicitly part of the installed package
+      # The main reason is gen_plugin_assets.py is no longer used globally for deps
+
+    - name: Upgrade pip inside virtual environment
+      ansible.builtin.command:
+        cmd: "{{ lb_workdir }}/.venv/bin/pip install --upgrade pip"
+        chdir: "{{ lb_workdir }}"
+
+    - name: Install benchmark library in editable mode
+      ansible.builtin.command:
+        cmd: "{{ lb_workdir }}/.venv/bin/pip install -e ."
+        chdir: "{{ lb_workdir }}"
+
+    - name: Ensure benchmark output directory exists
+      ansible.builtin.file:
+        path: "{{ output_root }}"
+        state: directory
+        mode: "0755"

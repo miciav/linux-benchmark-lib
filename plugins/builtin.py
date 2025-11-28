@@ -7,10 +7,10 @@ import sys
 from pathlib import Path
 from typing import List, Any, Optional, Tuple, Callable, Dict
 
-from benchmark_config import BenchmarkConfig, IPerf3Config, DDConfig, FIOConfig, Top500Config
+from benchmark_config import BenchmarkConfig
 
 # Import the registry types
-from .registry import LegacyWorkloadPlugin, CollectorPlugin
+from .registry import CollectorPlugin
 
 logger = logging.getLogger(__name__)
 
@@ -103,21 +103,7 @@ def builtin_plugins() -> List[Any]:
         EBPF_COLLECTOR,
     ]
 
-    # 1. Scan workload_generators/*.py
-    wg_path = Path(__file__).parent.parent / "workload_generators"
-    if wg_path.exists():
-        for item in wg_path.glob("*_generator.py"):
-            if item.name.startswith("_"):
-                continue
-            module_name = f"workload_generators.{item.stem}"
-            try:
-                mod = importlib.import_module(module_name)
-                if hasattr(mod, "PLUGIN"):
-                    plugins.append(mod.PLUGIN)
-            except ImportError as e:
-                logger.debug(f"Skipping generator {module_name}: {e}")
-
-    # 2. Scan plugins/*/plugin.py
+    # 1. Scan plugins/*/plugin.py
     plugins_path = Path(__file__).parent
     if plugins_path.exists():
         for item in plugins_path.iterdir():

@@ -68,7 +68,6 @@
     workdir = Path.cwd().resolve()
     sys.path.insert(0, str(workdir))
     sys.path.insert(0, str(workdir / "metric_collectors"))
-    sys.path.insert(0, str(workdir / "workload_generators"))
     sys.path.insert(0, str(workdir / "plugins"))
     sys.path.insert(0, str(workdir / "ui"))
     sys.path.insert(0, str(workdir / "services"))

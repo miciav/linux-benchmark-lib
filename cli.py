@@ -787,11 +787,6 @@ def plugin_install(
     ),
     manifest: Optional[Path] = typer.Option(None, "--manifest", "-m", help="Optional YAML manifest (only for .py installation)."),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing plugin."),
-    regen_assets: bool = typer.Option(
-        True,
-        "--regen-assets/--no-regen-assets",
-        help="Regenerate Dockerfile/Ansible plugin assets after installation.",
-    ),
 ) -> None:
     """Install a user plugin from a path or git repository."""
     installer = PluginInstaller()
@@ -799,17 +794,9 @@ def plugin_install(
         name = installer.install(path, manifest, force)
         ui.show_success(f"Plugin installed: {name}")
         ui.show_info("Run `lb plugin list` to verify.")
-        
-        if regen_assets:
-            from services.plugin_service import regenerate_plugin_assets
-
-            regenerate_plugin_assets(ui)
-        elif manifest or path.suffix in ['.zip', '.tar', '.gz', '.tgz']:
-             ui.show_warning("If the plugin has dependencies, run `uv run python tools/gen_plugin_assets.py` to update assets.")
     except Exception as e:
         ui.show_error(f"Installation failed: {e}")
         raise typer.Exit(1)
-
 
 @plugin_app.command("uninstall")
 def plugin_uninstall(
@@ -824,11 +811,6 @@ def plugin_uninstall(
         True,
         "--purge-config/--keep-config",
         help="Also remove the plugin entry from the config file when present.",
-    ),
-    regen_assets: bool = typer.Option(
-        True,
-        "--regen-assets/--no-regen-assets",
-        help="Regenerate Dockerfile/Ansible plugin assets after uninstall.",
     ),
 ) -> None:
     """Uninstall a user plugin."""
@@ -865,10 +847,6 @@ def plugin_uninstall(
         if config_stale:
             ui.show_warning(f"Saved default config not found: {config_stale}")
 
-        if regen_assets and (removed_files or removed_config):
-            from services.plugin_service import regenerate_plugin_assets
-
-            regenerate_plugin_assets(ui)
     except Exception as e:
         ui.show_error(f"Uninstall failed: {e}")
         raise typer.Exit(1)

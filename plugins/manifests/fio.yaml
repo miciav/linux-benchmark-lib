@@ -1,5 +1,0 @@
-name: fio
-description: Flexible IO tester workload
-apt_packages:
-  - fio
-pip_packages: []

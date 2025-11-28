@@ -7,13 +7,29 @@ This module uses iperf3 to generate network traffic.
 import iperf3
 import logging
 import ctypes.util
-from typing import Optional, List, Type
-from ._base_generator import BaseGenerator
-from benchmark_config import IPerf3Config
+from dataclasses import dataclass, field
+from typing import List, Optional, Type
+from pathlib import Path
+
+from plugins.base_generator import BaseGenerator
 from plugins.interface import WorkloadPlugin
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class IPerf3Config:
+    """Configuration for iperf3 network testing."""
+
+    server_host: str = "localhost"
+    server_port: int = 5201
+    protocol: str = "tcp"
+    parallel: int = 1
+    time: int = 60
+    bandwidth: Optional[str] = None
+    reverse: bool = False
+    json_output: bool = True
 
 
 class IPerf3Generator(BaseGenerator):
@@ -112,6 +128,9 @@ class IPerf3Plugin(WorkloadPlugin):
 
     def get_required_local_tools(self) -> List[str]:
         return ["iperf3"]
+
+    def get_dockerfile_path(self) -> Optional[Path]:
+        return Path(__file__).parent / "Dockerfile"
 
 
 PLUGIN = IPerf3Plugin()

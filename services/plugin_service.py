@@ -226,19 +226,3 @@ class PluginInstaller:
                 raise RuntimeError(msg) from exc
 
             return self.install(clone_path, force=force)
-
-
-def regenerate_plugin_assets(ui: Optional[Any] = None) -> None:
-    """Rebuild Dockerfile/Ansible plugin dependency sections."""
-    try:
-        from tools import gen_plugin_assets
-
-        gen_plugin_assets.generate()
-        if ui:
-            ui.show_info("Regenerated plugin assets (Dockerfile, Ansible tasks).")
-    except Exception as exc:  # pragma: no cover - best-effort helper
-        msg = f"Failed to regenerate plugin assets: {exc}"
-        if ui:
-            ui.show_warning(msg)
-        else:
-            logger.warning(msg)

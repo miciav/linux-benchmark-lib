@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, Optional, Type, Union
 
 from metric_collectors._base_collector import BaseCollector
-from workload_generators._base_generator import BaseGenerator
+from plugins.base_generator import BaseGenerator
 from benchmark_config import BenchmarkConfig
 from plugins.interface import WorkloadPlugin as IWorkloadPlugin
 from ui import get_ui_adapter
@@ -25,31 +25,6 @@ logger = logging.getLogger(__name__)
 ENTRYPOINT_GROUP = "linux_benchmark.workloads"
 COLLECTOR_ENTRYPOINT_GROUP = "linux_benchmark.collectors"
 USER_PLUGIN_DIR = Path.home() / ".config" / "lb" / "plugins"
-
-
-@dataclass
-class LegacyWorkloadPlugin:
-    """
-    Legacy adapter for unmigrated plugins.
-    DO NOT USE for new plugins. Use plugins.interface.WorkloadPlugin.
-    """
-    name: str
-    description: str
-    config_cls: Type[Any]
-    factory: Callable[[Any], BaseGenerator]
-
-    def create_generator(self, options: Optional[Dict[str, Any]] = None) -> BaseGenerator:
-        config_obj = self._build_config(options or {})
-        return self.factory(config_obj)
-
-    def _build_config(self, options: Dict[str, Any]) -> Any:
-        if isinstance(options, self.config_cls):
-            return options
-        return self.config_cls(**options)
-
-    def get_required_local_tools(self) -> list[str]:
-        """Legacy plugins do not support dynamic dependency checking yet."""
-        return []
 
 
 @dataclass
@@ -65,7 +40,7 @@ class PluginRegistry:
     """In-memory registry that supports built-in, entry-point, and user directory plugins."""
 
     def __init__(self, plugins: Optional[Iterable[Any]] = None):
-        self._workloads: Dict[str, Union[IWorkloadPlugin, LegacyWorkloadPlugin]] = {}
+        self._workloads: Dict[str, IWorkloadPlugin] = {}
         self._collectors: Dict[str, CollectorPlugin] = {}
         if plugins:
             for plugin in plugins:
@@ -77,8 +52,6 @@ class PluginRegistry:
         """Register a new plugin."""
         if isinstance(plugin, IWorkloadPlugin):
             self._workloads[plugin.name] = plugin
-        elif isinstance(plugin, LegacyWorkloadPlugin):
-            self._workloads[plugin.name] = plugin
         elif isinstance(plugin, CollectorPlugin):
             self._collectors[plugin.name] = plugin
         else:
@@ -88,7 +61,7 @@ class PluginRegistry:
             else:
                 raise TypeError(f"Unknown plugin type: {type(plugin)}")
 
-    def get(self, name: str) -> Union[IWorkloadPlugin, LegacyWorkloadPlugin]:
+    def get(self, name: str) -> IWorkloadPlugin:
         if name not in self._workloads:
             raise KeyError(f"Workload Plugin '{name}' not found")
         return self._workloads[name]
@@ -102,9 +75,6 @@ class PluginRegistry:
         self, plugin_name: str, options: Optional[Dict[str, Any]] = None
     ) -> BaseGenerator:
         plugin = self.get(plugin_name)
-        
-        if isinstance(plugin, LegacyWorkloadPlugin):
-            return plugin.create_generator(options)
         
         # New style: we need to handle config instantiation here or in the plugin
         # The interface says `create_generator(config: Any)`.

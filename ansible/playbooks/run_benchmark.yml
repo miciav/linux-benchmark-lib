@@ -19,3 +19,4 @@
         workload_runner_tests: "{{ tests }}"
         workload_runner_output_dir: "{{ remote_output_root }}/{{ inventory_hostname }}"
         workload_runner_config: "{{ benchmark_config }}"
+        lb_workdir: "{{ lb_workdir | default('/opt/lb') }}" # Pass lb_workdir to the role

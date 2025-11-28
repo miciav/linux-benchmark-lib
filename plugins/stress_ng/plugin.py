@@ -11,7 +11,7 @@ from typing import Optional, List, Any, Type
 
 # Need to adjust imports since we are now in plugins.stress_ng
 # Assuming the base classes are still accessible via absolute imports
-from workload_generators._base_generator import BaseGenerator
+from plugins.base_generator import BaseGenerator
 from plugins.interface import WorkloadPlugin
 
 logger = logging.getLogger(__name__)

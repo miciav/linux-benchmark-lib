@@ -7,13 +7,31 @@ This module uses fio (Flexible I/O Tester) to generate advanced disk I/O workloa
 import subprocess
 import json
 import logging
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional, List, Type
-from ._base_generator import BaseGenerator
+from pathlib import Path
+from plugins.base_generator import BaseGenerator
 from plugins.interface import WorkloadPlugin
-from benchmark_config import FIOConfig
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FIOConfig:
+    """Configuration for fio I/O testing."""
+
+    job_file: Optional[Path] = None
+    runtime: int = 60
+    rw: str = "randrw"
+    bs: str = "4k"
+    iodepth: int = 16
+    numjobs: int = 1
+    size: str = "1G"
+    directory: str = "/tmp"
+    name: str = "benchmark"
+    output_format: str = "json"
 
 
 class FIOGenerator(BaseGenerator):
@@ -190,6 +208,9 @@ class FIOPlugin(WorkloadPlugin):
 
     def get_required_local_tools(self) -> List[str]:
         return ["fio"]
+
+    def get_dockerfile_path(self) -> Optional[Path]:
+        return Path(__file__).parent / "Dockerfile"
 
 
 PLUGIN = FIOPlugin()

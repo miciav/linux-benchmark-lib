@@ -5,63 +5,10 @@ This module provides centralized configuration management.
 """
 
 import json
-from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-
-@dataclass
-class StressNGConfig:
-    """Compatibility config for stress-ng (matches workload_generators version)."""
-
-    cpu_workers: int = 0  # 0 means use all available CPUs
-    cpu_method: str = "all"  # CPU stress method
-    vm_workers: int = 1  # Virtual memory workers
-    vm_bytes: str = "1G"  # Memory per VM worker
-    io_workers: int = 1  # I/O workers
-    timeout: int = 60  # Timeout in seconds
-    metrics_brief: bool = True  # Use brief metrics output
-    extra_args: List[str] = field(default_factory=list)
-
-DEFAULT_TOP500_REPO = "https://github.com/geerlingguy/top500-benchmark.git"
-
-# Legacy configs kept here until all plugins are refactored
-@dataclass
-class IPerf3Config:
-    """Configuration for iperf3 network testing."""
-    server_host: str = "localhost"
-    server_port: int = 5201
-    protocol: str = "tcp"
-    parallel: int = 1
-    time: int = 60
-    bandwidth: Optional[str] = None
-    reverse: bool = False
-    json_output: bool = True
-
-@dataclass
-class DDConfig:
-    """Configuration for dd I/O testing."""
-    if_path: str = "/dev/zero"
-    of_path: str = "/tmp/dd_test"
-    bs: str = "1M"
-    count: int = 1024
-    conv: Optional[str] = None
-    oflag: Optional[str] = "direct"
-
-@dataclass
-class FIOConfig:
-    """Configuration for fio I/O testing."""
-    job_file: Optional[Path] = None
-    runtime: int = 60
-    rw: str = "randrw"
-    bs: str = "4k"
-    iodepth: int = 16
-    numjobs: int = 1
-    size: str = "1G"
-    directory: str = "/tmp"
-    name: str = "benchmark"
-    output_format: str = "json"
 
 @dataclass
 class PerfConfig:
@@ -128,16 +75,6 @@ class RemoteExecutionConfig:
     use_container_fallback: bool = False
 
 @dataclass
-class Top500Config:
-    """Configuration for the Top500 (HPL Linpack) workload plugin."""
-    repo_url: str = DEFAULT_TOP500_REPO
-    repo_ref: Optional[str] = None
-    workdir: Path = Path("/opt/top500-benchmark")
-    tags: List[str] = field(default_factory=lambda: ["setup", "benchmark"])
-    inventory_hosts: List[str] = field(default_factory=lambda: ["localhost ansible_connection=local"])
-    config_overrides: Dict[str, Any] = field(default_factory=dict)
-
-@dataclass
 class WorkloadConfig:
     """Configuration wrapper for workload plugins."""
     plugin: str
@@ -159,13 +96,6 @@ class BenchmarkConfig:
     output_dir: Path = Path("./benchmark_results")
     report_dir: Path = Path("./reports")
     data_export_dir: Path = Path("./data_exports")
-    
-    # Legacy hardcoded fields (temporarily kept for non-migrated plugins)
-    stress_ng: StressNGConfig = field(default_factory=StressNGConfig)
-    iperf3: IPerf3Config = field(default_factory=IPerf3Config)
-    dd: DDConfig = field(default_factory=DDConfig)
-    fio: FIOConfig = field(default_factory=FIOConfig)
-    top500: Top500Config = field(default_factory=Top500Config)
     
     # Dynamic Plugin Settings (The new way)
     # Stores config objects for migrated plugins (stress_ng, geekbench)
@@ -192,9 +122,8 @@ class BenchmarkConfig:
     influxdb_bucket: str = "performance"
     
     def __post_init__(self) -> None:
-        if self.stress_ng and "stress_ng" not in self.plugin_settings:
-            self.plugin_settings["stress_ng"] = self.stress_ng
         self._hydrate_plugin_settings()
+        self._ensure_workloads_from_plugin_settings()
         self._validate_remote_hosts()
 
     def ensure_output_dirs(self) -> None:
@@ -236,14 +165,6 @@ class BenchmarkConfig:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "BenchmarkConfig":
         # We need to handle this in ConfigService mainly, but for basic usage:
-        
-        # Handle legacy fields
-        if "iperf3" in data: data["iperf3"] = IPerf3Config(**data["iperf3"])
-        if "dd" in data: data["dd"] = DDConfig(**data["dd"])
-        if "fio" in data: data["fio"] = FIOConfig(**data["fio"])
-        if "top500" in data:
-            if "workdir" in data["top500"]: data["top500"]["workdir"] = Path(data["top500"]["workdir"])
-            data["top500"] = Top500Config(**data["top500"])
 
         # Handle migrated fields (stress_ng, geekbench) that might still be in the JSON root
         # We move them to plugin_settings temporarily as dicts.
@@ -255,10 +176,21 @@ class BenchmarkConfig:
             plugin_settings["geekbench"] = data.pop("geekbench")
         if "sysbench" in data:
             plugin_settings["sysbench"] = data.pop("sysbench")
+        for legacy_plugin in ["iperf3", "dd", "fio", "top500"]:
+            if legacy_plugin in data:
+                plugin_settings[legacy_plugin] = data.pop(legacy_plugin)
         
         # Also preserve any existing plugin_settings
         if "plugin_settings" in data:
             plugin_settings.update(data.pop("plugin_settings"))
+
+        # Normalize path-like entries for known plugins
+        if "top500" in plugin_settings and isinstance(plugin_settings["top500"], dict):
+            if "workdir" in plugin_settings["top500"] and isinstance(plugin_settings["top500"]["workdir"], str):
+                plugin_settings["top500"]["workdir"] = Path(plugin_settings["top500"]["workdir"])
+        if "fio" in plugin_settings and isinstance(plugin_settings["fio"], dict):
+            if "job_file" in plugin_settings["fio"] and isinstance(plugin_settings["fio"]["job_file"], str):
+                plugin_settings["fio"]["job_file"] = Path(plugin_settings["fio"]["job_file"])
             
         if "collectors" in data:
             if "perf_config" in data["collectors"]:
@@ -316,22 +248,50 @@ class BenchmarkConfig:
                     pass
 
         try:
-            from workload_generators.stress_ng_generator import StressNGConfig
+            from plugins.stress_ng.plugin import StressNGConfig
             _convert("stress_ng", StressNGConfig)
         except Exception:
             pass
 
         try:
-            from workload_generators.geekbench_generator import GeekbenchConfig
-            _convert("geekbench", GeekbenchConfig)
+            from plugins.iperf3.plugin import IPerf3Config
+            _convert("iperf3", IPerf3Config)
         except Exception:
             pass
 
         try:
-            from workload_generators.sysbench_generator import SysbenchConfig
-            if "sysbench" in self.plugin_settings and isinstance(self.plugin_settings["sysbench"], dict):
-                if self.plugin_settings["sysbench"].get("events") is None:
-                    self.plugin_settings["sysbench"]["events"] = 0
-            _convert("sysbench", SysbenchConfig)
+            from plugins.fio.plugin import FIOConfig
+            _convert("fio", FIOConfig)
         except Exception:
             pass
+
+        try:
+            from plugins.dd.plugin import DDConfig
+            _convert("dd", DDConfig)
+        except Exception:
+            pass
+
+    def _ensure_workloads_from_plugin_settings(self) -> None:
+        """
+        Ensure every plugin setting has a corresponding WorkloadConfig entry.
+
+        Defaults to disabled to avoid surprising runs, but captures options.
+        """
+        for plugin_name, settings in self.plugin_settings.items():
+            if plugin_name in self.workloads:
+                continue
+
+            options: Dict[str, Any] = {}
+            if hasattr(settings, "__dataclass_fields__"):
+                try:
+                    options = asdict(settings)
+                except Exception:
+                    options = {}
+            elif isinstance(settings, dict):
+                options = settings
+
+            self.workloads[plugin_name] = WorkloadConfig(
+                plugin=plugin_name,
+                enabled=False,
+                options=options,
+            )
