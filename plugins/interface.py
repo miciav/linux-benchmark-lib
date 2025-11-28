@@ -1,10 +1,14 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
-# We avoid importing BaseGenerator here to prevent circular imports,
-# using TYPE_CHECKING or just Any for the return type in the signature.
+class WorkloadIntensity(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    USER_DEFINED = "user_defined"
 
 class WorkloadPlugin(ABC):
     """
@@ -47,6 +51,13 @@ class WorkloadPlugin(ABC):
             config: An instance of self.config_cls
         """
         pass
+    
+    def get_preset_config(self, level: WorkloadIntensity) -> Optional[Any]:
+        """
+        Return a configuration object for the specified intensity level.
+        If USER_DEFINED or not implemented, return None.
+        """
+        return None
 
     def get_required_apt_packages(self) -> List[str]:
         """Return list of APT packages required by this plugin."""

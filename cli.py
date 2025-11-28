@@ -27,11 +27,11 @@ from ui.types import UIAdapter
 
 
 ui: UIAdapter = get_ui_adapter()
-app = typer.Typer(help="Run linux-benchmark workloads locally or against remote hosts.")
-config_app = typer.Typer(help="Manage benchmark configuration files.")
-doctor_app = typer.Typer(help="Check local prerequisites.")
-test_app = typer.Typer(help="Convenience helpers to run integration tests.")
-plugin_app = typer.Typer(help="Inspect and manage workload plugins.")
+app = typer.Typer(help="Run linux-benchmark workloads locally or against remote hosts.", no_args_is_help=True)
+config_app = typer.Typer(help="Manage benchmark configuration files.", no_args_is_help=True)
+doctor_app = typer.Typer(help="Check local prerequisites.", no_args_is_help=True)
+test_app = typer.Typer(help="Convenience helpers to run integration tests.", no_args_is_help=True)
+plugin_app = typer.Typer(help="Inspect and manage workload plugins.", no_args_is_help=True)
 
 _CLI_ROOT = Path(__file__).resolve().parent
 _DEV_MARKER = _CLI_ROOT / ".lb_dev_cli"
@@ -100,16 +100,15 @@ def _print_run_plan(
         [
             item["name"],
             item["plugin"],
+            item["intensity"],
+            item["details"],
             item["status"],
-            item["duration"],
-            item["warmup_cooldown"],
-            item["repetitions"],
         ]
         for item in plan
     ]
     ui.show_table(
         "Run Plan",
-        ["Workload", "Plugin", "Status", "Duration", "Warmup/Cooldown", "Repetitions"],
+        ["Workload", "Plugin", "Intensity", "Configuration", "Status"],
         rows,
     )
 
@@ -531,6 +530,12 @@ def run(
         "--docker-no-cache",
         help="Disable cache when building the image with --docker.",
     ),
+    intensity: str = typer.Option(
+        None,
+        "--intensity",
+        "-i",
+        help="Override workload intensity (low, medium, high, user_defined).",
+    ),
 ) -> None:
     """Run workloads locally, remotely, or inside the container image."""
     cfg, resolved, stale = config_service.load_for_read(config)
@@ -540,6 +545,12 @@ def run(
         ui.show_success(f"Loaded config: {resolved}")
     else:
         ui.show_warning("No config file found; using built-in defaults.")
+
+    # Apply CLI intensity override
+    if intensity:
+        for wl_name in cfg.workloads:
+            cfg.workloads[wl_name].intensity = intensity
+        ui.show_info(f"Global intensity override: {intensity}")
 
     cfg.ensure_output_dirs()
 

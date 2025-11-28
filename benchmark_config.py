@@ -79,6 +79,7 @@ class WorkloadConfig:
     """Configuration wrapper for workload plugins."""
     plugin: str
     enabled: bool = True
+    intensity: str = "user_defined"  # low, medium, high, user_defined
     options: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
@@ -219,6 +220,7 @@ class BenchmarkConfig:
                 name: WorkloadConfig(
                     plugin=cfg.get("plugin", name),
                     enabled=cfg.get("enabled", True),
+                    intensity=cfg.get("intensity", "user_defined"),
                     options=cfg.get("options", {}),
                 )
                 for name, cfg in data["workloads"].items()

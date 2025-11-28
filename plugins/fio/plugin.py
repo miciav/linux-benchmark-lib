@@ -9,10 +9,10 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, List, Type
+from typing import Optional, List, Type, Any
 from pathlib import Path
 from plugins.base_generator import BaseGenerator
-from plugins.interface import WorkloadPlugin
+from plugins.interface import WorkloadPlugin, WorkloadIntensity
 
 
 logger = logging.getLogger(__name__)
@@ -203,6 +203,33 @@ class FIOPlugin(WorkloadPlugin):
     def create_generator(self, config: FIOConfig) -> FIOGenerator:
         return FIOGenerator(config)
     
+    def get_preset_config(self, level: WorkloadIntensity) -> Optional[FIOConfig]:
+        if level == WorkloadIntensity.LOW:
+            return FIOConfig(
+                rw="read",
+                bs="1M",
+                numjobs=1,
+                iodepth=4,
+                runtime=30
+            )
+        elif level == WorkloadIntensity.MEDIUM:
+            return FIOConfig(
+                rw="randrw",
+                bs="4k",
+                numjobs=4,
+                iodepth=16,
+                runtime=60
+            )
+        elif level == WorkloadIntensity.HIGH:
+            return FIOConfig(
+                rw="randwrite",
+                bs="4k",
+                numjobs=8,
+                iodepth=64,
+                runtime=120
+            )
+        return None
+
     def get_required_apt_packages(self) -> List[str]:
         return ["fio"]
 

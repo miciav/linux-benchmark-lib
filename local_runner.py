@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional
 from benchmark_config import BenchmarkConfig, WorkloadConfig
 from data_handler import DataHandler
 from plugins.registry import PluginRegistry, print_plugin_table
+from plugins.interface import WorkloadIntensity
 from ui import get_ui_adapter
 from ui.types import UIAdapter
 
@@ -313,8 +314,25 @@ class LocalRunner:
             logger.info(f"Starting repetition {rep}/{self.config.repetitions}")
             
             try:
+                plugin = self.plugin_registry.get(plugin_name)
+                
+                # Determine configuration: Preset or User Options
+                config_input = workload_cfg.options
+                
+                if workload_cfg.intensity and workload_cfg.intensity != "user_defined":
+                    try:
+                        level = WorkloadIntensity(workload_cfg.intensity)
+                        preset_config = plugin.get_preset_config(level)
+                        if preset_config:
+                            logger.info(f"Using preset configuration for intensity '{level.value}'")
+                            config_input = preset_config
+                        else:
+                            logger.warning(f"Plugin '{plugin_name}' does not support intensity '{level.value}', falling back to user options.")
+                    except ValueError:
+                        logger.warning(f"Invalid intensity level '{workload_cfg.intensity}', falling back to user options.")
+
                 generator = self.plugin_registry.create_generator(
-                    plugin_name, workload_cfg.options
+                    plugin_name, config_input
                 )
                 self.ui.show_info(
                     f"==> Running workload '{test_type}' (repetition {rep}/{self.config.repetitions})"

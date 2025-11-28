@@ -8,9 +8,9 @@ import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Type
+from typing import List, Optional, Type, Any
 
-from plugins.interface import WorkloadPlugin
+from plugins.interface import WorkloadPlugin, WorkloadIntensity
 from plugins.base_generator import BaseGenerator
 
 logger = logging.getLogger(__name__)
@@ -181,6 +181,28 @@ class DDPlugin(WorkloadPlugin):
         if isinstance(config, dict):
             config = DDConfig(**config)
         return DDGenerator(config)
+
+    def get_preset_config(self, level: WorkloadIntensity) -> Optional[DDConfig]:
+        if level == WorkloadIntensity.LOW:
+            return DDConfig(
+                bs="1M",
+                count=256, # 256MB
+                oflag="direct"
+            )
+        elif level == WorkloadIntensity.MEDIUM:
+            return DDConfig(
+                bs="4M",
+                count=256, # 1GB
+                oflag="direct"
+            )
+        elif level == WorkloadIntensity.HIGH:
+            return DDConfig(
+                bs="4M",
+                count=1024, # 4GB
+                oflag="direct",
+                conv="fdatasync"
+            )
+        return None
 
     def get_required_apt_packages(self) -> List[str]:
         return ["coreutils"]

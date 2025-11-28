@@ -8,11 +8,11 @@ import iperf3
 import logging
 import ctypes.util
 from dataclasses import dataclass, field
-from typing import List, Optional, Type
+from typing import List, Optional, Type, Any
 from pathlib import Path
 
 from plugins.base_generator import BaseGenerator
-from plugins.interface import WorkloadPlugin
+from plugins.interface import WorkloadPlugin, WorkloadIntensity
 
 
 logger = logging.getLogger(__name__)
@@ -119,6 +119,27 @@ class IPerf3Plugin(WorkloadPlugin):
 
     def create_generator(self, config: IPerf3Config) -> IPerf3Generator:
         return IPerf3Generator(config)
+
+    def get_preset_config(self, level: WorkloadIntensity) -> Optional[IPerf3Config]:
+        if level == WorkloadIntensity.LOW:
+            return IPerf3Config(
+                parallel=1,
+                time=30,
+                protocol="tcp"
+            )
+        elif level == WorkloadIntensity.MEDIUM:
+            return IPerf3Config(
+                parallel=4,
+                time=60,
+                protocol="tcp"
+            )
+        elif level == WorkloadIntensity.HIGH:
+            return IPerf3Config(
+                parallel=8,
+                time=120,
+                protocol="tcp"
+            )
+        return None
 
     def get_required_apt_packages(self) -> List[str]:
         return ["iperf3", "libiperf0"]

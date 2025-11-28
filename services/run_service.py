@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import ctypes.util
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 
 from benchmark_config import BenchmarkConfig
-# from controller import BenchmarkController, RunExecutionSummary # Moved inside method
 from local_runner import LocalRunner
 from plugins.registry import PluginRegistry
+from plugins.interface import WorkloadIntensity
 from services.container_service import ContainerRunner, ContainerRunSpec
 from ui.types import UIAdapter
 
@@ -60,7 +60,7 @@ class RunService:
         """
         Build a detailed plan for the workloads to be run.
         
-        Returns a list of dictionaries containing status, duration, etc.
+        Returns a list of dictionaries containing status, intensity, details, etc.
         """
         registry = registry or self._registry_factory()
         plan = []
@@ -71,49 +71,107 @@ class RunService:
                 "name": name,
                 "plugin": wl.plugin if wl else "unknown",
                 "status": "[yellow]?[/yellow]",
-                "duration": f"{cfg.test_duration_seconds}s",
-                "warmup_cooldown": f"{cfg.warmup_seconds}s/{cfg.cooldown_seconds}s",
+                "intensity": wl.intensity if wl else "-",
+                "details": "-",
                 "repetitions": str(cfg.repetitions),
             }
             
             if not wl:
-                item["status"] = "[yellow]?[/yellow]"
                 plan.append(item)
                 continue
 
             try:
                 plugin = registry.get(wl.plugin)
             except Exception:
-                item["status"] = "[red]✗[/red]"
+                item["status"] = "[red]✗ (Missing)[/red]"
                 plan.append(item)
                 continue
+
+            # Resolve Configuration (Preset vs Options)
+            config_obj = None
+            try:
+                if wl.intensity and wl.intensity != "user_defined":
+                    try:
+                        level = WorkloadIntensity(wl.intensity)
+                        config_obj = plugin.get_preset_config(level)
+                    except ValueError:
+                        pass # Invalid intensity, will fall back
+                
+                # Fallback to user options if no preset found/used
+                if config_obj is None:
+                    # Instantiate config from dict
+                    if isinstance(wl.options, dict):
+                        config_obj = plugin.config_cls(**wl.options)
+                    else:
+                        config_obj = wl.options
+            except Exception as e:
+                item["details"] = f"[red]Config Error: {e}[/red]"
+
+            # Format details string
+            if config_obj:
+                try:
+                    # Convert to dict, filter None values
+                    data = asdict(config_obj)
+                    # Prioritize common fields for brevity
+                    parts = []
+                    
+                    # Duration/Timeout check
+                    duration = data.get("timeout") or data.get("time") or data.get("runtime")
+                    if duration:
+                        parts.append(f"Time: {duration}s")
+                    
+                    # Specific fields per plugin type
+                    if "cpu_workers" in data and data["cpu_workers"] > 0:
+                        parts.append(f"CPU: {data['cpu_workers']}")
+                    if "vm_bytes" in data:
+                        parts.append(f"VM: {data['vm_bytes']}")
+                    if "bs" in data:
+                        parts.append(f"BS: {data['bs']}")
+                    if "count" in data and data["count"]:
+                        parts.append(f"Count: {data['count']}")
+                    if "parallel" in data:
+                        parts.append(f"Streams: {data['parallel']}")
+                    if "rw" in data:
+                        parts.append(f"Mode: {data['rw']}")
+                    if "iodepth" in data:
+                        parts.append(f"Depth: {data['iodepth']}")
+                        
+                    # Fallback if specific fields didn't cover much
+                    if len(parts) < 2:
+                        parts = [f"{k}={v}" for k, v in data.items() if v is not None and k not in ["extra_args"]]
+                    
+                    item["details"] = ", ".join(parts)
+                except Exception:
+                    item["details"] = str(config_obj)
 
             if docker_mode:
                 item["status"] = "[green]Container[/green]"
                 plan.append(item)
                 continue
 
-            # Special-case iperf3 to avoid noisy client creation
+            # Special-case iperf3 check
             if plugin.name == "iperf3":
                 lib = ctypes.util.find_library("iperf")
-                item["status"] = "[green]✓[/green]" if lib else "[red]✗[/red]"
+                item["status"] = "[green]✓[/green]" if lib else "[red]✗ (Lib Missing)[/red]"
                 plan.append(item)
                 continue
 
+            # General Environment Validation
             try:
-                gen = plugin.create_generator(wl.options)
-                # Use public API for checking prerequisites if available
+                # Create a temporary generator just to check environment
+                gen = plugin.create_generator(config_obj)
+                
+                # Check check_prerequisites or _validate_environment
                 checker = getattr(gen, "check_prerequisites", None)
                 if callable(checker):
                     is_ok = checker()
                 else:
-                    # Fallback to legacy private method
                     validator = getattr(gen, "_validate_environment", None)
                     is_ok = validator() if callable(validator) else False
                 
-                item["status"] = "[green]✓[/green]" if is_ok else "[red]✗[/red]"
+                item["status"] = "[green]✓[/green]" if is_ok else "[red]✗ (Env Check)[/red]"
             except Exception:
-                item["status"] = "[red]✗[/red]"
+                item["status"] = "[red]✗ (Init Failed)[/red]"
             
             plan.append(item)
             

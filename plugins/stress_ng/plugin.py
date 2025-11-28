@@ -12,7 +12,7 @@ from typing import Optional, List, Any, Type
 # Need to adjust imports since we are now in plugins.stress_ng
 # Assuming the base classes are still accessible via absolute imports
 from plugins.base_generator import BaseGenerator
-from plugins.interface import WorkloadPlugin
+from plugins.interface import WorkloadPlugin, WorkloadIntensity
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +131,35 @@ class StressNGPlugin(WorkloadPlugin):
     def create_generator(self, config: StressNGConfig) -> StressNGGenerator:
         return StressNGGenerator(config)
     
+    def get_preset_config(self, level: WorkloadIntensity) -> Optional[StressNGConfig]:
+        if level == WorkloadIntensity.LOW:
+            return StressNGConfig(
+                cpu_workers=1,
+                vm_workers=1,
+                vm_bytes="128M",
+                io_workers=0,
+                timeout=30
+            )
+        elif level == WorkloadIntensity.MEDIUM:
+            return StressNGConfig(
+                cpu_workers=0, # All cores
+                vm_workers=1,
+                vm_bytes="50%", # 50% of available RAM
+                io_workers=1,
+                timeout=60,
+                extra_args=["--cpu-load", "50"]
+            )
+        elif level == WorkloadIntensity.HIGH:
+            return StressNGConfig(
+                cpu_workers=0,
+                cpu_method="matrixprod",
+                vm_workers=2,
+                vm_bytes="90%",
+                io_workers=4,
+                timeout=120
+            )
+        return None
+
     def get_required_apt_packages(self) -> List[str]:
         return ["stress-ng"]
 
