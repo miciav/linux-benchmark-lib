@@ -233,10 +233,13 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         env_dir.mkdir(parents=True, exist_ok=True)
         extravars_file = env_dir / "extravars.json"
         extravars_file.write_text(json.dumps(extravars))
-        cmd.extend(["-e", f"@{extravars_file}"])
+        cmd.extend(["-e", f"@{extravars_file.resolve()}"])
 
         env = os.environ.copy()
         env.update(envvars)
+
+        logger.debug("Executing Ansible command: %s", " ".join(cmd))
+        logger.debug("Ansible Env: %s", envvars)
 
         if self.stream_output:
             proc = subprocess.Popen(
@@ -265,7 +268,9 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             )
             rc = completed.returncode
             if rc != 0:
-                logger.error("ansible-playbook failed: %s", completed.stdout)
+                logger.error("ansible-playbook failed rc=%s", rc)
+                logger.error("stdout: %s", completed.stdout)
+                logger.error("stderr: %s", completed.stderr)
 
         status = "successful" if rc == 0 else "failed"
         return ExecutionResult(rc=rc, status=status, stats={})
@@ -281,7 +286,12 @@ class BenchmarkController:
         output_callback: Optional[Callable[[str, str], None]] = None,
     ):
         self.config = config
-        self.executor = executor or AnsibleRunnerExecutor(output_callback=output_callback)
+        # Enable streaming if a callback is provided
+        stream = output_callback is not None
+        self.executor = executor or AnsibleRunnerExecutor(
+            output_callback=output_callback, 
+            stream_output=stream
+        )
         self.plugin_registry = create_registry()
 
     def run(

@@ -16,11 +16,6 @@
     state: directory
     mode: "0755"
 
-- name: Check if Top500 workload is requested (not used here anymore as deps are per-plugin)
-  set_fact:
-    workload_runner_top500_enabled: false # Always false, top500 plugin will manage its own deps
-  when: false # This task is effectively disabled
-
 - name: Prepare benchmark configuration for this host
   set_fact:
     workload_runner_config_rendered: >-

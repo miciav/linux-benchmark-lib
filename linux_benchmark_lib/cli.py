@@ -88,12 +88,16 @@ def _print_run_plan(
     tests: List[str],
     registry: Optional[PluginRegistry] = None,
     docker_mode: bool = False,
+    multipass_mode: bool = False,
+    remote_mode: bool = False,
 ) -> None:
     """Render a compact table of the workloads about to run with availability hints."""
     plan = run_service.get_run_plan(
         cfg,
         tests,
         docker_mode,
+        multipass_mode,
+        remote_mode,
         registry=registry or create_registry(),
     )
 
@@ -552,6 +556,11 @@ def run(
         "--docker-no-cache",
         help="Disable cache when building the image with --docker.",
     ),
+    multipass: bool = typer.Option(
+        False,
+        "--multipass",
+        help="Provision an ephemeral Multipass VM and run benchmarks on it.",
+    ),
     debug: bool = typer.Option(
         False,
         "--debug",
@@ -607,7 +616,15 @@ def run(
         raise typer.Exit(1)
 
     registry = create_registry()
-    _print_run_plan(cfg, target_tests, registry=registry, docker_mode=docker)
+    effective_remote = remote if remote is not None else cfg.remote_execution.enabled
+    _print_run_plan(
+        cfg,
+        target_tests,
+        registry=registry,
+        docker_mode=docker,
+        multipass_mode=multipass,
+        remote_mode=effective_remote,
+    )
 
     try:
         context = run_service.build_context(
@@ -615,6 +632,7 @@ def run(
             target_tests,
             remote_override=remote,
             docker=docker,
+            multipass=multipass,
             docker_image=docker_image,
             docker_engine=docker_engine,
             docker_build=not docker_no_build,

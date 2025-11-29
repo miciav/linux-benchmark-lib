@@ -2,20 +2,91 @@
 
 from __future__ import annotations
 
+import re
 import ctypes.util
 from dataclasses import dataclass, asdict
 from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 
-from ..benchmark_config import BenchmarkConfig
+from ..benchmark_config import BenchmarkConfig, RemoteExecutionConfig
 from ..local_runner import LocalRunner
 from ..plugins.registry import PluginRegistry
 from ..plugins.interface import WorkloadIntensity
 from .container_service import ContainerRunner, ContainerRunSpec
+from .multipass_service import MultipassService
 from ..ui.types import UIAdapter
 
 if TYPE_CHECKING:
     from ..controller import BenchmarkController, RunExecutionSummary
+
+
+class AnsibleOutputFormatter:
+    """Parses raw Ansible output stream and prints user-friendly status updates."""
+    
+    def __init__(self):
+        # Regex to capture "TASK [role : Task Name] ***"
+        self.task_pattern = re.compile(r"TASK \[(.*?)\]")
+        # Regex to capture "Running benchmark: name" from python script
+        self.bench_pattern = re.compile(r"Running benchmark: (.*)")
+    
+    def process(self, text: str, end: str = ""):
+        # Ansible often sends partial lines or multiple lines.
+        # For simplicity in this stream processor, we print line by line.
+        if not text:
+            return
+        
+        # Simple buffering could be added here if needed, but for now handle full lines usually sent by runner
+        lines = text.splitlines()
+        for line in lines:
+            self._handle_line(line)
+
+    def _handle_line(self, line: str):
+        line = line.strip()
+        if not line:
+            return
+
+        # Filter noise
+        if any(x in line for x in ["PLAY [", "GATHERING FACTS", "RECAP", "ok:", "skipping:", "included:"]):
+            return
+        if line.startswith("*****"):
+            return
+
+        # Format Tasks
+        task_match = self.task_pattern.search(line)
+        if task_match:
+            task_name = task_match.group(1).strip()
+            # Cleanup "workload_runner :" prefix if present
+            if " : " in task_name:
+                _, task_name = task_name.split(" : ", 1)
+            print(f"• [Setup] {task_name}")
+            return
+
+        # Format Benchmark Start (from python script)
+        bench_match = self.bench_pattern.search(line)
+        if bench_match:
+            bench_name = bench_match.group(1)
+            print(f"\n>>> Benchmark: {bench_name} <<<\n")
+            return
+
+        # Format Changes (usually means success in ansible terms)
+        if line.startswith("changed:"):
+            return
+
+        # Pass through interesting lines from the benchmark script
+        # The python script uses logging format: "DATE [INFO] ..."
+        if "linux_benchmark_lib.local_runner" in line or "Running test" in line or "Progress:" in line or "Completed" in line:
+             # Clean up the log prefix if desired, or just print
+             print(f"  {line}")
+             return
+        
+        # Pass through raw output that looks like a progress bar (rich output often has special chars)
+        if "━" in line:
+             print(f"  {line}")
+             return
+
+        # Pass through errors
+        if "fatal:" in line or "ERROR" in line or "failed:" in line:
+            print(f"[!] {line}")
 
 
 @dataclass
@@ -27,6 +98,7 @@ class RunContext:
     registry: PluginRegistry
     use_remote: bool
     use_container: bool = False
+    use_multipass: bool = False
     config_path: Optional[Path] = None
     docker_image: str = "linux-benchmark-lib:dev"
     docker_engine: str = "docker"
@@ -56,6 +128,8 @@ class RunService:
         cfg: BenchmarkConfig,
         tests: List[str],
         docker_mode: bool = False,
+        multipass_mode: bool = False,
+        remote_mode: bool = False,
         registry: PluginRegistry | None = None,
     ) -> List[Dict[str, Any]]:
         """
@@ -150,6 +224,16 @@ class RunService:
                 plan.append(item)
                 continue
 
+            if multipass_mode:
+                item["status"] = "[green]Multipass[/green]"
+                plan.append(item)
+                continue
+
+            if remote_mode:
+                item["status"] = "[blue]Remote[/blue]"
+                plan.append(item)
+                continue
+
             # Special-case iperf3 check
             if plugin.name == "iperf3":
                 lib = ctypes.util.find_library("iperf")
@@ -184,6 +268,7 @@ class RunService:
         tests: Optional[List[str]],
         remote_override: Optional[bool],
         docker: bool = False,
+        multipass: bool = False,
         docker_image: str = "linux-benchmark-lib:dev",
         docker_engine: str = "docker",
         docker_build: bool = True,
@@ -197,6 +282,9 @@ class RunService:
             name for name, workload in cfg.workloads.items() if workload.enabled
         ]
         use_remote = remote_override if remote_override is not None else cfg.remote_execution.enabled
+        
+        if multipass:
+            use_remote = True
 
         # Use repo root (where Dockerfile lives) as the container build context
         project_root = Path(__file__).resolve().parent.parent.parent
@@ -206,6 +294,7 @@ class RunService:
             registry=registry,
             use_remote=use_remote,
             use_container=docker,
+            use_multipass=multipass,
             config_path=config_path,
             docker_image=docker_image,
             docker_engine=docker_engine,
@@ -223,6 +312,49 @@ class RunService:
         ui_adapter: UIAdapter | None = None,
     ) -> RunResult:
         """Execute benchmarks using the provided context."""
+        
+        # Ensure we always stream output for remote/multipass to show progress
+        if output_callback is None:
+            if context.debug:
+                # In debug mode, print everything raw for troubleshooting
+                def _debug_printer(text: str, end: str = ""):
+                    print(text, end=end, flush=True)
+                output_callback = _debug_printer
+            else:
+                # In normal mode, use the pretty formatter to hide Ansible noise
+                formatter = AnsibleOutputFormatter()
+                output_callback = formatter.process
+
+        # Logic for Multipass Execution
+        if context.use_multipass:
+            # Create a temp dir for keys relative to output to keep project clean or use system temp
+            temp_keys_dir = context.config.output_dir.parent / "temp_keys"
+            temp_keys_dir.mkdir(parents=True, exist_ok=True)
+            
+            service = MultipassService(temp_keys_dir)
+            
+            # Context Manager ensures cleanup happens even if benchmarks fail
+            with service.provision() as remote_host:
+                if ui_adapter:
+                    ui_adapter.show_success(f"Provisioned Multipass VM: {remote_host.address}")
+                
+                # Override configuration dynamically
+                context.config.remote_hosts = [remote_host]
+                context.config.remote_execution.enabled = True
+                
+                # Ensure playbook paths are absolute and valid (reset to defaults)
+                # This prevents errors if the user config has broken/relative paths
+                defaults = RemoteExecutionConfig()
+                context.config.remote_execution.setup_playbook = defaults.setup_playbook
+                context.config.remote_execution.run_playbook = defaults.run_playbook
+                context.config.remote_execution.collect_playbook = defaults.collect_playbook
+                
+                # Reuse the existing remote execution logic
+                from ..controller import BenchmarkController
+                controller = BenchmarkController(context.config, output_callback=output_callback)
+                summary = controller.run(context.target_tests, run_id=run_id)
+                return RunResult(context=context, summary=summary)
+
         if context.use_container:
             root = context.docker_workdir or context.config.output_dir.parent.parent.resolve()
             spec = ContainerRunSpec(
