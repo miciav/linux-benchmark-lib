@@ -195,22 +195,31 @@ class LocalRunner:
             # Run for the specified duration
             logger.info(f"Running test for {self.config.test_duration_seconds} seconds")
             
-            # Loop to provide progress feedback
+            # Loop to wait for completion with a safety timeout
             duration = self.config.test_duration_seconds
-            for i in range(duration):
-                time.sleep(1)
+            safety_buffer = 10  # Allow 10 extra seconds for graceful exit
+            max_wait = duration + safety_buffer
+            elapsed = 0
+
+            while elapsed < max_wait:
                 if not getattr(generator, "_is_running", False):
                     break
+
+                time.sleep(1)
+                elapsed += 1
+
+                # Update progress (cap at duration to keep bar clean)
                 if progress:
-                    progress.update(i + 1)
+                    progress.update(min(elapsed, duration))
                 else:
                     step = max(1, duration // 10)
-                    percent = int(((i + 1) / duration) * 100)
-                    if (i + 1) % step == 0 or i + 1 == duration:
+                    percent = int((min(elapsed, duration) / duration) * 100)
+                    if elapsed % step == 0:
                         self.ui.show_info(f"Progress: {percent}%")
 
-            # Stop workload generator
+            # Stop workload generator only if it's still running (timeout reached)
             if getattr(generator, "_is_running", False):
+                logger.warning(f"Workload exceeded {max_wait}s (duration + safety). Forcing stop.")
                 generator.stop()
                 generator_started = False
             test_end_time = datetime.now()

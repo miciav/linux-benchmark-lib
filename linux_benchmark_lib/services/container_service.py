@@ -28,6 +28,7 @@ class ContainerRunSpec:
     engine: str = "docker"  # or "podman"
     build: bool = True
     no_cache: bool = False
+    debug: bool = False
 
 
 class ContainerRunner:
@@ -84,6 +85,8 @@ class ContainerRunner:
         inner_cmd = ["python3", "-m", "linux_benchmark_lib.cli", "run", workload_name, "--no-remote"]
         if spec.run_id:
             inner_cmd.extend(["--run-id", spec.run_id])
+        if spec.debug:
+            inner_cmd.append("--debug")
 
         spec.artifacts_dir.mkdir(parents=True, exist_ok=True)
 

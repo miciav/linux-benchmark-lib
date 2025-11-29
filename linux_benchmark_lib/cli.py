@@ -6,6 +6,7 @@ Exposes quick commands to inspect plugins/hosts and run benchmarks locally or re
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
@@ -551,6 +552,11 @@ def run(
         "--docker-no-cache",
         help="Disable cache when building the image with --docker.",
     ),
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        help="Enable verbose debug logging (sets fio.debug=True when applicable).",
+    ),
     intensity: str = typer.Option(
         None,
         "--intensity",
@@ -559,6 +565,14 @@ def run(
     ),
 ) -> None:
     """Run workloads locally, remotely, or inside the container image."""
+    if debug:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            force=True,
+        )
+        ui.show_info("Debug logging enabled")
+
     cfg, resolved, stale = config_service.load_for_read(config)
     if stale:
         ui.show_warning(f"Saved default config not found: {stale}")
@@ -572,6 +586,18 @@ def run(
         for wl_name in cfg.workloads:
             cfg.workloads[wl_name].intensity = intensity
         ui.show_info(f"Global intensity override: {intensity}")
+
+    # Propagate debug flag to all workloads for richer logging
+    if debug:
+        for workload in cfg.workloads.values():
+            if isinstance(workload.options, dict):
+                workload.options["debug"] = True
+            else:
+                try:
+                    setattr(workload.options, "debug", True)
+                except Exception:
+                    # Best-effort; workload options might not support mutation
+                    pass
 
     cfg.ensure_output_dirs()
 
@@ -594,6 +620,7 @@ def run(
             docker_build=not docker_no_build,
             docker_no_cache=docker_no_cache,
             config_path=resolved,
+            debug=debug,
         )
         run_service.execute(context, run_id, ui_adapter=ui)
     except Exception as exc:

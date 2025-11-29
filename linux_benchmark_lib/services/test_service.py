@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..benchmark_config import BenchmarkConfig
+from .config_service import ConfigService
 from ..ui import get_ui_adapter
 from ..ui.tui_prompts import prompt_multipass
 from ..ui.types import UIAdapter
@@ -85,7 +86,7 @@ class TestService:
         if top500:
             return "top500", default_level
 
-        cfg_preview = BenchmarkConfig()._build_default_workloads()
+        cfg_preview = ConfigService().create_default_config().workloads
         names = sorted(cfg_preview.keys())
         # Deduplicate while preserving order to avoid repeated entries (e.g., top500)
         options = list(dict.fromkeys(names + ["multi", "top500"]).keys())

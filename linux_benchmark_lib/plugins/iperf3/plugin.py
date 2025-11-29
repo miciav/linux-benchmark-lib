@@ -31,6 +31,7 @@ class IPerf3Config:
     bandwidth: Optional[str] = None
     reverse: bool = False
     json_output: bool = True
+    debug: bool = False
 
 
 class IPerf3Generator(BaseGenerator):
@@ -83,6 +84,8 @@ class IPerf3Generator(BaseGenerator):
         self.client.reverse = self.config.reverse
         if self.config.bandwidth:
             self.client.bandwidth = self.config.bandwidth
+        if self.config.debug:
+            self.client.verbose = True
 
         try:
             result = self.client.run()

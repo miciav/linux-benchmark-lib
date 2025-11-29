@@ -5,6 +5,7 @@ Modular plugin version.
 
 import logging
 import os
+import platform
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +27,7 @@ class DDConfig:
     count: Optional[int] = None  # None -> run until stopped by the runner duration
     conv: Optional[str] = "fdatasync"
     oflag: Optional[str] = "direct"
+    debug: bool = False
 
 
 class DDGenerator(BaseGenerator):
@@ -51,6 +53,7 @@ class DDGenerator(BaseGenerator):
             List of command arguments
         """
         cmd = ["dd"]
+        is_macos = platform.system() == "Darwin"
 
         cmd.append(f"if={self.config.if_path}")
         cmd.append(f"of={self.config.of_path}")
@@ -59,12 +62,27 @@ class DDGenerator(BaseGenerator):
         if self.config.count is not None:
             cmd.append(f"count={self.config.count}")
 
-        if self.config.conv:
-            cmd.append(f"conv={self.config.conv}")
+        # Platform-specific adjustments
+        conv = self.config.conv
+        oflag = self.config.oflag
 
-        if self.config.oflag:
-            cmd.append(f"oflag={self.config.oflag}")
+        if is_macos:
+            # BSD dd on macOS usually does not support 'oflag=direct' or 'conv=fdatasync'
+            if oflag == "direct":
+                logger.debug("Ignoring 'oflag=direct' on macOS (not supported by BSD dd)")
+                oflag = None
+            
+            if conv == "fdatasync":
+                logger.debug("Mapping 'conv=fdatasync' to 'conv=sync' on macOS")
+                conv = "sync"
+        
+        if conv:
+            cmd.append(f"conv={conv}")
 
+        if oflag:
+            cmd.append(f"oflag={oflag}")
+
+        # status=progress is supported on recent macOS versions
         cmd.append("status=progress")
 
         return cmd
@@ -109,7 +127,10 @@ class DDGenerator(BaseGenerator):
     def _run_command(self) -> None:
         """Run dd with configured parameters."""
         cmd = self._build_command()
-        logger.info("Running command: %s", " ".join(cmd))
+        if self.config.debug:
+            logger.info("Running command (DEBUG): %s", " ".join(cmd))
+        else:
+            logger.info("Running command: %s", " ".join(cmd))
 
         try:
             self._process = subprocess.Popen(
@@ -127,6 +148,9 @@ class DDGenerator(BaseGenerator):
                 "returncode": self._process.returncode,
                 "command": " ".join(cmd),
             }
+
+            if self.config.debug and stderr:
+                logger.info("dd stderr output:\n%s", stderr)
 
             if self._process.returncode != 0:
                 logger.error("dd failed with return code %s", self._process.returncode)
@@ -186,19 +210,19 @@ class DDPlugin(WorkloadPlugin):
         if level == WorkloadIntensity.LOW:
             return DDConfig(
                 bs="1M",
-                count=256, # 256MB
+                count=1024, # 1GB
                 oflag="direct"
             )
         elif level == WorkloadIntensity.MEDIUM:
             return DDConfig(
                 bs="4M",
-                count=256, # 1GB
+                count=2048, # 8GB
                 oflag="direct"
             )
         elif level == WorkloadIntensity.HIGH:
             return DDConfig(
                 bs="4M",
-                count=1024, # 4GB
+                count=8192, # 32GB
                 oflag="direct",
                 conv="fdatasync"
             )

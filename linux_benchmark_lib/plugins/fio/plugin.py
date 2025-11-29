@@ -7,7 +7,7 @@ This module uses fio (Flexible I/O Tester) to generate advanced disk I/O workloa
 import json
 import logging
 import subprocess
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, List, Optional, Type
 
@@ -32,6 +32,7 @@ class FIOConfig:
     directory: str = "/tmp"
     name: str = "benchmark"
     output_format: str = "json"
+    debug: bool = False
 
 
 class FIOGenerator(BaseGenerator):
@@ -48,7 +49,28 @@ class FIOGenerator(BaseGenerator):
         super().__init__(name)
         self.config = config
         self._process: Optional[subprocess.Popen] = None
-        
+        self._debug_enabled = bool(config.debug)
+        self._setup_debug_logging()
+
+    def _setup_debug_logging(self) -> None:
+        """Attach a stream handler when debug is enabled to surface fio logs."""
+        if not self._debug_enabled:
+            return
+
+        logger.setLevel(logging.DEBUG)
+        for handler in logger.handlers:
+            if getattr(handler, "_lb_fio_debug", False):
+                return
+
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        )
+        handler._lb_fio_debug = True  # type: ignore[attr-defined]
+        logger.addHandler(handler)
+        logger.debug("FIO debug logging enabled")
+    
     def _build_command(self) -> List[str]:
         """
         Build the fio command from configuration.
@@ -60,6 +82,7 @@ class FIOGenerator(BaseGenerator):
         
         # If a job file is provided, use it
         if self.config.job_file:
+            logger.debug("Using job file for fio: %s", self.config.job_file)
             cmd.append(str(self.config.job_file))
         else:
             # Build command line arguments
@@ -76,6 +99,8 @@ class FIOGenerator(BaseGenerator):
                 "--group_reporting",
                 f"--output-format={self.config.output_format}"
             ])
+
+        logger.debug("Built fio command with config: %s", asdict(self.config))
         
         return cmd
     
@@ -107,33 +132,54 @@ class FIOGenerator(BaseGenerator):
         Returns:
             Parsed results dictionary
         """
-        try:
-            data = json.loads(output)
-            
-            # Extract key metrics from the first job
-            if data.get("jobs") and len(data["jobs"]) > 0:
-                job = data["jobs"][0]
-                
-                result = {
-                    "read_iops": job.get("read", {}).get("iops", 0),
-                    "read_bw_mb": job.get("read", {}).get("bw", 0) / 1024,  # Convert KB to MB
-                    "read_lat_ms": job.get("read", {}).get("lat_ns", {}).get("mean", 0) / 1e6,  # Convert ns to ms
-                    "write_iops": job.get("write", {}).get("iops", 0),
-                    "write_bw_mb": job.get("write", {}).get("bw", 0) / 1024,
-                    "write_lat_ms": job.get("write", {}).get("lat_ns", {}).get("mean", 0) / 1e6,
-                }
-                
-                return result
-                
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse fio JSON output: {e}")
-            
-        return {}
+        if not output or not output.strip():
+            logger.error("fio produced no output to parse")
+            return {}
+
+        decoder = json.JSONDecoder()
+        parsed_data: Optional[dict[str, Any]] = None
+
+        # fio may prepend warnings or termination notices before the JSON payload.
+        for idx, char in enumerate(output):
+            if char not in "{[":
+                continue
+            try:
+                candidate, _ = decoder.raw_decode(output[idx:])
+                if isinstance(candidate, dict):
+                    parsed_data = candidate
+                    logger.debug("Found fio JSON payload at offset %d", idx)
+                    break
+            except json.JSONDecodeError:
+                continue
+
+        if not parsed_data:
+            snippet = output[:200].replace("\n", "\\n")
+            logger.error(
+                "Failed to locate fio JSON payload. Output starts with: %s", snippet
+            )
+            return {}
+
+        jobs = parsed_data.get("jobs")
+        if not jobs:
+            logger.error("fio JSON payload missing 'jobs' section")
+            return {}
+
+        job = jobs[0]
+        return {
+            "read_iops": job.get("read", {}).get("iops", 0),
+            "read_bw_mb": job.get("read", {}).get("bw", 0) / 1024,
+            "read_lat_ms": job.get("read", {}).get("lat_ns", {}).get("mean", 0) / 1e6,
+            "write_iops": job.get("write", {}).get("iops", 0),
+            "write_bw_mb": job.get("write", {}).get("bw", 0) / 1024,
+            "write_lat_ms": job.get("write", {}).get("lat_ns", {}).get("mean", 0)
+            / 1e6,
+        }
     
     def _run_command(self) -> None:
         """Run fio with configured parameters."""
         cmd = self._build_command()
         logger.info(f"Running command: {' '.join(cmd)}")
+        logger.debug("Working directory: %s", self.config.directory)
         
         try:
             self._process = subprocess.Popen(
@@ -145,11 +191,19 @@ class FIOGenerator(BaseGenerator):
             
             # Wait for process to complete
             stdout, stderr = self._process.communicate()
+            logger.debug(
+                "fio finished with rc=%s (stdout=%d chars, stderr=%d chars)",
+                self._process.returncode,
+                len(stdout or ""),
+                len(stderr or ""),
+            )
             
             # Parse results if JSON output
             parsed_result = {}
             if self.config.output_format == "json":
+                logger.debug("Parsing fio JSON output")
                 parsed_result = self._parse_json_output(stdout)
+                logger.debug("Parsed fio JSON metrics: %s", parsed_result)
             
             # Store the result
             self._result = {
@@ -161,8 +215,13 @@ class FIOGenerator(BaseGenerator):
             }
             
             if self._process.returncode != 0:
-                logger.error(f"fio failed with return code {self._process.returncode}")
-                logger.error(f"stderr: {stderr}")
+                if parsed_result:
+                    logger.info(
+                        f"fio terminated with rc={self._process.returncode} but produced valid metrics."
+                    )
+                else:
+                    logger.error(f"fio failed with return code {self._process.returncode}")
+                    logger.error(f"stderr: {stderr}")
                 
         except Exception as e:
             logger.error(f"Error running fio: {e}")

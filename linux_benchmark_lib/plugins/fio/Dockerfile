@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y \
     sysstat \
     && rm -rf /var/lib/apt/lists/*
 
+ENV PATH="/usr/sbin:$PATH"
+
 # Install core library dependencies
 # This allows the container to run 'lb internal-run'
 RUN pip install --no-cache-dir psutil typer rich pyyaml InquirerPy pandas numpy jc

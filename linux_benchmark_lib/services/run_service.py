@@ -33,6 +33,7 @@ class RunContext:
     docker_build: bool = True
     docker_no_cache: bool = False
     docker_workdir: Path | None = None
+    debug: bool = False
 
 
 @dataclass
@@ -188,6 +189,7 @@ class RunService:
         docker_build: bool = True,
         docker_no_cache: bool = False,
         config_path: Optional[Path] = None,
+        debug: bool = False,
     ) -> RunContext:
         """Compute the run context and registry."""
         registry = self._registry_factory()
@@ -210,6 +212,7 @@ class RunService:
             docker_build=docker_build,
             docker_no_cache=docker_no_cache,
             docker_workdir=project_root if docker else None,
+            debug=debug,
         )
 
     def execute(
@@ -234,6 +237,7 @@ class RunService:
                 engine=context.docker_engine,
                 build=context.docker_build,
                 no_cache=context.docker_no_cache,
+                debug=context.debug,
             )
             
             # Run each workload in its own container (or shared image)

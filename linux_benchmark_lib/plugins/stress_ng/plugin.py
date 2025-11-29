@@ -26,6 +26,7 @@ class StressNGConfig:
     timeout: int = 60  # Timeout in seconds
     metrics_brief: bool = True  # Use brief metrics output
     extra_args: List[str] = field(default_factory=list)
+    debug: bool = False
 
 
 class StressNGGenerator(BaseGenerator):
@@ -49,6 +50,8 @@ class StressNGGenerator(BaseGenerator):
         cmd.extend(["--timeout", f"{self.config.timeout}s"])
         if self.config.metrics_brief:
             cmd.append("--metrics-brief")
+        if self.config.debug:
+            cmd.append("--verbose")
         cmd.extend(self.config.extra_args)
         return cmd
     

@@ -18,14 +18,14 @@
       until: _python_ppa is succeeded
       retries: 3
       delay: 5
-      when: ansible_os_family | default('') == 'Debian'
+      when: ansible_facts['os_family'] | default('') == 'Debian'
       tags: python
 
     - name: Update apt cache when PPA added
       ansible.builtin.apt:
         update_cache: true
       when:
-        - ansible_os_family | default('') == 'Debian'
+        - ansible_facts['os_family'] | default('') == 'Debian'
         - _python_ppa is defined and _python_ppa is changed
       tags: python
 
@@ -65,7 +65,7 @@
     - name: Synchronize benchmark library project to remote host
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../../../{{ item }}"
-        dest: "{{ lb_workdir }}/{{ item }}"
+        dest: "{{ lb_workdir }}/"
         mode: preserve
       loop:
         - linux_benchmark_lib
