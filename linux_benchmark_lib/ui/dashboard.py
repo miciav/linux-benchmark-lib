@@ -5,7 +5,7 @@ from rich.panel import Panel
 from rich.layout import Layout
 from rich.text import Text
 from rich.style import Style
-from linux_benchmark_lib.journal import RunJournal, TaskState # Importing the separated model
+from linux_benchmark_lib.journal import RunJournal, TaskState
 
 class BenchmarkDashboard:
     def __init__(self, journal: RunJournal):
@@ -32,9 +32,9 @@ class BenchmarkDashboard:
         
         # Placeholder data - in real app this would come from config
         table.add_row(
-            "fio", "fio", "medium", 
-            "Time: 60s, BS: 4k, Mode: randrw", 
-            "Multipass"
+            "Multiple", "Mix", "High", 
+            "Sequential Execution Plan", 
+            "Running"
         )
         return table
 
@@ -44,7 +44,7 @@ class BenchmarkDashboard:
         
         # Fixed Columns
         table.add_column("Host", style="bold magenta", width=22)
-        table.add_column("Workload", width=10)
+        table.add_column("Workload", width=15)
         
         # Dynamic Columns for Repetitions
         if not self.journal.tasks:
@@ -57,8 +57,15 @@ class BenchmarkDashboard:
             
         table.add_column("Current Action", style="dim italic")
 
-        # Group tasks
-        unique_keys = sorted(list(set((t.host, t.workload) for t in self.journal.tasks)))
+        # Group tasks to display them row by row, preserving insertion order
+        # This ensures that if "Workload A" is added before "Workload B", it appears first.
+        seen_keys = set()
+        unique_keys = []
+        for t in self.journal.tasks:
+            key = (t.host, t.workload)
+            if key not in seen_keys:
+                seen_keys.add(key)
+                unique_keys.append(key)
         
         for host, workload in unique_keys:
             row_cells = [host, workload]
