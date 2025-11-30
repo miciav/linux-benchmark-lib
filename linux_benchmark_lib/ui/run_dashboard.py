@@ -27,7 +27,7 @@ class RunDashboard:
         self.plan_rows = plan_rows
         self.journal = journal
         self.log_buffer: List[str] = []
-        self.max_log_lines = 12
+        self.max_log_lines = 20
         self.layout = Layout()
         self.layout.split_column(
             Layout(name="plan", size=self._plan_height()),

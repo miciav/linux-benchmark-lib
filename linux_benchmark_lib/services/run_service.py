@@ -434,6 +434,7 @@ class RunService:
             def _dashboard_callback(text: str, end: str = ""):
                 output_callback(text, end=end)
                 dashboard.add_log(text)
+                dashboard.refresh()
             output_cb = _dashboard_callback
 
         controller = BenchmarkController(

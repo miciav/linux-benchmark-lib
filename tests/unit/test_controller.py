@@ -67,7 +67,7 @@ def test_controller_creates_output_dirs(tmp_path: Path):
         call for call in executor.calls if "run_benchmark" in str(call["playbook"])
     ]
     assert run_calls, "Expected run playbook to be invoked"
-    assert run_calls[0]["extravars"].get("repetition_index") == 1
+    assert run_calls[0]["extravars"].get("repetition_index") == 0
     per_host_output = run_calls[0]["extravars"].get("per_host_output")
     assert per_host_output is not None, "per_host_output extravar should be set"
     assert per_host_output.get("node1") == str(host_dir)
