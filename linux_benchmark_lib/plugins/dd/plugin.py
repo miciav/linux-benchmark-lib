@@ -238,8 +238,7 @@ class DDPlugin(WorkloadPlugin):
         return Path(__file__).parent / "Dockerfile"
 
     def get_ansible_setup_path(self) -> Optional[Path]:
-        # No specialized ansible setup for dd usually
-        return None
+        return Path(__file__).parent / "ansible" / "setup.yml"
 
     def get_ansible_teardown_path(self) -> Optional[Path]:
         return None

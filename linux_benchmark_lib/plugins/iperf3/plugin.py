@@ -157,5 +157,11 @@ class IPerf3Plugin(WorkloadPlugin):
     def get_dockerfile_path(self) -> Optional[Path]:
         return Path(__file__).parent / "Dockerfile"
 
+    def get_ansible_setup_path(self) -> Optional[Path]:
+        return Path(__file__).parent / "ansible" / "setup.yml"
+
+    def get_ansible_teardown_path(self) -> Optional[Path]:
+        return None
+
 
 PLUGIN = IPerf3Plugin()

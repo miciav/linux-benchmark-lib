@@ -413,7 +413,24 @@ class BenchmarkController:
             if not res_run.success:
                 all_tests_success = False
 
-            # C. Plugin Teardown
+            # C. Intermediate Collect (Secure data immediately)
+            if self.config.remote_execution.run_collect:
+                if self.output_formatter:
+                    self.output_formatter.set_phase(f"Collect: {test_name}")
+                # We execute the global collect playbook which syncs the whole output directory.
+                # Since rsync/fetch is incremental, this is efficient.
+                res_col = self.executor.run_playbook(
+                    self.config.remote_execution.collect_playbook,
+                    inventory=inventory,
+                    extravars=extravars,
+                )
+                phases[f"collect_{test_name}"] = res_col
+                if not res_col.success:
+                    logger.warning(f"Intermediate collection failed for {test_name}")
+                    # We don't fail the whole run for collection failure, but we note it
+                    # all_tests_success = False # Optional: strict or lenient? Let's be lenient for now.
+
+            # D. Plugin Teardown
             teardown_pb = plugin.get_ansible_teardown_path()
             if teardown_pb:
                 if self.output_formatter:
@@ -424,16 +441,16 @@ class BenchmarkController:
                 if not res_td.success:
                     logger.warning(f"Teardown failed for {test_name}")
 
-        # 3. Global Collect
+        # 3. Global Collect (Final Sweep)
         if self.config.remote_execution.run_collect:
             if self.output_formatter:
-                self.output_formatter.set_phase("Collect Results")
-            phases["collect"] = self.executor.run_playbook(
+                self.output_formatter.set_phase("Final Collect")
+            phases["collect_final"] = self.executor.run_playbook(
                 self.config.remote_execution.collect_playbook,
                 inventory=inventory,
                 extravars=extravars,
             )
-            if not phases["collect"].success:
+            if not phases["collect_final"].success:
                 all_tests_success = False
 
         return RunExecutionSummary(
