@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import re
 import ctypes.util
 from dataclasses import dataclass, asdict
@@ -9,11 +10,14 @@ from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 
 from ..benchmark_config import BenchmarkConfig, RemoteExecutionConfig
+from ..journal import RunJournal
 from ..local_runner import LocalRunner
 from ..plugins.registry import PluginRegistry
 from ..plugins.interface import WorkloadIntensity
 from .container_service import ContainerRunner, ContainerRunSpec
 from .multipass_service import MultipassService
+from ..ui.console_adapter import ConsoleUIAdapter
+from ..ui.run_dashboard import NoopDashboard, RunDashboard
 from ..ui.types import UIAdapter
 
 if TYPE_CHECKING:
@@ -103,6 +107,8 @@ class RunContext:
     docker_no_cache: bool = False
     docker_workdir: Path | None = None
     debug: bool = False
+    resume_from: str | None = None
+    resume_latest: bool = False
 
 
 @dataclass
@@ -272,6 +278,7 @@ class RunService:
         docker_no_cache: bool = False,
         config_path: Optional[Path] = None,
         debug: bool = False,
+        resume: Optional[str] = None,
     ) -> RunContext:
         """Compute the run context and registry."""
         registry = self._registry_factory()
@@ -299,6 +306,8 @@ class RunService:
             docker_no_cache=docker_no_cache,
             docker_workdir=project_root if docker else None,
             debug=debug,
+            resume_from=None if resume in (None, "latest") else resume,
+            resume_latest=resume == "latest",
         )
 
     def execute(
@@ -311,6 +320,7 @@ class RunService:
         """Execute benchmarks using the provided context."""
         
         # Ensure we always stream output for remote/multipass to show progress
+        formatter: AnsibleOutputFormatter | None = None
         if output_callback is None:
             if context.debug:
                 # In debug mode, print everything raw for troubleshooting
@@ -346,11 +356,13 @@ class RunService:
                 context.config.remote_execution.run_playbook = defaults.run_playbook
                 context.config.remote_execution.collect_playbook = defaults.collect_playbook
                 
-                # Reuse the existing remote execution logic
-                from ..controller import BenchmarkController
-                controller = BenchmarkController(context.config, output_callback=output_callback, output_formatter=formatter if not context.debug else None)
-                summary = controller.run(context.target_tests, run_id=run_id)
-                return RunResult(context=context, summary=summary)
+                return self._run_remote(
+                    context,
+                    run_id,
+                    output_callback,
+                    formatter,
+                    ui_adapter,
+                )
 
         if context.use_container:
             root = context.docker_workdir or context.config.output_dir.parent.parent.resolve()
@@ -387,12 +399,134 @@ class RunService:
             return RunResult(context=context, summary=None)
 
         if context.use_remote:
-            from ..controller import BenchmarkController  # Runtime import to break circular dependency
-            controller = BenchmarkController(context.config, output_callback=output_callback, output_formatter=formatter if not context.debug else None)
-            summary = controller.run(context.target_tests, run_id=run_id)
-            return RunResult(context=context, summary=summary)
+            return self._run_remote(
+                context,
+                run_id,
+                output_callback,
+                formatter,
+                ui_adapter,
+            )
 
         runner = LocalRunner(context.config, registry=context.registry, ui_adapter=ui_adapter)
         for test_name in context.target_tests:
             runner.run_benchmark(test_name)
         return RunResult(context=context, summary=None)
+
+    def _run_remote(
+        self,
+        context: RunContext,
+        run_id: Optional[str],
+        output_callback: Callable[[str, str], None],
+        formatter: AnsibleOutputFormatter | None,
+        ui_adapter: UIAdapter | None,
+    ) -> RunResult:
+        """Execute a remote run using the controller with journal integration."""
+        from ..controller import BenchmarkController  # Runtime import to break circular dependency
+
+        resume_requested = context.resume_from is not None or context.resume_latest
+        journal, journal_path, dashboard, effective_run_id = (
+            self._prepare_journal_and_dashboard(context, run_id, ui_adapter)
+        )
+
+        # Fan-out Ansible output to both formatter and dashboard log stream.
+        output_cb = output_callback
+        if isinstance(dashboard, RunDashboard) and output_callback is not None:
+            def _dashboard_callback(text: str, end: str = ""):
+                output_callback(text, end=end)
+                dashboard.add_log(text)
+            output_cb = _dashboard_callback
+
+        controller = BenchmarkController(
+            context.config,
+            output_callback=output_cb,
+            output_formatter=formatter if not context.debug else None,
+            journal_refresh=dashboard.refresh if dashboard else None,
+        )
+
+        with dashboard.live():
+            summary = controller.run(
+                context.target_tests,
+                run_id=effective_run_id,
+                journal=journal,
+                resume=resume_requested,
+                journal_path=journal_path,
+            )
+
+        return RunResult(context=context, summary=summary)
+
+    def _prepare_journal_and_dashboard(
+        self,
+        context: RunContext,
+        run_id: Optional[str],
+        ui_adapter: UIAdapter | None,
+    ) -> tuple[RunJournal, Path, NoopDashboard | RunDashboard, str]:
+        """Load or create the run journal and optional dashboard."""
+        resume_requested = context.resume_from is not None or context.resume_latest
+
+        if resume_requested:
+            if context.resume_latest:
+                journal_path = self._find_latest_journal(context.config)
+                if journal_path is None:
+                    raise ValueError("No previous run found to resume.")
+            else:
+                journal_path = (
+                    context.config.output_dir
+                    / context.resume_from
+                    / "run_journal.json"
+                )
+            journal = RunJournal.load(journal_path, config=context.config)
+            if run_id and run_id != journal.run_id:
+                raise ValueError(
+                    f"Run ID mismatch: resume journal={journal.run_id}, cli={run_id}"
+                )
+            run_identifier = journal.run_id
+        else:
+            run_identifier = run_id or self._generate_run_id()
+            journal_path = (
+                context.config.output_dir / run_identifier / "run_journal.json"
+            )
+            journal = RunJournal.initialize(
+                run_identifier, context.config, context.target_tests
+            )
+
+        # Persist the initial state so resume is possible even if execution aborts early
+        journal_path.parent.mkdir(parents=True, exist_ok=True)
+        journal.save(journal_path)
+
+        if ui_adapter and isinstance(ui_adapter, ConsoleUIAdapter):
+            plan = self.get_run_plan(
+                context.config,
+                context.target_tests,
+                docker_mode=context.use_container,
+                multipass_mode=context.use_multipass,
+                remote_mode=context.use_remote,
+                registry=context.registry,
+            )
+            dashboard: NoopDashboard | RunDashboard = RunDashboard(
+                ui_adapter.console, plan, journal
+            )
+        else:
+            dashboard = NoopDashboard()
+
+        return journal, journal_path, dashboard, run_identifier
+
+    @staticmethod
+    def _find_latest_journal(config: BenchmarkConfig) -> Path | None:
+        """Return the most recent journal path if present."""
+        root = config.output_dir
+        if not root.exists():
+            return None
+        candidates = []
+        for child in root.iterdir():
+            candidate = child / "run_journal.json"
+            if candidate.exists():
+                candidates.append(candidate)
+        if not candidates:
+            return None
+        candidates.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+        return candidates[0]
+
+    @staticmethod
+    def _generate_run_id() -> str:
+        """Generate a timestamped run id matching the controller's format."""
+        return datetime.utcnow().strftime("run-%Y%m%d-%H%M%S")

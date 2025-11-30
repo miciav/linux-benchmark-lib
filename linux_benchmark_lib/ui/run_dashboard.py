@@ -26,10 +26,13 @@ class RunDashboard:
         self.console = console
         self.plan_rows = plan_rows
         self.journal = journal
+        self.log_buffer: List[str] = []
+        self.max_log_lines = 12
         self.layout = Layout()
         self.layout.split_column(
-            Layout(name="plan", size=6),
+            Layout(name="plan", size=self._plan_height()),
             Layout(name="journal"),
+            Layout(name="logs", size=self.max_log_lines + 2),
         )
         self._live: Live | None = None
 
@@ -58,8 +61,11 @@ class RunDashboard:
 
     def render(self) -> Layout:
         """Return the layout for the current state."""
+        # Resize plan dynamically so multiple workloads stay visible.
+        self.layout["plan"].size = self._plan_height()
         self.layout["plan"].update(self._render_plan())
         self.layout["journal"].update(self._render_journal())
+        self.layout["logs"].update(self._render_logs())
         return self.layout
 
     def _render_plan(self) -> Panel:
@@ -88,6 +94,16 @@ class RunDashboard:
             table,
             title="Run Plan",
             border_style="cyan",
+        )
+
+    def _render_logs(self) -> Panel:
+        """Render the rolling log stream."""
+        lines = self.log_buffer[-self.max_log_lines :]
+        text = "\n".join(lines)
+        return Panel(
+            text,
+            title="[bold]Log Stream[/bold]",
+            border_style="bright_black",
         )
 
     def _render_journal(self) -> Panel:
@@ -119,6 +135,19 @@ class RunDashboard:
             title=f"[bold]Run Journal (ID: {self.journal.run_id})[/bold]",
             border_style="bright_black",
         )
+
+    def _plan_height(self) -> int:
+        """Compute a plan section height that fits all rows."""
+        return max(6, len(self.plan_rows) + 6)
+
+    def add_log(self, message: str) -> None:
+        """Append a message to the log buffer."""
+        if not message or not message.strip():
+            return
+        self.log_buffer.append(message.strip())
+        # Trim occasionally to avoid unbounded growth
+        if len(self.log_buffer) > self.max_log_lines * 5:
+            self.log_buffer = self.log_buffer[-self.max_log_lines * 5 :]
 
     def _max_repetitions(self) -> int:
         reps = [task.repetition for task in self.journal.tasks]
@@ -164,4 +193,8 @@ class NoopDashboard:
 
     def refresh(self) -> None:  # noqa: D401 - simple no-op
         """No-op refresh."""
+        return
+
+    def add_log(self, _: str) -> None:
+        """No-op log appender."""
         return

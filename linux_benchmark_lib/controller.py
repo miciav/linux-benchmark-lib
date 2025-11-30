@@ -633,3 +633,4 @@ class BenchmarkController:
             host_dir.mkdir(parents=True, exist_ok=True)
             host_report_dir.mkdir(parents=True, exist_ok=True)
             per_host[host.name] = host_dir
+        return per_host
