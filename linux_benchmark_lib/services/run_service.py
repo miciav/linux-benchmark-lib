@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import time
 import re
 import ctypes.util
 from dataclasses import dataclass, asdict
@@ -437,14 +438,19 @@ class RunService:
         # Fan-out Ansible output to both formatter and dashboard log stream.
         output_cb = output_callback
         if isinstance(dashboard, RunDashboard) and output_callback is not None:
+            last_refresh = 0.0
             def _dashboard_callback(text: str, end: str = ""):
+                nonlocal last_refresh
                 # If we're using the pretty formatter, let it drive both stdout and dashboard.
                 if formatter and output_callback == formatter.process:
                     formatter.process(text, end=end, log_sink=dashboard.add_log)
                 else:
                     output_callback(text, end=end)
                     dashboard.add_log(text)
-                dashboard.refresh()
+                now = time.monotonic()
+                if now - last_refresh > 0.25:
+                    dashboard.refresh()
+                    last_refresh = now
             output_cb = _dashboard_callback
 
         controller = BenchmarkController(
@@ -462,6 +468,9 @@ class RunService:
                 resume=resume_requested,
                 journal_path=journal_path,
             )
+
+        if isinstance(dashboard, RunDashboard):
+            dashboard.refresh()
 
         return RunResult(context=context, summary=summary)
 
