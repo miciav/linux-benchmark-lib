@@ -441,17 +441,24 @@ class BenchmarkController:
                 if not res_td.success:
                     logger.warning(f"Teardown failed for {test_name}")
 
-        # 3. Global Collect (Final Sweep)
-        if self.config.remote_execution.run_collect:
+        # 3. Global Teardown (Clean up remote artifacts)
+        if self.config.remote_execution.run_teardown:
             if self.output_formatter:
-                self.output_formatter.set_phase("Final Collect")
-            phases["collect_final"] = self.executor.run_playbook(
-                self.config.remote_execution.collect_playbook,
-                inventory=inventory,
-                extravars=extravars,
-            )
-            if not phases["collect_final"].success:
-                all_tests_success = False
+                self.output_formatter.set_phase("Global Teardown")
+            
+            # Use teardown playbook if configured, otherwise fallback or skip
+            # (BenchmarkConfig defaults ensure it is set)
+            if self.config.remote_execution.teardown_playbook:
+                phases["teardown_global"] = self.executor.run_playbook(
+                    self.config.remote_execution.teardown_playbook,
+                    inventory=inventory,
+                    extravars=extravars,
+                )
+                if not phases["teardown_global"].success:
+                    logger.warning("Global teardown failed to clean up perfectly.")
+                    # Do not mark overall run as failure for cleanup issues
+            else:
+                logger.warning("No teardown playbook configured.")
 
         return RunExecutionSummary(
             run_id=resolved_run_id,

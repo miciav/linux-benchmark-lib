@@ -74,6 +74,8 @@ class RemoteExecutionConfig:
     setup_playbook: Path = field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "setup.yml")
     run_playbook: Path = field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "run_benchmark.yml")
     collect_playbook: Path = field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "collect.yml")
+    teardown_playbook: Path = field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "teardown.yml")
+    run_teardown: bool = True
     use_container_fallback: bool = False
 
 @dataclass
@@ -208,7 +210,7 @@ class BenchmarkConfig:
             remote_exec = data["remote_execution"]
             if "inventory_path" in remote_exec and isinstance(remote_exec["inventory_path"], str):
                 remote_exec["inventory_path"] = Path(remote_exec["inventory_path"])
-            for key in ["setup_playbook", "run_playbook", "collect_playbook"]:
+            for key in ["setup_playbook", "run_playbook", "collect_playbook", "teardown_playbook"]:
                 if key in remote_exec and isinstance(remote_exec[key], str):
                     remote_exec[key] = Path(remote_exec[key])
             data["remote_execution"] = RemoteExecutionConfig(**remote_exec)
