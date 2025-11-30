@@ -35,15 +35,21 @@ class AnsibleOutputFormatter:
     def set_phase(self, phase: str):
         self.current_phase = phase
 
-    def process(self, text: str, end: str = ""):
+    def process(self, text: str, end: str = "", log_sink: Callable[[str], None] | None = None):
         if not text:
             return
         
         lines = text.splitlines()
         for line in lines:
-            self._handle_line(line)
+            self._handle_line(line, log_sink=log_sink)
 
-    def _handle_line(self, line: str):
+    def _emit(self, message: str, log_sink: Callable[[str], None] | None) -> None:
+        """Send formatted message to stdout and optional sink."""
+        print(message)
+        if log_sink:
+            log_sink(message)
+
+    def _handle_line(self, line: str, log_sink: Callable[[str], None] | None = None):
         line = line.strip()
         if not line:
             return
@@ -61,14 +67,14 @@ class AnsibleOutputFormatter:
             # Cleanup "workload_runner :" prefix if present
             if " : " in task_name:
                 _, task_name = task_name.split(" : ", 1)
-            print(f"• [{self.current_phase}] {task_name}")
+            self._emit(f"• [{self.current_phase}] {task_name}", log_sink)
             return
 
         # Format Benchmark Start (from python script)
         bench_match = self.bench_pattern.search(line)
         if bench_match:
             bench_name = bench_match.group(1)
-            print(f"\n>>> Benchmark: {bench_name} <<<\n")
+            self._emit(f"\n>>> Benchmark: {bench_name} <<<\n", log_sink)
             return
 
         # Format Changes (usually means success in ansible terms)
@@ -77,17 +83,17 @@ class AnsibleOutputFormatter:
 
         # Pass through interesting lines from the benchmark script
         if "linux_benchmark_lib.local_runner" in line or "Running test" in line or "Progress:" in line or "Completed" in line:
-             print(f"  {line}")
-             return
+            self._emit(f"  {line}", log_sink)
+            return
         
         # Pass through raw output that looks like a progress bar (rich output often has special chars)
         if "━" in line:
-             print(f"  {line}")
-             return
+            self._emit(f"  {line}", log_sink)
+            return
 
         # Pass through errors
         if "fatal:" in line or "ERROR" in line or "failed:" in line:
-            print(f"[!] {line}")
+            self._emit(f"[!] {line}", log_sink)
 
 
 @dataclass
@@ -432,8 +438,12 @@ class RunService:
         output_cb = output_callback
         if isinstance(dashboard, RunDashboard) and output_callback is not None:
             def _dashboard_callback(text: str, end: str = ""):
-                output_callback(text, end=end)
-                dashboard.add_log(text)
+                # If we're using the pretty formatter, let it drive both stdout and dashboard.
+                if formatter and output_callback == formatter.process:
+                    formatter.process(text, end=end, log_sink=dashboard.add_log)
+                else:
+                    output_callback(text, end=end)
+                    dashboard.add_log(text)
                 dashboard.refresh()
             output_cb = _dashboard_callback
 
