@@ -9,14 +9,19 @@ import json
 import logging
 import os
 import subprocess
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol
 import sys
 
+from rich.live import Live
+
 from .benchmark_config import BenchmarkConfig, RemoteHostConfig
+from .journal import RunJournal, RunStatus
 from .services.plugin_service import create_registry
+from .ui.dashboard import BenchmarkDashboard
 
 logger = logging.getLogger(__name__)
 ANSIBLE_ROOT = Path(__file__).resolve().parent / "ansible"
@@ -66,6 +71,7 @@ class RemoteExecutor(Protocol):
         inventory: InventorySpec,
         extravars: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
+        limit_hosts: Optional[List[str]] = None,
     ) -> ExecutionResult:
         """Execute a playbook and return the result."""
         raise NotImplementedError
@@ -90,7 +96,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                 ansible_runner.run when not provided.
             stream_output: When True, stream Ansible stdout events to the local
                 process (useful for visibility in long-running tasks).
-            output_callback: Optional callback to handle stdout stream. 
+            output_callback: Optional callback to handle stdout stream.
                              Signature: (text: str, end: str) -> None
         """
         self.private_data_dir = private_data_dir or Path(".ansible_runner")
@@ -117,6 +123,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         inventory: InventorySpec,
         extravars: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
+        limit_hosts: Optional[List[str]] = None,
     ) -> ExecutionResult:
         """Execute a playbook using ansible-runner."""
         if not playbook_path.exists():
@@ -150,13 +157,25 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             "ANSIBLE_CALLBACK_PLUGINS": "",
         }
 
-        result = self._run_subprocess_playbook(
-            abs_playbook_path=abs_playbook_path,
-            inventory_path=inventory_path,
-            extravars=merged_extravars,
-            tags=tags,
-            envvars=envvars,
-        )
+        if self._runner_fn:
+            result = runner_fn(
+                private_data_dir=str(self.private_data_dir),
+                playbook=str(abs_playbook_path),
+                inventory=str(inventory_path.resolve()),
+                extravars=merged_extravars,
+                tags=",".join(tags) if tags else None,
+                envvars=envvars,
+                limit=",".join(limit_hosts) if limit_hosts else None,
+            )
+        else:
+            result = self._run_subprocess_playbook(
+                abs_playbook_path=abs_playbook_path,
+                inventory_path=inventory_path,
+                extravars=merged_extravars,
+                tags=tags,
+                envvars=envvars,
+                limit_hosts=limit_hosts,
+            )
 
         rc = getattr(result, "rc", 1)
         status = getattr(result, "status", "failed")
@@ -215,6 +234,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         extravars: Dict[str, Any],
         tags: Optional[List[str]],
         envvars: Dict[str, str],
+        limit_hosts: Optional[List[str]] = None,
     ) -> ExecutionResult:
         """
         Execute ansible-playbook via subprocess to avoid ansible-runner's awx_display callback.
@@ -227,6 +247,8 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         ]
         if tags:
             cmd.extend(["--tags", ",".join(tags)])
+        if limit_hosts:
+            cmd.extend(["--limit", ",".join(limit_hosts)])
 
         # Write extravars to a transient JSON file.
         env_dir = self.private_data_dir / "env"
@@ -285,21 +307,27 @@ class BenchmarkController:
         executor: Optional[RemoteExecutor] = None,
         output_callback: Optional[Callable[[str, str], None]] = None,
         output_formatter: Optional[Any] = None,  # Inject the formatter instance
+        journal_refresh: Optional[Callable[[], None]] = None,
     ):
         self.config = config
         self.output_formatter = output_formatter
         # Enable streaming if a callback is provided
         stream = output_callback is not None
         self.executor = executor or AnsibleRunnerExecutor(
-            output_callback=output_callback, 
+            output_callback=output_callback,
             stream_output=stream
         )
         self.plugin_registry = create_registry()
+        self._journal_refresh = journal_refresh
+        self.dashboard = None # Initialized in run
 
     def run(
         self,
         test_types: List[str],
         run_id: Optional[str] = None,
+        journal: Optional[RunJournal] = None,
+        resume: bool = False,
+        journal_path: Optional[Path] = None,
     ) -> RunExecutionSummary:
         """
         Execute the configured benchmarks on remote hosts.
@@ -308,11 +336,18 @@ class BenchmarkController:
             test_types: List of benchmark identifiers to execute.
             run_id: Optional run identifier. If not provided, a timestamp-based
                 id is generated.
+            journal: Optional pre-loaded journal used for resume flows.
+            resume: When True, reuse the provided journal instead of creating a new one.
+            journal_path: Optional override for where the journal is persisted.
         """
         if not self.config.remote_hosts:
             raise ValueError("At least one remote host must be configured.")
+        if resume and journal is None:
+            raise ValueError("Resume requested without a journal instance.")
 
-        resolved_run_id = run_id or self._generate_run_id()
+        resolved_run_id = (
+            journal.run_id if journal is not None else run_id or self._generate_run_id()
+        )
         inventory = InventorySpec(
             hosts=self.config.remote_hosts,
             inventory_path=self.config.remote_execution.inventory_path,
@@ -323,6 +358,13 @@ class BenchmarkController:
         per_host_output = self._prepare_per_host_dirs(
             output_root=output_root, report_root=report_root
         )
+
+        active_journal = journal or RunJournal.initialize(
+            resolved_run_id, self.config, test_types
+        )
+        journal_file = journal_path or output_root / "run_journal.json"
+        active_journal.save(journal_file)
+        self._refresh_journal()
 
         # Default remote output root to a temp dir with run_id
         # This avoids using local paths on remote hosts
@@ -343,122 +385,178 @@ class BenchmarkController:
         }
 
         phases: Dict[str, ExecutionResult] = {}
+        
+        # Initialize Dashboard
+        self.dashboard = BenchmarkDashboard(active_journal, self.config)
+        
+        # We define a helper for updating logs on the dashboard
+        def ui_log(msg: str):
+            if self.dashboard:
+                self.dashboard.add_log(msg)
+            logger.info(msg)
 
-        # 1. Global Setup
-        if self.config.remote_execution.run_setup:
-            if self.output_formatter:
-                self.output_formatter.set_phase("Global Setup")
-            phases["setup_global"] = self.executor.run_playbook(
-                self.config.remote_execution.setup_playbook,
-                inventory=inventory,
-                extravars=extravars,
-            )
-            if not phases["setup_global"].success:
-                logger.error("Global setup failed. Aborting run.")
-                return RunExecutionSummary(
-                    run_id=resolved_run_id,
-                    per_host_output=per_host_output,
-                    phases=phases,
-                    success=False,
-                    output_root=output_root,
-                    report_root=report_root,
-                    data_export_root=data_export_root,
-                )
-
-        # 2. Per-Test Loop
-        all_tests_success = True
-        for test_name in test_types:
-            workload_cfg = self.config.workloads.get(test_name)
-            if not workload_cfg:
-                logger.warning(f"Skipping unknown workload: {test_name}")
-                continue
+        # Wrap execution in Live TUI
+        with Live(self.dashboard.update(), refresh_per_second=4, screen=True) as live:
             
-            try:
-                plugin = self.plugin_registry.get(workload_cfg.plugin)
-            except Exception as e:
-                logger.error(f"Failed to load plugin for {test_name}: {e}")
-                all_tests_success = False
-                continue
+            ui_log(f"Starting Run {resolved_run_id}")
 
-            # A. Plugin Setup
-            setup_pb = plugin.get_ansible_setup_path()
-            if setup_pb:
-                if self.output_formatter:
-                    self.output_formatter.set_phase(f"Setup: {test_name}")
-                logger.info(f"Running setup for plugin {plugin.name}")
-                res = self.executor.run_playbook(setup_pb, inventory=inventory, extravars=extravars)
-                phases[f"setup_{test_name}"] = res
-                if not res.success:
-                    logger.error(f"Setup failed for {test_name}")
-                    all_tests_success = False
-                    # If setup fails, try teardown then continue
-                    teardown_pb = plugin.get_ansible_teardown_path()
-                    if teardown_pb:
-                         self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=extravars)
+            # 1. Global Setup
+            if self.config.remote_execution.run_setup:
+                ui_log("Phase: Global Setup")
+                phases["setup_global"] = self.executor.run_playbook(
+                    self.config.remote_execution.setup_playbook,
+                    inventory=inventory,
+                    extravars=extravars,
+                )
+                if not phases["setup_global"].success:
+                    ui_log("Global setup failed. Aborting run.")
+                    return RunExecutionSummary(
+                        run_id=resolved_run_id,
+                        per_host_output=per_host_output,
+                        phases=phases,
+                        success=False,
+                        output_root=output_root,
+                        report_root=report_root,
+                        data_export_root=data_export_root,
+                    )
+
+            # 2. Per-Test Loop
+            all_tests_success = True
+            for test_name in test_types:
+                workload_cfg = self.config.workloads.get(test_name)
+                if not workload_cfg:
+                    ui_log(f"Skipping unknown workload: {test_name}")
                     continue
 
-            # B. Run Workload
-            if self.output_formatter:
-                self.output_formatter.set_phase(f"Run: {test_name}")
-            logger.info(f"Running workload {test_name}")
-            loop_extravars = extravars.copy()
-            loop_extravars["tests"] = [test_name] # Run only this test
-            
-            res_run = self.executor.run_playbook(
-                self.config.remote_execution.run_playbook,
-                inventory=inventory,
-                extravars=loop_extravars,
-            )
-            phases[f"run_{test_name}"] = res_run
-            if not res_run.success:
-                all_tests_success = False
+                try:
+                    plugin = self.plugin_registry.get(workload_cfg.plugin)
+                except Exception as e:
+                    ui_log(f"Failed to load plugin for {test_name}: {e}")
+                    all_tests_success = False
+                    continue
 
-            # C. Intermediate Collect (Secure data immediately)
-            if self.config.remote_execution.run_collect:
-                if self.output_formatter:
-                    self.output_formatter.set_phase(f"Collect: {test_name}")
-                # We execute the global collect playbook which syncs the whole output directory.
-                # Since rsync/fetch is incremental, this is efficient.
-                res_col = self.executor.run_playbook(
-                    self.config.remote_execution.collect_playbook,
-                    inventory=inventory,
-                    extravars=extravars,
-                )
-                phases[f"collect_{test_name}"] = res_col
-                if not res_col.success:
-                    logger.warning(f"Intermediate collection failed for {test_name}")
-                    # We don't fail the whole run for collection failure, but we note it
-                    # all_tests_success = False # Optional: strict or lenient? Let's be lenient for now.
+                # A. Plugin Setup
+                setup_pb = plugin.get_ansible_setup_path()
+                if setup_pb:
+                    ui_log(f"Setup: {test_name} ({plugin.name})")
+                    res = self.executor.run_playbook(setup_pb, inventory=inventory, extravars=extravars)
+                    phases[f"setup_{test_name}"] = res
+                    if not res.success:
+                        ui_log(f"Setup failed for {test_name}")
+                        all_tests_success = False
+                        # If setup fails, try teardown then continue
+                        teardown_pb = plugin.get_ansible_teardown_path()
+                        if teardown_pb:
+                             self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=extravars)
+                        continue
 
-            # D. Plugin Teardown
-            teardown_pb = plugin.get_ansible_teardown_path()
-            if teardown_pb:
-                if self.output_formatter:
-                    self.output_formatter.set_phase(f"Teardown: {test_name}")
-                logger.info(f"Running teardown for plugin {plugin.name}")
-                res_td = self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=extravars)
-                phases[f"teardown_{test_name}"] = res_td
-                if not res_td.success:
-                    logger.warning(f"Teardown failed for {test_name}")
+                # B. Run Workload
+                ui_log(f"Run: {test_name}")
+                for rep in range(1, self.config.repetitions + 1):
+                    pending_hosts = [
+                        host
+                        for host in self.config.remote_hosts
+                        if active_journal.should_run(host.name, test_name, rep)
+                    ]
+                    if not pending_hosts:
+                        # If all hosts done for this rep (e.g. resumed), just log and skip
+                        continue
 
-        # 3. Global Teardown (Clean up remote artifacts)
-        if self.config.remote_execution.run_teardown:
-            if self.output_formatter:
-                self.output_formatter.set_phase("Global Teardown")
-            
-            # Use teardown playbook if configured, otherwise fallback or skip
-            # (BenchmarkConfig defaults ensure it is set)
-            if self.config.remote_execution.teardown_playbook:
-                phases["teardown_global"] = self.executor.run_playbook(
-                    self.config.remote_execution.teardown_playbook,
-                    inventory=inventory,
-                    extravars=extravars,
-                )
-                if not phases["teardown_global"].success:
-                    logger.warning("Global teardown failed to clean up perfectly.")
-                    # Do not mark overall run as failure for cleanup issues
-            else:
-                logger.warning("No teardown playbook configured.")
+                    ui_log(f"Running {test_name} Repetition {rep} on {len(pending_hosts)} hosts")
+                    
+                    self._update_journal_tasks(
+                        active_journal,
+                        journal_file,
+                        pending_hosts,
+                        test_name,
+                        rep,
+                        RunStatus.RUNNING,
+                        action="Running workload...",
+                    )
+                    live.update(self.dashboard.update())
+
+                    loop_extravars = extravars.copy()
+                    loop_extravars["tests"] = [test_name]  # Run only this test
+                    loop_extravars["repetition_index"] = rep
+                    loop_extravars["repetitions_total"] = self.config.repetitions
+
+                    res_run = self._run_for_hosts(
+                        self.config.remote_execution.run_playbook,
+                        inventory,
+                        pending_hosts,
+                        extravars=loop_extravars,
+                    )
+                    phases[f"run_{test_name}_rep{rep}"] = res_run
+                    status = RunStatus.COMPLETED if res_run.success else RunStatus.FAILED
+                    
+                    self._update_journal_tasks(
+                        active_journal,
+                        journal_file,
+                        pending_hosts,
+                        test_name,
+                        rep,
+                        status,
+                        action="Completed" if res_run.success else "Failed",
+                        error=None if res_run.success else "ansible-playbook failed",
+                    )
+                    live.update(self.dashboard.update())
+
+                    if not res_run.success:
+                        ui_log(f"Repetition {rep} failed!")
+                        all_tests_success = False
+
+                    # C. Intermediate Collect (Secure data immediately)
+                    if self.config.remote_execution.run_collect:
+                        ui_log(f"Collect: {test_name} (rep {rep})")
+                        
+                        # Optional: update journal action to "Collecting"
+                        self._update_journal_tasks(
+                            active_journal, journal_file, pending_hosts, test_name, rep, status, action="Collecting results"
+                        )
+                        live.update(self.dashboard.update())
+
+                        res_col = self._run_for_hosts(
+                            self.config.remote_execution.collect_playbook,
+                            inventory,
+                            pending_hosts,
+                            extravars=extravars,
+                        )
+                        phases[f"collect_{test_name}_rep{rep}"] = res_col
+                        if not res_col.success:
+                            ui_log(f"Collection failed for {test_name} (rep {rep})")
+                        
+                        # Restore completed action
+                        self._update_journal_tasks(
+                            active_journal, journal_file, pending_hosts, test_name, rep, status, action="Done"
+                        )
+
+                # D. Plugin Teardown
+                teardown_pb = plugin.get_ansible_teardown_path()
+                if teardown_pb:
+                    ui_log(f"Teardown: {test_name}")
+                    res_td = self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=extravars)
+                    phases[f"teardown_{test_name}"] = res_td
+                    if not res_td.success:
+                        ui_log(f"Teardown failed for {test_name}")
+
+            # 3. Global Teardown (Clean up remote artifacts)
+            if self.config.remote_execution.run_teardown:
+                ui_log("Phase: Global Teardown")
+
+                # Use teardown playbook if configured
+                if self.config.remote_execution.teardown_playbook:
+                    phases["teardown_global"] = self.executor.run_playbook(
+                        self.config.remote_execution.teardown_playbook,
+                        inventory=inventory,
+                        extravars=extravars,
+                    )
+                    if not phases["teardown_global"].success:
+                        ui_log("Global teardown failed to clean up perfectly.")
+                else:
+                    ui_log("No teardown playbook configured.")
+
+            ui_log("Run Finished.")
+            time.sleep(2) # Let user see the final state
 
         return RunExecutionSummary(
             run_id=resolved_run_id,
@@ -469,6 +567,60 @@ class BenchmarkController:
             report_root=report_root,
             data_export_root=data_export_root,
         )
+
+    def _run_for_hosts(
+        self,
+        playbook_path: Path,
+        base_inventory: InventorySpec,
+        hosts: List[RemoteHostConfig],
+        extravars: Dict[str, Any],
+        tags: Optional[List[str]] = None,
+    ) -> ExecutionResult:
+        """Execute a playbook limited to the provided host list."""
+        limit_hosts = [host.name for host in hosts]
+        target_inventory = InventorySpec(
+            hosts=hosts,
+            inventory_path=base_inventory.inventory_path,
+        )
+        return self.executor.run_playbook(
+            playbook_path,
+            inventory=target_inventory,
+            extravars=extravars,
+            tags=tags,
+            limit_hosts=limit_hosts,
+        )
+
+    def _update_journal_tasks(
+        self,
+        journal: RunJournal,
+        journal_path: Path,
+        hosts: List[RemoteHostConfig],
+        workload: str,
+        repetition: int,
+        status: str,
+        action: Optional[str] = None,
+        error: Optional[str] = None,
+    ) -> None:
+        """Update journal entries for each host and persist."""
+        for host in hosts:
+            journal.update_task(
+                host.name,
+                workload,
+                repetition,
+                status,
+                action=action,
+                error=error,
+            )
+        journal.save(journal_path)
+        self._refresh_journal()
+
+    def _refresh_journal(self) -> None:
+        """Trigger UI refresh when a journal update occurs."""
+        if self.dashboard:
+             # In Live context, update() is called by the loop, but we can force it
+             pass
+        if self._journal_refresh:
+            self._journal_refresh()
 
     @staticmethod
     def _generate_run_id() -> str:
@@ -495,8 +647,8 @@ class BenchmarkController:
         """Prepare output/report directories per host."""
         per_host: Dict[str, Path] = {}
         for host in self.config.remote_hosts:
-            host_dir = output_root / host.name
             host_report_dir = report_root / host.name
+            host_dir = output_root / host.name
             host_dir.mkdir(parents=True, exist_ok=True)
             host_report_dir.mkdir(parents=True, exist_ok=True)
             per_host[host.name] = host_dir

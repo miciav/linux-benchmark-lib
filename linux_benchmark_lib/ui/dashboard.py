@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict, Any
 from datetime import datetime
 from rich.table import Table
 from rich.panel import Panel
@@ -6,36 +6,67 @@ from rich.layout import Layout
 from rich.text import Text
 from rich.style import Style
 from linux_benchmark_lib.journal import RunJournal, TaskState
+# Assumo che BenchmarkConfig sia importabile, userò un type hint generico per evitare dipendenze circolari se necessario
+# ma idealmente: from linux_benchmark_lib.benchmark_config import BenchmarkConfig 
 
 class BenchmarkDashboard:
-    def __init__(self, journal: RunJournal):
+    def __init__(self, journal: RunJournal, config: Any): # config: BenchmarkConfig
         self.journal = journal
+        self.config = config
         self.log_buffer: List[str] = []
         self.max_log_lines = 10
         
         # Define Main Layout
         self.layout = Layout()
         self.layout.split_column(
-            Layout(name="header", size=4),
-            Layout(name="journal", size=8),
+            Layout(name="header", size=6), # Aumentato size per ospitare l'header più ricco
+            Layout(name="journal", size=10),
             Layout(name="logs")
         )
 
     def _generate_header(self) -> Table:
-        """Recreates the configuration table."""
-        table = Table(show_edge=True, expand=True, border_style="cyan", header_style="bold white")
+        """Recreates the configuration table matching the CLI 'Run Plan'."""
+        # Style copied from current implementation description
+        table = Table(title="Run Plan", show_edge=True, expand=True, border_style="cyan", header_style="bold white")
         table.add_column("Workload")
         table.add_column("Plugin", style="cyan")
         table.add_column("Intensity")
         table.add_column("Configuration")
         table.add_column("Status", style="green")
         
-        # Placeholder data - in real app this would come from config
-        table.add_row(
-            "Multiple", "Mix", "High", 
-            "Sequential Execution Plan", 
-            "Running"
-        )
+        # Generate rows from config
+        # Logic adapted from cli.py _print_run_plan
+        if hasattr(self.config, 'workloads'):
+            for name, wl in self.config.workloads.items():
+                if not wl.enabled:
+                    continue
+                
+                # Determine status based on journal
+                tasks = [t for t in self.journal.tasks if t.workload == name]
+                if not tasks:
+                     status = "Pending"
+                elif all(t.status == "COMPLETED" for t in tasks):
+                     status = "Completed"
+                elif any(t.status == "FAILED" for t in tasks):
+                     status = "Failed"
+                elif any(t.status == "RUNNING" for t in tasks):
+                     status = "Running"
+                else:
+                     status = "In Progress"
+
+                # Format details string
+                details = f"Int: {wl.intensity}" # Simplification
+                if hasattr(wl, 'options') and wl.options:
+                     details = str(wl.options)
+
+                table.add_row(
+                    name,
+                    wl.plugin,
+                    wl.intensity,
+                    details,
+                    status
+                )
+        
         return table
 
     def _generate_journal_table(self) -> Panel:
@@ -58,7 +89,6 @@ class BenchmarkDashboard:
         table.add_column("Current Action", style="dim italic")
 
         # Group tasks to display them row by row, preserving insertion order
-        # This ensures that if "Workload A" is added before "Workload B", it appears first.
         seen_keys = set()
         unique_keys = []
         for t in self.journal.tasks:
