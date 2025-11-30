@@ -1,8 +1,8 @@
-"Controller module coordinating remote benchmark execution via Ansible.
+"""Controller module coordinating remote benchmark execution via Ansible.
 
 This module keeps orchestration logic inside Python while delegating remote
 execution to Ansible Runner.
-"
+"""
 
 import json
 import logging
