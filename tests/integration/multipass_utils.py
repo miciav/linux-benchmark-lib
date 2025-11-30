@@ -1,5 +1,5 @@
 import os
-from services.test_service import TestService
+from linux_benchmark_lib.services.test_service import TestService
 
 
 def get_intensity() -> dict:

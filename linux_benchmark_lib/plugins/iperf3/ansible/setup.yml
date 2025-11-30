@@ -1,0 +1,10 @@
+- name: Install iperf3 dependencies
+  hosts: all
+  become: true
+  tasks:
+    - name: Install iperf3 packages
+      package:
+        name:
+          - iperf3
+          - libiperf0
+        state: present

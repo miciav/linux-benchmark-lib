@@ -1,0 +1,22 @@
+- name: Execute benchmarks
+  hosts: all
+  gather_facts: false
+  become: true
+
+  vars:
+    run_id: "{{ run_id | default('unknown') }}"
+    remote_output_root: "{{ remote_output_root | default('/tmp/benchmark_results') }}"
+    per_host_output: "{{ per_host_output | default({}) }}"
+    tests: "{{ tests | default([]) }}"
+    benchmark_config: "{{ benchmark_config | default({}) }}"
+
+  tasks:
+    - name: Include workload runner
+      include_role:
+        name: workload_runner
+      vars:
+        workload_runner_mode: "execute"
+        workload_runner_tests: "{{ tests }}"
+        workload_runner_output_dir: "{{ remote_output_root }}/{{ inventory_hostname }}"
+        workload_runner_config: "{{ benchmark_config }}"
+        lb_workdir: "{{ lb_workdir | default('/opt/lb') }}" # Pass lb_workdir to the role

@@ -1,19 +1,25 @@
 import os
+from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from benchmark_config import (
+from linux_benchmark_lib.benchmark_config import (
     BenchmarkConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     StressNGConfig,
-    DDConfig,
-    FIOConfig,
+    WorkloadConfig,
 )
-from controller import AnsibleRunnerExecutor, BenchmarkController
+from linux_benchmark_lib.plugins.dd.plugin import DDConfig
+from linux_benchmark_lib.controller import AnsibleRunnerExecutor, BenchmarkController
 from tests.integration.test_multipass_benchmark import multipass_vm
 from tests.integration.multipass_utils import get_intensity
+from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+ANSIBLE_ROOT = REPO_ROOT / "linux_benchmark_lib" / "ansible"
 
 
 @pytest.mark.integration
@@ -30,15 +36,29 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
         RemoteHostConfig(
             name=vm["name"],
             address=vm["ip"],
-            user=vm["user"],
-            become=True,
-            vars={
-                "ansible_ssh_private_key_file": str(vm["key_path"]),
-                "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
-            },
-        )
-        for vm in multipass_vms
-    ]
+        user=vm["user"],
+        become=True,
+        vars={
+            "ansible_ssh_private_key_file": str(vm["key_path"]),
+            "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
+        },
+    )
+    for vm in multipass_vms
+]
+
+    stress_cfg = StressNGConfig(cpu_workers=1, timeout=intensity["stress_timeout"])
+    dd_cfg = DDConfig(bs="1M", count=intensity["dd_count"], of_path="/tmp/dd_test")
+    fio_cfg = FIOConfig(
+        runtime=intensity["fio_runtime"],
+        size=intensity["fio_size"],
+        numjobs=1,
+        iodepth=4,
+        directory="/tmp",
+        name="benchmark",
+        rw="randrw",
+        bs="4k",
+        output_format="json",
+    )
 
     config = BenchmarkConfig(
         repetitions=1,
@@ -54,24 +74,21 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
             run_setup=True,
             run_collect=True,
         ),
-        stress_ng=StressNGConfig(cpu_workers=1, timeout=intensity["stress_timeout"]),
-        dd=DDConfig(bs="1M", count=intensity["dd_count"], of_path="/tmp/dd_test"),
-        fio=FIOConfig(
-            runtime=intensity["fio_runtime"],
-            size=intensity["fio_size"],
-            numjobs=1,
-            iodepth=4,
-            directory="/tmp",
-            name="benchmark",
-            rw="randrw",
-            bs="4k",
-            output_format="json",
-        ),
+        plugin_settings={
+            "stress_ng": stress_cfg,
+            "dd": dd_cfg,
+            "fio": fio_cfg,
+        },
+        workloads={
+            "stress_ng": WorkloadConfig(plugin="stress_ng", enabled=True, options=asdict(stress_cfg)),
+            "dd": WorkloadConfig(plugin="dd", enabled=True, options=asdict(dd_cfg)),
+            "fio": WorkloadConfig(plugin="fio", enabled=True, options=asdict(fio_cfg)),
+        },
     )
 
     ansible_dir = tmp_path / "ansible_data"
-    os.environ["ANSIBLE_ROLES_PATH"] = str(Path("ansible/roles").absolute())
-    os.environ["ANSIBLE_CONFIG"] = str(Path("ansible/ansible.cfg").absolute())
+    os.environ["ANSIBLE_ROLES_PATH"] = str((ANSIBLE_ROOT / "roles").absolute())
+    os.environ["ANSIBLE_CONFIG"] = str((ANSIBLE_ROOT / "ansible.cfg").absolute())
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)

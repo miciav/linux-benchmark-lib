@@ -1,5 +1,0 @@
-name: stress_ng
-description: CPU and memory stress workload
-apt_packages:
-  - stress-ng
-pip_packages: []

@@ -1,0 +1,10 @@
+---
+- name: Teardown stress-ng
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure stress-ng processes are killed
+      ansible.builtin.command: killall -9 stress-ng
+      register: kill_result
+      failed_when: false
+      changed_when: kill_result.rc == 0

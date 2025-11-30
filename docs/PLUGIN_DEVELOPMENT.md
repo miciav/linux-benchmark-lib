@@ -3,17 +3,16 @@
 This guide explains how to build, package, and install custom workload plugins for `linux-benchmark-lib`.
 
 ## Plugin anatomy
-- Implement the `WorkloadPlugin` interface (`plugins/interface.py`).
-- Provide a config class (usually a dataclass) and a generator derived from `workload_generators/_base_generator.py`.
+- Implement the `WorkloadPlugin` interface (`linux_benchmark_lib/plugins/interface.py`).
+- Provide a config class (usually a dataclass) and a generator derived from `linux_benchmark_lib/plugins/base_generator.py`.
 - Export a module-level `PLUGIN` variable pointing to your `WorkloadPlugin` instance.
-- Optionally declare install dependencies via a manifest (`<name>.yaml`).
 
 ### Minimal example
 ```python
 from dataclasses import dataclass, field
 from typing import List, Optional, Type
-from plugins.interface import WorkloadPlugin
-from workload_generators._base_generator import BaseGenerator
+from linux_benchmark_lib.plugins.interface import WorkloadPlugin
+from linux_benchmark_lib.plugins.base_generator import BaseGenerator
 
 
 @dataclass
@@ -62,22 +61,24 @@ class EchoPlugin(WorkloadPlugin):
 PLUGIN = EchoPlugin()
 ```
 
-### Manifest (dependencies)
-Place a YAML file next to the plugin source to declare system/Python deps:
-```yaml
-name: echo
-description: Example echo workload
-apt_packages: []
-pip_packages: []
+### Dependencies
+
+Define your dependencies directly in the `WorkloadPlugin` class:
+
+```python
+    def get_required_apt_packages(self) -> List[str]:
+        return ["some-tool"]
+
+    def get_required_pip_packages(self) -> List[str]:
+        return ["numpy"]
 ```
-These manifests are used by `tools/gen_plugin_assets.py` to update Docker/Ansible install steps.
 
 ## Packaging and installation
 - **Single file**: `lb plugin install /path/to/echo.py`
-- **Directory with manifest**: `lb plugin install /path/to/echo_plugin_dir`
+- **Directory**: `lb plugin install /path/to/echo_plugin_dir`
 - **Archive**: `tar -czf echo.tar.gz echo_plugin_dir` then `lb plugin install echo.tar.gz`
 - **Git repository**: `lb plugin install https://github.com/org/echo-plugin.git` (uses `git clone --depth 1`)
-- **User drop-in**: copy `echo.py` (and optional `echo.yaml`) to `~/.config/lb/plugins/`; it will be auto-discovered.
+- **User drop-in**: copy `echo.py` to `~/.config/lb/plugins/`; it will be auto-discovered.
 - **Entry point (packaged dist)**: expose `PLUGIN` via `pyproject.toml`:
   ```toml
   [project.entry-points."linux_benchmark.workloads"]
@@ -95,13 +96,67 @@ To pin default options, add to `plugin_settings` or `workloads` in `benchmark_co
 "workloads": {"echo": {"plugin": "echo", "enabled": true, "options": {"message": "hi"}}}
 ```
 
-## Regenerating dependency assets (repo contributors)
-When you add or change a manifest in the main repository, run:
-```bash
-uv run python tools/gen_plugin_assets.py
+## Modular Plugin Structure (Recommended)
+
+For more complex plugins that require specific Docker environments or Ansible playbooks, use the modular directory structure:
+
+```text
+linux_benchmark_lib/plugins/<plugin_name>/
+├── __init__.py
+├── plugin.py       # Contains the Plugin class and Generator implementation
+├── Dockerfile      # (Optional) Dedicated Docker build for this plugin
+└── linux_benchmark_lib/ansible/  # (Optional) playbooks/roles if you ship remote mode
+    ├── setup.yml
+    └── teardown.yml
 ```
-Commit the updated Dockerfile block and `ansible/roles/workload_runner/tasks/plugins.generated.yml`.
-User-installed plugins do not require regenerating these assets.
+
+### Key Components
+
+1.  **plugin.py**:
+    *   Must define your configuration dataclass (e.g., `MyConfig`).
+    *   Must define your generator class inheriting from `BaseGenerator`.
+    *   Must define your plugin class inheriting from `WorkloadPlugin`.
+    *   **Crucially**, must expose the plugin instance as `PLUGIN`.
+    *   Implement `get_dockerfile_path()` to return `Path(__file__).parent / "Dockerfile"` if you provide one.
+
+2.  **Dockerfile**:
+    *   Define a specialized environment for your workload.
+    *   The base image should align with the project's Python version if possible.
+    *   Install system dependencies (e.g., `apt-get install -y coreutils`).
+    *   Install the core library dependencies so the internal runner works:
+        `RUN pip install --no-cache-dir psutil typer rich pyyaml InquirerPy pandas numpy jc`
+
+3.  **__init__.py**:
+    *   Can be empty, but ensures the directory is treated as a package.
+
+### Example: `dd` Plugin
+
+**linux_benchmark_lib/plugins/dd/plugin.py**:
+```python
+from pathlib import Path
+from linux_benchmark_lib.plugins.interface import WorkloadPlugin
+# ... imports ...
+
+class DDPlugin(WorkloadPlugin):
+    @property
+    def name(self) -> str:
+        return "dd"
+    
+    # ... config and generator ...
+
+    def get_dockerfile_path(self) -> Optional[Path]:
+        return Path(__file__).parent / "Dockerfile"
+
+PLUGIN = DDPlugin()
+```
+
+**linux_benchmark_lib/plugins/dd/Dockerfile**:
+```dockerfile
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y coreutils ...
+RUN pip install --no-cache-dir psutil typer rich ...
+WORKDIR /app
+```
 
 ## Testing tips
 - Use `PluginRegistry` in unit tests to register your plugin and create generators.

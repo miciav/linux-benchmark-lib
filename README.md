@@ -80,7 +80,7 @@ See `CLI.md` for the full command reference. Highlights:
 - Config and defaults: `lb config init`, `lb config set-default`, `lb config edit`, `lb config workloads`, `lb plugin list --select/--enable/--disable NAME` (shows enabled state with checkmarks).
 - Discovery and run: `lb plugin list`, `lb hosts`, `lb run [tests...]` (follows config for local/remote unless overridden).
 - Interactive toggle: `lb plugin select` to enable/disable plugins with arrows + space; `lb config select-workloads` to toggle configured workloads the same way.
-- Install plugins from a path or git repo: `lb plugin install ./plugins/packages/sysbench_plugin.tar.gz` or `lb plugin install https://github.com/miciav/unixbench-lb-plugin.git`.
+- Install plugins from a path or git repo: `lb plugin install ./linux_benchmark_lib/plugins/packages/sysbench_plugin.tar.gz` or `lb plugin install https://github.com/miciav/unixbench-lb-plugin.git`.
 - Example (UnixBench from git): 
   ```bash
   lb plugin install https://github.com/miciav/unixbench-lb-plugin.git
@@ -101,29 +101,23 @@ See `CLI.md` for the full command reference. Highlights:
 - The UI adapter powers both interactive prompts and headless rendering used by tests.
 
 ### Plugin manifests and generated assets
-- Each workload declares its install needs in `plugins/manifests/<name>.yaml`:
-  ```yaml
-  name: stress_ng
-  description: CPU and memory stress workload
-  apt_packages: [stress-ng]
-  pip_packages: []
-  ```
-- Regenerate Docker/Ansible assets after adding or updating a manifest:
-  ```
-  uv run python tools/gen_plugin_assets.py
-  ```
-  This updates the generated apt/pip install block in `Dockerfile` and rewrites `ansible/roles/workload_runner/tasks/plugins.generated.yml`.
+
+- Each workload is self-contained in `linux_benchmark_lib/plugins/<name>/`.
+- Dependencies are defined in the plugin's Python class (`get_required_apt_packages`, etc.).
+- A dedicated Dockerfile can be provided in the plugin directory for containerized execution.
+
+  This updates the generated apt/pip install block in `Dockerfile` and rewrites `linux_benchmark_lib/ansible/roles/workload_runner/tasks/plugins.generated.yml`.
 - Commit both the manifest and generated files so remote setup and the container stay in sync with available plugins.
 - See `docs/PLUGIN_DEVELOPMENT.md` for a full plugin authoring guide (WorkloadPlugin interface, manifests, packaging, git installs).
 
 ## Quick Start
 
 ```python
-from benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig
-from controller import BenchmarkController
-from local_runner import LocalRunner
-from plugins.builtin import builtin_plugins
-from plugins.registry import PluginRegistry
+from linux_benchmark_lib.benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig
+from linux_benchmark_lib.controller import BenchmarkController
+from linux_benchmark_lib.local_runner import LocalRunner
+from linux_benchmark_lib.plugins.builtin import builtin_plugins
+from linux_benchmark_lib.plugins.registry import PluginRegistry
 
 # Create a configuration
 config = BenchmarkConfig(
@@ -153,17 +147,18 @@ print(summary.per_host_output)
 
 ```
 linux-benchmark-lib/
-├── benchmark_config.py      # Centralized configuration
-├── controller.py            # Remote controller using Ansible Runner
-├── local_runner.py          # Local agent for single-node runs
-├── data_handler.py          # Data processing and aggregation
-├── reporter.py              # Reports and plots
-├── metric_collectors/       # Metric collectors (Plugins)
-├── workload_generators/     # Workload generators (Plugins)
-├── plugins/                 # Plugin registry and built-ins
-├── ansible/                 # Playbooks and roles for remote execution
-├── tests/                   # Unit and integration tests
-└── pyproject.toml           # Project configuration (Core + Extras)
+├── linux_benchmark_lib/
+│   ├── benchmark_config.py      # Centralized configuration
+│   ├── controller.py            # Remote controller using Ansible Runner
+│   ├── local_runner.py          # Local agent for single-node runs
+│   ├── data_handler.py          # Data processing and aggregation
+│   ├── reporter.py              # Reports and plots
+│   ├── metric_collectors/       # Metric collectors (Plugins)
+│   ├── plugins/                 # Plugin registry and built-ins
+│   └── ansible/                 # Playbooks and roles for remote execution
+├── tests/                       # Unit and integration tests
+├── tools/                       # Helper scripts (mode switching, etc.)
+└── pyproject.toml               # Project configuration (Core + Extras)
 ```
 
 ## Configuration
@@ -171,7 +166,7 @@ linux-benchmark-lib/
 All knobs are defined in `BenchmarkConfig`:
 
 ```python
-from benchmark_config import BenchmarkConfig, StressNGConfig
+from linux_benchmark_lib.benchmark_config import BenchmarkConfig, StressNGConfig
 
 config = BenchmarkConfig(
     # Test execution parameters

@@ -2,8 +2,7 @@
 
 import ctypes.util
 
-from benchmark_config import IPerf3Config
-from workload_generators.iperf3_generator import IPerf3Generator
+from linux_benchmark_lib.plugins.iperf3.plugin import IPerf3Config, IPerf3Generator
 
 
 def test_validate_environment_handles_missing_library(monkeypatch):

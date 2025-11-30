@@ -8,19 +8,22 @@ This script shows how to configure and run various benchmark tests.
 import logging
 from pathlib import Path
 
-from benchmark_config import (
+from dataclasses import asdict
+
+from linux_benchmark_lib.benchmark_config import (
     BenchmarkConfig,
-    StressNGConfig,
-    IPerf3Config,
-    DDConfig,
-    FIOConfig,
     MetricCollectorConfig,
-    PerfConfig
+    PerfConfig,
+    WorkloadConfig,
 )
-from local_runner import LocalRunner
-from reporter import Reporter
-from plugins.builtin import builtin_plugins
-from plugins.registry import PluginRegistry
+from linux_benchmark_lib.local_runner import LocalRunner
+from linux_benchmark_lib.reporter import Reporter
+from linux_benchmark_lib.plugins.builtin import builtin_plugins
+from linux_benchmark_lib.plugins.registry import PluginRegistry
+from linux_benchmark_lib.plugins.dd.plugin import DDConfig
+from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
+from linux_benchmark_lib.plugins.iperf3.plugin import IPerf3Config
+from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
 
 
 def setup_logging():
@@ -37,62 +40,61 @@ def setup_logging():
 
 def create_custom_config() -> BenchmarkConfig:
     """Create a custom benchmark configuration."""
+    stress_cfg = StressNGConfig(
+        cpu_workers=2,
+        cpu_method="matrixprod",
+        vm_workers=1,
+        vm_bytes="512M",
+        io_workers=1,
+        timeout=30,
+    )
+    iperf_cfg = IPerf3Config(
+        server_host="localhost",  # Requires iperf3 server running
+        parallel=2,
+        time=30,
+        protocol="tcp",
+    )
+    dd_cfg = DDConfig(
+        bs="4M",
+        oflag="direct",
+    )
+    fio_cfg = FIOConfig(
+        runtime=30,
+        rw="randrw",
+        bs="4k",
+        iodepth=32,
+        numjobs=2,
+        size="512M",
+    )
+
     config = BenchmarkConfig(
-        # Test execution parameters
         repetitions=3,
         test_duration_seconds=30,  # Shorter duration for example
         metrics_interval_seconds=1.0,
         warmup_seconds=5,
         cooldown_seconds=5,
-        
-        # Custom stress-ng configuration
-        stress_ng=StressNGConfig(
-            cpu_workers=2,
-            cpu_method="matrixprod",
-            vm_workers=1,
-            vm_bytes="512M",
-            io_workers=1,
-            timeout=30
-        ),
-        
-        # Custom iperf3 configuration
-        iperf3=IPerf3Config(
-            server_host="localhost",  # Requires iperf3 server running
-            parallel=2,
-            time=30,
-            protocol="tcp"
-        ),
-        
-        # Custom dd configuration
-        dd=DDConfig(
-            bs="4M",
-            count=256,  # 1GB total
-            oflag="direct"
-        ),
-        
-        # Custom fio configuration
-        fio=FIOConfig(
-            runtime=30,
-            rw="randrw",
-            bs="4k",
-            iodepth=32,
-            numjobs=2,
-            size="512M"
-        ),
-        
-        # Metric collector configuration
+        plugin_settings={
+            "stress_ng": stress_cfg,
+            "iperf3": iperf_cfg,
+            "dd": dd_cfg,
+            "fio": fio_cfg,
+        },
+        workloads={
+            "stress_ng": WorkloadConfig(plugin="stress_ng", enabled=True, options=asdict(stress_cfg)),
+            "iperf3": WorkloadConfig(plugin="iperf3", enabled=True, options=asdict(iperf_cfg)),
+            "dd": WorkloadConfig(plugin="dd", enabled=False, options=asdict(dd_cfg)),
+            "fio": WorkloadConfig(plugin="fio", enabled=False, options=asdict(fio_cfg)),
+        },
         collectors=MetricCollectorConfig(
             psutil_interval=1.0,
             cli_commands=["vmstat 1", "iostat -x 1"],
             perf_config=PerfConfig(
                 events=["cpu-cycles", "instructions", "cache-misses"],
-                interval_ms=1000
+                interval_ms=1000,
             ),
-            enable_ebpf=False  # Requires root and BCC tools
-        )
+            enable_ebpf=False,  # Requires root and BCC tools
+        ),
     )
-    # Example of tweaking a workload via the plugin configuration
-    config.workloads["stress_ng"].options["cpu_workers"] = 2
     return config
 
 

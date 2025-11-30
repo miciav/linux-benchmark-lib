@@ -2,10 +2,10 @@
 
 import pytest
 
-from benchmark_config import BenchmarkConfig
-from local_runner import LocalRunner
-from plugins.builtin import builtin_plugins
-from plugins.registry import PluginRegistry
+from linux_benchmark_lib.benchmark_config import BenchmarkConfig
+from linux_benchmark_lib.local_runner import LocalRunner
+from linux_benchmark_lib.plugins.builtin import builtin_plugins
+from linux_benchmark_lib.plugins.registry import PluginRegistry
 
 
 def test_local_runner_requires_registry(tmp_path):

@@ -48,11 +48,15 @@ htmlcov/
 /tests/results
 
 # Ansible runtime artifacts
+.ansible/
+.ansible_runner/
 ansible/artifacts/
 ansible/playbooks/benchmark_results/
 ansible/env/extravars
 ansible/inventory/hosts
 ansible/inventory/hosts.ini
+linux_benchmark_lib/ansible/playbooks/tests/results/
+linux_benchmark_lib/ansible/playbooks/benchmark_results/
 
 # OS-specific
 .DS_Store
