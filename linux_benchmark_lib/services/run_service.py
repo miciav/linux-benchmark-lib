@@ -24,18 +24,17 @@ class AnsibleOutputFormatter:
     """Parses raw Ansible output stream and prints user-friendly status updates."""
     
     def __init__(self):
-        # Regex to capture "TASK [role : Task Name] ***"
         self.task_pattern = re.compile(r"TASK \[(.*?)\]")
-        # Regex to capture "Running benchmark: name" from python script
         self.bench_pattern = re.compile(r"Running benchmark: (.*)")
+        self.current_phase = "Initializing" # Default phase
     
+    def set_phase(self, phase: str):
+        self.current_phase = phase
+
     def process(self, text: str, end: str = ""):
-        # Ansible often sends partial lines or multiple lines.
-        # For simplicity in this stream processor, we print line by line.
         if not text:
             return
         
-        # Simple buffering could be added here if needed, but for now handle full lines usually sent by runner
         lines = text.splitlines()
         for line in lines:
             self._handle_line(line)
@@ -58,7 +57,7 @@ class AnsibleOutputFormatter:
             # Cleanup "workload_runner :" prefix if present
             if " : " in task_name:
                 _, task_name = task_name.split(" : ", 1)
-            print(f"• [Setup] {task_name}")
+            print(f"• [{self.current_phase}] {task_name}")
             return
 
         # Format Benchmark Start (from python script)
@@ -73,9 +72,7 @@ class AnsibleOutputFormatter:
             return
 
         # Pass through interesting lines from the benchmark script
-        # The python script uses logging format: "DATE [INFO] ..."
         if "linux_benchmark_lib.local_runner" in line or "Running test" in line or "Progress:" in line or "Completed" in line:
-             # Clean up the log prefix if desired, or just print
              print(f"  {line}")
              return
         
@@ -351,7 +348,7 @@ class RunService:
                 
                 # Reuse the existing remote execution logic
                 from ..controller import BenchmarkController
-                controller = BenchmarkController(context.config, output_callback=output_callback)
+                controller = BenchmarkController(context.config, output_callback=output_callback, output_formatter=formatter if not context.debug else None)
                 summary = controller.run(context.target_tests, run_id=run_id)
                 return RunResult(context=context, summary=summary)
 
@@ -391,7 +388,7 @@ class RunService:
 
         if context.use_remote:
             from ..controller import BenchmarkController  # Runtime import to break circular dependency
-            controller = BenchmarkController(context.config, output_callback=output_callback)
+            controller = BenchmarkController(context.config, output_callback=output_callback, output_formatter=formatter if not context.debug else None)
             summary = controller.run(context.target_tests, run_id=run_id)
             return RunResult(context=context, summary=summary)
 

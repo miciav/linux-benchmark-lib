@@ -284,8 +284,10 @@ class BenchmarkController:
         config: BenchmarkConfig,
         executor: Optional[RemoteExecutor] = None,
         output_callback: Optional[Callable[[str, str], None]] = None,
+        output_formatter: Optional[Any] = None,  # Inject the formatter instance
     ):
         self.config = config
+        self.output_formatter = output_formatter
         # Enable streaming if a callback is provided
         stream = output_callback is not None
         self.executor = executor or AnsibleRunnerExecutor(
@@ -344,6 +346,8 @@ class BenchmarkController:
 
         # 1. Global Setup
         if self.config.remote_execution.run_setup:
+            if self.output_formatter:
+                self.output_formatter.set_phase("Global Setup")
             phases["setup_global"] = self.executor.run_playbook(
                 self.config.remote_execution.setup_playbook,
                 inventory=inventory,
@@ -379,6 +383,8 @@ class BenchmarkController:
             # A. Plugin Setup
             setup_pb = plugin.get_ansible_setup_path()
             if setup_pb:
+                if self.output_formatter:
+                    self.output_formatter.set_phase(f"Setup: {test_name}")
                 logger.info(f"Running setup for plugin {plugin.name}")
                 res = self.executor.run_playbook(setup_pb, inventory=inventory, extravars=extravars)
                 phases[f"setup_{test_name}"] = res
@@ -392,6 +398,8 @@ class BenchmarkController:
                     continue
 
             # B. Run Workload
+            if self.output_formatter:
+                self.output_formatter.set_phase(f"Run: {test_name}")
             logger.info(f"Running workload {test_name}")
             loop_extravars = extravars.copy()
             loop_extravars["tests"] = [test_name] # Run only this test
@@ -408,6 +416,8 @@ class BenchmarkController:
             # C. Plugin Teardown
             teardown_pb = plugin.get_ansible_teardown_path()
             if teardown_pb:
+                if self.output_formatter:
+                    self.output_formatter.set_phase(f"Teardown: {test_name}")
                 logger.info(f"Running teardown for plugin {plugin.name}")
                 res_td = self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=extravars)
                 phases[f"teardown_{test_name}"] = res_td
@@ -416,13 +426,15 @@ class BenchmarkController:
 
         # 3. Global Collect
         if self.config.remote_execution.run_collect:
-             phases["collect"] = self.executor.run_playbook(
+            if self.output_formatter:
+                self.output_formatter.set_phase("Collect Results")
+            phases["collect"] = self.executor.run_playbook(
                 self.config.remote_execution.collect_playbook,
                 inventory=inventory,
                 extravars=extravars,
             )
-             if not phases["collect"].success:
-                 all_tests_success = False
+            if not phases["collect"].success:
+                all_tests_success = False
 
         return RunExecutionSummary(
             run_id=resolved_run_id,
