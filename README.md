@@ -92,7 +92,6 @@ See `CLI.md` for the full command reference. Highlights:
   ```
 - Health checks: `lb doctor controller`, `lb doctor local-tools`, `lb doctor multipass`, `lb doctor all`.
 - Integration helper: `lb test multipass --vm-count {1,2} [--multi-workloads]` (artifacts to `tests/results` by default).
-- Optional workload: `top500` (HPL Linpack via geerlingguy/top500-benchmark playbook), disabled by default; enable with `lb plugin list --enable top500` or interactively with `lb plugin list --select`.
 - Test helpers (`lb test ...`) are available in dev mode (create `.lb_dev_cli` or export `LB_ENABLE_TEST_CLI=1`).
 
 ### UI layer
@@ -166,26 +165,24 @@ linux-benchmark-lib/
 All knobs are defined in `BenchmarkConfig`:
 
 ```python
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig, StressNGConfig
+from pathlib import Path
+from linux_benchmark_lib.benchmark_config import BenchmarkConfig
+from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
 
 config = BenchmarkConfig(
-    # Test execution parameters
     repetitions=5,
     test_duration_seconds=120,
     metrics_interval_seconds=0.5,
-    
-    # stress-ng configuration
-    stress_ng=StressNGConfig(
-        cpu_workers=4,
-        vm_workers=2,
-        vm_bytes="2G"
-    )
+    plugin_settings={
+        "stress_ng": StressNGConfig(
+            cpu_workers=4,
+            vm_workers=2,
+            vm_bytes="2G",
+        )
+    },
 )
 
-# Save configuration
 config.save(Path("my_config.json"))
-
-# Load configuration
 config = BenchmarkConfig.load(Path("my_config.json"))
 ```
 

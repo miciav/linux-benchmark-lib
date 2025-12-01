@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import time
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 class DateTimeEncoder(JSONEncoder):
     """Custom JSON encoder that handles datetime objects."""
-    def default(self, obj):
+    def default(self, obj: Any) -> Any:
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
@@ -49,11 +49,20 @@ class LocalRunner:
             config: Benchmark configuration
         """
         self.config = config
-        self.data_handler = DataHandler()
+        collectors = {}
+        if hasattr(registry, "available_collectors"):
+            try:
+                collectors = registry.available_collectors()
+            except Exception:
+                collectors = {}
+        self.data_handler = DataHandler(collectors=collectors)
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = registry
         self.ui = ui_adapter or get_ui_adapter()
+        self._current_run_id: Optional[str] = None
+        self._output_root: Optional[Path] = None
+        self._data_export_root: Optional[Path] = None
         
     def collect_system_info(self) -> Dict[str, Any]:
         """
@@ -266,10 +275,10 @@ class LocalRunner:
         for collector in collectors:
             collector_data = collector.get_data()
             result["metrics"][collector.name] = collector_data
-            
-            # Save raw data
+
             filename = f"{test_name}_rep{repetition}_{collector.name}.csv"
-            filepath = self.config.output_dir / filename
+            target_root = self._output_root or self.config.output_dir
+            filepath = target_root / filename
             collector.save_data(filepath)
         
         return result
@@ -299,16 +308,26 @@ class LocalRunner:
             except Exception as e:
                 logger.warning(f"Failed to perform pre-test cleanup: {e}")
     
-    def run_benchmark(self, test_type: str) -> None:
+    def run_benchmark(
+        self,
+        test_type: str,
+        repetition_override: int | None = None,
+        total_repetitions: int | None = None,
+        run_id: str | None = None,
+    ) -> None:
         """
         Run a complete benchmark test.
         
         Args:
             test_type: Name of the workload to run (plugin id)
+            repetition_override: When set, run only this repetition index.
+            total_repetitions: Total repetitions planned (for display purposes).
         """
         logger.info(f"Starting benchmark: {test_type}")
 
-        self._ensure_directories()
+        run_identifier = run_id or self._generate_run_id()
+        self._current_run_id = run_identifier
+        self._output_root, self._data_export_root, _ = self._ensure_directories(run_identifier)
         
         # Collect system info if enabled
         if self.config.collect_system_info and not self.system_info:
@@ -319,8 +338,18 @@ class LocalRunner:
 
         # Run multiple repetitions
         test_results = []
-        for rep in range(1, self.config.repetitions + 1):
-            logger.info(f"Starting repetition {rep}/{self.config.repetitions}")
+        total_reps = total_repetitions or self.config.repetitions
+        reps = (
+            [repetition_override]
+            if repetition_override is not None
+            else list(range(1, self.config.repetitions + 1))
+        )
+
+        for rep in reps:
+            if rep is None or rep <= 0:
+                raise ValueError("Repetition index must be a positive integer")
+
+            logger.info(f"Starting repetition {rep}/{total_reps}")
             
             try:
                 plugin = self.plugin_registry.get(plugin_name)
@@ -344,7 +373,7 @@ class LocalRunner:
                     plugin_name, config_input
                 )
                 self.ui.show_info(
-                    f"==> Running workload '{test_type}' (repetition {rep}/{self.config.repetitions})"
+                    f"==> Running workload '{test_type}' (repetition {rep}/{total_reps})"
                 )
                 result = self._run_single_test(
                     test_name=test_type,
@@ -374,7 +403,9 @@ class LocalRunner:
             results: List of test results
         """
         # Save raw results
-        results_file = self.config.output_dir / f"{test_name}_results.json"
+        target_root = self._output_root or self.config.output_dir
+        export_root = self._data_export_root or self.config.data_export_dir
+        results_file = target_root / f"{test_name}_results.json"
         with open(results_file, "w") as f:
             json.dump(results, f, indent=2, cls=DateTimeEncoder)
         
@@ -385,7 +416,7 @@ class LocalRunner:
         
         # Save aggregated results
         if aggregated_df is not None:
-            csv_file = self.config.data_export_dir / f"{test_name}_aggregated.csv"
+            csv_file = export_root / f"{test_name}_aggregated.csv"
             aggregated_df.to_csv(csv_file)
             logger.info(f"Saved aggregated results to {csv_file}")
 
@@ -398,22 +429,34 @@ class LocalRunner:
             raise ValueError(f"Workload '{name}' is disabled in the configuration")
         return workload
 
-    def _ensure_directories(self) -> None:
-        """Create required local output directories."""
+    def _ensure_directories(self, run_id: str) -> tuple[Path, Path, Path]:
+        """Create required local output directories for a run."""
         self.config.ensure_output_dirs()
+        output_root = (self.config.output_dir / run_id).resolve()
+        report_root = (self.config.report_dir / run_id).resolve()
+        data_export_root = (self.config.data_export_dir / run_id).resolve()
+        for path in (output_root, report_root, data_export_root):
+            path.mkdir(parents=True, exist_ok=True)
+        return output_root, data_export_root, report_root
 
     def _print_available_plugins(self) -> None:
         """Print the available workload plugins at startup."""
         enabled = {name: wl.enabled for name, wl in self.config.workloads.items()}
         print_plugin_table(self.plugin_registry, enabled=enabled, ui_adapter=self.ui)
+
+    @staticmethod
+    def _generate_run_id() -> str:
+        """Generate a timestamp-based run id."""
+        return datetime.now(UTC).strftime("run-%Y%m%d-%H%M%S")
     
     def run_all_benchmarks(self) -> None:
         """Run all configured benchmark tests."""
+        run_id = self._generate_run_id()
         for test_name, workload in self.config.workloads.items():
             if not workload.enabled:
                 logger.info("Skipping disabled workload '%s'", test_name)
                 continue
             try:
-                self.run_benchmark(test_name)
+                self.run_benchmark(test_name, run_id=run_id)
             except Exception as e:
                 logger.error(f"Failed to run {test_name} benchmark: {e}", exc_info=True)

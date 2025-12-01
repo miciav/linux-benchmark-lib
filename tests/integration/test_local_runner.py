@@ -1,6 +1,14 @@
-import pytest
 from unittest.mock import MagicMock
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig, MetricCollectorConfig, PerfConfig
+import pytest
+from dataclasses import asdict
+
+from linux_benchmark_lib.benchmark_config import (
+    BenchmarkConfig,
+    MetricCollectorConfig,
+    PerfConfig,
+    WorkloadConfig,
+)
+from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
 from linux_benchmark_lib.local_runner import LocalRunner
 
 def test_run_stress_ng_benchmark(tmp_path, mocker):
@@ -25,6 +33,7 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     ]
 
     # --- Configuration ---
+    stress_cfg = StressNGConfig(cpu_workers=1, timeout=1, vm_workers=0, io_workers=0)
     config = BenchmarkConfig(
         repetitions=1,
         test_duration_seconds=1,
@@ -33,6 +42,14 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
         output_dir=tmp_path / "results",
         data_export_dir=tmp_path / "exports",
         report_dir=tmp_path / "reports",
+        plugin_settings={"stress_ng": stress_cfg},
+        workloads={
+            "stress_ng": WorkloadConfig(
+                plugin="stress_ng",
+                enabled=True,
+                options=asdict(stress_cfg),
+            )
+        },
         collectors=MetricCollectorConfig(
             cli_commands=None, 
             perf_config=PerfConfig(events=None), 
@@ -70,3 +87,6 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     assert len(save_data_calls) == 1
     called_path = save_data_calls[0][0][0]
     assert called_path.name == "stress_ng_rep1_PSUtilCollector.csv"
+    run_id = getattr(runner, "_current_run_id", None)
+    if run_id:
+        assert called_path.parent.name == run_id

@@ -7,10 +7,11 @@ import time
 import re
 import ctypes.util
 from dataclasses import dataclass, asdict
+from contextlib import ExitStack
 from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 
-from ..benchmark_config import BenchmarkConfig, RemoteExecutionConfig
+from ..benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
 from ..journal import RunJournal
 from ..local_runner import LocalRunner
 from ..plugins.registry import PluginRegistry
@@ -107,6 +108,7 @@ class RunContext:
     use_remote: bool
     use_container: bool = False
     use_multipass: bool = False
+    multipass_count: int = 1
     config_path: Optional[Path] = None
     docker_image: str = "linux-benchmark-lib:dev"
     docker_engine: str = "docker"
@@ -272,6 +274,22 @@ class RunService:
             
         return plan
 
+    @staticmethod
+    def apply_overrides(cfg: BenchmarkConfig, intensity: str | None, debug: bool) -> None:
+        """Apply CLI-driven overrides to the configuration."""
+        if intensity:
+            for wl_name in cfg.workloads:
+                cfg.workloads[wl_name].intensity = intensity
+        if debug:
+            for workload in cfg.workloads.values():
+                if isinstance(workload.options, dict):
+                    workload.options["debug"] = True
+                else:
+                    try:
+                        setattr(workload.options, "debug", True)
+                    except Exception:
+                        pass
+
     def build_context(
         self,
         cfg: BenchmarkConfig,
@@ -286,6 +304,7 @@ class RunService:
         config_path: Optional[Path] = None,
         debug: bool = False,
         resume: Optional[str] = None,
+        multipass_vm_count: int = 1,
     ) -> RunContext:
         """Compute the run context and registry."""
         registry = self._registry_factory()
@@ -306,6 +325,7 @@ class RunService:
             use_remote=use_remote,
             use_container=docker,
             use_multipass=multipass,
+            multipass_count=max(1, multipass_vm_count),
             config_path=config_path,
             docker_image=docker_image,
             docker_engine=docker_engine,
@@ -345,15 +365,20 @@ class RunService:
             temp_keys_dir = context.config.output_dir.parent / "temp_keys"
             temp_keys_dir.mkdir(parents=True, exist_ok=True)
             
-            service = MultipassService(temp_keys_dir)
-            
+            count = max(1, context.multipass_count)
+
             # Context Manager ensures cleanup happens even if benchmarks fail
-            with service.provision() as remote_host:
-                if ui_adapter:
-                    ui_adapter.show_success(f"Provisioned Multipass VM: {remote_host.address}")
+            with ExitStack() as stack:
+                remote_hosts: list[RemoteHostConfig] = []
+                for _ in range(count):
+                    service = MultipassService(temp_keys_dir)
+                    remote_host = stack.enter_context(service.provision())
+                    remote_hosts.append(remote_host)
+                    if ui_adapter:
+                        ui_adapter.show_success(f"Provisioned Multipass VM: {remote_host.address}")
                 
                 # Override configuration dynamically
-                context.config.remote_hosts = [remote_host]
+                context.config.remote_hosts = remote_hosts
                 context.config.remote_execution.enabled = True
                 
                 # Ensure playbook paths are absolute and valid (reset to defaults)

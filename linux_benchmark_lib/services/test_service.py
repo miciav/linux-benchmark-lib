@@ -28,6 +28,8 @@ class MultipassScenario:
 class TestService:
     """Service for test configuration and interactions."""
 
+    __test__ = False  # Prevent pytest from collecting this production service as a test
+
     def __init__(self, ui_adapter: Optional[UIAdapter] = None):
         self.ui = ui_adapter or get_ui_adapter()
 
@@ -76,20 +78,17 @@ class TestService:
         }
 
     def select_multipass(
-        self, multi_workloads: bool, top500: bool, default_level: str = "medium"
+        self, multi_workloads: bool, default_level: str = "medium"
     ) -> Tuple[str, str]:
         """
         Return (scenario, intensity_level) using the Textual prompt when possible.
         """
         if multi_workloads:
             return "multi", default_level
-        if top500:
-            return "top500", default_level
 
         cfg_preview = ConfigService().create_default_config().workloads
         names = sorted(cfg_preview.keys())
-        # Deduplicate while preserving order to avoid repeated entries (e.g., top500)
-        options = list(dict.fromkeys(names + ["multi", "top500"]).keys())
+        options = list(dict.fromkeys(names + ["multi"]).keys())
 
         if sys.stdin.isatty():
             result = prompt_multipass(options, default_level=default_level)
@@ -136,14 +135,6 @@ class TestService:
             )
             workload_rows = [row_stress_ng(), row_dd(), row_fio()]
             env_vars = {} # Uses its own hardcoded logic or we could migrate it
-            
-        elif selection == "top500":
-            target = "tests/integration/test_multipass_top500.py"
-            target_label = "top500-setup"
-            workload_label = "top500 (setup tag only)"
-            duration_label = "top500 setup only (no HPL run)"
-            workload_rows = [("top500", "setup only", "1", "0s/0s", "tags=['setup']")]
-            env_vars = {}
             
         elif selection == "stress_ng":
             duration_label = f"stress_ng {intensity['stress']}s"

@@ -7,6 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from tests.integration.multipass_utils import ensure_ansible_available, make_test_ansible_env
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+ANSIBLE_ROOT = REPO_ROOT / "linux_benchmark_lib" / "ansible"
+
 
 def _multipass_available() -> bool:
     """Return True when the multipass CLI is present."""
@@ -142,6 +147,7 @@ def test_multipass_ansible_ping(tmp_path: Path) -> None:
     """
     if not _multipass_available():
         pytest.skip("Multipass not available on this host")
+    ensure_ansible_available()
 
     vm_name = f"lb-ssh-test-{int(time.time())}"
     key_path = tmp_path / "lb_test_key"
@@ -196,12 +202,7 @@ def test_multipass_ansible_ping(tmp_path: Path) -> None:
         )
 
         # Run Ansible with controlled temp dirs
-        ansible_tmp = tmp_path / "ansible_tmp"
-        ansible_tmp.mkdir(parents=True, exist_ok=True)
-        env = os.environ.copy()
-        env["ANSIBLE_LOCAL_TEMP"] = str(ansible_tmp)
-        env["ANSIBLE_REMOTE_TMP"] = "/tmp/.ansible"
-        env["ANSIBLE_HOST_KEY_CHECKING"] = "False"
+        env = make_test_ansible_env(tmp_path, roles_path=ANSIBLE_ROOT / "roles")
 
         subprocess.run(
             ["ansible-playbook", "-i", str(inventory_path), str(playbook_path)],
@@ -230,6 +231,7 @@ def test_multipass_ansible_stress_ng(tmp_path: Path) -> None:
     """
     if not _multipass_available():
         pytest.skip("Multipass not available on this host")
+    ensure_ansible_available()
 
     vm_name = f"lb-ssh-test-{int(time.time())}"
     key_path = tmp_path / "lb_test_key"
@@ -293,12 +295,7 @@ def test_multipass_ansible_stress_ng(tmp_path: Path) -> None:
             "          - stress_cmd.rc == 0\n"
         )
 
-        ansible_tmp = tmp_path / "ansible_tmp"
-        ansible_tmp.mkdir(parents=True, exist_ok=True)
-        env = os.environ.copy()
-        env["ANSIBLE_LOCAL_TEMP"] = str(ansible_tmp)
-        env["ANSIBLE_REMOTE_TMP"] = "/tmp/.ansible"
-        env["ANSIBLE_HOST_KEY_CHECKING"] = "False"
+        env = make_test_ansible_env(tmp_path, roles_path=ANSIBLE_ROOT / "roles")
 
         subprocess.run(
             ["ansible-playbook", "-i", str(inventory_path), str(playbook_path)],
@@ -327,6 +324,7 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
     """
     if not _multipass_available():
         pytest.skip("Multipass not available on this host")
+    ensure_ansible_available()
 
     vm_name = f"lb-ssh-test-{int(time.time())}"
     key_path = tmp_path / "lb_test_key"
@@ -391,16 +389,7 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
         extravars_path = tmp_path / "extravars.json"
         extravars_path.write_text(json.dumps(extravars))
 
-        ansible_tmp = tmp_path / "ansible_tmp"
-        ansible_tmp.mkdir(parents=True, exist_ok=True)
-        env = os.environ.copy()
-        env["ANSIBLE_LOCAL_TEMP"] = str(ansible_tmp)
-        env["ANSIBLE_REMOTE_TMP"] = "/tmp/.ansible"
-        env["ANSIBLE_HOST_KEY_CHECKING"] = "False"
-        env["ANSIBLE_STDOUT_CALLBACK"] = "default"
-        env["ANSIBLE_CALLBACK_PLUGINS"] = ""
-        env["ANSIBLE_CONFIG"] = str((ANSIBLE_ROOT / "ansible.cfg").absolute())
-        env["ANSIBLE_ROLES_PATH"] = f"{tmp_path}/roles:{(ANSIBLE_ROOT / 'roles').absolute()}"
+        env = make_test_ansible_env(tmp_path, roles_path=ANSIBLE_ROOT / "roles")
 
         setup_playbook = (ANSIBLE_ROOT / "playbooks" / "setup.yml").absolute()
         subprocess.run(

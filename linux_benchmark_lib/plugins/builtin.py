@@ -27,9 +27,16 @@ def _safe_import(module: str, attr: str) -> Tuple[Optional[Any], Optional[Except
         return None, exc
 
 PSUtilCollector, PSUTIL_IMPORT_ERROR = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.psutil_collector", "PSUtilCollector")
+PSUTIL_AGGREGATOR, _ = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.psutil_collector", "aggregate_psutil")
+
 CLICollector, CLI_IMPORT_ERROR = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.cli_collector", "CLICollector")
+CLI_AGGREGATOR, _ = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.cli_collector", "aggregate_cli")
+
 PerfCollector, PERF_IMPORT_ERROR = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.perf_collector", "PerfCollector")
+PERF_AGGREGATOR, _ = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.perf_collector", "aggregate_perf")
+
 EBPFCollector, EBPF_IMPORT_ERROR = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.ebpf_collector", "EBPFCollector")
+EBPF_AGGREGATOR, _ = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.ebpf_collector", "aggregate_ebpf")
 
 def _create_psutil(config: BenchmarkConfig) -> PSUtilCollector:
     if PSUtilCollector is None:
@@ -67,6 +74,7 @@ PSUTIL_COLLECTOR = CollectorPlugin(
     name="PSUtilCollector",
     description="System metrics via psutil",
     factory=_create_psutil,
+    aggregator=PSUTIL_AGGREGATOR,
     should_run=lambda cfg: True,
 )
 
@@ -74,6 +82,7 @@ CLI_COLLECTOR = CollectorPlugin(
     name="CLICollector",
     description="Metrics via CLI commands",
     factory=_create_cli,
+    aggregator=CLI_AGGREGATOR,
     should_run=lambda cfg: bool(cfg.collectors.cli_commands),
 )
 
@@ -81,6 +90,7 @@ PERF_COLLECTOR = CollectorPlugin(
     name="PerfCollector",
     description="Hardware events via perf",
     factory=_create_perf,
+    aggregator=PERF_AGGREGATOR,
     should_run=lambda cfg: bool(cfg.collectors.perf_config.events),
 )
 
@@ -88,6 +98,7 @@ EBPF_COLLECTOR = CollectorPlugin(
     name="EBPFCollector",
     description="Kernel tracing via eBPF",
     factory=_create_ebpf,
+    aggregator=EBPF_AGGREGATOR,
     should_run=lambda cfg: cfg.collectors.enable_ebpf,
 )
 

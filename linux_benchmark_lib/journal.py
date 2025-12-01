@@ -34,7 +34,7 @@ class RunJournal:
     Contains the entire execution plan and state.
     """
     run_id: str
-    tasks: List[TaskState] = field(default_factory=list)
+    tasks: Dict[str, TaskState] = field(default_factory=dict)
     metadata: Dict = field(default_factory=dict)
 
     @classmethod
@@ -43,7 +43,8 @@ class RunJournal:
         journal = cls(run_id=run_id)
         journal.metadata = {
             "created_at": datetime.now().isoformat(),
-            "config_summary": str(config) # Simple representation
+            "config_summary": str(config),  # Simple representation
+            "repetitions": getattr(config, "repetitions", None),
         }
         
         # Pre-populate tasks based on config
@@ -64,14 +65,19 @@ class RunJournal:
                     journal.add_task(task)
         return journal
 
-    def add_task(self, task: TaskState):
-        self.tasks.append(task)
+    def add_task(self, task: TaskState) -> None:
+        self.tasks[task.key] = task
 
     def get_tasks_by_host(self, host: str) -> List[TaskState]:
-        return sorted([t for t in self.tasks if t.host == host], key=lambda x: x.repetition)
+        return sorted([t for t in self.tasks.values() if t.host == host], key=lambda x: x.repetition)
 
-    def update_task(self, host: str, workload: str, rep: int, status: str, action: str = "", error: Optional[str] = None):
-        for t in self.tasks:
+    def get_task(self, host: str, workload: str, rep: int) -> Optional[TaskState]:
+        """Return a specific task or None when absent."""
+        key = f"{host}::{workload}::{rep}"
+        return self.tasks.get(key)
+
+    def update_task(self, host: str, workload: str, rep: int, status: str, action: str = "", error: Optional[str] = None) -> None:
+        for t in self.tasks.values():
             if t.host == host and t.workload == workload and t.repetition == rep:
                 t.status = status
                 t.timestamp = datetime.now().timestamp()
@@ -87,13 +93,13 @@ class RunJournal:
         Returns True if task is PENDING or FAILED (and we want to retry).
         For now, we skip COMPLETED tasks.
         """
-        for t in self.tasks:
+        for t in self.tasks.values():
             if t.host == host and t.workload == workload and t.repetition == rep:
                 return t.status not in (RunStatus.COMPLETED, RunStatus.SKIPPED)
         # If task not found, it's technically new, so run it (though this shouldn't happen if initialized correctly)
         return True
 
-    def save(self, path: Path):
+    def save(self, path: Path) -> None:
         """Persist journal to disk."""
         data = asdict(self)
         # Ensure path exists
@@ -101,17 +107,26 @@ class RunJournal:
             path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         
+        serialized = data.copy()
+        serialized["tasks"] = [asdict(task) for task in self.tasks.values()]
+
         with open(path, 'w') as f:
-            json.dump(data, f, indent=2, default=str)
+            json.dump(serialized, f, indent=2, default=str)
 
     @classmethod
-    def load(cls, path: Path) -> 'RunJournal':
-        """Load journal from disk."""
+    def load(cls, path: Path, config: Any | None = None) -> 'RunJournal':
+        """Load journal from disk, optionally validating against a config."""
         with open(path, 'r') as f:
             data = json.load(f)
-        
-        # Reconstruct objects
+
+        if config is not None:
+            expected_reps = data.get("metadata", {}).get("repetitions")
+            if expected_reps and getattr(config, "repetitions", None) != expected_reps:
+                raise ValueError("Config does not match journal repetitions; aborting resume.")
         tasks_data = data.pop('tasks', [])
         journal = cls(**data)
-        journal.tasks = [TaskState(**t) for t in tasks_data]
+        journal.tasks = {}
+        for t in tasks_data:
+            task = TaskState(**t)
+            journal.tasks[task.key] = task
         return journal

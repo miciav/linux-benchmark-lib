@@ -114,15 +114,9 @@ class ConfigService:
                 try:
                     default_settings = plugin.config_cls()
                     cfg.plugin_settings[name] = default_settings
-                    # Create workload entry
-                    # Default enabled? Maybe False to be safe, or True to be discoverable.
-                    # Let's default to False for clarity, user must enable what they want.
-                    # Exception: maybe we want some core ones enabled? 
-                    # Let's stick to False for a clean slate, or check if it's a builtin.
-                    # For now: False.
                     cfg.workloads[name] = WorkloadConfig(
-                        plugin=name, 
-                        enabled=False, 
+                        plugin=name,
+                        enabled=False,
                         options=asdict(default_settings)
                     )
                 except Exception:

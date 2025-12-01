@@ -33,6 +33,7 @@ class CollectorPlugin:
     name: str
     description: str
     factory: Callable[[BenchmarkConfig], BaseCollector]
+    aggregator: Optional[Callable[[Any], Dict[str, float]]] = None
     should_run: Callable[[BenchmarkConfig], bool] = lambda _: True
 
 

@@ -517,6 +517,7 @@ class BenchmarkController:
                     extravars=extravars,
                 )
                 phases[f"collect_{test_name}"] = res_col
+                phases["collect"] = res_col
                 self._update_all_reps(
                     active_journal,
                     journal_file,

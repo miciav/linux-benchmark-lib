@@ -5,7 +5,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 import linux_benchmark_lib.cli as cli
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig, RemoteHostConfig
+from linux_benchmark_lib.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 from linux_benchmark_lib.services.config_service import ConfigService
 from linux_benchmark_lib.services.run_service import RunContext, RunResult
 
@@ -33,12 +33,12 @@ class FakeRunService:
         self.executions = []
         self._container_runner = None
 
-    def build_context(self, cfg, tests, remote, **kwargs):
+    def build_context(self, cfg, tests, remote_override=None, **kwargs):
         context = RunContext(
             config=cfg,
             target_tests=["dummy"],
             registry=DummyRegistry(),
-            use_remote=False if remote is None else remote,
+            use_remote=False if remote_override is None else remote_override,
             use_container=kwargs.get("docker", False),
             config_path=kwargs.get("config_path"),
             docker_image=kwargs.get("docker_image", "linux-benchmark-lib:dev"),
@@ -46,11 +46,11 @@ class FakeRunService:
             docker_build=kwargs.get("docker_build", True),
             docker_no_cache=kwargs.get("docker_no_cache", False),
         )
-        self.contexts.append((cfg, tests, remote, kwargs))
+        self.contexts.append((cfg, tests, remote_override, kwargs))
         return context
 
-    def execute(self, context, run_id=None):
-        self.executions.append((context, run_id))
+    def execute(self, context, run_id=None, **kwargs):
+        self.executions.append((context, run_id, kwargs))
         return RunResult(context=context, summary=None)
 
 
@@ -62,9 +62,8 @@ def test_run_uses_run_service(monkeypatch):
 
     # Avoid side effects by overriding config loader
     cfg = BenchmarkConfig()
-    cfg.workloads = {"dummy": cfg.workloads["stress_ng"]}
-    cfg.workloads["dummy"].enabled = True
-    monkeypatch.setattr(cli, "_load_config", lambda _: cfg)
+    cfg.workloads = {"dummy": WorkloadConfig(plugin="stress_ng", enabled=True)}
+    monkeypatch.setattr(cli.config_service, "load_for_read", lambda path: (cfg, None, None))
 
     result = runner.invoke(cli.app, ["run", "--no-remote"])
 
@@ -80,9 +79,8 @@ def test_run_docker_flag(monkeypatch):
     monkeypatch.setattr(cli, "run_service", fake_service)
     monkeypatch.setattr(cli, "_print_run_plan", lambda *args, **kwargs: None)
     cfg = BenchmarkConfig()
-    cfg.workloads = {"dummy": cfg.workloads["stress_ng"]}
-    cfg.workloads["dummy"].enabled = True
-    monkeypatch.setattr(cli, "_load_config", lambda _: cfg)
+    cfg.workloads = {"dummy": WorkloadConfig(plugin="stress_ng", enabled=True)}
+    monkeypatch.setattr(cli.config_service, "load_for_read", lambda path: (cfg, None, None))
 
     result = runner.invoke(cli.app, ["run", "--docker"])
 
@@ -102,12 +100,12 @@ def test_config_enable_workload_uses_service(tmp_path, monkeypatch):
     target = tmp_path / "cfg.json"
     result = runner.invoke(
         cli.app,
-        ["config", "enable-workload", "custom", "--config", str(target)],
+        ["config", "enable-workload", "stress_ng", "--config", str(target)],
     )
 
     assert result.exit_code == 0
     loaded = BenchmarkConfig.load(target)
-    assert loaded.workloads["custom"].enabled is True
+    assert loaded.workloads["stress_ng"].enabled is True
 
 
 def test_plugins_command_lists_registry(monkeypatch):

@@ -11,8 +11,14 @@ import shutil
 from pathlib import Path
 import json
 import time
+from dataclasses import asdict
 
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig, StressNGConfig, MetricCollectorConfig
+from linux_benchmark_lib.benchmark_config import (
+    BenchmarkConfig,
+    MetricCollectorConfig,
+    WorkloadConfig,
+)
+from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
 from linux_benchmark_lib.local_runner import LocalRunner
 from linux_benchmark_lib.plugins.builtin import builtin_plugins
 from linux_benchmark_lib.plugins.registry import PluginRegistry
@@ -31,9 +37,19 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         """Clean up temporary directories."""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
         
+    @unittest.skipUnless(
+        shutil.which("stress-ng") is not None,
+        "stress-ng not installed"
+    )
     def test_minimal_stress_ng_benchmark(self):
         """Test a minimal stress-ng benchmark execution."""
         # Create a minimal configuration
+        stress_cfg = StressNGConfig(
+            cpu_workers=1,  # Minimal workers
+            vm_workers=0,   # Disable VM workers
+            io_workers=0,   # Disable IO workers
+            timeout=2
+        )
         config = BenchmarkConfig(
             repetitions=1,
             test_duration_seconds=2,  # Very short duration
@@ -43,12 +59,14 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             output_dir=self.temp_path / "results",
             report_dir=self.temp_path / "reports",
             data_export_dir=self.temp_path / "exports",
-            stress_ng=StressNGConfig(
-                cpu_workers=1,  # Minimal workers
-                vm_workers=0,   # Disable VM workers
-                io_workers=0,   # Disable IO workers
-                timeout=2
-            ),
+            plugin_settings={"stress_ng": stress_cfg},
+            workloads={
+                "stress_ng": WorkloadConfig(
+                    plugin="stress_ng",
+                    enabled=True,
+                    options=asdict(stress_cfg),
+                )
+            },
             collectors=MetricCollectorConfig(
                 psutil_interval=0.5,
                 cli_commands=[],  # No CLI commands for speed
@@ -69,13 +87,16 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         start_time = time.time()
         runner.run_benchmark("stress_ng")
         end_time = time.time()
+        run_id = getattr(runner, "_current_run_id", None)
+        output_root = config.output_dir / run_id if run_id else config.output_dir
+        export_root = config.data_export_dir / run_id if run_id else config.data_export_dir
         
         # Verify execution time is reasonable
         execution_time = end_time - start_time
         self.assertLess(execution_time, 10)  # Should complete within 10 seconds
         
         # Verify output files were created
-        results_file = config.output_dir / "stress_ng_results.json"
+        results_file = output_root / "stress_ng_results.json"
         self.assertTrue(results_file.exists(), f"Results file not found: {results_file}")
         
         # Load and verify results
@@ -107,12 +128,12 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             self.assertIn("memory_usage", metric)
             
         # Verify aggregated data file
-        aggregated_file = config.data_export_dir / "stress_ng_aggregated.csv"
+        aggregated_file = export_root / "stress_ng_aggregated.csv"
         # Note: aggregated file might not exist if DataHandler is not implemented
         # or returns None
         
         # Verify collector raw data files
-        collector_files = list(config.output_dir.glob("stress_ng_rep1_*.csv"))
+        collector_files = list(output_root.glob("stress_ng_rep1_*.csv"))
         self.assertGreater(len(collector_files), 0, "No collector CSV files found")
         
     def test_system_info_collection(self):
@@ -146,20 +167,28 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
     )
     def test_stress_ng_with_multiple_metrics(self):
         """Test stress-ng with multiple metric collectors enabled."""
+        stress_cfg = StressNGConfig(
+            cpu_workers=2,
+            cpu_method="matrixprod",
+            timeout=3
+        )
         config = BenchmarkConfig(
             repetitions=1,
             test_duration_seconds=3,
             metrics_interval_seconds=1.0,
-            warmup_seconds=1,
-            cooldown_seconds=1,
+            warmup_seconds=0,
+            cooldown_seconds=0,
             output_dir=self.temp_path / "results",
             report_dir=self.temp_path / "reports",
             data_export_dir=self.temp_path / "exports",
-            stress_ng=StressNGConfig(
-                cpu_workers=2,
-                cpu_method="matrixprod",
-                timeout=3
-            ),
+            plugin_settings={"stress_ng": stress_cfg},
+            workloads={
+                "stress_ng": WorkloadConfig(
+                    plugin="stress_ng",
+                    enabled=True,
+                    options=asdict(stress_cfg),
+                )
+            },
             collectors=MetricCollectorConfig(
                 psutil_interval=1.0,
                 cli_commands=[],  # Disable CLI commands to avoid jc parser issues
@@ -169,9 +198,11 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         
         runner = LocalRunner(config, registry=self.registry)
         runner.run_benchmark("stress_ng")
+        run_id = getattr(runner, "_current_run_id", None)
+        output_root = config.output_dir / run_id if run_id else config.output_dir
         
         # Load results
-        results_file = config.output_dir / "stress_ng_results.json"
+        results_file = output_root / "stress_ng_results.json"
         with open(results_file, "r") as f:
             results = json.load(f)
             
@@ -183,7 +214,9 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         # Verify timing (duration is only the test execution time, not warmup/cooldown)
         duration = result["duration_seconds"]
         expected_duration = config.test_duration_seconds
-        self.assertAlmostEqual(duration, expected_duration, delta=1.0)
+        # Allow small overhead for process startup/teardown and collector timing
+        self.assertGreaterEqual(duration, expected_duration)
+        self.assertLessEqual(duration, expected_duration + 2.0)
 
 
 if __name__ == '__main__':

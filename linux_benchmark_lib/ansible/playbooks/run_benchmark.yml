@@ -20,3 +20,5 @@
         workload_runner_output_dir: "{{ remote_output_root }}/{{ inventory_hostname }}"
         workload_runner_config: "{{ benchmark_config }}"
         lb_workdir: "{{ lb_workdir | default('/opt/lb') }}" # Pass lb_workdir to the role
+        workload_runner_repetition_index: "{{ repetition_index | default(0) }}"
+        workload_runner_repetitions_total: "{{ repetitions_total | default(0) }}"

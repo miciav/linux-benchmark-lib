@@ -8,8 +8,10 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import logging
 
 ANSIBLE_ROOT = Path(__file__).resolve().parent / "ansible"
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -128,6 +130,8 @@ class BenchmarkConfig:
     
     def __post_init__(self) -> None:
         self._hydrate_plugin_settings()
+        if not self.plugin_settings:
+            self._populate_default_plugin_settings()
         self._ensure_workloads_from_plugin_settings()
         self._validate_remote_hosts()
 
@@ -169,30 +173,9 @@ class BenchmarkConfig:
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "BenchmarkConfig":
-        # We need to handle this in ConfigService mainly, but for basic usage:
-
-        # Handle migrated fields (stress_ng, geekbench) that might still be in the JSON root
-        # We move them to plugin_settings temporarily as dicts.
-        # The ConfigService will upgrade them to Objects later.
-        plugin_settings = {}
-        if "stress_ng" in data:
-            plugin_settings["stress_ng"] = data.pop("stress_ng")
-        if "geekbench" in data:
-            plugin_settings["geekbench"] = data.pop("geekbench")
-        if "sysbench" in data:
-            plugin_settings["sysbench"] = data.pop("sysbench")
-        for legacy_plugin in ["iperf3", "dd", "fio", "top500"]:
-            if legacy_plugin in data:
-                plugin_settings[legacy_plugin] = data.pop(legacy_plugin)
-        
-        # Also preserve any existing plugin_settings
-        if "plugin_settings" in data:
-            plugin_settings.update(data.pop("plugin_settings"))
+        plugin_settings = data.pop("plugin_settings", {})
 
         # Normalize path-like entries for known plugins
-        if "top500" in plugin_settings and isinstance(plugin_settings["top500"], dict):
-            if "workdir" in plugin_settings["top500"] and isinstance(plugin_settings["top500"]["workdir"], str):
-                plugin_settings["top500"]["workdir"] = Path(plugin_settings["top500"]["workdir"])
         if "fio" in plugin_settings and isinstance(plugin_settings["fio"], dict):
             if "job_file" in plugin_settings["fio"] and isinstance(plugin_settings["fio"]["job_file"], str):
                 plugin_settings["fio"]["job_file"] = Path(plugin_settings["fio"]["job_file"])
@@ -244,42 +227,45 @@ class BenchmarkConfig:
 
     def _hydrate_plugin_settings(self) -> None:
         """Convert stored plugin_settings dicts to typed config objects when possible."""
-
-        def _convert(name: str, config_cls: Any) -> None:
-            if name in self.plugin_settings and isinstance(self.plugin_settings[name], dict):
-                try:
-                    self.plugin_settings[name] = config_cls(**self.plugin_settings[name])
-                except Exception:
-                    # Leave as dict if instantiation fails
-                    pass
-
         try:
-            from .plugins.stress_ng.plugin import StressNGConfig
+            from .services.plugin_service import create_registry
 
-            _convert("stress_ng", StressNGConfig)
-        except Exception:
-            pass
+            registry = create_registry()
+            available = registry.available()
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to build plugin registry for hydration: %s", exc)
+            return
 
+        for name, settings in list(self.plugin_settings.items()):
+            if not isinstance(settings, dict):
+                continue
+            plugin = available.get(name)
+            config_cls = getattr(plugin, "config_cls", None) if plugin else None
+            if config_cls is None:
+                continue
+            try:
+                self.plugin_settings[name] = config_cls(**settings)
+            except Exception as exc:
+                logger.warning("Failed to hydrate config for plugin '%s': %s", name, exc)
+
+    def _populate_default_plugin_settings(self) -> None:
+        """Populate plugin_settings with default instances from the registry when empty."""
         try:
-            from .plugins.iperf3.plugin import IPerf3Config
+            from .services.plugin_service import create_registry
 
-            _convert("iperf3", IPerf3Config)
-        except Exception:
-            pass
+            registry = create_registry()
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to build plugin registry for defaults: %s", exc)
+            return
 
-        try:
-            from .plugins.fio.plugin import FIOConfig
-
-            _convert("fio", FIOConfig)
-        except Exception:
-            pass
-
-        try:
-            from .plugins.dd.plugin import DDConfig
-
-            _convert("dd", DDConfig)
-        except Exception:
-            pass
+        for name, plugin in registry.available().items():
+            config_cls = getattr(plugin, "config_cls", None)
+            if config_cls is None:
+                continue
+            try:
+                self.plugin_settings[name] = config_cls()
+            except Exception as exc:
+                logger.debug("Skipping default config for plugin '%s': %s", name, exc)
 
     def _ensure_workloads_from_plugin_settings(self) -> None:
         """

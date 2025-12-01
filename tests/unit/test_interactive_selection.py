@@ -14,7 +14,7 @@ def test_select_multipass_interactive(mock_isatty, mock_prompt):
     service = TestService()
     service.ui = MagicMock()
 
-    scenario, level = service.select_multipass(False, False, default_level="medium")
+    scenario, level = service.select_multipass(False, default_level="medium")
 
     mock_prompt.assert_called_once()
     assert scenario == "fio"
@@ -25,6 +25,6 @@ def test_select_multipass_interactive(mock_isatty, mock_prompt):
 def test_select_multipass_non_interactive(mock_isatty):
     """Test fallback when not interactive."""
     service = TestService()
-    scenario, level = service.select_multipass(False, False, default_level="low")
+    scenario, level = service.select_multipass(False, default_level="low")
     assert scenario == "stress_ng"
     assert level == "low"

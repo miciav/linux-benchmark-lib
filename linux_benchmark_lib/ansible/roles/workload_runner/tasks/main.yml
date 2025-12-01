@@ -67,17 +67,33 @@
     from linux_benchmark_lib.plugins.builtin import builtin_plugins
     from linux_benchmark_lib.plugins.registry import PluginRegistry
 
+    def _safe_int(value, default=0):
+        try:
+            return int(str(value).strip())
+        except Exception:
+            return default
+
     config_path = Path("benchmark_config.generated.json")
     with config_path.open() as fh:
         cfg = BenchmarkConfig.from_json(fh.read())
 
     registry = PluginRegistry(builtin_plugins())
     runner = LocalRunner(cfg, registry=registry)
+    repetition_raw = "{{ workload_runner_repetition_index | default(0) }}"
+    repetitions_total_raw = "{{ workload_runner_repetitions_total | default(0) }}"
+    repetition_index = _safe_int(repetition_raw, default=0)
+    repetitions_total = _safe_int(repetitions_total_raw, default=0)
+    repetition_override = repetition_index if repetition_index > 0 else None
+    total_reps = repetitions_total if repetitions_total > 0 else None
     test_name = "{{ item }}"
     print(f"Running benchmark: {test_name}", flush=True)
     
     print(f"\n>>> Starting {test_name}", flush=True)
-    runner.run_benchmark(test_name)
+    runner.run_benchmark(
+        test_name,
+        repetition_override=repetition_override,
+        total_repetitions=total_reps,
+    )
     print(f"<<< Finished {test_name}\n", flush=True)
     PY
   args:

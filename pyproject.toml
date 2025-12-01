@@ -1,6 +1,6 @@
 [project]
 name = "linux-benchmark-lib"
-version = "0.9.1"
+version = "0.10.0"
 description = "A robust and configurable Python library for benchmarking Linux computational node performance"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -47,6 +47,12 @@ psutil = "linux_benchmark_lib.plugins.builtin:PSUTIL_COLLECTOR"
 cli = "linux_benchmark_lib.plugins.builtin:CLI_COLLECTOR"
 perf = "linux_benchmark_lib.plugins.builtin:PERF_COLLECTOR"
 ebpf = "linux_benchmark_lib.plugins.builtin:EBPF_COLLECTOR"
+
+[project.entry-points."linux_benchmark.workloads"]
+stress_ng = "linux_benchmark_lib.plugins.stress_ng.plugin:PLUGIN"
+iperf3 = "linux_benchmark_lib.plugins.iperf3.plugin:PLUGIN"
+fio = "linux_benchmark_lib.plugins.fio.plugin:PLUGIN"
+dd = "linux_benchmark_lib.plugins.dd.plugin:PLUGIN"
 
 [tool.uv]
 package = true

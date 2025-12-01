@@ -30,7 +30,7 @@ from linux_benchmark_lib.benchmark_config import (
 from linux_benchmark_lib.plugins.dd.plugin import DDConfig
 from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
 from linux_benchmark_lib.controller import AnsibleRunnerExecutor, BenchmarkController
-from tests.integration.multipass_utils import get_intensity
+from tests.integration.multipass_utils import get_intensity, make_test_ansible_env
 from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
 
 # Constants
@@ -275,9 +275,8 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     # Use a separate temp dir for ansible runner data
     ansible_dir = tmp_path / "ansible_data"
     
-    # Ensure Ansible finds roles and config
-    os.environ["ANSIBLE_ROLES_PATH"] = str((ANSIBLE_ROOT / "roles").absolute())
-    os.environ["ANSIBLE_CONFIG"] = str((ANSIBLE_ROOT / "ansible.cfg").absolute())
+    # Ensure Ansible finds roles and uses a minimal callback config
+    os.environ.update(make_test_ansible_env(ansible_dir, roles_path=ANSIBLE_ROOT / "roles"))
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
     
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)
