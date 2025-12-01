@@ -55,5 +55,5 @@ Doctor checks (`lb doctor ...`)
 Integration helper (`lb test ...`, dev installs only)
 -----------------------------------------------------
 - Available when `.lb_dev_cli` exists in the project root or `LB_ENABLE_TEST_CLI=1` is set.
-- `lb test multipass [-o DIR] [--vm-count {1,2}] [--multi-workloads|--top500] [-- EXTRA_PYTEST_ARGS...]`  
-  Runs the Multipass integration test. Artifacts go to `tests/results` by default (override with `-o` or `LB_TEST_RESULTS_DIR`). `--vm-count` (or `LB_MULTIPASS_VM_COUNT`) launches 1–2 VMs. Use `--multi-workloads` to run the stress_ng + dd + fio variant, or `--top500` for the Top500 setup-only path. Requires multipass + ansible/ansible-runner locally.
+- `lb test multipass [-o DIR] [--vm-count {1,2}] [--multi-workloads] [-- EXTRA_PYTEST_ARGS...]`  
+  Runs the Multipass integration test. Artifacts go to `tests/results` by default (override with `-o` or `LB_TEST_RESULTS_DIR`). `--vm-count` (or `LB_MULTIPASS_VM_COUNT`) launches 1–2 VMs. Use `--multi-workloads` to run the stress_ng + dd + fio variant. Requires multipass + ansible/ansible-runner locally.

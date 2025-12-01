@@ -26,17 +26,38 @@ class TestResult(TypedDict):
 class DataHandler:
     """Handler for processing and aggregating benchmark data."""
     
-    def __init__(self):
-        """Initialize the data handler."""
-        self.aggregation_methods = {
-            "cpu": "mean",
-            "memory": "mean",
-            "disk": "sum",
-            "network": "sum",
-            "iops": "mean",
-            "latency": "mean",
-            "throughput": "mean",
+    def __init__(self, collectors: Optional[Dict[str, Any]] = None):
+        """
+        Initialize the data handler.
+
+        Args:
+            collectors: Optional mapping of collector name to CollectorPlugin metadata.
+                        Used to look up aggregator functions supplied by collectors.
+        """
+        collectors = collectors or {}
+        self.collector_aggregators: Dict[str, Any] = {
+            name: plugin.aggregator
+            for name, plugin in collectors.items()
+            if getattr(plugin, "aggregator", None)
         }
+        # Fallback to built-in aggregators so legacy callers still work when no registry is passed
+        if not self.collector_aggregators:
+            try:
+                from .metric_collectors.psutil_collector import aggregate_psutil
+                from .metric_collectors.cli_collector import aggregate_cli
+                from .metric_collectors.perf_collector import aggregate_perf
+                from .metric_collectors.ebpf_collector import aggregate_ebpf
+
+                self.collector_aggregators.update(
+                    {
+                        "PSUtilCollector": aggregate_psutil,
+                        "CLICollector": aggregate_cli,
+                        "PerfCollector": aggregate_perf,
+                        "EBPFCollector": aggregate_ebpf,
+                    }
+                )
+            except Exception:
+                logger.debug("Failed to import default aggregators; only registered aggregators will be used.")
     
     def process_test_results(
         self,
@@ -74,36 +95,32 @@ class DataHandler:
             for collector_name, collector_data in metrics.items():
                 if not collector_data:
                     continue
-                
-                # Convert to DataFrame for easier processing
+
                 df = pd.DataFrame(collector_data)
-                
-                # Convert timestamp to datetime and set as index if present
+
                 if "timestamp" in df.columns:
                     df["timestamp"] = pd.to_datetime(df["timestamp"])
-                    
-                    # Filter data based on test start/end times (exclude warmup/cooldown)
+
                     if start_time and end_time:
                         df = df[
-                            (df["timestamp"] >= start_time) & 
+                            (df["timestamp"] >= start_time) &
                             (df["timestamp"] <= end_time)
                         ]
-                    
+
                     if df.empty:
                         logger.warning(f"Collector {collector_name} has no data after filtering by test duration")
                         continue
 
                     df.set_index("timestamp", inplace=True)
-                
-                # Process based on collector type
-                if collector_name == "PSUtilCollector":
-                    rep_summary.update(self._process_psutil_data(df))
-                elif collector_name == "CLICollector":
-                    rep_summary.update(self._process_cli_data(df))
-                elif collector_name == "PerfCollector":
-                    rep_summary.update(self._process_perf_data(df))
-                elif collector_name == "EBPFCollector":
-                    rep_summary.update(self._process_ebpf_data(df))
+
+                aggregator = self.collector_aggregators.get(collector_name)
+                if not callable(aggregator):
+                    logger.warning("No aggregator registered for collector '%s'; skipping.", collector_name)
+                    continue
+                try:
+                    rep_summary.update(aggregator(df))
+                except Exception as exc:
+                    logger.error("Aggregation failed for collector '%s': %s", collector_name, exc)
             
             repetition_summaries.append({
                 f"Repetition_{rep_num}": rep_summary

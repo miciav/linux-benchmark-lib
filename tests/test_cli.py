@@ -52,7 +52,6 @@ def test_plugins_shows_enabled_column(monkeypatch: pytest.MonkeyPatch, tmp_path:
     # Check that the table includes the Enabled column and a known plugin name
     assert "Enabled" in result.output
     assert "stress_ng" in result.output
-    assert "top500" in result.output
 
 
 def test_doctor_controller_uses_checks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -133,6 +132,9 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     runner = CliRunner()
 
     cfg = BenchmarkConfig()
+    # Ensure at least one workload is enabled so run does not exit early
+    if "stress_ng" in cfg.workloads:
+        cfg.workloads["stress_ng"].enabled = True
     cfg_path = tmp_path / "cfg.json"
     cfg.save(cfg_path)
 
@@ -177,7 +179,8 @@ def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatc
     result = runner.invoke(cli.app, ["config", "workloads"])
     assert result.exit_code == 0, result.output
     assert "stress_ng" in result.output
-    assert "yes" in result.output
+    # Default config keeps workloads disabled until explicitly toggled
+    assert "no" in result.output
 
 
 def test_multipass_helper_sets_artifacts_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):

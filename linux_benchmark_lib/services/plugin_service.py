@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional, Any, Union
 
 from ..plugins.builtin import builtin_plugins
+from ..plugins import registry as registry
 from ..plugins.registry import PluginRegistry, USER_PLUGIN_DIR
 
 logger = logging.getLogger(__name__)

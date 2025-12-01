@@ -4,12 +4,13 @@ eBPF collector implementation for kernel-level tracing.
 This module provides integration with eBPF tools from the BPF Compiler Collection (bcc).
 """
 
-import subprocess
 import logging
-from typing import Dict, Any, List, Optional
-from ._base_collector import BaseCollector
-import platform
 import os
+import platform
+import subprocess
+from typing import Dict, Any, List, Optional
+
+from ._base_collector import BaseCollector
 
 
 logger = logging.getLogger(__name__)
@@ -139,3 +140,32 @@ class EBPFCollector(BaseCollector):
                 logger.error(f"Error stopping eBPF tool '{tool}': {e}")
                 
         self._processes.clear()
+
+
+def aggregate_ebpf(df) -> Dict[str, float]:
+    """
+    Aggregate metrics collected by EBPFCollector.
+
+    Args:
+        df: DataFrame with eBPF metrics
+
+    Returns:
+        Dictionary of aggregated metrics.
+    """
+    if df is None or df.empty:
+        return {}
+
+    summary: Dict[str, float] = {}
+    if "process_execs" in df.columns:
+        summary["ebpf_process_execs_total"] = df["process_execs"].sum()
+    if "block_io_ops" in df.columns:
+        summary["ebpf_block_io_ops_total"] = df["block_io_ops"].sum()
+    if "tcp_connections" in df.columns:
+        summary["ebpf_tcp_connections_total"] = df["tcp_connections"].sum()
+    if "cache_hits" in df.columns:
+        hits = df["cache_hits"].sum()
+        misses = df["cache_misses"].sum() if "cache_misses" in df.columns else 0
+        total = hits + misses
+        summary["ebpf_cache_hit_rate_pct"] = (hits / total * 100) if total else 0
+
+    return summary

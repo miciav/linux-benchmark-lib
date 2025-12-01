@@ -6,6 +6,7 @@ This module uses the `performance-features` library to access perf events.
 
 import logging
 from typing import Dict, Any
+
 from ._base_collector import BaseCollector
 
 
@@ -58,3 +59,40 @@ class PerfCollector(BaseCollector):
         # For a real implementation, check if perf and required permissions are available
         return True
 
+
+def aggregate_perf(df) -> Dict[str, float]:
+    """
+    Aggregate metrics collected by PerfCollector.
+
+    Args:
+        df: DataFrame with Perf metrics
+
+    Returns:
+        Dictionary of aggregated metrics.
+    """
+    if df is None or df.empty:
+        return {}
+
+    summary: Dict[str, float] = {}
+    for event in [
+        "cpu-cycles",
+        "instructions",
+        "cache-references",
+        "cache-misses",
+        "branches",
+        "branch-misses",
+    ]:
+        if event in df.columns:
+            safe_name = event.replace("-", "_")
+            summary[f"perf_{safe_name}_total"] = df[event].sum()
+            summary[f"perf_{safe_name}_avg"] = df[event].mean()
+
+    if "instructions" in df.columns and "cpu-cycles" in df.columns:
+        ipc = df["instructions"] / df["cpu-cycles"].replace(0, 1)
+        summary["perf_ipc_avg"] = ipc.mean()
+
+    if "cache-misses" in df.columns and "cache-references" in df.columns:
+        miss_rate = df["cache-misses"] / df["cache-references"].replace(0, 1)
+        summary["perf_cache_miss_rate_avg"] = miss_rate.mean() * 100
+
+    return summary

@@ -106,7 +106,6 @@ def prompt_multipass(options: Iterable[str], default_level: str = "medium") -> O
         "fio": "Random I/O (fio)",
         "iperf3": "Network throughput",
         "multi": "stress_ng + dd + fio combo",
-        "top500": "Top500 setup only",
     }
 
     ui = get_ui_adapter()

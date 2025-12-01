@@ -48,6 +48,12 @@ cli = "linux_benchmark_lib.plugins.builtin:CLI_COLLECTOR"
 perf = "linux_benchmark_lib.plugins.builtin:PERF_COLLECTOR"
 ebpf = "linux_benchmark_lib.plugins.builtin:EBPF_COLLECTOR"
 
+[project.entry-points."linux_benchmark.workloads"]
+stress_ng = "linux_benchmark_lib.plugins.stress_ng.plugin:PLUGIN"
+iperf3 = "linux_benchmark_lib.plugins.iperf3.plugin:PLUGIN"
+fio = "linux_benchmark_lib.plugins.fio.plugin:PLUGIN"
+dd = "linux_benchmark_lib.plugins.dd.plugin:PLUGIN"
+
 [tool.uv]
 package = true
 

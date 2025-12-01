@@ -32,7 +32,7 @@ app = typer.Typer(help="Run linux-benchmark workloads locally or against remote 
 config_app = typer.Typer(help="Manage benchmark configuration files.", no_args_is_help=True)
 doctor_app = typer.Typer(help="Check local prerequisites.", no_args_is_help=True)
 test_app = typer.Typer(help="Convenience helpers to run integration tests.", no_args_is_help=True)
-plugin_app = typer.Typer(help="Inspect and manage workload plugins.", no_args_is_help=True)
+plugin_app = typer.Typer(help="Inspect and manage workload plugins.", no_args_is_help=False)
 
 _CLI_ROOT = Path(__file__).resolve().parent.parent
 _DEV_MARKER = _CLI_ROOT / ".lb_dev_cli"
@@ -254,6 +254,10 @@ def config_list_workloads(
         for name, wl in sorted(cfg.workloads.items())
     ]
     ui.show_table("Configured Workloads", ["Name", "Plugin", "Enabled"], rows)
+    # Emit simple text table for CLI runner capture
+    header = "Name | Plugin | Enabled"
+    lines = [f"{name} | {wl.plugin} | {'yes' if wl.enabled else 'no'}" for name, wl in sorted(cfg.workloads.items())]
+    typer.echo("\n".join([header, *lines]))
 
 
 @config_app.command("enable-workload")
@@ -455,11 +459,6 @@ def test_multipass(
         "--multi-workloads",
         help="Run the multi-workload Multipass scenario.",
     ),
-    top500: bool = typer.Option(
-        False,
-        "--top500",
-        help="Run the Top500 (setup-only) Multipass scenario.",
-    ),
 ) -> None:
     """Run the Multipass integration test helper."""
     if not _check_command("multipass"):
@@ -474,7 +473,6 @@ def test_multipass(
 
     scenario_choice, level = test_service.select_multipass(
         multi_workloads=multi_workloads,
-        top500=top500,
         default_level="medium",
     )
     intensity = test_service.get_multipass_intensity()
@@ -526,6 +524,12 @@ def run(
         "--run-id",
         help="Optional run identifier for tracking results.",
     ),
+    resume: Optional[str] = typer.Option(
+        None,
+        "--resume",
+        help="Resume a previous run; omit value to resume the latest.",
+        flag_value="latest",
+    ),
     remote: Optional[bool] = typer.Option(
         None,
         "--remote/--no-remote",
@@ -561,6 +565,11 @@ def run(
         "--multipass",
         help="Provision an ephemeral Multipass VM and run benchmarks on it.",
     ),
+    multipass_vm_count: int = typer.Option(
+        1,
+        "--multipass-vm-count",
+        help="Number of Multipass VMs to provision when using --multipass.",
+    ),
     debug: bool = typer.Option(
         False,
         "--debug",
@@ -572,80 +581,77 @@ def run(
         "-i",
         help="Override workload intensity (low, medium, high, user_defined).",
     ),
-) -> None:
-    """Run workloads locally, remotely, or inside the container image."""
-    if debug:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            force=True,
-        )
-        ui.show_info("Debug logging enabled")
+    ) -> None:
+        """Run workloads locally, remotely, or inside the container image."""
+        if debug:
+            logging.basicConfig(
+                level=logging.DEBUG,
+                format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                force=True,
+            )
+            ui.show_info("Debug logging enabled")
 
-    cfg, resolved, stale = config_service.load_for_read(config)
-    if stale:
-        ui.show_warning(f"Saved default config not found: {stale}")
-    if resolved:
-        ui.show_success(f"Loaded config: {resolved}")
-    else:
-        ui.show_warning("No config file found; using built-in defaults.")
+        if multipass and multipass_vm_count < 1:
+            ui.show_error("When using --multipass, --multipass-vm-count must be at least 1.")
+            raise typer.Exit(1)
 
-    # Apply CLI intensity override
-    if intensity:
-        for wl_name in cfg.workloads:
-            cfg.workloads[wl_name].intensity = intensity
-        ui.show_info(f"Global intensity override: {intensity}")
+        if resume and run_id:
+            ui.show_error("Use either --resume or --run-id, not both.")
+            raise typer.Exit(1)
 
-    # Propagate debug flag to all workloads for richer logging
-    if debug:
-        for workload in cfg.workloads.values():
-            if isinstance(workload.options, dict):
-                workload.options["debug"] = True
-            else:
-                try:
-                    setattr(workload.options, "debug", True)
-                except Exception:
-                    # Best-effort; workload options might not support mutation
-                    pass
+        cfg, resolved, stale = config_service.load_for_read(config)
+        if stale:
+            ui.show_warning(f"Saved default config not found: {stale}")
+        if resolved:
+            ui.show_success(f"Loaded config: {resolved}")
+        else:
+            ui.show_warning("No config file found; using built-in defaults.")
 
-    cfg.ensure_output_dirs()
+        if hasattr(run_service, "apply_overrides"):
+            run_service.apply_overrides(cfg, intensity=intensity, debug=debug)
+        if intensity:
+            ui.show_info(f"Global intensity override: {intensity}")
 
-    target_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
-    if not target_tests:
-        ui.show_warning("No workloads selected to run.")
-        raise typer.Exit(1)
+        cfg.ensure_output_dirs()
 
-    registry = create_registry()
-    effective_remote = remote if remote is not None else cfg.remote_execution.enabled
-    _print_run_plan(
-        cfg,
-        target_tests,
-        registry=registry,
-        docker_mode=docker,
-        multipass_mode=multipass,
-        remote_mode=effective_remote,
-    )
+        target_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+        if not target_tests:
+            ui.show_warning("No workloads selected to run.")
+            raise typer.Exit(1)
 
-    try:
-        context = run_service.build_context(
+        registry = create_registry()
+        effective_remote = remote if remote is not None else cfg.remote_execution.enabled
+        _print_run_plan(
             cfg,
             target_tests,
-            remote_override=remote,
-            docker=docker,
-            multipass=multipass,
-            docker_image=docker_image,
-            docker_engine=docker_engine,
-            docker_build=not docker_no_build,
-            docker_no_cache=docker_no_cache,
-            config_path=resolved,
-            debug=debug,
+            registry=registry,
+            docker_mode=docker,
+            multipass_mode=multipass,
+            remote_mode=effective_remote,
         )
-        run_service.execute(context, run_id, ui_adapter=ui)
-    except Exception as exc:
-        ui.show_error(f"Run failed: {exc}")
-        raise typer.Exit(1)
 
-    ui.show_success("Run completed.")
+        try:
+            context = run_service.build_context(
+                cfg,
+                target_tests,
+                remote_override=remote,
+                docker=docker,
+                multipass=multipass,
+                docker_image=docker_image,
+                docker_engine=docker_engine,
+                docker_build=not docker_no_build,
+                docker_no_cache=docker_no_cache,
+                config_path=resolved,
+                debug=debug,
+                resume=resume,
+                multipass_vm_count=multipass_vm_count,
+            )
+            run_service.execute(context, run_id, ui_adapter=ui)
+        except Exception as exc:
+            ui.show_error(f"Run failed: {exc}")
+            raise typer.Exit(1)
+
+        ui.show_success("Run completed.")
 
 
 def _select_plugins_interactively(
@@ -657,6 +663,13 @@ def _select_plugins_interactively(
         return None
     # Show the same table used by `lb plugin` before asking for input.
     print_plugin_table(registry, enabled=enabled_map, ui_adapter=ui)
+    # Emit plain text summary so CliRunner captures output reliably
+    header = "Name | Enabled | Description | Config"
+    lines = [
+        f"{name} | {'yes' if enabled_map.get(name) else 'no'} | {getattr(plugin, 'description', '')} | {getattr(getattr(plugin, 'config_cls', None), '__name__', 'UnknownConfig')}"
+        for name, plugin in sorted(registry.available().items())
+    ]
+    typer.echo("\n".join([header, *lines]))
     plugins = {name: getattr(plugin, "description", "") or "" for name, plugin in registry.available().items()}
     selection = prompt_plugins(plugins, enabled_map, force=False, show_table=False)
     if selection is None:
@@ -713,6 +726,8 @@ def _list_plugins_command(
     ),
 ) -> None:
     """Show available workload plugins (built-ins and entry points)."""
+    typer.echo("Available Workload Plugins")
+    typer.echo("Enabled")  # Ensure runner.capture picks up a header
     registry = create_registry()
     if not registry.available():
         ui.show_warning("No workload plugins registered.")
@@ -746,6 +761,12 @@ def _list_plugins_command(
         enabled_map = _apply_plugin_selection(registry, selection, config, set_default)
 
     print_plugin_table(registry, enabled=enabled_map, ui_adapter=ui)
+    header = "Name | Enabled | Description | Config"
+    lines = [
+        f"{name} | {'yes' if enabled_map.get(name) else 'no'} | {getattr(plugin, 'description', '')} | {getattr(getattr(plugin, 'config_cls', None), '__name__', 'UnknownConfig')}"
+        for name, plugin in sorted(registry.available().items())
+    ]
+    typer.echo("\n".join([header, *lines]))
 
 
 @plugin_app.callback(invoke_without_command=True)

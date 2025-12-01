@@ -9,13 +9,13 @@ from linux_benchmark_lib.benchmark_config import (
     BenchmarkConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
-    StressNGConfig,
     WorkloadConfig,
 )
+from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
 from linux_benchmark_lib.plugins.dd.plugin import DDConfig
 from linux_benchmark_lib.controller import AnsibleRunnerExecutor, BenchmarkController
 from tests.integration.test_multipass_benchmark import multipass_vm
-from tests.integration.multipass_utils import get_intensity
+from tests.integration.multipass_utils import get_intensity, make_test_ansible_env
 from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -36,15 +36,15 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
         RemoteHostConfig(
             name=vm["name"],
             address=vm["ip"],
-        user=vm["user"],
-        become=True,
-        vars={
-            "ansible_ssh_private_key_file": str(vm["key_path"]),
-            "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
-        },
-    )
-    for vm in multipass_vms
-]
+            user=vm["user"],
+            become=True,
+            vars={
+                "ansible_ssh_private_key_file": str(vm["key_path"]),
+                "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
+            },
+        )
+        for vm in multipass_vms
+    ]
 
     stress_cfg = StressNGConfig(cpu_workers=1, timeout=intensity["stress_timeout"])
     dd_cfg = DDConfig(bs="1M", count=intensity["dd_count"], of_path="/tmp/dd_test")
@@ -87,8 +87,7 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
     )
 
     ansible_dir = tmp_path / "ansible_data"
-    os.environ["ANSIBLE_ROLES_PATH"] = str((ANSIBLE_ROOT / "roles").absolute())
-    os.environ["ANSIBLE_CONFIG"] = str((ANSIBLE_ROOT / "ansible.cfg").absolute())
+    os.environ.update(make_test_ansible_env(tmp_path, roles_path=ANSIBLE_ROOT / "roles"))
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)
@@ -97,8 +96,14 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
     summary = controller.run(["stress_ng", "dd", "fio"], run_id="multi_run")
 
     assert summary.success, f"Benchmark failed. Phases: {summary.phases}"
-    for phase in ("setup", "run", "collect"):
-        assert phase in summary.phases and summary.phases[phase].success
+    for workload in ("stress_ng", "dd", "fio"):
+        assert summary.phases.get(f"setup_{workload}", None) is not None
+        assert summary.phases[f"setup_{workload}"].success
+        assert summary.phases.get(f"run_{workload}", None) is not None
+        assert summary.phases[f"run_{workload}"].success
+        assert summary.phases.get(f"collect_{workload}", None) is not None
+        assert summary.phases[f"collect_{workload}"].success
+    assert "collect" in summary.phases and summary.phases["collect"].success
 
     for vm in multipass_vms:
         host_output_dir = summary.per_host_output[vm["name"]]

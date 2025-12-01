@@ -150,12 +150,12 @@ class RunDashboard:
             self.log_buffer = self.log_buffer[-self.max_log_lines * 5 :]
 
     def _max_repetitions(self) -> int:
-        reps = [task.repetition for task in self.journal.tasks]
+        reps = [task.repetition for task in self.journal.tasks.values()]
         return max(reps) if reps else 0
 
     def _unique_pairs(self) -> Iterable[tuple[str, str]]:
         seen = set()
-        for task in self.journal.tasks:
+        for task in self.journal.tasks.values():
             key = (task.host, task.workload)
             if key in seen:
                 continue
@@ -165,7 +165,7 @@ class RunDashboard:
     def _tasks_for(self, host: str, workload: str) -> Dict[int, TaskState]:
         return {
             task.repetition: task
-            for task in self.journal.tasks
+            for task in self.journal.tasks.values()
             if task.host == host and task.workload == workload
         }
 
