@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Set
 import typer
 
 from .benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
-from .plugins.registry import PluginRegistry, print_plugin_table
+from .plugin_system.registry import PluginRegistry, print_plugin_table
 from .services import ConfigService, RunService
 from .services.plugin_service import create_registry, PluginInstaller
 from .services.doctor_service import DoctorService

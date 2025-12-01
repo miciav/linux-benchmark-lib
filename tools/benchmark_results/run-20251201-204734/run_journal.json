@@ -1,0 +1,64 @@
+{
+  "run_id": "run-20251201-204734",
+  "tasks": [
+    {
+      "host": "lb-worker-0f4d93fb",
+      "workload": "stress_ng",
+      "repetition": 1,
+      "status": "COMPLETED",
+      "current_action": "Done",
+      "timestamp": 1764622400.327695,
+      "error": null
+    },
+    {
+      "host": "lb-worker-0f4d93fb",
+      "workload": "stress_ng",
+      "repetition": 2,
+      "status": "COMPLETED",
+      "current_action": "Done",
+      "timestamp": 1764622400.332192,
+      "error": null
+    },
+    {
+      "host": "lb-worker-0f4d93fb",
+      "workload": "stress_ng",
+      "repetition": 3,
+      "status": "COMPLETED",
+      "current_action": "Done",
+      "timestamp": 1764622400.336107,
+      "error": null
+    },
+    {
+      "host": "lb-worker-0f4d93fb",
+      "workload": "dd",
+      "repetition": 1,
+      "status": "COMPLETED",
+      "current_action": "Done",
+      "timestamp": 1764622468.616591,
+      "error": null
+    },
+    {
+      "host": "lb-worker-0f4d93fb",
+      "workload": "dd",
+      "repetition": 2,
+      "status": "COMPLETED",
+      "current_action": "Done",
+      "timestamp": 1764622468.624968,
+      "error": null
+    },
+    {
+      "host": "lb-worker-0f4d93fb",
+      "workload": "dd",
+      "repetition": 3,
+      "status": "COMPLETED",
+      "current_action": "Done",
+      "timestamp": 1764622468.630724,
+      "error": null
+    }
+  ],
+  "metadata": {
+    "created_at": "2025-12-01T21:47:34.302531",
+    "config_summary": "BenchmarkConfig(repetitions=3, test_duration_seconds=60, metrics_interval_seconds=1.0, warmup_seconds=5, cooldown_seconds=5, output_dir=PosixPath('benchmark_results'), report_dir=PosixPath('reports'), data_export_dir=PosixPath('data_exports'), plugin_settings={'stress_ng': StressNGConfig(cpu_workers=0, cpu_method='all', vm_workers=1, vm_bytes='1G', io_workers=1, timeout=60, metrics_brief=True, extra_args=[], debug=False), 'fio': FIOConfig(job_file=None, runtime=60, rw='randrw', bs='4k', iodepth=16, numjobs=1, size='1G', directory='/tmp', name='benchmark', output_format='json', debug=False), 'iperf3': IPerf3Config(server_host='localhost', server_port=5201, protocol='tcp', parallel=1, time=60, bandwidth=None, reverse=False, json_output=True, debug=False), 'dd': DDConfig(if_path='/dev/zero', of_path='/tmp/lb_dd_test', bs='1M', count=None, conv='fdatasync', oflag='direct', debug=False)}, collectors=MetricCollectorConfig(psutil_interval=1.0, cli_commands=['sar -u 1 1', 'vmstat 1 1', 'iostat -d 1 1', 'mpstat 1 1', 'pidstat -h 1 1'], perf_config=PerfConfig(events=['cpu-cycles', 'instructions', 'cache-references', 'cache-misses', 'branches', 'branch-misses'], interval_ms=1000, pid=None, cpu=None), enable_ebpf=False), workloads={'stress_ng': WorkloadConfig(plugin='stress_ng', enabled=True, intensity='medium', options={'cpu_workers': 0, 'cpu_method': 'all', 'vm_workers': 1, 'vm_bytes': '1G', 'io_workers': 1, 'timeout': 60, 'metrics_brief': True, 'extra_args': []}), 'fio': WorkloadConfig(plugin='fio', enabled=False, intensity='medium', options={'job_file': None, 'runtime': 60, 'rw': 'randrw', 'bs': '4k', 'iodepth': 16, 'numjobs': 1, 'size': '1G', 'directory': '/tmp', 'name': 'benchmark', 'output_format': 'json'}), 'iperf3': WorkloadConfig(plugin='iperf3', enabled=False, intensity='medium', options={'server_host': 'localhost', 'server_port': 5201, 'protocol': 'tcp', 'parallel': 1, 'time': 60, 'bandwidth': None, 'reverse': False, 'json_output': True}), 'dd': WorkloadConfig(plugin='dd', enabled=True, intensity='medium', options={'if_path': '/dev/zero', 'of_path': '/tmp/lb_dd_test', 'bs': '1M', 'count': None, 'conv': 'fdatasync', 'oflag': 'direct'})}, remote_hosts=[RemoteHostConfig(name='lb-worker-0f4d93fb', address='192.168.2.215', port=22, user='ubuntu', become=True, become_method='sudo', vars={'ansible_ssh_private_key_file': '/Users/micheleciavotta/Downloads/linux-benchmark-lib/tools/temp_keys/lb-worker-0f4d93fb_id_rsa', 'ansible_ssh_common_args': '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null', 'ansible_python_interpreter': '/usr/bin/python3'})], remote_execution=RemoteExecutionConfig(enabled=True, inventory_path=None, run_setup=True, run_collect=True, setup_playbook=PosixPath('/Users/micheleciavotta/Downloads/linux-benchmark-lib/linux_benchmark_lib/ansible/playbooks/setup.yml'), run_playbook=PosixPath('/Users/micheleciavotta/Downloads/linux-benchmark-lib/linux_benchmark_lib/ansible/playbooks/run_benchmark.yml'), collect_playbook=PosixPath('/Users/micheleciavotta/Downloads/linux-benchmark-lib/linux_benchmark_lib/ansible/playbooks/collect.yml'), teardown_playbook=PosixPath('/Users/micheleciavotta/Downloads/linux-benchmark-lib/linux_benchmark_lib/ansible/playbooks/teardown.yml'), run_teardown=True, use_container_fallback=False), collect_system_info=True, influxdb_enabled=False, influxdb_url='http://localhost:8086', influxdb_token='', influxdb_org='benchmark', influxdb_bucket='performance')",
+    "repetitions": 3
+  }
+}

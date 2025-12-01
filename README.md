@@ -80,7 +80,7 @@ See `CLI.md` for the full command reference. Highlights:
 - Config and defaults: `lb config init`, `lb config set-default`, `lb config edit`, `lb config workloads`, `lb plugin list --select/--enable/--disable NAME` (shows enabled state with checkmarks).
 - Discovery and run: `lb plugin list`, `lb hosts`, `lb run [tests...]` (follows config for local/remote unless overridden).
 - Interactive toggle: `lb plugin select` to enable/disable plugins with arrows + space; `lb config select-workloads` to toggle configured workloads the same way.
-- Install plugins from a path or git repo: `lb plugin install ./linux_benchmark_lib/plugins/packages/sysbench_plugin.tar.gz` or `lb plugin install https://github.com/miciav/unixbench-lb-plugin.git`.
+- Install plugins from a path or git repo: `lb plugin install /path/to/sysbench_plugin.tar.gz` or `lb plugin install https://github.com/miciav/unixbench-lb-plugin.git`.
 - Example (UnixBench from git): 
   ```bash
   lb plugin install https://github.com/miciav/unixbench-lb-plugin.git
@@ -115,8 +115,8 @@ See `CLI.md` for the full command reference. Highlights:
 from linux_benchmark_lib.benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig
 from linux_benchmark_lib.controller import BenchmarkController
 from linux_benchmark_lib.local_runner import LocalRunner
-from linux_benchmark_lib.plugins.builtin import builtin_plugins
-from linux_benchmark_lib.plugins.registry import PluginRegistry
+from linux_benchmark_lib.plugin_system.builtin import builtin_plugins
+from linux_benchmark_lib.plugin_system.registry import PluginRegistry
 
 # Create a configuration
 config = BenchmarkConfig(

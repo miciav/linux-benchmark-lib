@@ -12,8 +12,8 @@ from typing import Any, List, Optional, Type
 
 import iperf3
 
-from ..base_generator import BaseGenerator
-from ..interface import WorkloadIntensity, WorkloadPlugin
+from ...plugin_system.base_generator import BaseGenerator
+from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin
 
 
 logger = logging.getLogger(__name__)

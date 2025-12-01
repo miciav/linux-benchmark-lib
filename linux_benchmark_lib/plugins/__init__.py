@@ -1,5 +1,4 @@
-"""Plugin utilities for workload generators."""
+"""Workload plugin implementations (dd, fio, iperf3, stress_ng)."""
 
-from .interface import WorkloadPlugin
-
-__all__ = ["WorkloadPlugin"]
+# Core plugin system types live in linux_benchmark_lib.plugin_system.
+__all__: list[str] = []

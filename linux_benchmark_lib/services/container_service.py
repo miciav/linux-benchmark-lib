@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from ..benchmark_config import BenchmarkConfig
 from .plugin_service import create_registry
-from ..plugins.interface import WorkloadPlugin
+from ..plugin_system.interface import WorkloadPlugin
 
 
 @dataclass

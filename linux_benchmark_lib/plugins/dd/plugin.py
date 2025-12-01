@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Type, Any
 
-from ..interface import WorkloadPlugin, WorkloadIntensity
-from ..base_generator import BaseGenerator
+from ...plugin_system.interface import WorkloadPlugin, WorkloadIntensity
+from ...plugin_system.base_generator import BaseGenerator
 
 logger = logging.getLogger(__name__)
 

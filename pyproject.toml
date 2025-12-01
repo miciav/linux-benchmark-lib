@@ -43,10 +43,10 @@ linux_benchmark_lib = ["ansible/**/*"]
 lb = "linux_benchmark_lib.cli:app"
 
 [project.entry-points."linux_benchmark.collectors"]
-psutil = "linux_benchmark_lib.plugins.builtin:PSUTIL_COLLECTOR"
-cli = "linux_benchmark_lib.plugins.builtin:CLI_COLLECTOR"
-perf = "linux_benchmark_lib.plugins.builtin:PERF_COLLECTOR"
-ebpf = "linux_benchmark_lib.plugins.builtin:EBPF_COLLECTOR"
+psutil = "linux_benchmark_lib.plugin_system.builtin:PSUTIL_COLLECTOR"
+cli = "linux_benchmark_lib.plugin_system.builtin:CLI_COLLECTOR"
+perf = "linux_benchmark_lib.plugin_system.builtin:PERF_COLLECTOR"
+ebpf = "linux_benchmark_lib.plugin_system.builtin:EBPF_COLLECTOR"
 
 [project.entry-points."linux_benchmark.workloads"]
 stress_ng = "linux_benchmark_lib.plugins.stress_ng.plugin:PLUGIN"
@@ -81,7 +81,9 @@ minversion = "7.0"
 addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
 markers = [
-    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')"
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "docker: integration tests that build/run plugin Docker images",
+    "multipass: integration tests that validate plugin multipass/ansible assets",
 ]
 python_files = "test_*.py"
 python_classes = "Test*"

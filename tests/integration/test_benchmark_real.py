@@ -20,8 +20,8 @@ from linux_benchmark_lib.benchmark_config import (
 )
 from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
 from linux_benchmark_lib.local_runner import LocalRunner
-from linux_benchmark_lib.plugins.builtin import builtin_plugins
-from linux_benchmark_lib.plugins.registry import PluginRegistry
+from linux_benchmark_lib.plugin_system.builtin import builtin_plugins
+from linux_benchmark_lib.plugin_system.registry import PluginRegistry
 
 
 class TestRealBenchmarkIntegration(unittest.TestCase):

@@ -9,9 +9,10 @@ import zipfile
 from pathlib import Path
 from typing import Optional, Any, Union
 
-from ..plugins.builtin import builtin_plugins
-from ..plugins import registry as registry
-from ..plugins.registry import PluginRegistry, USER_PLUGIN_DIR
+from ..plugin_system.builtin import builtin_plugins
+from ..plugin_system.registry import PluginRegistry, USER_PLUGIN_DIR
+# Alias to preserve compatibility with test monkeypatches expecting a `registry` module
+from ..plugin_system import registry as registry  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

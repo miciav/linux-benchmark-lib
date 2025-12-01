@@ -21,8 +21,8 @@ from typing import Any, Dict, List, Optional
 
 from .benchmark_config import BenchmarkConfig, WorkloadConfig
 from .data_handler import DataHandler
-from .plugins.registry import PluginRegistry, print_plugin_table
-from .plugins.interface import WorkloadIntensity
+from .plugin_system.registry import PluginRegistry, print_plugin_table
+from .plugin_system.interface import WorkloadIntensity
 from .ui import get_ui_adapter
 from .ui.types import UIAdapter
 
