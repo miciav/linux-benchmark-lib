@@ -14,3 +14,10 @@ ENV PATH="/usr/sbin:$PATH"
 RUN pip install --no-cache-dir psutil typer rich pyyaml InquirerPy pandas numpy jc iperf3
 
 WORKDIR /app
+
+# Include plugin source
+COPY . /app
+
+# Install plugin without pulling linux-benchmark-lib from PyPI; host code is mounted at runtime.
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir --no-deps .

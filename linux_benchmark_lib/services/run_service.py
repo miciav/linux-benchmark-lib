@@ -126,6 +126,8 @@ class RunResult:
 
     context: RunContext
     summary: Optional[RunExecutionSummary]
+    journal_path: Path | None = None
+    log_path: Path | None = None
 
 
 class RunService:
@@ -459,6 +461,7 @@ class RunService:
         journal, journal_path, dashboard, effective_run_id = (
             self._prepare_journal_and_dashboard(context, run_id, ui_adapter)
         )
+        log_path = journal_path.parent / "run.log"
 
         # Fan-out Ansible output to both formatter and dashboard log stream.
         output_cb = output_callback
@@ -478,6 +481,23 @@ class RunService:
                     last_refresh = now
             output_cb = _dashboard_callback
 
+        # Tee streamed output to a log file to aid troubleshooting after the run.
+        log_file = log_path.open("a", encoding="utf-8")
+        downstream = output_cb
+
+        def _tee_output(text: str, end: str = "") -> None:
+            fragment = text + (end if end else "\n")
+            try:
+                log_file.write(fragment)
+                log_file.flush()
+            except Exception:
+                # Logging should never break the run; swallow write errors.
+                pass
+            if downstream:
+                downstream(text, end=end)
+
+        output_cb = _tee_output
+
         controller = BenchmarkController(
             context.config,
             output_callback=output_cb,
@@ -485,19 +505,27 @@ class RunService:
             journal_refresh=dashboard.refresh if dashboard else None,
         )
 
-        with dashboard.live():
-            summary = controller.run(
-                context.target_tests,
-                run_id=effective_run_id,
-                journal=journal,
-                resume=resume_requested,
-                journal_path=journal_path,
-            )
+        try:
+            with dashboard.live():
+                summary = controller.run(
+                    context.target_tests,
+                    run_id=effective_run_id,
+                    journal=journal,
+                    resume=resume_requested,
+                    journal_path=journal_path,
+                )
+        finally:
+            log_file.close()
 
         if isinstance(dashboard, RunDashboard):
             dashboard.refresh()
 
-        return RunResult(context=context, summary=summary)
+        return RunResult(
+            context=context,
+            summary=summary,
+            journal_path=journal_path,
+            log_path=log_path,
+        )
 
     def _prepare_journal_and_dashboard(
         self,

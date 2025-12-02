@@ -66,6 +66,15 @@ def test_plugin_dockerfile_builds_and_runs(plugin_name: str, dockerfile: Path) -
     """Build each plugin Dockerfile and run a trivial container."""
     tag = f"lb-plugin-{plugin_name}-{uuid.uuid4().hex[:8]}"
     context = dockerfile.parent
+    # Climb up to a directory containing pyproject.toml to allow editable installs
+    current = context
+    while True:
+        if (current / "pyproject.toml").exists():
+            context = current
+            break
+        if current.parent == current:
+            break
+        current = current.parent
 
     build = subprocess.run(
         ["docker", "build", "-t", tag, "-f", str(dockerfile), str(context)],

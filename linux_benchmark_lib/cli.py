@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Set
 import typer
 
 from .benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+from .journal import RunJournal, RunStatus, TaskState
 from .plugin_system.registry import PluginRegistry, print_plugin_table
 from .services import ConfigService, RunService
 from .services.plugin_service import create_registry, PluginInstaller
@@ -117,6 +118,73 @@ def _print_run_plan(
         ["Workload", "Plugin", "Intensity", "Configuration", "Status"],
         rows,
     )
+
+
+def _format_task_status(task: TaskState | None) -> str:
+    """Normalize task status for compact table output."""
+    if task is None:
+        return "pending"
+    if task.status == RunStatus.COMPLETED:
+        return "done"
+    if task.status == RunStatus.RUNNING:
+        return "running"
+    if task.status == RunStatus.FAILED:
+        return "failed"
+    if task.status == RunStatus.SKIPPED:
+        return "skipped"
+    return "pending"
+
+
+def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[str]]]:
+    """Return column headers and rows for a run journal snapshot."""
+    if not journal.tasks:
+        return ["Host", "Workload"], []
+
+    max_rep = max(task.repetition for task in journal.tasks.values())
+    columns = ["Host", "Workload"] + [f"Rep {i}" for i in range(1, max_rep + 1)] + ["Last Action"]
+
+    pairs = sorted({(task.host, task.workload) for task in journal.tasks.values()})
+    rows: list[list[str]] = []
+    for host, workload in pairs:
+        tasks = {
+            task.repetition: task
+            for task in journal.tasks.values()
+            if task.host == host and task.workload == workload
+        }
+        # Track the most recent action/error for this host/workload pair
+        last_action = ""
+        if tasks:
+            latest = max(tasks.values(), key=lambda t: t.timestamp)
+            last_action = latest.error or latest.current_action or ""
+
+        row = [host, workload]
+        for rep in range(1, max_rep + 1):
+            row.append(_format_task_status(tasks.get(rep)))
+        row.append(last_action)
+        rows.append(row)
+
+    return columns, rows
+
+
+def _print_run_journal_summary(journal_path: Path, log_path: Path | None = None) -> None:
+    """Load and render a completed run journal, with log hints."""
+    try:
+        journal = RunJournal.load(journal_path)
+    except Exception as exc:
+        ui.show_warning(f"Could not read run journal at {journal_path}: {exc}")
+        if log_path:
+            ui.show_info(f"Ansible output log: {log_path}")
+        return
+
+    columns, rows = _build_journal_summary(journal)
+    if rows:
+        ui.show_table(f"Run Journal (ID: {journal.run_id})", columns, rows)
+    else:
+        ui.show_warning("Run journal was created but contains no tasks.")
+
+    ui.show_info(f"Journal saved to {journal_path}")
+    if log_path:
+        ui.show_info(f"Ansible output log saved to {log_path}")
 
 
 # ... (_load_config) ...
@@ -647,10 +715,13 @@ def run(
                 resume=resume,
                 multipass_vm_count=multipass_vm_count,
             )
-            run_service.execute(context, run_id, ui_adapter=ui)
+            result = run_service.execute(context, run_id, ui_adapter=ui)
         except Exception as exc:
             ui.show_error(f"Run failed: {exc}")
             raise typer.Exit(1)
+
+        if result and result.journal_path:
+            _print_run_journal_summary(result.journal_path, log_path=result.log_path)
 
         ui.show_success("Run completed.")
 
