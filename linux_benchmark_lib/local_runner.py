@@ -168,6 +168,20 @@ class LocalRunner:
         
         # Set up collectors
         collectors = self._setup_collectors()
+
+        # Determine duration (allow workload to request a longer runtime)
+        duration = self.config.test_duration_seconds
+        if hasattr(generator, "expected_runtime_seconds"):
+            try:
+                expected = int(getattr(generator, "expected_runtime_seconds"))
+                if expected > duration:
+                    logger.info(
+                        "Extending test duration to %s seconds based on workload hint",
+                        expected,
+                    )
+                    duration = expected
+            except Exception:
+                logger.debug("Failed to read expected runtime from generator; using default duration")
         
         # Pre-test cleanup
         self._pre_test_cleanup()
@@ -181,7 +195,7 @@ class LocalRunner:
         try:
             progress = self.ui.create_progress(
                 f"{test_name} (rep {repetition})",
-                total=self.config.test_duration_seconds,
+                total=duration,
             )
 
             # Start collectors
@@ -202,10 +216,9 @@ class LocalRunner:
             generator_started = True
             
             # Run for the specified duration
-            logger.info(f"Running test for {self.config.test_duration_seconds} seconds")
+            logger.info(f"Running test for {duration} seconds")
             
             # Loop to wait for completion with a safety timeout
-            duration = self.config.test_duration_seconds
             safety_buffer = 10  # Allow 10 extra seconds for graceful exit
             max_wait = duration + safety_buffer
             elapsed = 0

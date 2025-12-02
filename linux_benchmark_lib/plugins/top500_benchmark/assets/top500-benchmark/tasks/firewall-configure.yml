@@ -1,0 +1,33 @@
+---
+- name: Creating new custom firewall zone.
+  ansible.posix.firewalld:
+    zone: top500
+    permanent: true
+    state: present
+  become: true
+
+- name: Setting custom firewall zone to accept connections.
+  ansible.posix.firewalld:
+    zone: top500
+    target: ACCEPT
+    state: enabled
+    permanent: true
+  become: true
+
+- name: Adding nodes as trusted sources in the firewall.
+  ansible.posix.firewalld:
+    source: "{{ item }}"
+    zone: top500
+    state: enabled
+    permanent: true
+  loop: "{{ host_ips }}"
+  vars:
+    _self_ip: "{{ (ansible_facts.get('default_ipv4', {}) | default({})).get('address', ansible_host | default(inventory_hostname)) }}"
+  when: item != _self_ip
+  become: true
+
+- name: Restarting firewall for changes to take effect.
+  ansible.builtin.service:
+    name: firewalld
+    state: restarted
+  become: true
