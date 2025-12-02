@@ -58,7 +58,16 @@ class ContainerRunner:
         if not spec.build:
             return image_tag
 
-        # We use spec.workdir (project root) as build context to allow copying shared libs.
+        # Derive build context: prefer a pyproject root adjacent to the Dockerfile, else use Dockerfile parent,
+        # else fall back to the user-provided workdir.
+        context_dir = spec.workdir
+        docker_parent = dockerfile.parent
+        # If Dockerfile sits inside a package subdir (e.g., pkg/Dockerfile) and pyproject is one level up, use that.
+        if not (docker_parent / "pyproject.toml").exists() and (docker_parent.parent / "pyproject.toml").exists():
+            context_dir = docker_parent.parent
+        elif (docker_parent / "pyproject.toml").exists():
+            context_dir = docker_parent
+
         cmd = [
             spec.engine,
             "build",
@@ -66,7 +75,7 @@ class ContainerRunner:
             image_tag,
             "-f",
             str(dockerfile),
-            str(spec.workdir)
+            str(context_dir)
         ]
         if spec.no_cache:
             cmd.append("--no-cache")

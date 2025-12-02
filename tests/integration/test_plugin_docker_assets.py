@@ -40,9 +40,10 @@ def _docker_status() -> DockerStatus:
 
 
 def _collect_docker_plugins() -> list[tuple[str, Path]]:
+    """Collect plugins (builtin + user) that provide Dockerfiles."""
     registry = PluginRegistry(builtin_plugins())
     items: list[tuple[str, Path]] = []
-    for plugin in registry.available().values():
+    for plugin in registry.available(load_entrypoints=True).values():
         dockerfile = plugin.get_dockerfile_path()
         if dockerfile and dockerfile.exists():
             items.append((plugin.name, dockerfile))

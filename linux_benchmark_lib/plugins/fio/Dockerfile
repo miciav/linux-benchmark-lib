@@ -14,4 +14,3 @@ ENV PATH="/usr/sbin:$PATH"
 RUN pip install --no-cache-dir psutil typer rich pyyaml InquirerPy pandas numpy jc
 
 WORKDIR /app
-

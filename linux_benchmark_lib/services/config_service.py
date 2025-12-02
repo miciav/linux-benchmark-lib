@@ -82,7 +82,7 @@ class ConfigService:
         from .plugin_service import create_registry
         
         registry = create_registry()
-        available = registry.available()
+        available = registry.available(load_entrypoints=True)
 
         for name, settings in cfg.plugin_settings.items():
             # Only hydrate if it's a raw dict and we know the plugin
@@ -108,7 +108,7 @@ class ConfigService:
         # Clear any legacy hardcoded defaults if BenchmarkConfig still has them (redundant safety)
         cfg.workloads = {} 
         
-        for name, plugin in registry.available().items():
+        for name, plugin in registry.available(load_entrypoints=True).items():
             # Create default plugin config
             if hasattr(plugin, 'config_cls'):
                 try:

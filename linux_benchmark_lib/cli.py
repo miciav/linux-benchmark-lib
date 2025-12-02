@@ -900,6 +900,7 @@ def plugin_uninstall(
     ),
 ) -> None:
     """Uninstall a user plugin."""
+    requested_name = name  # Preserve logical plugin name for config cleanup
     if name.startswith(("http://", "https://", "git@")) or name.endswith(".git"):
          ui.show_warning(f"'{name}' looks like a URL/path. `uninstall` expects the plugin name (e.g. 'unixbench').")
          ui.show_info("Run `lb plugin list` to see installed plugins.")
@@ -937,11 +938,12 @@ def plugin_uninstall(
     config_stale: Optional[Path] = None
     removed_config = False
     try:
-        removed_files = installer.uninstall(name)
+        removal_target = name
+        removed_files = installer.uninstall(removal_target)
 
         if purge_config:
             try:
-                _, config_path, config_stale, removed_config = config_service.remove_plugin(name, config)
+                _, config_path, config_stale, removed_config = config_service.remove_plugin(requested_name, config)
             except FileNotFoundError:
                 if config is not None:
                     ui.show_warning(f"Config file not found: {config}")
@@ -954,7 +956,7 @@ def plugin_uninstall(
             ui.show_warning(f"Plugin '{name}' not found or not a user plugin.")
 
         if removed_config and config_path:
-            ui.show_info(f"Removed '{name}' from config {config_path}")
+            ui.show_info(f"Removed '{requested_name}' from config {config_path}")
         # elif purge_config and config_path:
         #    ui.show_info(f"No config entries for '{name}' found in {config_path}")
         if config_stale:

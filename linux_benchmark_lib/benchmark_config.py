@@ -231,7 +231,7 @@ class BenchmarkConfig:
             from .services.plugin_service import create_registry
 
             registry = create_registry()
-            available = registry.available()
+            available = registry.available(load_entrypoints=True)
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Failed to build plugin registry for hydration: %s", exc)
             return
@@ -258,7 +258,7 @@ class BenchmarkConfig:
             logger.warning("Failed to build plugin registry for defaults: %s", exc)
             return
 
-        for name, plugin in registry.available().items():
+        for name, plugin in registry.available(load_entrypoints=True).items():
             config_cls = getattr(plugin, "config_cls", None)
             if config_cls is None:
                 continue
