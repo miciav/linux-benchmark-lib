@@ -5,9 +5,9 @@ from dataclasses import dataclass
 import importlib.metadata
 import pytest
 
-from linux_benchmark_lib.plugins.registry import PluginRegistry
-from linux_benchmark_lib.plugins.interface import WorkloadPlugin
-from linux_benchmark_lib.plugins.base_generator import BaseGenerator
+from linux_benchmark_lib.plugin_system.registry import PluginRegistry
+from linux_benchmark_lib.plugin_system.interface import WorkloadPlugin
+from linux_benchmark_lib.plugin_system.base_generator import BaseGenerator
 
 
 @dataclass

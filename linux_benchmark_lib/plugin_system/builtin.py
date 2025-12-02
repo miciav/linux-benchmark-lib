@@ -2,10 +2,8 @@
 
 import importlib
 import logging
-import pkgutil
-import sys
 from pathlib import Path
-from typing import List, Any, Optional, Tuple, Callable, Dict
+from typing import List, Any, Optional, Tuple, Callable
 
 from ..benchmark_config import BenchmarkConfig
 
@@ -14,6 +12,7 @@ from .registry import CollectorPlugin
 
 logger = logging.getLogger(__name__)
 _PACKAGE_ROOT = __package__.rsplit(".", 1)[0]
+_PLUGIN_PACKAGE = f"{_PACKAGE_ROOT}.plugins"
 
 # --- Collector Factories ---
 
@@ -116,11 +115,11 @@ def builtin_plugins() -> List[Any]:
     ]
 
     # 1. Scan plugins/*/plugin.py
-    plugins_path = Path(__file__).parent
+    plugins_path = Path(__file__).resolve().parent.parent / "plugins"
     if plugins_path.exists():
         for item in plugins_path.iterdir():
             if item.is_dir() and (item / "plugin.py").exists():
-                module_name = f"{__package__}.{item.name}.plugin"
+                module_name = f"{_PLUGIN_PACKAGE}.{item.name}.plugin"
                 try:
                     mod = importlib.import_module(module_name)
                     if hasattr(mod, "PLUGIN"):

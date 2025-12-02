@@ -9,9 +9,10 @@ import zipfile
 from pathlib import Path
 from typing import Optional, Any, Union
 
-from ..plugins.builtin import builtin_plugins
-from ..plugins import registry as registry
-from ..plugins.registry import PluginRegistry, USER_PLUGIN_DIR
+from ..plugin_system.builtin import builtin_plugins
+from ..plugin_system.registry import PluginRegistry, USER_PLUGIN_DIR
+# Alias to preserve compatibility with test monkeypatches expecting a `registry` module
+from ..plugin_system import registry as registry  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -62,13 +63,22 @@ class PluginInstaller:
     def uninstall(self, plugin_name: str) -> bool:
         """
         Uninstall a user plugin by name. 
-        Removes both the .py file and associated .yaml manifest if present.
+        Removes the plugin directory (if valid) or the .py/.yaml files.
         """
         target_py = self.plugin_dir / f"{plugin_name}.py"
         target_yaml = self.plugin_dir / f"{plugin_name}.yaml"
         target_yml = self.plugin_dir / f"{plugin_name}.yml"
+        target_dir = self.plugin_dir / plugin_name
 
         found = False
+        
+        # 1. Check for directory plugin
+        if target_dir.exists() and target_dir.is_dir():
+            shutil.rmtree(target_dir)
+            logger.info(f"Removed plugin directory: {target_dir}")
+            found = True
+
+        # 2. Check for single file plugin
         if target_py.exists():
             target_py.unlink()
             logger.info(f"Removed plugin source: {target_py}")
@@ -115,7 +125,7 @@ class PluginInstaller:
         return py_path.stem
 
     def _install_archive(self, archive_path: Path, force: bool) -> str:
-        """Extract archive, look for valid plugin file and manifest, and install."""
+        """Extract archive and install as a directory plugin."""
         logger.info(f"Extracting archive {archive_path}...")
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -128,56 +138,55 @@ class PluginInstaller:
                 with tarfile.open(archive_path, 'r') as tar_ref:
                     tar_ref.extractall(tmp_path, filter="data")
             
-            # Find candidates
-            py_files = list(tmp_path.rglob("*.py"))
-            py_files = [
-                f for f in py_files
-                if f.name != "__init__.py" and not f.name.startswith(("test_", "._"))
-            ]
-            
-            if not py_files:
-                raise ValueError("No valid Python plugin file found in archive.")
-            
-            # Heuristic: prefer file with same name as archive stem
-            # e.g. sysbench.zip -> sysbench.py
-            archive_stem = archive_path.name.split('.')[0]
-            main_py = next((f for f in py_files if f.stem == archive_stem), None)
-            if not main_py:
-                main_py = py_files[0] # Fallback to first found
-            
-            logger.info(f"Identified main plugin file: {main_py.name}")
+            # Inspect structure
+            items = list(tmp_path.iterdir())
+            # If archive contains a single top-level folder, use that
+            if len(items) == 1 and items[0].is_dir():
+                source_dir = items[0]
+            else:
+                # Archive is flat or mixed; use the extraction root
+                # Ideally we rename it to match the archive stem for the final install
+                source_dir = tmp_path
+                # Check if we can infer a better name from the files?
+                # For now, _install_directory will use source_dir.name, which is random for tmp_dir.
+                # We should rename/copy it to a folder with the archive name.
+                archive_stem = archive_path.name.split('.')[0]
+                if source_dir.name != archive_stem:
+                    # We are inside a temp dir with random name. 
+                    # But _install_directory uses the source_dir.name as the plugin name.
+                    # So we must ensure source_dir has the desired plugin name.
+                    # However, we can't rename the temp dir easily.
+                    # Instead, we pass the desired name to _install_directory if we refactor it,
+                    # or we move content to a subdir.
+                    structured_dir = tmp_path / archive_stem
+                    structured_dir.mkdir()
+                    for item in items:
+                        shutil.move(str(item), str(structured_dir))
+                    source_dir = structured_dir
 
-            # Find matching manifest
-            manifest_files = list(tmp_path.rglob("*.yaml")) + list(tmp_path.rglob("*.yml"))
-            main_manifest = None
-            if manifest_files:
-                 # Prefer sibling of main_py or same name
-                 main_manifest = next((f for f in manifest_files if f.stem == main_py.stem), None)
-                 if not main_manifest:
-                     main_manifest = manifest_files[0]
-                 logger.info(f"Identified manifest file: {main_manifest.name}")
-
-            # Install
-            return self._install_file(main_py, main_manifest, force)
+            return self._install_directory(source_dir, force)
 
     def _install_directory(self, source_dir: Path, force: bool) -> str:
-        """Install a plugin directly from a directory."""
-        py_files = [
-            f
-            for f in source_dir.rglob("*.py")
-            if f.name != "__init__.py" and not f.name.startswith(("test_", "._"))
-        ]
-        if not py_files:
-            raise ValueError("No valid Python plugin file found in directory.")
+        """Install a plugin by copying the entire directory."""
+        plugin_name = source_dir.name
+        target_dir = self.plugin_dir / plugin_name
 
-        main_py = next((f for f in py_files if f.stem == source_dir.name), None) or py_files[0]
+        # Validation: Ensure it looks like a plugin (has python files)
+        if not any(source_dir.rglob("*.py")):
+             raise ValueError(f"Directory '{plugin_name}' does not contain any Python files.")
 
-        manifest_files = list(source_dir.rglob("*.yaml")) + list(source_dir.rglob("*.yml"))
-        main_manifest = next((f for f in manifest_files if f.stem == main_py.stem), None)
-        if not main_manifest and manifest_files:
-            main_manifest = manifest_files[0]
+        if target_dir.exists():
+            if not force:
+                raise FileExistsError(f"Plugin '{plugin_name}' already exists at {target_dir}. Use --force to overwrite.")
+            if target_dir.is_dir():
+                shutil.rmtree(target_dir)
+            else:
+                target_dir.unlink() # It was a file
 
-        return self._install_file(main_py, main_manifest, force)
+        shutil.copytree(source_dir, target_dir)
+        logger.info(f"Installed plugin directory to {target_dir}")
+        
+        return plugin_name
 
     def _package_directory(self, source_dir: Path, archive_path: Path) -> Path:
         """Tar/gzip a plugin directory into the given archive path."""
@@ -211,8 +220,17 @@ class PluginInstaller:
         if shutil.which("git") is None:
             raise RuntimeError("git is required to install plugins from repositories.")
 
+        # Infer plugin name from URL (e.g. "https://.../my-plugin.git" -> "my-plugin")
+        plugin_name = url.rstrip("/").split("/")[-1]
+        if plugin_name.endswith(".git"):
+            plugin_name = plugin_name[:-4]
+            
+        # Fallback if URL parsing fails strangely
+        if not plugin_name:
+            plugin_name = "plugin_from_git"
+
         with tempfile.TemporaryDirectory() as tmp_dir:
-            clone_path = Path(tmp_dir) / "plugin_repo"
+            clone_path = Path(tmp_dir) / plugin_name
             try:
                 subprocess.run(
                     ["git", "clone", "--depth", "1", url, str(clone_path)],

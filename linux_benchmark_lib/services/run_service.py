@@ -14,8 +14,8 @@ from pathlib import Path
 from ..benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
 from ..journal import RunJournal
 from ..local_runner import LocalRunner
-from ..plugins.registry import PluginRegistry
-from ..plugins.interface import WorkloadIntensity
+from ..plugin_system.registry import PluginRegistry
+from ..plugin_system.interface import WorkloadIntensity
 from .container_service import ContainerRunner, ContainerRunSpec
 from .multipass_service import MultipassService
 from ..ui.console_adapter import ConsoleUIAdapter

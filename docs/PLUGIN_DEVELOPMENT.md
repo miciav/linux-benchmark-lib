@@ -3,16 +3,16 @@
 This guide explains how to build, package, and install custom workload plugins for `linux-benchmark-lib`.
 
 ## Plugin anatomy
-- Implement the `WorkloadPlugin` interface (`linux_benchmark_lib/plugins/interface.py`).
-- Provide a config class (usually a dataclass) and a generator derived from `linux_benchmark_lib/plugins/base_generator.py`.
+- Implement the `WorkloadPlugin` interface (`linux_benchmark_lib/plugin_system/interface.py`).
+- Provide a config class (usually a dataclass) and a generator derived from `linux_benchmark_lib/plugin_system/base_generator.py`.
 - Export a module-level `PLUGIN` variable pointing to your `WorkloadPlugin` instance.
 
 ### Minimal example
 ```python
 from dataclasses import dataclass, field
 from typing import List, Optional, Type
-from linux_benchmark_lib.plugins.interface import WorkloadPlugin
-from linux_benchmark_lib.plugins.base_generator import BaseGenerator
+from linux_benchmark_lib.plugin_system.interface import WorkloadPlugin
+from linux_benchmark_lib.plugin_system.base_generator import BaseGenerator
 
 
 @dataclass
@@ -134,7 +134,7 @@ linux_benchmark_lib/plugins/<plugin_name>/
 **linux_benchmark_lib/plugins/dd/plugin.py**:
 ```python
 from pathlib import Path
-from linux_benchmark_lib.plugins.interface import WorkloadPlugin
+from linux_benchmark_lib.plugin_system.interface import WorkloadPlugin
 # ... imports ...
 
 class DDPlugin(WorkloadPlugin):
