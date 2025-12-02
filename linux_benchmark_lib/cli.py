@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import re
+import inspect
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -663,13 +664,6 @@ def _select_plugins_interactively(
         return None
     # Show the same table used by `lb plugin` before asking for input.
     print_plugin_table(registry, enabled=enabled_map, ui_adapter=ui)
-    # Emit plain text summary so CliRunner captures output reliably
-    header = "Name | Enabled | Description | Config"
-    lines = [
-        f"{name} | {'yes' if enabled_map.get(name) else 'no'} | {getattr(plugin, 'description', '')} | {getattr(getattr(plugin, 'config_cls', None), '__name__', 'UnknownConfig')}"
-        for name, plugin in sorted(registry.available().items())
-    ]
-    typer.echo("\n".join([header, *lines]))
     plugins = {name: getattr(plugin, "description", "") or "" for name, plugin in registry.available().items()}
     selection = prompt_plugins(plugins, enabled_map, force=False, show_table=False)
     if selection is None:
@@ -761,12 +755,6 @@ def _list_plugins_command(
         enabled_map = _apply_plugin_selection(registry, selection, config, set_default)
 
     print_plugin_table(registry, enabled=enabled_map, ui_adapter=ui)
-    header = "Name | Enabled | Description | Config"
-    lines = [
-        f"{name} | {'yes' if enabled_map.get(name) else 'no'} | {getattr(plugin, 'description', '')} | {getattr(getattr(plugin, 'config_cls', None), '__name__', 'UnknownConfig')}"
-        for name, plugin in sorted(registry.available().items())
-    ]
-    typer.echo("\n".join([header, *lines]))
 
 
 @plugin_app.callback(invoke_without_command=True)
@@ -918,6 +906,33 @@ def plugin_uninstall(
          raise typer.Exit(1)
 
     installer = PluginInstaller()
+    
+    # Try to resolve logical name (e.g. "sysbench") to directory name (e.g. "sysbench-plugin")
+    # This handles the case where the plugin name differs from the folder name
+    registry = create_registry()
+    if name in registry.available():
+        try:
+            plugin = registry.get(name)
+            # Resolve the file path of the plugin class
+            plugin_file = Path(inspect.getfile(plugin.__class__)).resolve()
+            plugin_root = installer.plugin_dir.resolve()
+            
+            # Check if the plugin is actually inside the user plugin directory
+            if plugin_root in plugin_file.parents:
+                # Find the top-level folder inside plugin_dir
+                # e.g. /.../plugins/sysbench-plugin/lb_sysbench/plugin.py
+                # relative -> sysbench-plugin/lb_sysbench/plugin.py
+                # parts[0] -> sysbench-plugin
+                rel_path = plugin_file.relative_to(plugin_root)
+                dir_name = rel_path.parts[0]
+                
+                if dir_name != name:
+                    # ui.show_info(f"Resolved plugin '{name}' to directory '{dir_name}'")
+                    name = dir_name
+        except Exception:
+            # Fallback: if resolution fails, assume name is the directory name
+            pass
+
     config_path: Optional[Path] = None
     config_stale: Optional[Path] = None
     removed_config = False
@@ -940,8 +955,8 @@ def plugin_uninstall(
 
         if removed_config and config_path:
             ui.show_info(f"Removed '{name}' from config {config_path}")
-        elif purge_config and config_path:
-            ui.show_info(f"No config entries for '{name}' found in {config_path}")
+        # elif purge_config and config_path:
+        #    ui.show_info(f"No config entries for '{name}' found in {config_path}")
         if config_stale:
             ui.show_warning(f"Saved default config not found: {config_stale}")
 

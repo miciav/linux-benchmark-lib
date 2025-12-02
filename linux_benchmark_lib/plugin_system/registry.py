@@ -9,6 +9,7 @@ import importlib.util
 import logging
 import os
 import sys
+import tomllib
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, Optional, Type, Union
@@ -127,25 +128,96 @@ class PluginRegistry:
         if not USER_PLUGIN_DIR.exists():
             return
 
+        # 1. Load individual .py files (legacy/simple mode)
         for path in USER_PLUGIN_DIR.glob("*.py"):
             if path.name.startswith("_"):
                 continue
+            self._load_plugin_from_path(path)
+
+        # 2. Load plugins from subdirectories (complex mode with assets)
+        for path in USER_PLUGIN_DIR.iterdir():
+            if path.is_dir() and not path.name.startswith("_"):
+                target = None
                 
-            try:
-                spec = importlib.util.spec_from_file_location(path.stem, path)
-                if spec and spec.loader:
-                    module = importlib.util.module_from_spec(spec)
-                    sys.modules[path.stem] = module
-                    spec.loader.exec_module(module)
+                # A. Try resolving via pyproject.toml
+                toml_file = path / "pyproject.toml"
+                if toml_file.exists():
+                    target = self._resolve_entry_point_from_toml(path, toml_file)
+                    if target:
+                        logger.debug(f"Resolved plugin via pyproject.toml: {target}")
+
+                # B. Fallback to heuristic scanning if TOML didn't yield a result
+                if not target:
+                    candidates = [
+                        path / "__init__.py",
+                        path / "plugin.py",
+                        path / f"{path.name}.py",
+                    ]
+                    # Also check immediate subdirectories for package structures
+                    for sub in path.iterdir():
+                        if sub.is_dir() and not sub.name.startswith((".", "_", "tests")):
+                            candidates.append(sub / "plugin.py")
+                            candidates.append(sub / "__init__.py")
                     
-                    # Look for 'PLUGIN' variable
-                    if hasattr(module, "PLUGIN"):
-                        self.register(module.PLUGIN)
-                        logger.info(f"Loaded user plugin from {path}")
-                    else:
-                        logger.debug(f"Skipping {path}: No PLUGIN variable found")
-            except Exception as e:
-                logger.warning(f"Failed to load user plugin {path}: {e}")
+                    for candidate in candidates:
+                        if candidate.exists():
+                            target = candidate
+                            break
+
+                if target:
+                     # Use the parent folder name as module name if inside a subdir
+                    module_name = path.name if target.parent == path else target.parent.name
+                    self._load_plugin_from_path(target, module_name=module_name)
+                else:
+                    logger.debug(f"Skipping user plugin dir {path}: No suitable python entry point found.")
+
+    def _resolve_entry_point_from_toml(self, root: Path, toml_path: Path) -> Optional[Path]:
+        """Parse pyproject.toml to guess the package location."""
+        try:
+            with open(toml_path, "rb") as f:
+                data = tomllib.load(f)
+            
+            project = data.get("project", {})
+            name = project.get("name")
+            if name:
+                # Standardize name: my-plugin -> my_plugin
+                pkg_name = name.replace("-", "_")
+                
+                # Check for src/pkg_name layout
+                src_pkg = root / "src" / pkg_name
+                if src_pkg.exists():
+                     return src_pkg / "plugin.py" if (src_pkg / "plugin.py").exists() else src_pkg / "__init__.py"
+                
+                # Check for root pkg_name layout
+                root_pkg = root / pkg_name
+                if root_pkg.exists():
+                     return root_pkg / "plugin.py" if (root_pkg / "plugin.py").exists() else root_pkg / "__init__.py"
+
+        except Exception as e:
+            logger.warning(f"Failed to parse {toml_path}: {e}")
+        return None
+
+    def _load_plugin_from_path(self, path: Path, module_name: Optional[str] = None) -> None:
+        try:
+            name = module_name or path.stem
+            spec = importlib.util.spec_from_file_location(name, path)
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[name] = module
+                try:
+                    spec.loader.exec_module(module)
+                except Exception as e:
+                     logger.error(f"Error executing module {path}: {e}")
+                     return
+
+                # Look for 'PLUGIN' variable
+                if hasattr(module, "PLUGIN"):
+                    self.register(module.PLUGIN)
+                    logger.info(f"Loaded user plugin from {path}")
+                else:
+                    logger.debug(f"Skipping {path}: No PLUGIN variable found")
+        except Exception as e:
+            logger.warning(f"Failed to load user plugin {path}: {e}")
 
 
 def print_plugin_table(
