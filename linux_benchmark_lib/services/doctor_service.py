@@ -86,7 +86,7 @@ class DoctorService:
             items.append((f"{tool} (system)", self._check_command(tool), False)) # Not strictly required but recommended
 
         # Plugin-specific tools
-        for plugin in registry.available().values():
+        for plugin in registry.available(load_entrypoints=True).values():
             # Support both Legacy and new Interface via duck typing or method presence
             if hasattr(plugin, "get_required_local_tools"):
                 required_tools = plugin.get_required_local_tools()

@@ -167,13 +167,34 @@ class PluginInstaller:
             return self._install_directory(source_dir, force)
 
     def _install_directory(self, source_dir: Path, force: bool) -> str:
-        """Install a plugin by copying the entire directory."""
-        plugin_name = source_dir.name
-        target_dir = self.plugin_dir / plugin_name
+        """Install a plugin from a directory.
+
+        If the directory contains a single top-level .py file (e.g., dummy.py),
+        install it as a flat plugin file named after that stem. Otherwise, copy
+        the entire directory under the plugin dir preserving its name.
+        """
+        source_dir = source_dir.resolve()
 
         # Validation: Ensure it looks like a plugin (has python files)
-        if not any(source_dir.rglob("*.py")):
-             raise ValueError(f"Directory '{plugin_name}' does not contain any Python files.")
+        py_files = list(source_dir.glob("*.py"))
+        if not py_files and not any(source_dir.rglob("*.py")):
+            raise ValueError(f"Directory '{source_dir.name}' does not contain any Python files.")
+
+        if len(py_files) == 1 and (source_dir / "__init__.py").exists():
+            # Treat as flat plugin: copy the module to USER_PLUGIN_DIR/<stem>.py
+            module = py_files[0]
+            plugin_name = module.stem
+            target_py = self.plugin_dir / f"{plugin_name}.py"
+            if target_py.exists():
+                if not force:
+                    raise FileExistsError(f"Plugin '{plugin_name}' already exists at {target_py}. Use --force to overwrite.")
+                target_py.unlink()
+            shutil.copy2(module, target_py)
+            logger.info(f"Installed plugin source to {target_py}")
+            return plugin_name
+
+        plugin_name = source_dir.name
+        target_dir = self.plugin_dir / plugin_name
 
         if target_dir.exists():
             if not force:
@@ -181,11 +202,10 @@ class PluginInstaller:
             if target_dir.is_dir():
                 shutil.rmtree(target_dir)
             else:
-                target_dir.unlink() # It was a file
+                target_dir.unlink()  # It was a file
 
         shutil.copytree(source_dir, target_dir)
         logger.info(f"Installed plugin directory to {target_dir}")
-        
         return plugin_name
 
     def _package_directory(self, source_dir: Path, archive_path: Path) -> Path:

@@ -41,9 +41,10 @@ def _multipass_status() -> MultipassStatus:
 
 
 def _collect_playbooks() -> list[tuple[str, str, Path]]:
+    """Collect plugins (builtin + user) that expose ansible setup/teardown playbooks."""
     registry = PluginRegistry(builtin_plugins())
     items: list[tuple[str, str, Path]] = []
-    for plugin in registry.available().values():
+    for plugin in registry.available(load_entrypoints=True).values():
         for kind, path in _iter_paths(plugin):
             if path and path.exists():
                 items.append((plugin.name, kind, path))

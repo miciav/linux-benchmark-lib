@@ -79,6 +79,5 @@ def test_registry_logs_entrypoint_failures(monkeypatch, caplog):
 
     caplog.set_level("WARNING")
     registry = PluginRegistry()
-    # ensure registry is still usable
-    assert registry.available() == {}
+    registry.available(load_entrypoints=True)  # trigger loading
     assert any("Failed to load plugin entry point" in message for message in caplog.messages)

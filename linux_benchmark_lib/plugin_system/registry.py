@@ -44,10 +44,11 @@ class PluginRegistry:
     def __init__(self, plugins: Optional[Iterable[Any]] = None):
         self._workloads: Dict[str, IWorkloadPlugin] = {}
         self._collectors: Dict[str, CollectorPlugin] = {}
+        self._pending_entrypoints: Dict[str, importlib.metadata.EntryPoint] = {}
         if plugins:
             for plugin in plugins:
                 self.register(plugin)
-        self._load_entrypoint_plugins()
+        self._discover_entrypoint_plugins()
         self._load_user_plugins()
 
     def register(self, plugin: Any) -> None:
@@ -64,6 +65,8 @@ class PluginRegistry:
                 raise TypeError(f"Unknown plugin type: {type(plugin)}")
 
     def get(self, name: str) -> IWorkloadPlugin:
+        if name not in self._workloads and name in self._pending_entrypoints:
+            self._load_entrypoint(name)
         if name not in self._workloads:
             raise KeyError(f"Workload Plugin '{name}' not found")
         return self._workloads[name]
@@ -104,24 +107,52 @@ class PluginRegistry:
                     logger.error(f"Failed to create collector {plugin.name}: {e}")
         return collectors
 
-    def available(self) -> Dict[str, Any]:
+    def available(self, load_entrypoints: bool = False) -> Dict[str, Any]:
+        """
+        Return available workload plugins.
+
+        When load_entrypoints is True, pending entry-point plugins are resolved and
+        registered; otherwise only already-registered plugins are returned.
+        """
+        if load_entrypoints:
+            self._load_pending_entrypoints()
         return dict(self._workloads)
     
     def available_collectors(self) -> Dict[str, CollectorPlugin]:
         return dict(self._collectors)
 
-    def _load_entrypoint_plugins(self) -> None:
+    def _discover_entrypoint_plugins(self) -> None:
+        """Collect entry points without importing them. Loaded on demand."""
         for group in [ENTRYPOINT_GROUP, COLLECTOR_ENTRYPOINT_GROUP]:
             try:
                 eps = importlib.metadata.entry_points().select(group=group)
             except Exception:
                 continue
             for entry_point in eps:
-                try:
-                    plugin = entry_point.load()
-                    self.register(plugin)
-                except Exception as exc:
-                    logger.warning(f"Failed to load plugin entry point {entry_point.name}: {exc}")
+                self._pending_entrypoints.setdefault(entry_point.name, entry_point)
+
+    def _load_pending_entrypoints(self) -> None:
+        """Load all pending entry-point plugins."""
+        names = list(self._pending_entrypoints.keys())
+        for name in names:
+            self._load_entrypoint(name)
+
+    def _load_entrypoint(self, name: str) -> None:
+        """Load a single entry-point plugin by name if pending."""
+        entry_point = self._pending_entrypoints.pop(name, None)
+        if not entry_point:
+            return
+        try:
+            plugin = entry_point.load()
+            self.register(plugin)
+        except ImportError as exc:
+            logger.debug(
+                "Skipping plugin entry point %s due to missing dependency: %s",
+                entry_point.name,
+                exc,
+            )
+        except Exception as exc:
+            logger.warning(f"Failed to load plugin entry point {entry_point.name}: {exc}")
 
     def _load_user_plugins(self) -> None:
         """Load python plugins from the user config directory."""
@@ -227,7 +258,7 @@ def print_plugin_table(
 ) -> None:
     ui = ui_adapter or get_ui_adapter()
     rows = []
-    for name, plugin in sorted(registry.available().items()):
+    for name, plugin in sorted(registry.available(load_entrypoints=True).items()):
         description = getattr(plugin, "description", "")
         config_name = plugin.config_cls.__name__
         if enabled is None:

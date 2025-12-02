@@ -44,14 +44,16 @@ def test_plugins_enable_disable_persists_config(monkeypatch: pytest.MonkeyPatch,
     assert cfg.workloads["stress_ng"].enabled is False
 
 
-def test_plugins_shows_enabled_column(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_plugins_shows_enabled_column(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
     result = runner.invoke(cli.app, ["plugin", "list"])
     assert result.exit_code == 0, result.output
-    # Check that the table includes the Enabled column and a known plugin name
-    assert "Enabled" in result.output
-    assert "stress_ng" in result.output
+    # UI adapter prints the table directly to stdout; capture from pytest
+    captured = capsys.readouterr().out
+    output = result.output + captured
+    assert "Enabled" in output
+    assert "stress_ng" in output
 
 
 def test_doctor_controller_uses_checks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
