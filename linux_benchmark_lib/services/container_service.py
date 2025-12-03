@@ -29,6 +29,7 @@ class ContainerRunSpec:
     build: bool = True
     no_cache: bool = False
     debug: bool = False
+    repetitions: int | None = None
 
 
 class ContainerRunner:
@@ -96,6 +97,8 @@ class ContainerRunner:
             inner_cmd.extend(["--run-id", spec.run_id])
         if spec.debug:
             inner_cmd.append("--debug")
+        if spec.repetitions and spec.repetitions > 0:
+            inner_cmd.extend(["--repetitions", str(spec.repetitions)])
 
         spec.artifacts_dir.mkdir(parents=True, exist_ok=True)
 

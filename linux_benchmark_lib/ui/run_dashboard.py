@@ -79,6 +79,7 @@ class RunDashboard:
         table.add_column("Plugin", style="cyan")
         table.add_column("Intensity")
         table.add_column("Configuration")
+        table.add_column("Repetitions", justify="center")
         table.add_column("Status", style="green")
 
         for row in self.plan_rows:
@@ -87,6 +88,7 @@ class RunDashboard:
                 row.get("plugin", ""),
                 row.get("intensity", ""),
                 row.get("details", ""),
+                row.get("repetitions", ""),
                 row.get("status", ""),
             )
 
@@ -113,6 +115,8 @@ class RunDashboard:
         table.add_column("Status", justify="center", width=10)
         table.add_column("Progress", justify="center", width=10)
         table.add_column("Current Action", style="dim italic")
+
+        target_reps = self._target_repetitions()
 
         for host, workload in self._unique_pairs():
             row: List[str] = [host, workload]
@@ -155,7 +159,10 @@ class RunDashboard:
         if len(self.log_buffer) > self.max_log_lines * 5:
             self.log_buffer = self.log_buffer[-self.max_log_lines * 5 :]
 
-    def _max_repetitions(self) -> int:
+    def _target_repetitions(self) -> int:
+        from_metadata = self.journal.metadata.get("repetitions")
+        if isinstance(from_metadata, int) and from_metadata > 0:
+            return from_metadata
         reps = [task.repetition for task in self.journal.tasks.values()]
         return max(reps) if reps else 0
 
@@ -175,23 +182,35 @@ class RunDashboard:
             if task.host == host and task.workload == workload
         }
 
-    def _aggregate_status(self, tasks: Dict[int, TaskState]) -> str:
-        if not tasks:
-            return "[dim]Wait[/dim]"
+    @staticmethod
+    def _summarize_progress(
+        tasks: Dict[int, TaskState], target_reps: int
+    ) -> tuple[str, str]:
+        total = target_reps or len(tasks)
+        completed = sum(
+            1
+            for task in tasks.values()
+            if task.status in (RunStatus.COMPLETED, RunStatus.SKIPPED, RunStatus.FAILED)
+        )
+        running = any(task.status == RunStatus.RUNNING for task in tasks.values())
+        failed = any(task.status == RunStatus.FAILED for task in tasks.values())
+        skipped = tasks and all(task.status == RunStatus.SKIPPED for task in tasks.values())
 
-        statuses = {task.status for task in tasks.values()}
+        if failed:
+            status = "[red]✘ Fail[/red]"
+        elif running:
+            status = "[yellow]⟳ Run[/yellow]"
+        elif skipped:
+            status = "[cyan]Skip[/cyan]"
+        elif total and completed >= total:
+            status = "[green]✔ Done[/green]"
+        elif completed > 0:
+            status = "[cyan]▶ Partial[/cyan]"
+        else:
+            status = "[dim]Wait[/dim]"
 
-        if RunStatus.FAILED in statuses:
-            return "[red]✘ Fail[/red]"
-        if RunStatus.RUNNING in statuses:
-            return "[yellow]⟳ Run[/yellow]"
-        if statuses <= {RunStatus.COMPLETED, RunStatus.SKIPPED} and RunStatus.COMPLETED in statuses:
-            return "[green]✔ Done[/green]"
-        if statuses == {RunStatus.SKIPPED}:
-            return "[cyan]Skip[/cyan]"
-        if RunStatus.PENDING in statuses:
-            return "[dim]Wait[/dim]"
-        return "[dim]Wait[/dim]"
+        progress = f"{completed}/{total or '?'}"
+        return status, progress
 
     @staticmethod
     def _completed_repetitions(tasks: Dict[int, TaskState]) -> int:
