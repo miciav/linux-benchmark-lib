@@ -166,6 +166,44 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     assert called["context"].config.repetitions == cfg.repetitions
 
 
+def test_run_command_allows_repetition_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cli = _load_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+
+    cfg = BenchmarkConfig()
+    if "stress_ng" in cfg.workloads:
+        cfg.workloads["stress_ng"].enabled = True
+    cfg_path = tmp_path / "cfg.json"
+    cfg.save(cfg_path)
+
+    called = {}
+
+    def fake_execute(context, run_id, output_callback=None, ui_adapter=None):
+        called["context"] = context
+        called["run_id"] = run_id
+        return None
+
+    monkeypatch.setattr(cli.run_service, "execute", fake_execute)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "run",
+            "-c",
+            str(cfg_path),
+            "--repetitions",
+            "5",
+            "--run-id",
+            "test-run",
+            "--docker-no-build",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert called["run_id"] == "test-run"
+    assert called["context"].config.repetitions == 5
+
+
 def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
@@ -183,6 +221,20 @@ def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatc
     assert "stress_ng" in result.output
     # Default config keeps workloads disabled until explicitly toggled
     assert "no" in result.output
+
+
+def test_config_set_repetitions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cli = _load_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+
+    config_path = tmp_path / "cfg.json"
+    result = runner.invoke(
+        cli.app, ["config", "set-repetitions", "4", "-c", str(config_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    cfg = BenchmarkConfig.load(config_path)
+    assert cfg.repetitions == 4
 
 
 def test_multipass_helper_sets_artifacts_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
