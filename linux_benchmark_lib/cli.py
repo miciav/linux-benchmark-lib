@@ -109,30 +109,16 @@ def _print_run_plan(
             item["plugin"],
             item["intensity"],
             item["details"],
+            item.get("repetitions", ""),
             item["status"],
         ]
         for item in plan
     ]
     ui.show_table(
         "Run Plan",
-        ["Workload", "Plugin", "Intensity", "Configuration", "Status"],
+        ["Workload", "Plugin", "Intensity", "Configuration", "Repetitions", "Status"],
         rows,
     )
-
-
-def _format_task_status(task: TaskState | None) -> str:
-    """Normalize task status for compact table output."""
-    if task is None:
-        return "pending"
-    if task.status == RunStatus.COMPLETED:
-        return "done"
-    if task.status == RunStatus.RUNNING:
-        return "running"
-    if task.status == RunStatus.FAILED:
-        return "failed"
-    if task.status == RunStatus.SKIPPED:
-        return "skipped"
-    return "pending"
 
 
 def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[str]]]:
@@ -140,8 +126,8 @@ def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[st
     if not journal.tasks:
         return ["Host", "Workload"], []
 
-    max_rep = max(task.repetition for task in journal.tasks.values())
-    columns = ["Host", "Workload"] + [f"Rep {i}" for i in range(1, max_rep + 1)] + ["Last Action"]
+    target_reps = _target_repetitions(journal)
+    columns = ["Host", "Workload", "Run", "Last Action"]
 
     pairs = sorted({(task.host, task.workload) for task in journal.tasks.values()})
     rows: list[list[str]] = []
@@ -157,13 +143,49 @@ def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[st
             latest = max(tasks.values(), key=lambda t: t.timestamp)
             last_action = latest.error or latest.current_action or ""
 
-        row = [host, workload]
-        for rep in range(1, max_rep + 1):
-            row.append(_format_task_status(tasks.get(rep)))
-        row.append(last_action)
+        status, progress = _summarize_progress(tasks, target_reps)
+        row = [host, workload, f"{status}\n{progress}", last_action]
         rows.append(row)
 
     return columns, rows
+
+
+def _target_repetitions(journal: RunJournal) -> int:
+    from_metadata = journal.metadata.get("repetitions")
+    if isinstance(from_metadata, int) and from_metadata > 0:
+        return from_metadata
+    reps = [task.repetition for task in journal.tasks.values()]
+    return max(reps) if reps else 0
+
+
+def _summarize_progress(
+    tasks: dict[int, TaskState], target_reps: int
+) -> tuple[str, str]:
+    total = target_reps or len(tasks)
+    completed = sum(
+        1
+        for task in tasks.values()
+        if task.status in (RunStatus.COMPLETED, RunStatus.SKIPPED, RunStatus.FAILED)
+    )
+    running = any(task.status == RunStatus.RUNNING for task in tasks.values())
+    failed = any(task.status == RunStatus.FAILED for task in tasks.values())
+    skipped = tasks and all(task.status == RunStatus.SKIPPED for task in tasks.values())
+
+    if failed:
+        status = "failed"
+    elif running:
+        status = "running"
+    elif skipped:
+        status = "skipped"
+    elif total and completed >= total:
+        status = "done"
+    elif completed > 0:
+        status = "partial"
+    else:
+        status = "pending"
+
+    progress = f"{completed}/{total or '?'}"
+    return status, progress
 
 
 def _print_run_journal_summary(journal_path: Path, log_path: Path | None = None) -> None:
@@ -240,12 +262,23 @@ def config_init(
         "-i",
         help="Prompt for a remote host while creating the config.",
     ),
+    repetitions: int = typer.Option(
+        3,
+        "--repetitions",
+        "-r",
+        help="Number of repetitions to run for each workload (must be >= 1).",
+    ),
 ) -> None:
     """Create a config file from defaults and optionally set it as default."""
     target = Path(path).expanduser() if path else config_service.default_target
     target.parent.mkdir(parents=True, exist_ok=True)
 
+    if repetitions < 1:
+        ui.show_error("Repetitions must be at least 1.")
+        raise typer.Exit(1)
+
     cfg = config_service.create_default_config()
+    cfg.repetitions = repetitions
     if interactive:
         details = prompt_remote_host(
             {
@@ -629,6 +662,12 @@ def run(
         "--docker-no-cache",
         help="Disable cache when building the image with --docker.",
     ),
+    repetitions: Optional[int] = typer.Option(
+        None,
+        "--repetitions",
+        "-r",
+        help="Override the number of repetitions for this run (must be >= 1).",
+    ),
     multipass: bool = typer.Option(
         False,
         "--multipass",
@@ -668,6 +707,10 @@ def run(
             ui.show_error("Use either --resume or --run-id, not both.")
             raise typer.Exit(1)
 
+        if repetitions is not None and repetitions < 1:
+            ui.show_error("Repetitions must be at least 1.")
+            raise typer.Exit(1)
+
         cfg, resolved, stale = config_service.load_for_read(config)
         if stale:
             ui.show_warning(f"Saved default config not found: {stale}")
@@ -675,6 +718,10 @@ def run(
             ui.show_success(f"Loaded config: {resolved}")
         else:
             ui.show_warning("No config file found; using built-in defaults.")
+
+        if repetitions is not None:
+            cfg.repetitions = repetitions
+            ui.show_info(f"Using {repetitions} repetitions for this run")
 
         if hasattr(run_service, "apply_overrides"):
             run_service.apply_overrides(cfg, intensity=intensity, debug=debug)

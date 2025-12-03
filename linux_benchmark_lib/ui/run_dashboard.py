@@ -79,6 +79,7 @@ class RunDashboard:
         table.add_column("Plugin", style="cyan")
         table.add_column("Intensity")
         table.add_column("Configuration")
+        table.add_column("Repetitions", justify="center")
         table.add_column("Status", style="green")
 
         for row in self.plan_rows:
@@ -87,6 +88,7 @@ class RunDashboard:
                 row.get("plugin", ""),
                 row.get("intensity", ""),
                 row.get("details", ""),
+                row.get("repetitions", ""),
                 row.get("status", ""),
             )
 
@@ -110,22 +112,24 @@ class RunDashboard:
         table = Table(expand=True, box=None, padding=(0, 1))
         table.add_column("Host", style="bold cyan", width=24)
         table.add_column("Workload", width=10)
-
-        max_reps = self._max_repetitions()
-        for index in range(1, max_reps + 1):
-            table.add_column(f"Rep {index}", justify="center", width=8)
+        table.add_column("Run", justify="center", width=12)
         table.add_column("Current Action", style="dim italic")
+
+        target_reps = self._target_repetitions()
 
         for host, workload in self._unique_pairs():
             row: List[str] = [host, workload]
             tasks = self._tasks_for(host, workload)
             active_action = ""
+            status_text, progress = self._summarize_progress(tasks, target_reps)
+            row.append(f"{status_text}\n[dim]{progress}[/dim]")
 
-            for rep in range(1, max_reps + 1):
-                task = tasks.get(rep)
-                row.append(self._format_status(task))
-                if task and task.status == RunStatus.RUNNING:
-                    active_action = task.current_action or "Running..."
+            running_task = next(
+                (t for t in tasks.values() if t.status == RunStatus.RUNNING),
+                None,
+            )
+            if running_task:
+                active_action = running_task.current_action or "Running..."
 
             row.append(active_action)
             table.add_row(*row)
@@ -149,7 +153,10 @@ class RunDashboard:
         if len(self.log_buffer) > self.max_log_lines * 5:
             self.log_buffer = self.log_buffer[-self.max_log_lines * 5 :]
 
-    def _max_repetitions(self) -> int:
+    def _target_repetitions(self) -> int:
+        from_metadata = self.journal.metadata.get("repetitions")
+        if isinstance(from_metadata, int) and from_metadata > 0:
+            return from_metadata
         reps = [task.repetition for task in self.journal.tasks.values()]
         return max(reps) if reps else 0
 
@@ -170,18 +177,34 @@ class RunDashboard:
         }
 
     @staticmethod
-    def _format_status(task: TaskState | None) -> str:
-        if task is None:
-            return "-"
-        if task.status == RunStatus.COMPLETED:
-            return "[green]✔ Done[/green]"
-        if task.status == RunStatus.RUNNING:
-            return "[yellow]⟳ Run[/yellow]"
-        if task.status == RunStatus.FAILED:
-            return "[red]✘ Fail[/red]"
-        if task.status == RunStatus.SKIPPED:
-            return "[cyan]Skip[/cyan]"
-        return "[dim]Wait[/dim]"
+    def _summarize_progress(
+        tasks: Dict[int, TaskState], target_reps: int
+    ) -> tuple[str, str]:
+        total = target_reps or len(tasks)
+        completed = sum(
+            1
+            for task in tasks.values()
+            if task.status in (RunStatus.COMPLETED, RunStatus.SKIPPED, RunStatus.FAILED)
+        )
+        running = any(task.status == RunStatus.RUNNING for task in tasks.values())
+        failed = any(task.status == RunStatus.FAILED for task in tasks.values())
+        skipped = tasks and all(task.status == RunStatus.SKIPPED for task in tasks.values())
+
+        if failed:
+            status = "[red]✘ Fail[/red]"
+        elif running:
+            status = "[yellow]⟳ Run[/yellow]"
+        elif skipped:
+            status = "[cyan]Skip[/cyan]"
+        elif total and completed >= total:
+            status = "[green]✔ Done[/green]"
+        elif completed > 0:
+            status = "[cyan]▶ Partial[/cyan]"
+        else:
+            status = "[dim]Wait[/dim]"
+
+        progress = f"{completed}/{total or '?'}"
+        return status, progress
 
 
 class NoopDashboard:

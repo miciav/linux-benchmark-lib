@@ -413,6 +413,7 @@ class RunService:
                 build=context.docker_build,
                 no_cache=context.docker_no_cache,
                 debug=context.debug,
+                repetitions=context.config.repetitions,
             )
             
             # Run each workload in its own container (or shared image)

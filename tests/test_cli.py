@@ -129,6 +129,29 @@ def test_plugin_root_defaults_to_list(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert "Available Workload Plugins" in result.output
 
 
+def test_config_init_sets_repetitions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    cli = _load_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+    cfg_path = tmp_path / "cfg.json"
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "config",
+            "init",
+            "--path",
+            str(cfg_path),
+            "--no-set-default",
+            "--repetitions",
+            "5",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    cfg = BenchmarkConfig.load(cfg_path)
+    assert cfg.repetitions == 5
+
+
 def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
@@ -158,12 +181,14 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
             "--run-id",
             "test-run",
             "--docker-no-build",
+            "--repetitions",
+            "2",
         ],
     )
 
     assert result.exit_code == 0, result.output
     assert called["run_id"] == "test-run"
-    assert called["context"].config.repetitions == cfg.repetitions
+    assert called["context"].config.repetitions == 2
 
 
 def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
