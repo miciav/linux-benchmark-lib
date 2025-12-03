@@ -110,24 +110,30 @@ class RunDashboard:
         table = Table(expand=True, box=None, padding=(0, 1))
         table.add_column("Host", style="bold cyan", width=24)
         table.add_column("Workload", width=10)
-
-        max_reps = self._max_repetitions()
-        for index in range(1, max_reps + 1):
-            table.add_column(f"Rep {index}", justify="center", width=8)
+        table.add_column("Status", justify="center", width=10)
+        table.add_column("Progress", justify="center", width=10)
         table.add_column("Current Action", style="dim italic")
 
         for host, workload in self._unique_pairs():
             row: List[str] = [host, workload]
             tasks = self._tasks_for(host, workload)
+            status = self._aggregate_status(tasks)
             active_action = ""
+            running_task = next(
+                (task for task in tasks.values() if task.status == RunStatus.RUNNING),
+                None,
+            )
+            if running_task:
+                active_action = running_task.current_action or "Running..."
 
-            for rep in range(1, max_reps + 1):
-                task = tasks.get(rep)
-                row.append(self._format_status(task))
-                if task and task.status == RunStatus.RUNNING:
-                    active_action = task.current_action or "Running..."
+            completed = self._completed_repetitions(tasks)
+            total = max(self._max_repetitions(), len(tasks)) or 0
 
-            row.append(active_action)
+            row.extend([
+                status,
+                f"{completed}/{total}",
+                active_action,
+            ])
             table.add_row(*row)
 
         return Panel(
@@ -169,19 +175,27 @@ class RunDashboard:
             if task.host == host and task.workload == workload
         }
 
-    @staticmethod
-    def _format_status(task: TaskState | None) -> str:
-        if task is None:
-            return "-"
-        if task.status == RunStatus.COMPLETED:
-            return "[green]✔ Done[/green]"
-        if task.status == RunStatus.RUNNING:
-            return "[yellow]⟳ Run[/yellow]"
-        if task.status == RunStatus.FAILED:
+    def _aggregate_status(self, tasks: Dict[int, TaskState]) -> str:
+        if not tasks:
+            return "[dim]Wait[/dim]"
+
+        statuses = {task.status for task in tasks.values()}
+
+        if RunStatus.FAILED in statuses:
             return "[red]✘ Fail[/red]"
-        if task.status == RunStatus.SKIPPED:
+        if RunStatus.RUNNING in statuses:
+            return "[yellow]⟳ Run[/yellow]"
+        if statuses <= {RunStatus.COMPLETED, RunStatus.SKIPPED} and RunStatus.COMPLETED in statuses:
+            return "[green]✔ Done[/green]"
+        if statuses == {RunStatus.SKIPPED}:
             return "[cyan]Skip[/cyan]"
+        if RunStatus.PENDING in statuses:
+            return "[dim]Wait[/dim]"
         return "[dim]Wait[/dim]"
+
+    @staticmethod
+    def _completed_repetitions(tasks: Dict[int, TaskState]) -> int:
+        return sum(1 for task in tasks.values() if task.status in {RunStatus.COMPLETED, RunStatus.SKIPPED})
 
 
 class NoopDashboard:
