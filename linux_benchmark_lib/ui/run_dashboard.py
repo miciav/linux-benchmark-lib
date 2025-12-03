@@ -112,7 +112,8 @@ class RunDashboard:
         table = Table(expand=True, box=None, padding=(0, 1))
         table.add_column("Host", style="bold cyan", width=24)
         table.add_column("Workload", width=10)
-        table.add_column("Run", justify="center", width=12)
+        table.add_column("Status", justify="center", width=10)
+        table.add_column("Progress", justify="center", width=10)
         table.add_column("Current Action", style="dim italic")
 
         target_reps = self._target_repetitions()
@@ -120,18 +121,23 @@ class RunDashboard:
         for host, workload in self._unique_pairs():
             row: List[str] = [host, workload]
             tasks = self._tasks_for(host, workload)
+            status = self._aggregate_status(tasks)
             active_action = ""
-            status_text, progress = self._summarize_progress(tasks, target_reps)
-            row.append(f"{status_text}\n[dim]{progress}[/dim]")
-
             running_task = next(
-                (t for t in tasks.values() if t.status == RunStatus.RUNNING),
+                (task for task in tasks.values() if task.status == RunStatus.RUNNING),
                 None,
             )
             if running_task:
                 active_action = running_task.current_action or "Running..."
 
-            row.append(active_action)
+            completed = self._completed_repetitions(tasks)
+            total = max(self._max_repetitions(), len(tasks)) or 0
+
+            row.extend([
+                status,
+                f"{completed}/{total}",
+                active_action,
+            ])
             table.add_row(*row)
 
         return Panel(
@@ -205,6 +211,10 @@ class RunDashboard:
 
         progress = f"{completed}/{total or '?'}"
         return status, progress
+
+    @staticmethod
+    def _completed_repetitions(tasks: Dict[int, TaskState]) -> int:
+        return sum(1 for task in tasks.values() if task.status in {RunStatus.COMPLETED, RunStatus.SKIPPED})
 
 
 class NoopDashboard:

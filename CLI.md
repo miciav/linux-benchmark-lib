@@ -27,15 +27,17 @@ Top-level commands
   Remove a user plugin and optionally delete its config entries.
 - `lb hosts [-c FILE]`  
   Show remote hosts from the resolved config.
-- `lb run [TEST ...] [-c FILE] [--run-id ID] [--remote/--no-remote]`  
-  Run workloads locally or remotely (auto-follows config unless overridden).
+- `lb run [TEST ...] [-c FILE] [--run-id ID] [--remote/--no-remote] [--repetitions N]`
+  Run workloads locally or remotely (auto-follows config unless overridden). Use `--repetitions` to temporarily change how many times each workload runs.
 - `lb run ... --docker [--docker-image TAG] [--docker-engine docker|podman] [--docker-no-build] [--docker-no-cache]`  
   Build/use the container image and run the CLI inside it. Mounts the repo read-only and writes artifacts to the container’s `benchmark_results`.
 
 Config management (`lb config ...`)
 -----------------------------------
-- `lb config init [-i] [--path FILE] [--set-default/--no-set-default]`  
+- `lb config init [-i] [--path FILE] [--set-default/--no-set-default]`
   Create a config (prompt for a remote host with `-i`).
+- `lb config set-repetitions N [-c FILE] [--set-default/--no-set-default]`
+  Persist the desired number of repetitions to a config file (defaults to `~/.config/lb/config.json`).
 - `lb config set-default FILE` / `lb config unset-default` / `lb config show-default`
 - `lb config edit [-p FILE]`  
   Open the config in `$EDITOR`.

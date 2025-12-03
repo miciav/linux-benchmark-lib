@@ -313,6 +313,34 @@ def config_init(
         ui.show_info(f"Default config set to {target}")
 
 
+@config_app.command("set-repetitions")
+def config_set_repetitions(
+    repetitions: int = typer.Argument(..., help="Number of repetitions to store in the config."),
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file to update."),
+    set_default: bool = typer.Option(
+        False,
+        "--set-default/--no-set-default",
+        help="Remember this config as the default.",
+    ),
+) -> None:
+    """Persist the desired repetitions count to the configuration file."""
+
+    if repetitions < 1:
+        ui.show_error("Repetitions must be at least 1.")
+        raise typer.Exit(1)
+
+    cfg, target, stale, _ = config_service.load_for_write(config, allow_create=True)
+    cfg.repetitions = repetitions
+    cfg.save(target)
+
+    if set_default:
+        config_service.write_saved_config_path(target)
+
+    if stale:
+        ui.show_warning(f"Saved default config not found: {stale}")
+    ui.show_success(f"Repetitions set to {repetitions} in {target}")
+
+
 @config_app.command("set-default")
 def config_set_default(
     path: Path = typer.Argument(..., help="Path to an existing BenchmarkConfig JSON file."),
@@ -689,23 +717,25 @@ def run(
         "-i",
         help="Override workload intensity (low, medium, high, user_defined).",
     ),
-    ) -> None:
-        """Run workloads locally, remotely, or inside the container image."""
-        if debug:
-            logging.basicConfig(
-                level=logging.DEBUG,
-                format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-                force=True,
-            )
-            ui.show_info("Debug logging enabled")
+    repetitions: Optional[int] = typer.Option(
+        None,
+        "--repetitions",
+        "-r",
+        help="Override the number of repetitions for this run.",
+    ),
+) -> None:
+    """Run workloads locally, remotely, or inside the container image."""
+    if debug:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            force=True,
+        )
+        ui.show_info("Debug logging enabled")
 
-        if multipass and multipass_vm_count < 1:
-            ui.show_error("When using --multipass, --multipass-vm-count must be at least 1.")
-            raise typer.Exit(1)
-
-        if resume and run_id:
-            ui.show_error("Use either --resume or --run-id, not both.")
-            raise typer.Exit(1)
+    if multipass and multipass_vm_count < 1:
+        ui.show_error("When using --multipass, --multipass-vm-count must be at least 1.")
+        raise typer.Exit(1)
 
         if repetitions is not None and repetitions < 1:
             ui.show_error("Repetitions must be at least 1.")
@@ -728,49 +758,49 @@ def run(
         if intensity:
             ui.show_info(f"Global intensity override: {intensity}")
 
-        cfg.ensure_output_dirs()
+    cfg.ensure_output_dirs()
 
-        target_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
-        if not target_tests:
-            ui.show_warning("No workloads selected to run.")
-            raise typer.Exit(1)
+    target_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+    if not target_tests:
+        ui.show_warning("No workloads selected to run.")
+        raise typer.Exit(1)
 
-        registry = create_registry()
-        effective_remote = remote if remote is not None else cfg.remote_execution.enabled
-        _print_run_plan(
+    registry = create_registry()
+    effective_remote = remote if remote is not None else cfg.remote_execution.enabled
+    _print_run_plan(
+        cfg,
+        target_tests,
+        registry=registry,
+        docker_mode=docker,
+        multipass_mode=multipass,
+        remote_mode=effective_remote,
+    )
+
+    try:
+        context = run_service.build_context(
             cfg,
             target_tests,
-            registry=registry,
-            docker_mode=docker,
-            multipass_mode=multipass,
-            remote_mode=effective_remote,
+            remote_override=remote,
+            docker=docker,
+            multipass=multipass,
+            docker_image=docker_image,
+            docker_engine=docker_engine,
+            docker_build=not docker_no_build,
+            docker_no_cache=docker_no_cache,
+            config_path=resolved,
+            debug=debug,
+            resume=resume,
+            multipass_vm_count=multipass_vm_count,
         )
+        result = run_service.execute(context, run_id, ui_adapter=ui)
+    except Exception as exc:
+        ui.show_error(f"Run failed: {exc}")
+        raise typer.Exit(1)
 
-        try:
-            context = run_service.build_context(
-                cfg,
-                target_tests,
-                remote_override=remote,
-                docker=docker,
-                multipass=multipass,
-                docker_image=docker_image,
-                docker_engine=docker_engine,
-                docker_build=not docker_no_build,
-                docker_no_cache=docker_no_cache,
-                config_path=resolved,
-                debug=debug,
-                resume=resume,
-                multipass_vm_count=multipass_vm_count,
-            )
-            result = run_service.execute(context, run_id, ui_adapter=ui)
-        except Exception as exc:
-            ui.show_error(f"Run failed: {exc}")
-            raise typer.Exit(1)
+    if result and result.journal_path:
+        _print_run_journal_summary(result.journal_path, log_path=result.log_path)
 
-        if result and result.journal_path:
-            _print_run_journal_summary(result.journal_path, log_path=result.log_path)
-
-        ui.show_success("Run completed.")
+    ui.show_success("Run completed.")
 
 
 def _select_plugins_interactively(
