@@ -291,11 +291,12 @@ class HPLPlugin(WorkloadPlugin):
         elif level == WorkloadIntensity.MEDIUM:
             # Use half CPUs
             ranks = max(1, cpu_count // 2)
-            return HPLConfig(n=10000, nb=256, p=1, q=ranks, mpi_ranks=ranks)
+            return HPLConfig(n=12000, nb=256, p=1, q=ranks, mpi_ranks=ranks)
         elif level == WorkloadIntensity.HIGH:
             # Use all CPUs
             ranks = cpu_count
-            return HPLConfig(n=20000, nb=256, p=1, q=ranks, mpi_ranks=ranks)
+            # Increase N to drive multi-minute runs on typical hosts
+            return HPLConfig(n=30000, nb=256, p=1, q=ranks, mpi_ranks=ranks)
         return None
 
     def get_required_apt_packages(self) -> List[str]:
