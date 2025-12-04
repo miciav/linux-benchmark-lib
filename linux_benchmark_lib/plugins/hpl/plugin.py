@@ -3,6 +3,7 @@ HPL (High Performance Linpack) workload plugin.
 """
 
 import logging
+import math
 import multiprocessing
 import os
 import re
@@ -286,17 +287,29 @@ class HPLPlugin(WorkloadPlugin):
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[HPLConfig]:
         cpu_count = multiprocessing.cpu_count()
 
+        def _grid_for_ranks(ranks: int) -> tuple[int, int]:
+            """Choose a near-square process grid for better load balance."""
+            if ranks <= 1:
+                return (1, 1)
+            q = math.isqrt(ranks)
+            while ranks % q != 0 and q > 1:
+                q -= 1
+            p = ranks // q
+            return (p, q)
+
         if level == WorkloadIntensity.LOW:
             return HPLConfig(n=5000, nb=128, p=1, q=1, mpi_ranks=1)
         elif level == WorkloadIntensity.MEDIUM:
             # Use half CPUs
             ranks = max(1, cpu_count // 2)
-            return HPLConfig(n=12000, nb=256, p=1, q=ranks, mpi_ranks=ranks)
+            p, q = _grid_for_ranks(ranks)
+            return HPLConfig(n=20000, nb=256, p=p, q=q, mpi_ranks=ranks)
         elif level == WorkloadIntensity.HIGH:
             # Use all CPUs
             ranks = cpu_count
-            # Increase N to drive multi-minute runs on typical hosts
-            return HPLConfig(n=30000, nb=256, p=1, q=ranks, mpi_ranks=ranks)
+            # Increase problem size and block to drive multi-minute runs on typical hosts
+            p, q = _grid_for_ranks(ranks)
+            return HPLConfig(n=45000, nb=384, p=p, q=q, mpi_ranks=ranks)
         return None
 
     def get_required_apt_packages(self) -> List[str]:
