@@ -27,6 +27,10 @@ def test_journal_initialize_and_update(tmp_path: Path):
         assert task.status == RunStatus.PENDING
 
     journal.update_task("node1", "stress_ng", 1, RunStatus.RUNNING, action="start")
+    task_after_update = journal.get_task("node1", "stress_ng", 1)
+    assert task_after_update is not None
+    assert task_after_update.started_at is not None
+    assert task_after_update.duration_seconds is None
     journal_path = tmp_path / "run_journal.json"
     journal.save(journal_path)
 
@@ -34,6 +38,8 @@ def test_journal_initialize_and_update(tmp_path: Path):
     task = loaded.get_task("node1", "stress_ng", 1)
     assert task.status == RunStatus.RUNNING
     assert task.current_action == "start"
+    assert task.started_at is not None
+    assert task.duration_seconds is None
 
 
 def test_journal_load_rejects_config_mismatch(tmp_path: Path):

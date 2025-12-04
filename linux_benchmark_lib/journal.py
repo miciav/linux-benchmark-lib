@@ -23,6 +23,9 @@ class TaskState:
     current_action: str = "" 
     timestamp: float = field(default_factory=lambda: datetime.now().timestamp())
     error: Optional[str] = None
+    started_at: Optional[float] = None
+    finished_at: Optional[float] = None
+    duration_seconds: Optional[float] = None
 
     @property
     def key(self) -> str:
@@ -76,11 +79,26 @@ class RunJournal:
         key = f"{host}::{workload}::{rep}"
         return self.tasks.get(key)
 
-    def update_task(self, host: str, workload: str, rep: int, status: str, action: str = "", error: Optional[str] = None) -> None:
+    def update_task(
+        self,
+        host: str,
+        workload: str,
+        rep: int,
+        status: str,
+        action: str = "",
+        error: Optional[str] = None,
+    ) -> None:
         for t in self.tasks.values():
             if t.host == host and t.workload == workload and t.repetition == rep:
+                now_ts = datetime.now().timestamp()
+                if status == RunStatus.RUNNING and t.started_at is None:
+                    t.started_at = now_ts
+                if status in (RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.SKIPPED):
+                    t.finished_at = now_ts
+                    if t.started_at is not None:
+                        t.duration_seconds = max(0.0, t.finished_at - t.started_at)
                 t.status = status
-                t.timestamp = datetime.now().timestamp()
+                t.timestamp = now_ts
                 if action:
                     t.current_action = action
                 if error:
