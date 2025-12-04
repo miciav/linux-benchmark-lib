@@ -215,18 +215,24 @@ HPL.out      output file name (if any)
                 **result_metrics,
             }
 
-            if stdout and "Memory allocation failed" in stdout:
-                msg = (
-                    "HPL failed to allocate memory; adjust N/p*q or provide more RAM. "
-                    f"N={self.config.n}, P={self.config.p}, Q={self.config.q}"
-                )
-                self._result["error"] = msg
-                logger.error(msg)
+            # Surface common failure modes even when HPL exits 0
+            if stdout:
+                if "Memory allocation failed" in stdout or "tests skipped" in stdout:
+                    msg = (
+                        "HPL reported memory allocation failure; adjust N/P/Q or provide more RAM. "
+                        f"N={self.config.n}, P={self.config.p}, Q={self.config.q}"
+                    )
+                    self._result["error"] = msg
+                    logger.error(msg)
+                elif "HPL ERROR" in stdout and "error" not in self._result:
+                    self._result["error"] = "HPL reported an internal error"
 
             if self._process.returncode != 0:
                 logger.error("HPL failed with rc=%s", self._process.returncode)
                 if stderr:
                     logger.error("stderr: %s", stderr)
+                if "error" not in self._result:
+                    self._result["error"] = f"HPL exited with return code {self._process.returncode}"
 
         except Exception as exc:
             logger.error("Execution error: %s", exc)

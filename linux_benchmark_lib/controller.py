@@ -685,6 +685,14 @@ class BenchmarkController:
                         task.duration_seconds = float(duration)
                     elif task.started_at is not None and task.finished_at is not None:
                         task.duration_seconds = max(0.0, task.finished_at - task.started_at)
+                    gen_result = entry.get("generator_result") or {}
+                    gen_error = gen_result.get("error")
+                    gen_rc = gen_result.get("returncode")
+                    if gen_error or (gen_rc not in (None, 0)):
+                        task.status = RunStatus.FAILED
+                        task.current_action = gen_error or "Workload reported an error"
+                    elif task.status not in (RunStatus.FAILED, RunStatus.SKIPPED):
+                        task.status = RunStatus.COMPLETED
                     updated = True
                 except Exception as exc:
                     logger.debug("Failed to backfill timing for %s rep %s: %s", host.name, rep, exc)
