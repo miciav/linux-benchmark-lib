@@ -89,9 +89,8 @@ class HPLGenerator(BaseGenerator):
         return True
 
     def _run_ansible_setup(self) -> bool:
-        """Run the setup playbook to build HPL."""
-        logger.info("Building HPL via Ansible...")
-        make_flags = os.environ.get("HPL_MAKEFLAGS", "-j1")
+        """Run the setup playbook to install HPL from the packaged .deb."""
+        logger.info("Installing HPL via Ansible...")
         cmd = [
             "ansible-playbook",
             str(self.setup_playbook),
@@ -103,10 +102,16 @@ class HPLGenerator(BaseGenerator):
             f"hpl_workspace={self.workspace}",
             "-e",
             f"hpl_version={HPL_VERSION}",
-            "-e",
-            f"hpl_make_flags={make_flags}",
-            "-v",
         ]
+
+        # Allow overriding workdir/deb source via environment for local runs
+        lb_workdir = os.environ.get("LB_WORKDIR")
+        if lb_workdir:
+            cmd.extend(["-e", f"lb_workdir={lb_workdir}"])
+        hpl_deb_src = os.environ.get("HPL_DEB_SRC")
+        if hpl_deb_src:
+            cmd.extend(["-e", f"hpl_deb_src={hpl_deb_src}"])
+        cmd.append("-v")
 
         try:
             subprocess.run(cmd, check=True, env=os.environ.copy())
