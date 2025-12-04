@@ -73,7 +73,7 @@ class MultipassService:
         except subprocess.CalledProcessError as e:
             raise MultipassError(f"Failed to generate SSH keys: {e.stderr.decode()}")
 
-    def _launch_vm(self, image: str = "22.04") -> None:
+    def _launch_vm(self, image: str = "24.04") -> None:
         """
         Launches the VM instance via Multipass.
         
