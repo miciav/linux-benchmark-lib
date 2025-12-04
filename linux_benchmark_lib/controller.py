@@ -653,9 +653,14 @@ class BenchmarkController:
             host_dir = per_host_output.get(host.name)
             if not host_dir:
                 continue
-            results_file = host_dir / f"{workload}_results.json"
-            if not results_file.exists():
+            candidates = sorted(
+                host_dir.rglob(f"{workload}_results.json"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            if not candidates:
                 continue
+            results_file = candidates[0]
             try:
                 entries = json.loads(results_file.read_text())
             except Exception as exc:
