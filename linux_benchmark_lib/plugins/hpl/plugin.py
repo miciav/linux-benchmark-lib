@@ -4,6 +4,7 @@ HPL (High Performance Linpack) workload plugin.
 
 import logging
 import math
+import subprocess
 import multiprocessing
 import os
 import re
