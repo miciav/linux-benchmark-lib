@@ -22,10 +22,12 @@
       - python3-venv
       - python3-pip
       - openmpi-bin
+      - libopenmpi3t64
       - libopenmpi-dev
       - libopenblas-dev
       - procps
       - sysstat
+    hpl_relax_openmpi_dep: "{{ hpl_relax_openmpi_dep | default(true) }}"
 
   tasks:
     - name: Abort on unsupported OS family
@@ -59,6 +61,27 @@
         src: "{{ hpl_deb_src_resolved }}"
         dest: "{{ hpl_deb_dest }}"
         mode: "0644"
+
+    - name: Prepare temp dir for HPL package repack
+      ansible.builtin.file:
+        path: /tmp/hpl-deb-unpacked
+        state: absent
+      when: hpl_relax_openmpi_dep | bool
+
+    - name: Unpack HPL package for dependency relaxation
+      ansible.builtin.command: dpkg-deb -R {{ hpl_deb_dest }} /tmp/hpl-deb-unpacked
+      when: hpl_relax_openmpi_dep | bool
+
+    - name: Relax libopenmpi dependency constraint
+      ansible.builtin.replace:
+        path: /tmp/hpl-deb-unpacked/DEBIAN/control
+        regexp: 'libopenmpi3t64 \\(>= [^)]+\\)'
+        replace: 'libopenmpi3t64'
+      when: hpl_relax_openmpi_dep | bool
+
+    - name: Repack HPL package after dependency relaxation
+      ansible.builtin.command: dpkg-deb -b /tmp/hpl-deb-unpacked {{ hpl_deb_dest }}
+      when: hpl_relax_openmpi_dep | bool
 
     - name: Install HPL package
       ansible.builtin.apt:
