@@ -30,7 +30,6 @@ class RunDashboard:
         self.max_log_lines = 20
         self.layout = Layout()
         self.layout.split_column(
-            Layout(name="plan", size=self._plan_height()),
             Layout(name="journal"),
             Layout(name="logs", size=self.max_log_lines + 2),
         )
@@ -61,42 +60,9 @@ class RunDashboard:
 
     def render(self) -> Layout:
         """Return the layout for the current state."""
-        # Resize plan dynamically so multiple workloads stay visible.
-        self.layout["plan"].size = self._plan_height()
-        self.layout["plan"].update(self._render_plan())
         self.layout["journal"].update(self._render_journal())
         self.layout["logs"].update(self._render_logs())
         return self.layout
-
-    def _render_plan(self) -> Panel:
-        table = Table(
-            show_edge=True,
-            expand=True,
-            border_style="cyan",
-            header_style="bold white",
-        )
-        table.add_column("Workload")
-        table.add_column("Plugin", style="cyan")
-        table.add_column("Intensity")
-        table.add_column("Configuration")
-        table.add_column("Repetitions", justify="center")
-        table.add_column("Status", style="green")
-
-        for row in self.plan_rows:
-            table.add_row(
-                row.get("name", ""),
-                row.get("plugin", ""),
-                row.get("intensity", ""),
-                row.get("details", ""),
-                row.get("repetitions", ""),
-                row.get("status", ""),
-            )
-
-        return Panel(
-            table,
-            title="Run Plan",
-            border_style="cyan",
-        )
 
     def _render_logs(self) -> Panel:
         """Render the rolling log stream."""
@@ -146,10 +112,6 @@ class RunDashboard:
             border_style="bright_black",
         )
 
-    def _plan_height(self) -> int:
-        """Compute a plan section height that fits all rows."""
-        return max(6, len(self.plan_rows) + 6)
-
     def add_log(self, message: str) -> None:
         """Append a message to the log buffer."""
         if not message or not message.strip():
@@ -181,6 +143,18 @@ class RunDashboard:
             for task in self.journal.tasks.values()
             if task.host == host and task.workload == workload
         }
+
+    def _max_repetitions(self) -> int:
+        """Return the highest repetition index observed in the journal."""
+        if not self.journal.tasks:
+            return 0
+        return max(task.repetition for task in self.journal.tasks.values())
+
+    def _aggregate_status(self, tasks: Dict[int, TaskState]) -> str:
+        """Summarize a workload's status across repetitions."""
+        target_reps = self._target_repetitions()
+        status, _ = self._summarize_progress(tasks, target_reps)
+        return status
 
     @staticmethod
     def _summarize_progress(

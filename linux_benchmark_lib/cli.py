@@ -717,12 +717,6 @@ def run(
         "-i",
         help="Override workload intensity (low, medium, high, user_defined).",
     ),
-    repetitions: Optional[int] = typer.Option(
-        None,
-        "--repetitions",
-        "-r",
-        help="Override the number of repetitions for this run.",
-    ),
 ) -> None:
     """Run workloads locally, remotely, or inside the container image."""
     if debug:
@@ -737,26 +731,26 @@ def run(
         ui.show_error("When using --multipass, --multipass-vm-count must be at least 1.")
         raise typer.Exit(1)
 
-        if repetitions is not None and repetitions < 1:
-            ui.show_error("Repetitions must be at least 1.")
-            raise typer.Exit(1)
+    if repetitions is not None and repetitions < 1:
+        ui.show_error("Repetitions must be at least 1.")
+        raise typer.Exit(1)
 
-        cfg, resolved, stale = config_service.load_for_read(config)
-        if stale:
-            ui.show_warning(f"Saved default config not found: {stale}")
-        if resolved:
-            ui.show_success(f"Loaded config: {resolved}")
-        else:
-            ui.show_warning("No config file found; using built-in defaults.")
+    cfg, resolved, stale = config_service.load_for_read(config)
+    if stale:
+        ui.show_warning(f"Saved default config not found: {stale}")
+    if resolved:
+        ui.show_success(f"Loaded config: {resolved}")
+    else:
+        ui.show_warning("No config file found; using built-in defaults.")
 
-        if repetitions is not None:
-            cfg.repetitions = repetitions
-            ui.show_info(f"Using {repetitions} repetitions for this run")
+    if repetitions is not None:
+        cfg.repetitions = repetitions
+        ui.show_info(f"Using {repetitions} repetitions for this run")
 
-        if hasattr(run_service, "apply_overrides"):
-            run_service.apply_overrides(cfg, intensity=intensity, debug=debug)
-        if intensity:
-            ui.show_info(f"Global intensity override: {intensity}")
+    if hasattr(run_service, "apply_overrides"):
+        run_service.apply_overrides(cfg, intensity=intensity, debug=debug)
+    if intensity:
+        ui.show_info(f"Global intensity override: {intensity}")
 
     cfg.ensure_output_dirs()
 

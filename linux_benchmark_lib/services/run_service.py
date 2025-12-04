@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import os
 import time
 import re
 import ctypes.util
@@ -153,6 +154,8 @@ class RunService:
         """
         registry = registry or self._registry_factory()
         plan = []
+        container_env = os.getenv("LB_CONTAINER_MODE", "").lower() in ("1", "true", "yes")
+        container_mode = docker_mode or container_env
         
         for name in tests:
             wl = cfg.workloads.get(name)
@@ -233,7 +236,7 @@ class RunService:
                 except Exception:
                     item["details"] = str(config_obj)
 
-            if docker_mode:
+            if container_mode:
                 item["status"] = "[green]Container[/green]"
                 plan.append(item)
                 continue
@@ -505,9 +508,10 @@ class RunService:
             output_formatter=formatter if not context.debug else None,
             journal_refresh=dashboard.refresh if dashboard else None,
         )
-
+        elapsed: float | None = None
         try:
             with dashboard.live():
+                start_ts = time.monotonic()
                 summary = controller.run(
                     context.target_tests,
                     run_id=effective_run_id,
@@ -515,6 +519,17 @@ class RunService:
                     resume=resume_requested,
                     journal_path=journal_path,
                 )
+                elapsed = time.monotonic() - start_ts
+                msg = f"Run {effective_run_id} completed in {elapsed:.1f}s"
+                try:
+                    log_file.write(msg + "\n")
+                    log_file.flush()
+                except Exception:
+                    pass
+                if ui_adapter:
+                    ui_adapter.show_info(msg)
+                else:
+                    print(msg)
         finally:
             log_file.close()
 

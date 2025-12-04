@@ -63,6 +63,7 @@ class LocalRunner:
         self._current_run_id: Optional[str] = None
         self._output_root: Optional[Path] = None
         self._data_export_root: Optional[Path] = None
+        self._log_file_handler_attached: bool = False
         
     def collect_system_info(self) -> Dict[str, Any]:
         """
@@ -198,17 +199,24 @@ class LocalRunner:
                 total=duration,
             )
 
+            # Run generator setup before metrics collection to avoid skew
+            try:
+                generator.prepare()
+            except Exception as e:
+                logger.error(f"Generator setup failed: {e}")
+                raise
+
+            # Warmup period
+            if self.config.warmup_seconds > 0:
+                logger.info(f"Warmup period: {self.config.warmup_seconds} seconds")
+                time.sleep(self.config.warmup_seconds)
+
             # Start collectors
             for collector in collectors:
                 try:
                     collector.start()
                 except Exception as e:
                     logger.error(f"Failed to start collector {collector.name}: {e}")
-            
-            # Warmup period
-            if self.config.warmup_seconds > 0:
-                logger.info(f"Warmup period: {self.config.warmup_seconds} seconds")
-                time.sleep(self.config.warmup_seconds)
             
             # Start workload generator
             test_start_time = datetime.now()
@@ -274,12 +282,20 @@ class LocalRunner:
                     logger.error(f"Failed to stop collector {collector.name}: {e}")
         
         # Collect results
+        duration_seconds = (
+            (test_end_time - test_start_time).total_seconds()
+            if test_start_time and test_end_time
+            else 0
+        )
+        if duration_seconds:
+            logger.info("Repetition %s completed in %.2fs", repetition, duration_seconds)
+
         result = {
             "test_name": test_name,
             "repetition": repetition,
             "start_time": test_start_time.isoformat() if test_start_time else None,
             "end_time": test_end_time.isoformat() if test_end_time else None,
-            "duration_seconds": (test_end_time - test_start_time).total_seconds() if test_start_time and test_end_time else 0,
+            "duration_seconds": duration_seconds,
             "generator_result": generator.get_result(),
             "metrics": {}
         }
@@ -341,7 +357,9 @@ class LocalRunner:
         run_identifier = run_id or self._generate_run_id()
         self._current_run_id = run_identifier
         self._output_root, self._data_export_root, _ = self._ensure_directories(run_identifier)
-        
+
+        self._ensure_runner_log(self._output_root or self.config.output_dir)
+
         # Collect system info if enabled
         if self.config.collect_system_info and not self.system_info:
             self.collect_system_info()
@@ -451,6 +469,30 @@ class LocalRunner:
         for path in (output_root, report_root, data_export_root):
             path.mkdir(parents=True, exist_ok=True)
         return output_root, data_export_root, report_root
+
+    def _ensure_runner_log(self, output_dir: Path) -> None:
+        """
+        Attach a single runner.log file handler if one is not already present.
+
+        This keeps logging consistent across local, container, and remote runners.
+        """
+        if self._log_file_handler_attached:
+            return
+        for handler in logger.handlers:
+            if isinstance(handler, logging.FileHandler):
+                self._log_file_handler_attached = True
+                return
+        try:
+            log_path = output_dir / "runner.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = logging.FileHandler(log_path)
+            file_handler.setFormatter(
+                logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+            )
+            logger.addHandler(file_handler)
+            self._log_file_handler_attached = True
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug(f"Failed to attach file handler: {exc}")
 
     def _print_available_plugins(self) -> None:
         """Print the available workload plugins at startup."""

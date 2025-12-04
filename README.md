@@ -108,6 +108,7 @@ See `CLI.md` for the full command reference. Highlights:
   This updates the generated apt/pip install block in `Dockerfile` and rewrites `linux_benchmark_lib/ansible/roles/workload_runner/tasks/plugins.generated.yml`.
 - Commit both the manifest and generated files so remote setup and the container stay in sync with available plugins.
 - See `docs/PLUGIN_DEVELOPMENT.md` for a full plugin authoring guide (WorkloadPlugin interface, manifests, packaging, git installs).
+- HPL plugin: vedi `linux_benchmark_lib/plugins/hpl/README.md` per note su packaging `.deb`, build VM/Docker e test `xhpl`.
 
 ## Quick Start
 

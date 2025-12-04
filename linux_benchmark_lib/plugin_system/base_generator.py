@@ -47,6 +47,15 @@ class BaseGenerator(ABC):
             True if the environment is valid, False otherwise
         """
         pass
+
+    def prepare(self) -> None:
+        """
+        Optional pre-run hook executed synchronously before collectors start.
+
+        Generators can override to perform expensive setup (e.g., build binaries)
+        so collectors do not capture that time. Default is a no-op.
+        """
+        return None
     
     @abstractmethod
     def _stop_workload(self) -> None:
