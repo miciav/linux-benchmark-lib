@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Protocol
+from typing import Any, Callable, Dict, List, Optional, Protocol, Set, Tuple
 import sys
 
 from .benchmark_config import BenchmarkConfig, RemoteHostConfig
@@ -347,6 +347,7 @@ class BenchmarkController:
             hosts=self.config.remote_hosts,
             inventory_path=self.config.remote_execution.inventory_path,
         )
+
         output_root, report_root, data_export_root = self._prepare_run_dirs(
             resolved_run_id
         )
@@ -376,6 +377,7 @@ class BenchmarkController:
             "per_host_output": {k: str(v) for k, v in per_host_output.items()},
             "benchmark_config": self.config.to_dict(),
             "use_container_fallback": self.config.remote_execution.use_container_fallback,
+            "collector_apt_packages": sorted(self._collector_apt_packages()),
             "workload_runner_install_deps": False,  # Dependencies are now handled by per-plugin setup
             # Let the workload runner handle all repetitions in one go.
             "repetitions_total": self.config.repetitions,
@@ -438,7 +440,6 @@ class BenchmarkController:
                 ui_log(f"Failed to load plugin for {test_name}: {e}")
                 all_tests_success = False
                 continue
-
             pending_hosts = _pending_hosts_for(test_name)
             if not pending_hosts:
                 ui_log(f"All repetitions already completed for {test_name}, skipping.")
@@ -517,6 +518,22 @@ class BenchmarkController:
                     extravars=extravars,
                 )
                 phases[f"collect_{test_name}"] = res_col
+                self._backfill_timings_from_results(
+                    active_journal,
+                    journal_file,
+                    pending_hosts,
+                    test_name,
+                    per_host_output,
+                )
+            else:
+                # If collect is disabled, still try to backfill from any locally available results.
+                self._backfill_timings_from_results(
+                    active_journal,
+                    journal_file,
+                    pending_hosts,
+                    test_name,
+                    per_host_output,
+                )
                 phases["collect"] = res_col
                 self._update_all_reps(
                     active_journal,
@@ -568,6 +585,14 @@ class BenchmarkController:
             data_export_root=data_export_root,
         )
 
+    def _collector_apt_packages(self) -> Set[str]:
+        """Return apt packages needed for enabled collectors."""
+        packages: Set[str] = set()
+        if self.config.collectors.cli_commands:
+            # sar/mpstat/iostat/pidstat
+            packages.update({"sysstat", "procps"})
+        return packages
+
     def _run_for_hosts(
         self,
         playbook_path: Path,
@@ -613,6 +638,54 @@ class BenchmarkController:
             )
         journal.save(journal_path)
         self._refresh_journal()
+
+    def _backfill_timings_from_results(
+        self,
+        journal: RunJournal,
+        journal_path: Path,
+        hosts: List[RemoteHostConfig],
+        workload: str,
+        per_host_output: Dict[str, Path],
+    ) -> None:
+        """Backfill per-repetition timing data from *_results.json artifacts."""
+        updated = False
+        for host in hosts:
+            host_dir = per_host_output.get(host.name)
+            if not host_dir:
+                continue
+            results_file = host_dir / f"{workload}_results.json"
+            if not results_file.exists():
+                continue
+            try:
+                entries = json.loads(results_file.read_text())
+            except Exception as exc:
+                logger.debug("Failed to parse results for %s: %s", host.name, exc)
+                continue
+            for entry in entries or []:
+                rep = entry.get("repetition")
+                if rep is None:
+                    continue
+                task = journal.get_task(host.name, workload, rep)
+                if not task:
+                    continue
+                try:
+                    start_str = entry.get("start_time")
+                    end_str = entry.get("end_time")
+                    if start_str:
+                        task.started_at = datetime.fromisoformat(start_str).timestamp()
+                    if end_str:
+                        task.finished_at = datetime.fromisoformat(end_str).timestamp()
+                    duration = entry.get("duration_seconds")
+                    if duration is not None:
+                        task.duration_seconds = float(duration)
+                    elif task.started_at is not None and task.finished_at is not None:
+                        task.duration_seconds = max(0.0, task.finished_at - task.started_at)
+                    updated = True
+                except Exception as exc:
+                    logger.debug("Failed to backfill timing for %s rep %s: %s", host.name, rep, exc)
+        if updated:
+            journal.save(journal_path)
+            self._refresh_journal()
 
     def _update_all_reps(
         self,
