@@ -42,6 +42,7 @@
     - name: Validate HPL package source exists on controller
       delegate_to: localhost
       run_once: true
+      become: false
       ansible.builtin.stat:
         path: "{{ hpl_deb_src_resolved }}"
       register: hpl_deb_src_stat
