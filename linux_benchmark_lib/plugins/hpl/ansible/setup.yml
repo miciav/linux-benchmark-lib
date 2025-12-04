@@ -27,7 +27,7 @@
       - libopenblas-dev
       - procps
       - sysstat
-    hpl_relax_openmpi_dep: "{{ hpl_relax_openmpi_dep | default(true) }}"
+    hpl_relax_openmpi_dep: false
 
   tasks:
     - name: Abort on unsupported OS family
