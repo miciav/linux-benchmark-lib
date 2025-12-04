@@ -7,7 +7,6 @@ import multiprocessing
 import os
 import re
 import shutil
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional, Type
@@ -61,17 +60,11 @@ class HPLGenerator(BaseGenerator):
         )
         self.system_xhpl_path = Path("/opt") / f"hpl-{HPL_VERSION}" / "bin" / "Linux" / "xhpl"
         self.working_dir = self.xhpl_path.parent
-        self.setup_playbook = Path(__file__).parent / "ansible" / "setup.yml"
         self._prepared = False
 
     def _validate_environment(self) -> bool:
         """Check if required tools exist and workspace is usable."""
-        required_tools = ["mpirun"]
-        # Only require ansible if we expect to build from source
-        if not (self.xhpl_path.exists() or self.system_xhpl_path.exists()):
-            required_tools.append("ansible-playbook")
-
-        for tool in required_tools:
+        for tool in ("mpirun",):
             if not shutil.which(tool):
                 logger.error("%s not found in PATH", tool)
                 return False
@@ -82,47 +75,11 @@ class HPLGenerator(BaseGenerator):
             logger.error("Cannot prepare workspace %s: %s", self.workspace, exc)
             return False
 
-        if not self.setup_playbook.exists():
-            logger.error("Setup playbook not found at %s", self.setup_playbook)
-            return False
-
         return True
-
-    def _run_ansible_setup(self) -> bool:
-        """Run the setup playbook to install HPL from the packaged .deb."""
-        logger.info("Installing HPL via Ansible...")
-        cmd = [
-            "ansible-playbook",
-            str(self.setup_playbook),
-            "-i",
-            "localhost,",
-            "-c",
-            "local",
-            "-e",
-            f"hpl_workspace={self.workspace}",
-            "-e",
-            f"hpl_version={HPL_VERSION}",
-        ]
-
-        # Allow overriding workdir/deb source via environment for local runs
-        lb_workdir = os.environ.get("LB_WORKDIR")
-        if lb_workdir:
-            cmd.extend(["-e", f"lb_workdir={lb_workdir}"])
-        hpl_deb_src = os.environ.get("HPL_DEB_SRC")
-        if hpl_deb_src:
-            cmd.extend(["-e", f"hpl_deb_src={hpl_deb_src}"])
-        cmd.append("-v")
-
-        try:
-            subprocess.run(cmd, check=True, env=os.environ.copy())
-            return True
-        except subprocess.CalledProcessError as exc:
-            logger.error("HPL build failed: %s", exc)
-            return False
 
     def _ensure_binary(self) -> bool:
         """
-        Ensure xhpl exists, building it if necessary.
+        Ensure xhpl exists; remote setup must install the deb.
         """
         # Prefer workspace binary
         if self.xhpl_path.exists() and os.access(self.xhpl_path, os.X_OK):
@@ -133,22 +90,10 @@ class HPLGenerator(BaseGenerator):
             self.working_dir = self.xhpl_path.parent
             return True
 
-        # If neither binary exists, attempt build only when Ansible is available
-        if not shutil.which("ansible-playbook"):
-            self._result = {"error": "xhpl missing and ansible-playbook not available for build"}
-            logger.error("xhpl missing and ansible-playbook not available for build")
-            return False
-
-        if not self._run_ansible_setup():
-            self._result = {"error": "HPL setup failed"}
-            return False
-
-        if not (self.xhpl_path.exists() and os.access(self.xhpl_path, os.X_OK)):
-            self._result = {"error": "xhpl missing or not executable after setup"}
-            logger.error("xhpl not found at %s after setup", self.xhpl_path)
-            return False
-
-        return True
+        # If neither binary exists, fail fast: remote/multipass setup must install the deb.
+        self._result = {"error": "xhpl missing; ensure remote setup installed the HPL .deb"}
+        logger.error("xhpl missing; ensure remote setup installed the HPL .deb")
+        return False
 
     def prepare(self) -> None:
         """

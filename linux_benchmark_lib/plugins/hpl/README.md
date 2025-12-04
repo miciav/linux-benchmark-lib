@@ -5,8 +5,6 @@ Questo plugin include alcuni strumenti per compilare HPL 2.3, impacchettarlo in 
 - **VM (Multipass)**: build e test su una VM dedicata.
 - **Docker Buildx**: cross‑build multi‑arch tramite Docker.
 
-Per l’esecuzione remota/multipass il flusso ufficiale è: distribuire il `.deb` precompilato e installarlo via Ansible con `ansible/setup.yml` (seleziona il pacchetto in base all’architettura e copia `xhpl` nel workspace). Il vecchio playbook di compilazione è archiviato in `ansible/setup_old.yml` e verrà rimosso nelle prossime iterazioni.
-
 ## File di packaging
 - `Make.Linux`: configurazione HPL per OpenMPI/OpenBLAS (usata in make e packaging).
 - `control`: metadati Debian per il pacchetto `hpl`.
@@ -86,4 +84,3 @@ Script helper per buildare e pushare su Docker Hub le immagini ARM64/AMD64 e cre
 ## Note operative
 - Se la build HPL consuma troppa RAM, usa `HPL_MAKEFLAGS=-j1` (già impostato nei playbook e Dockerfile principali) o esegui la compilazione in una VM/Docker con più memoria.
 - I pacchetti generati installano `xhpl` in `/opt/hpl-2.3/bin/Linux/`; `HPL.dat` va posizionato nella stessa directory prima di lanciare `mpirun ./xhpl`.
-- `ansible/setup.yml` installa le dipendenze runtime, copia il `.deb` corretto (per default da `linux_benchmark_lib/plugins/hpl/hpl_2.3-1_<arch>.deb`), esegue `dpkg -i` e copia `xhpl` nel workspace `~/.lb/workspaces/hpl`. Si appoggia al repository già sincronizzato in `lb_workdir` (default `/opt/lb`) per reinstallare `linux-benchmark-lib` in editable.
