@@ -5,9 +5,12 @@
   become: true
 
   vars:
-    lb_workdir: "{{ lb_workdir | default('/opt/lb') }}"
-    hpl_version: "{{ hpl_version | default('2.3') }}"
-    hpl_workspace: "{{ hpl_workspace | default(ansible_env.HOME + '/.lb/workspaces/hpl') }}"
+    lb_workdir_default: "/opt/lb"
+    hpl_version_default: "2.3"
+    hpl_workspace_default: "{{ ansible_env.HOME + '/.lb/workspaces/hpl' }}"
+    lb_workdir: "{{ lb_workdir | default(lb_workdir_default, true) }}"
+    hpl_version: "{{ hpl_version | default(hpl_version_default, true) }}"
+    hpl_workspace: "{{ hpl_workspace | default(hpl_workspace_default, true) }}"
     hpl_arch_map:
       x86_64: amd64
       amd64: amd64
