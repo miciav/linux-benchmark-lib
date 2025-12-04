@@ -13,9 +13,9 @@
       amd64: amd64
       aarch64: arm64
       arm64: arm64
-    hpl_deb_src: >-
-      {{ hpl_deb_src
-         | default(playbook_dir + '/../hpl_2.3-1_' + (hpl_arch_map.get(ansible_architecture, 'amd64')) + '.deb') }}
+    hpl_arch: "{{ hpl_arch_map.get(ansible_facts['architecture'] | default('amd64'), 'amd64') }}"
+    hpl_deb_default: "{{ playbook_dir + '/../hpl_2.3-1_' + hpl_arch + '.deb' }}"
+    hpl_deb_src_resolved: "{{ hpl_deb_src | default(hpl_deb_default, true) }}"
     hpl_deb_dest: "/tmp/hpl_{{ hpl_version }}.deb"
     hpl_packages:
       - python3
@@ -43,7 +43,7 @@
       delegate_to: localhost
       run_once: true
       ansible.builtin.stat:
-        path: "{{ hpl_deb_src }}"
+        path: "{{ hpl_deb_src_resolved }}"
       register: hpl_deb_src_stat
 
     - name: Fail if HPL package is missing
@@ -55,7 +55,7 @@
 
     - name: Copy HPL package to target
       ansible.builtin.copy:
-        src: "{{ hpl_deb_src }}"
+        src: "{{ hpl_deb_src_resolved }}"
         dest: "{{ hpl_deb_dest }}"
         mode: "0644"
 
