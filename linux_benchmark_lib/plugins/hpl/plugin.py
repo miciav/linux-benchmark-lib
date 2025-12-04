@@ -4,14 +4,19 @@ HPL (High Performance Linpack) workload plugin.
 
 import logging
 import math
-import subprocess
 import multiprocessing
 import os
 import re
 import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional, Type
+
+import psutil
+import os
+import re
+import shutil
 
 from ...plugin_system.base_generator import BaseGenerator
 from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin
@@ -179,6 +184,7 @@ HPL.out      output file name (if any)
                 )
                 mpi_ranks = process_grid
 
+            self._maybe_adjust_problem_size(mpi_ranks, process_grid)
             self._generate_hpl_dat()
 
             cmd = [
@@ -265,6 +271,39 @@ HPL.out      output file name (if any)
                 proc.kill()
                 proc.wait()
         self._process = None
+
+    def _maybe_adjust_problem_size(self, mpi_ranks: int, process_grid: int) -> None:
+        """
+        Reduce N if the current problem size is likely to exhaust memory.
+
+        Estimate per-process memory as 8*N^2/(P*Q) bytes and cap to a fraction
+        of available RAM. If N is too large, shrink it to the maximum that fits.
+        """
+        try:
+            avail_bytes = psutil.virtual_memory().available
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("Skipping memory-based tuning (psutil failed): %s", exc)
+            return
+
+        pq = max(1, process_grid)
+        n = max(1, int(self.config.n))
+        mem_per_proc = (8.0 * n * n) / pq
+        limit = avail_bytes * 0.7  # leave headroom
+        if mem_per_proc <= limit:
+            return
+
+        n_max = int(((limit * pq) / 8.0) ** 0.5)
+        if n_max <= 0:
+            logger.error("Insufficient memory for HPL (N=%s); aborting.", n)
+            return
+
+        logger.warning(
+            "Reducing HPL problem size from N=%s to N=%s to fit available memory (%.1f MB available per process)",
+            n,
+            n_max,
+            limit / pq / (1024 * 1024),
+        )
+        self.config.n = n_max
 
 
 class HPLPlugin(WorkloadPlugin):
