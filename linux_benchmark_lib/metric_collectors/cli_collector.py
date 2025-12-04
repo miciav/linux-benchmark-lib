@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class CLICollector(BaseCollector):
     """Metric collector using CLI commands."""
     
-    def __init__(self, name: str = "CLICollector", interval_seconds: float = 1.0, commands: List[str] = None):
+    def __init__(self, name: str = "CLICollector", interval_seconds: float = 5.0, commands: List[str] = None):
         """
         Initialize the CLI collector.
 
