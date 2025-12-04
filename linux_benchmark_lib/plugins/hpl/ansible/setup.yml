@@ -1,95 +1,108 @@
 ---
-- name: Setup HPL (Simplified)
+- name: Install HPL from prebuilt package
   hosts: all
-  become: false
-  tags: ['setup']
+  gather_facts: true
+  become: true
 
   vars:
-    # Default install path (overridden by plugin logic usually)
-    hpl_workspace: "{{ ansible_env.HOME }}/.lb/workspaces/hpl"
-    hpl_version: "2.3"
-    hpl_url: "http://www.netlib.org/benchmark/hpl/hpl-2.3.tar.gz"
-    hpl_make_flags: "-j1"  # keep memory usage low during compile
+    lb_workdir: "{{ lb_workdir | default('/opt/lb') }}"
+    hpl_version: "{{ hpl_version | default('2.3') }}"
+    hpl_workspace: "{{ hpl_workspace | default(ansible_env.HOME + '/.lb/workspaces/hpl') }}"
+    hpl_arch_map:
+      x86_64: amd64
+      amd64: amd64
+      aarch64: arm64
+      arm64: arm64
+    hpl_deb_src: >-
+      {{ hpl_deb_src
+         | default(playbook_dir + '/../hpl_2.3-1_' + (hpl_arch_map.get(ansible_architecture, 'amd64')) + '.deb') }}
+    hpl_deb_dest: "/tmp/hpl_{{ hpl_version }}.deb"
+    hpl_packages:
+      - python3
+      - python3-venv
+      - python3-pip
+      - openmpi-bin
+      - libopenmpi-dev
+      - libopenblas-dev
+      - procps
+      - sysstat
 
   tasks:
-    - name: Install System Dependencies (Debian/Ubuntu)
-      ansible.builtin.package:
-        name:
-          - build-essential
-          - gfortran
-          - openmpi-bin
-          - libopenmpi-dev
-          - libopenblas-dev
-          - wget
-          - tar
-          - make
+    - name: Abort on unsupported OS family
+      ansible.builtin.fail:
+        msg: "HPL .deb install is supported on Debian/Ubuntu only."
+      when: ansible_facts['os_family'] | default('') != 'Debian'
+
+    - name: Install HPL runtime dependencies
+      ansible.builtin.apt:
+        name: "{{ hpl_packages }}"
         state: present
-      become: true
-      when: ansible_os_family == 'Debian'
+        update_cache: true
 
-    - name: Install System Dependencies (RedHat)
-      ansible.builtin.package:
-        name:
-          - gcc
-          - gcc-gfortran
-          - openmpi
-          - openmpi-devel
-          - openblas-devel
-          - wget
-          - tar
-          - make
-        state: present
-      become: true
-      when: ansible_os_family == 'RedHat'
+    - name: Validate HPL package source exists on controller
+      delegate_to: localhost
+      run_once: true
+      ansible.builtin.stat:
+        path: "{{ hpl_deb_src }}"
+      register: hpl_deb_src_stat
 
-    - name: Ensure workspace exists
-      ansible.builtin.file:
-        path: "{{ hpl_workspace }}"
-        state: directory
-        mode: '0755'
+    - name: Fail if HPL package is missing
+      ansible.builtin.fail:
+        msg: >-
+          HPL .deb not found at {{ hpl_deb_src }}.
+          Override hpl_deb_src with a valid path or URL.
+      when: not hpl_deb_src_stat.stat.exists
 
-    - name: Download HPL source
-      ansible.builtin.get_url:
-        url: "{{ hpl_url }}"
-        dest: "{{ hpl_workspace }}/hpl-{{ hpl_version }}.tar.gz"
-        mode: '0644'
-
-    - name: Extract HPL
-      ansible.builtin.unarchive:
-        src: "{{ hpl_workspace }}/hpl-{{ hpl_version }}.tar.gz"
-        dest: "{{ hpl_workspace }}"
-        remote_src: true
-        creates: "{{ hpl_workspace }}/hpl-{{ hpl_version }}/README"
-
-    - name: Inject Make.Linux configuration
+    - name: Copy HPL package to target
       ansible.builtin.copy:
-        dest: "{{ hpl_workspace }}/hpl-{{ hpl_version }}/Make.Linux"
-        content: |
-          SHELL = /bin/sh
-          ARCH  = Linux
-          TOPdir = {{ hpl_workspace }}/hpl-{{ hpl_version }}
-          INCdir = $(TOPdir)/include
-          LIBdir = $(TOPdir)/lib/$(ARCH)
-          BINDIR = $(TOPdir)/bin/$(ARCH)
-          HPLlib = $(LIBdir)/libhpl.a
-          
-          CC      = mpicc
-          LINKER  = mpicc
-          CCFLAGS = -O3 -march=native -funroll-loops -fomit-frame-pointer
-          LDFLAGS = -O3
-          
-          # OpenBLAS linkage
-          BLASlib = -lopenblas
-          MPIlib  = 
-          MPIdir  =
-          LIBS    = $(BLASlib) -lm
-          
-          INCLUDES = -I$(INCdir)
+        src: "{{ hpl_deb_src }}"
+        dest: "{{ hpl_deb_dest }}"
+        mode: "0644"
 
-    - name: Compile HPL
-      ansible.builtin.command: make arch=Linux
-      args:
-        chdir: "{{ hpl_workspace }}/hpl-{{ hpl_version }}"
-        creates: "{{ hpl_workspace }}/hpl-{{ hpl_version }}/bin/Linux/xhpl"
-      environment:
-        MAKEFLAGS: "{{ hpl_make_flags }}"
+    - name: Install HPL package
+      ansible.builtin.apt:
+        deb: "{{ hpl_deb_dest }}"
+        state: present
+        update_cache: true
+
+    - name: Ensure workspace bin directory exists
+      ansible.builtin.file:
+        path: "{{ hpl_workspace }}/hpl-{{ hpl_version }}/bin/Linux"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user | default('root') }}"
+        group: "{{ ansible_user | default('root') }}"
+
+    - name: Copy xhpl into workspace for convenience
+      ansible.builtin.copy:
+        src: "/opt/hpl-{{ hpl_version }}/bin/Linux/xhpl"
+        dest: "{{ hpl_workspace }}/hpl-{{ hpl_version }}/bin/Linux/xhpl"
+        mode: "0755"
+        remote_src: true
+
+    - name: Ensure benchmark workdir exists
+      ansible.builtin.file:
+        path: "{{ lb_workdir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Check for project sources
+      ansible.builtin.stat:
+        path: "{{ lb_workdir }}/pyproject.toml"
+      register: lb_pyproject
+
+    - name: Check for virtualenv pip
+      ansible.builtin.stat:
+        path: "{{ lb_workdir }}/.venv/bin/pip"
+      register: lb_venv_pip
+
+    - name: Install linux-benchmark-lib (editable)
+      ansible.builtin.command:
+        cmd: "{{ (lb_venv_pip.stat.exists | ternary(lb_workdir + '/.venv/bin/pip', 'pip3')) }} install -e ."
+        chdir: "{{ lb_workdir }}"
+      when: lb_pyproject.stat.exists
+
+    - name: Warn if project sources are missing
+      ansible.builtin.debug:
+        msg: "Skipping linux-benchmark-lib install: {{ lb_workdir }}/pyproject.toml not found"
+      when: not lb_pyproject.stat.exists
