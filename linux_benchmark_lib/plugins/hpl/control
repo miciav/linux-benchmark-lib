@@ -1,0 +1,13 @@
+Source: hpl
+Section: science
+Priority: optional
+Maintainer: Your Name <you@example.com>
+Build-Depends: debhelper-compat (= 13), gfortran, make, openmpi-bin, libopenmpi-dev, libopenblas-dev
+Standards-Version: 4.6.2
+Homepage: http://www.netlib.org/benchmark/hpl/
+
+Package: hpl
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, openmpi-bin, libopenmpi-dev, libopenblas-dev
+Description: High Performance Linpack benchmark (prebuilt xhpl)
+ HPL 2.3 built with OpenMPI and OpenBLAS.

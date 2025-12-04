@@ -1,0 +1,49 @@
+SHELL        = /bin/sh
+
+CD           = cd
+CP           = cp
+LN_S         = ln -fs
+MKDIR        = mkdir -p
+RM           = /bin/rm -f
+TOUCH        = touch
+
+ARCH         = Linux
+
+# Resolve topdir from the realpath of this Make.inc symlink so subdir
+# includes point back to the project root.
+TOPdir       = $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+INCdir       = $(TOPdir)/include
+BINdir       = $(TOPdir)/bin/$(ARCH)
+LIBdir       = $(TOPdir)/lib/$(ARCH)
+HPLlib       = $(LIBdir)/libhpl.a
+
+# MPI (mpicc supplies include/lib paths)
+MPdir        =
+MPinc        =
+MPlib        =
+
+# BLAS / OpenBLAS
+LAdir        =
+LAinc        =
+LAlib        = -lopenblas -lm
+
+# Fortran 77 interface defaults (match OpenBLAS)
+F2CDEFS      = -DAdd_ -DF77_INTEGER=int -DStringSunStyle
+
+# HPL includes / libs
+HPL_INCLUDES = -I$(INCdir) $(LAinc) $(MPinc)
+HPL_LIBS     = $(HPLlib) $(LAlib) $(MPlib)
+
+# Compile-time options
+# -DHPL_CALL_CBLAS to use CBLAS interface from OpenBLAS
+HPL_OPTS     = -DHPL_CALL_CBLAS
+
+CC           = mpicc
+CCFLAGS      = $(HPL_OPTS) $(F2CDEFS) $(HPL_INCLUDES) -O3 -march=native -funroll-loops -fomit-frame-pointer
+CCNOOPT      = $(HPL_OPTS) $(F2CDEFS) $(HPL_INCLUDES)
+LINKER       = mpicc
+LINKFLAGS    = $(CCFLAGS)
+
+ARCHIVER     = ar
+ARFLAGS      = r
+RANLIB       = ranlib

@@ -1,0 +1,63 @@
+FROM ubuntu:24.04 AS hpl_fetch
+
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN apt-get update && apt-get install -y hpl && rm -rf /var/lib/apt/lists/*
+
+# Gather the xhpl binary location from the distro package
+RUN XHPL_SRC="$(dpkg -L hpl | grep '/xhpl$' | head -n 1)" && \
+    test -n "${XHPL_SRC}" && \
+    mkdir -p /opt/hpl && \
+    cp "${XHPL_SRC}" /opt/hpl/xhpl && \
+    chmod +x /opt/hpl/xhpl
+
+FROM python:3.13-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Install Ansible, runtime deps (without compiling HPL)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gfortran \
+    openmpi-bin \
+    libopenmpi-dev \
+    libopenblas-dev \
+    wget \
+    tar \
+    git \
+    sudo \
+    procps \
+    sysstat \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python dependencies (Ansible still present to satisfy plugin checks)
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir \
+        ansible \
+        jc \
+        psutil \
+        typer \
+        rich \
+        pyyaml \
+        pandas \
+        numpy
+
+WORKDIR /app
+
+# Setup Ansible local connection
+RUN mkdir -p /etc/ansible && echo "localhost ansible_connection=local" > /etc/ansible/hosts
+
+# Copy the full project so the library can be installed
+COPY . /app
+
+# Stage the prebuilt xhpl from the distro package into the expected workspace
+ENV HPL_WORKSPACE=/root/.lb/workspaces/hpl \
+    HPL_VERSION=2.3
+
+COPY --from=hpl_fetch /opt/hpl/xhpl ${HPL_WORKSPACE}/hpl-${HPL_VERSION}/bin/Linux/xhpl
+RUN chmod +x ${HPL_WORKSPACE}/hpl-${HPL_VERSION}/bin/Linux/xhpl
+
+# Install the library itself
+RUN pip install --no-cache-dir --no-deps .

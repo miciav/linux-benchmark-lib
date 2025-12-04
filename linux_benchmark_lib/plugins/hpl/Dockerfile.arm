@@ -1,0 +1,24 @@
+FROM ubuntu:24.04
+
+ARG HPL_DEB=hpl_2.3-1_arm64.deb
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    python3.12 \
+    python3.12-venv \
+    python3-pip \
+    openmpi-bin \
+    libopenmpi-dev \
+    libopenblas-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/hpl
+
+# Copy the ARM64 .deb into the image context (provide via build-arg)
+COPY ${HPL_DEB} /tmp/hpl.deb
+
+RUN dpkg -i /tmp/hpl.deb || (apt-get update && apt-get install -y -f) && rm /tmp/hpl.deb && \
+    test -x /opt/hpl-2.3/bin/Linux/xhpl
+
+# Default command: run a single-rank xhpl (requires HPL.dat in place)
+CMD ["mpirun", "--allow-run-as-root", "-np", "1", "/opt/hpl-2.3/bin/Linux/xhpl"]
