@@ -9,11 +9,13 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
-from ..controller import AnsibleRunnerExecutor, InventorySpec
 from ..benchmark_config import RemoteHostConfig
 from ..plugin_system.interface import WorkloadPlugin
+
+if TYPE_CHECKING:
+    from ..controller import AnsibleRunnerExecutor, InventorySpec
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +26,13 @@ ANSIBLE_ROOT = Path(__file__).resolve().parent.parent / "ansible"
 class SetupService:
     """Manages environment provisioning via Ansible."""
 
-    def __init__(self, executor: Optional[AnsibleRunnerExecutor] = None):
+    def __init__(self, executor: Optional["AnsibleRunnerExecutor"] = None):
+        from ..controller import AnsibleRunnerExecutor, InventorySpec
+
+        self._inventory_cls: Type["InventorySpec"] = InventorySpec
         self.executor = executor or AnsibleRunnerExecutor(stream_output=True)
 
-    def _get_local_inventory(self) -> InventorySpec:
+    def _get_local_inventory(self) -> "InventorySpec":
         """Create an ephemeral inventory for localhost."""
         # We use a dummy RemoteHostConfig that maps to localhost with local connection
         localhost = RemoteHostConfig(
@@ -40,7 +45,7 @@ class SetupService:
                 "ansible_python_interpreter": sys.executable
             }
         )
-        return InventorySpec(hosts=[localhost])
+        return self._inventory_cls(hosts=[localhost])
 
     def provision_global(self, target_hosts: Optional[List[RemoteHostConfig]] = None) -> bool:
         """
@@ -54,8 +59,8 @@ class SetupService:
             return False
 
         inventory = (
-            InventorySpec(hosts=target_hosts) 
-            if target_hosts 
+            self._inventory_cls(hosts=target_hosts)
+            if target_hosts
             else self._get_local_inventory()
         )
 
@@ -68,8 +73,8 @@ class SetupService:
         return result.success
 
     def provision_workload(
-        self, 
-        plugin: WorkloadPlugin, 
+        self,
+        plugin: WorkloadPlugin,
         target_hosts: Optional[List[RemoteHostConfig]] = None
     ) -> bool:
         """
@@ -81,7 +86,7 @@ class SetupService:
             return True
 
         inventory = (
-            InventorySpec(hosts=target_hosts)
+            self._inventory_cls(hosts=target_hosts)
             if target_hosts
             else self._get_local_inventory()
         )
@@ -91,8 +96,8 @@ class SetupService:
         return result.success
 
     def teardown_workload(
-        self, 
-        plugin: WorkloadPlugin, 
+        self,
+        plugin: WorkloadPlugin,
         target_hosts: Optional[List[RemoteHostConfig]] = None
     ) -> bool:
         """
@@ -103,7 +108,7 @@ class SetupService:
             return True
 
         inventory = (
-            InventorySpec(hosts=target_hosts)
+            self._inventory_cls(hosts=target_hosts)
             if target_hosts
             else self._get_local_inventory()
         )
@@ -121,7 +126,7 @@ class SetupService:
             return True
 
         inventory = (
-            InventorySpec(hosts=target_hosts)
+            self._inventory_cls(hosts=target_hosts)
             if target_hosts
             else self._get_local_inventory()
         )

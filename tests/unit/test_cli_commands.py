@@ -49,7 +49,7 @@ class FakeRunService:
         self.contexts.append((cfg, tests, remote_override, kwargs))
         return context
 
-    def create_session(self, config_service, tests=None, config_path=None, **kwargs):
+    def create_session(self, config_service, tests=None, config_path=None, setup=True, **kwargs):
         # Mimic what RunService.create_session does partially
         cfg, _, _ = config_service.load_for_read(config_path)
         
