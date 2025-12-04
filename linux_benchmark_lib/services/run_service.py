@@ -342,6 +342,76 @@ class RunService:
             resume_latest=resume == "latest",
         )
 
+    def create_session(
+        self,
+        config_service: Any,
+        tests: Optional[List[str]] = None,
+        config_path: Optional[Path] = None,
+        run_id: Optional[str] = None,
+        resume: Optional[str] = None,
+        remote: Optional[bool] = None,
+        docker: bool = False,
+        docker_image: str = "linux-benchmark-lib:dev",
+        docker_engine: str = "docker",
+        docker_no_build: bool = False,
+        docker_no_cache: bool = False,
+        repetitions: Optional[int] = None,
+        multipass: bool = False,
+        multipass_vm_count: int = 1,
+        debug: bool = False,
+        intensity: Optional[str] = None,
+        ui_adapter: UIAdapter | None = None,
+    ) -> RunContext:
+        """
+        Orchestrate the creation of a RunContext from raw inputs.
+        
+        This method consolidates configuration loading, overrides, and context building.
+        """
+        # 1. Load Config
+        cfg, resolved, stale = config_service.load_for_read(config_path)
+        if ui_adapter:
+            if stale:
+                ui_adapter.show_warning(f"Saved default config not found: {stale}")
+            if resolved:
+                ui_adapter.show_success(f"Loaded config: {resolved}")
+            else:
+                ui_adapter.show_warning("No config file found; using built-in defaults.")
+
+        # 2. Overrides
+        if repetitions is not None:
+            cfg.repetitions = repetitions
+            if ui_adapter:
+                ui_adapter.show_info(f"Using {repetitions} repetitions for this run")
+
+        self.apply_overrides(cfg, intensity=intensity, debug=debug)
+        if intensity and ui_adapter:
+            ui_adapter.show_info(f"Global intensity override: {intensity}")
+            
+        cfg.ensure_output_dirs()
+        
+        # 3. Target Tests
+        target_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+        if not target_tests:
+            raise ValueError("No workloads selected to run.")
+
+        # 4. Build Context
+        context = self.build_context(
+            cfg,
+            target_tests,
+            remote_override=remote,
+            docker=docker,
+            multipass=multipass,
+            docker_image=docker_image,
+            docker_engine=docker_engine,
+            docker_build=not docker_no_build,
+            docker_no_cache=docker_no_cache,
+            config_path=resolved,
+            debug=debug,
+            resume=resume,
+            multipass_vm_count=multipass_vm_count,
+        )
+        return context
+
     def execute(
         self,
         context: RunContext,

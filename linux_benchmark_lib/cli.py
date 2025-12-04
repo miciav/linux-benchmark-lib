@@ -735,58 +735,41 @@ def run(
         ui.show_error("Repetitions must be at least 1.")
         raise typer.Exit(1)
 
-    cfg, resolved, stale = config_service.load_for_read(config)
-    if stale:
-        ui.show_warning(f"Saved default config not found: {stale}")
-    if resolved:
-        ui.show_success(f"Loaded config: {resolved}")
-    else:
-        ui.show_warning("No config file found; using built-in defaults.")
-
-    if repetitions is not None:
-        cfg.repetitions = repetitions
-        ui.show_info(f"Using {repetitions} repetitions for this run")
-
-    if hasattr(run_service, "apply_overrides"):
-        run_service.apply_overrides(cfg, intensity=intensity, debug=debug)
-    if intensity:
-        ui.show_info(f"Global intensity override: {intensity}")
-
-    cfg.ensure_output_dirs()
-
-    target_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
-    if not target_tests:
-        ui.show_warning("No workloads selected to run.")
-        raise typer.Exit(1)
-
-    registry = create_registry()
-    effective_remote = remote if remote is not None else cfg.remote_execution.enabled
-    _print_run_plan(
-        cfg,
-        target_tests,
-        registry=registry,
-        docker_mode=docker,
-        multipass_mode=multipass,
-        remote_mode=effective_remote,
-    )
-
     try:
-        context = run_service.build_context(
-            cfg,
-            target_tests,
-            remote_override=remote,
+        context = run_service.create_session(
+            config_service=config_service,
+            tests=tests,
+            config_path=config,
+            run_id=run_id,
+            resume=resume,
+            remote=remote,
             docker=docker,
-            multipass=multipass,
             docker_image=docker_image,
             docker_engine=docker_engine,
-            docker_build=not docker_no_build,
+            docker_no_build=docker_no_build,
             docker_no_cache=docker_no_cache,
-            config_path=resolved,
-            debug=debug,
-            resume=resume,
+            repetitions=repetitions,
+            multipass=multipass,
             multipass_vm_count=multipass_vm_count,
+            debug=debug,
+            intensity=intensity,
+            ui_adapter=ui,
         )
+
+        _print_run_plan(
+            context.config,
+            context.target_tests,
+            registry=context.registry,
+            docker_mode=context.use_container,
+            multipass_mode=context.use_multipass,
+            remote_mode=context.use_remote,
+        )
+
         result = run_service.execute(context, run_id, ui_adapter=ui)
+
+    except ValueError as e:
+        ui.show_warning(str(e))
+        raise typer.Exit(1)
     except Exception as exc:
         ui.show_error(f"Run failed: {exc}")
         raise typer.Exit(1)
