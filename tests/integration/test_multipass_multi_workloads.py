@@ -103,7 +103,6 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
         assert summary.phases[f"run_{workload}"].success
         assert summary.phases.get(f"collect_{workload}", None) is not None
         assert summary.phases[f"collect_{workload}"].success
-    assert "collect" in summary.phases and summary.phases["collect"].success
 
     for vm in multipass_vms:
         host_output_dir = summary.per_host_output[vm["name"]]

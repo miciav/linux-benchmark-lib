@@ -295,7 +295,8 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         assert summary.phases[f"setup_{test_name}"].success
         assert f"run_{test_name}" in summary.phases
         assert summary.phases[f"run_{test_name}"].success
-    assert "collect" in summary.phases and summary.phases["collect"].success
+        assert f"collect_{test_name}" in summary.phases
+        assert summary.phases[f"collect_{test_name}"].success
 
     # Verify artifacts for each VM
     for vm in multipass_vms:
