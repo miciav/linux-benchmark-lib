@@ -19,6 +19,7 @@ from ..plugin_system.registry import PluginRegistry
 from ..plugin_system.interface import WorkloadIntensity
 from .container_service import ContainerRunner, ContainerRunSpec
 from .multipass_service import MultipassService
+from .setup_service import SetupService
 from ..ui.console_adapter import ConsoleUIAdapter
 from ..ui.run_dashboard import NoopDashboard, RunDashboard
 from ..ui.types import UIAdapter
@@ -137,6 +138,7 @@ class RunService:
     def __init__(self, registry_factory: Callable[[], PluginRegistry]):
         self._registry_factory = registry_factory
         self._container_runner = ContainerRunner()
+        self._setup_service = SetupService()
 
     def get_run_plan(
         self,
@@ -361,6 +363,7 @@ class RunService:
         debug: bool = False,
         intensity: Optional[str] = None,
         ui_adapter: UIAdapter | None = None,
+        setup: bool = True,
     ) -> RunContext:
         """
         Orchestrate the creation of a RunContext from raw inputs.
@@ -378,6 +381,9 @@ class RunService:
                 ui_adapter.show_warning("No config file found; using built-in defaults.")
 
         # 2. Overrides
+        # Force setup flag from CLI onto the config, which drives logic in execute()
+        cfg.remote_execution.run_setup = setup
+        
         if repetitions is not None:
             cfg.repetitions = repetitions
             if ui_adapter:
@@ -515,9 +521,69 @@ class RunService:
                 ui_adapter,
             )
 
+        # --- LOCAL EXECUTION WITH 2-LEVEL SETUP ---
+        
         runner = LocalRunner(context.config, registry=context.registry, ui_adapter=ui_adapter)
-        for test_name in context.target_tests:
-            runner.run_benchmark(test_name)
+        
+        # Level 1: Global Setup
+        if context.config.remote_execution.run_setup:
+            if ui_adapter:
+                ui_adapter.show_info("Running global setup (local)...")
+            if not self._setup_service.provision_global():
+                msg = "Global setup failed (local)."
+                if ui_adapter:
+                    ui_adapter.show_error(msg)
+                print(msg)
+                return RunResult(context=context, summary=None)
+
+        try:
+            for test_name in context.target_tests:
+                workload_cfg = context.config.workloads.get(test_name)
+                if not workload_cfg:
+                    continue
+
+                # Get plugin from registry (cache check already done by builder)
+                try:
+                    plugin = context.registry.get(workload_cfg.plugin)
+                except Exception as e:
+                    if ui_adapter:
+                        ui_adapter.show_error(f"Skipping {test_name}: {e}")
+                    continue
+
+                # Level 2: Workload Setup
+                if context.config.remote_execution.run_setup:
+                    if ui_adapter:
+                        ui_adapter.show_info(f"Running setup for {test_name} (local)...")
+                    
+                    if not self._setup_service.provision_workload(plugin):
+                        msg = f"Setup failed for {test_name} (local). Skipping."
+                        if ui_adapter:
+                            ui_adapter.show_error(msg)
+                        print(msg)
+                        
+                        # Cleanup attempt if setup failed? Usually setup is idempotent or fail-fast.
+                        # We try teardown just in case.
+                        if context.config.remote_execution.run_teardown:
+                            self._setup_service.teardown_workload(plugin)
+                        continue
+
+                try:
+                    # EXECUTION LOOP (LocalRunner handles repetitions)
+                    runner.run_benchmark(test_name)
+                finally:
+                    # Level 2: Workload Teardown
+                    if context.config.remote_execution.run_teardown:
+                        if ui_adapter:
+                            ui_adapter.show_info(f"Running teardown for {test_name} (local)...")
+                        self._setup_service.teardown_workload(plugin)
+        
+        finally:
+            # Level 1: Global Teardown
+            if context.config.remote_execution.run_teardown:
+                if ui_adapter:
+                    ui_adapter.show_info("Running global teardown (local)...")
+                self._setup_service.teardown_global()
+
         return RunResult(context=context, summary=None)
 
     def _run_remote(

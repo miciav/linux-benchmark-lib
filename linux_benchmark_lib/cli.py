@@ -717,6 +717,11 @@ def run(
         "-i",
         help="Override workload intensity (low, medium, high, user_defined).",
     ),
+    setup: bool = typer.Option(
+        True,
+        "--setup/--no-setup",
+        help="Run environment setup (Global + Workload) before execution.",
+    ),
 ) -> None:
     """Run workloads locally, remotely, or inside the container image."""
     if debug:
@@ -754,6 +759,7 @@ def run(
             debug=debug,
             intensity=intensity,
             ui_adapter=ui,
+            setup=setup,
         )
 
         _print_run_plan(
