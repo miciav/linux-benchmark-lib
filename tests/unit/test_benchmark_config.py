@@ -27,7 +27,7 @@ class TestBenchmarkConfig:
         config = BenchmarkConfig()
         
         assert config.repetitions == 3
-        assert config.test_duration_seconds == 60
+        assert config.test_duration_seconds == 3600
         assert config.metrics_interval_seconds == 1.0
         assert isinstance(config.plugin_settings["stress_ng"], StressNGConfig)
         assert "stress_ng" in config.workloads

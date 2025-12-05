@@ -132,7 +132,7 @@ def test_execute_local_with_setup(run_service, mock_config_service, mock_registr
     # Mock LocalRunner to avoid real execution
     with patch("linux_benchmark_lib.services.run_service.LocalRunner") as MockRunner:
         mock_runner_instance = MockRunner.return_value
-        mock_runner_instance.run_benchmark.return_value = None
+        mock_runner_instance.run_benchmark.return_value = True
         
         # Create session with setup=True (default)
         context = run_service.create_session(mock_config_service, setup=True)

@@ -780,7 +780,7 @@ def run(
         ui.show_error(f"Run failed: {exc}")
         raise typer.Exit(1)
 
-    if result and result.journal_path:
+    if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):
         _print_run_journal_summary(result.journal_path, log_path=result.log_path)
 
     ui.show_success("Run completed.")

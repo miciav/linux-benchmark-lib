@@ -122,7 +122,7 @@ from linux_benchmark_lib.plugin_system.registry import PluginRegistry
 # Create a configuration
 config = BenchmarkConfig(
     repetitions=3,
-    test_duration_seconds=60,
+    test_duration_seconds=3600,
     metrics_interval_seconds=1.0
 )
 

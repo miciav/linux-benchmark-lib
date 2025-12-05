@@ -299,7 +299,18 @@ class LocalRunner:
             "generator_result": generator.get_result(),
             "metrics": {}
         }
-        
+        gen_result = result["generator_result"]
+        failed = False
+        if isinstance(gen_result, dict):
+            if gen_result.get("error"):
+                failed = True
+            rc = gen_result.get("returncode")
+            if rc not in (None, 0):
+                failed = True
+        elif gen_result not in (None, 0, True):
+            failed = True
+        result["success"] = not failed
+
         # Collect data from each collector
         for collector in collectors:
             collector_data = collector.get_data()
@@ -343,7 +354,7 @@ class LocalRunner:
         repetition_override: int | None = None,
         total_repetitions: int | None = None,
         run_id: str | None = None,
-    ) -> None:
+    ) -> bool:
         """
         Run a complete benchmark test.
         
@@ -376,6 +387,7 @@ class LocalRunner:
             else list(range(1, self.config.repetitions + 1))
         )
 
+        success_overall = True
         for rep in reps:
             if rep is None or rep <= 0:
                 raise ValueError("Repetition index must be a positive integer")
@@ -412,11 +424,14 @@ class LocalRunner:
                     repetition=rep
                 )
                 test_results.append(result)
+                if not result.get("success", True):
+                    success_overall = False
                 
             except Exception as e:
                 logger.error(
                     f"Skipping workload '{test_type}' on repetition {rep}: {e}"
                 )
+                success_overall = False
                 break
         
         # Process and save results
@@ -424,6 +439,7 @@ class LocalRunner:
             self._process_results(test_type, test_results)
         
         logger.info(f"Completed benchmark: {test_type}")
+        return success_overall
     
     def _process_results(self, test_name: str, results: List[Dict[str, Any]]) -> None:
         """

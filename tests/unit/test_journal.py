@@ -53,3 +53,12 @@ def test_journal_load_rejects_config_mismatch(tmp_path: Path):
     altered.repetitions = 2
     with pytest.raises(ValueError):
         RunJournal.load(journal_path, config=altered)
+
+
+def test_journal_initializes_local_host_when_none():
+    """Journal should include a localhost placeholder when no remote hosts are defined."""
+    cfg = BenchmarkConfig()
+    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
+    journal = RunJournal.initialize("run-local", cfg, ["stress_ng"])
+    assert any(task.host == "localhost" for task in journal.tasks.values())
+    assert len(journal.tasks) == cfg.repetitions

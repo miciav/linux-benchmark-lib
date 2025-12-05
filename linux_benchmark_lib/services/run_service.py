@@ -13,7 +13,7 @@ from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 
 from ..benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
-from ..journal import RunJournal
+from ..journal import RunJournal, RunStatus
 from ..local_runner import LocalRunner
 from ..plugin_system.registry import PluginRegistry
 from ..plugin_system.interface import WorkloadIntensity
@@ -428,6 +428,12 @@ class RunService:
         ui_adapter: UIAdapter | None = None,
     ) -> RunResult:
         """Execute benchmarks using the provided context."""
+        # Shared journal/log setup for all modes (local, container, remote)
+        journal: RunJournal | None = None
+        journal_path: Path | None = None
+        log_path: Path | None = None
+        run_identifier = run_id
+        dashboard: NoopDashboard | RunDashboard | None = None
         
         # Ensure we always stream output for remote/multipass to show progress
         formatter: AnsibleOutputFormatter | None = None
@@ -480,12 +486,18 @@ class RunService:
                 )
 
         if context.use_container:
+            run_identifier = run_id or self._generate_run_id()
+            journal_path = context.config.output_dir / run_identifier / "run_journal.json"
+            log_path = journal_path.parent / "run.log"
+            journal_host = (
+                context.config.remote_hosts[0].name if context.config.remote_hosts else "container"
+            )
             root = context.docker_workdir or context.config.output_dir.parent.parent.resolve()
             spec = ContainerRunSpec(
                 tests=context.target_tests,
                 cfg_path=context.config_path,
                 config_path=context.config_path,
-                run_id=run_id,
+                run_id=run_identifier,
                 remote=context.use_remote,
                 image=context.docker_image,
                 workdir=root,
@@ -505,14 +517,44 @@ class RunService:
                 
                 try:
                     plugin = context.registry.get(workload_cfg.plugin)
+                    host_name = journal_host
                     self._container_runner.run_workload(spec, test_name, plugin)
                 except Exception as e:
                     if ui_adapter:
                         ui_adapter.show_error(f"Failed to run container for {test_name}: {e}")
                     else:
                         print(f"Error running {test_name}: {e}")
+                    # If the container failed, synthesize a journal entry to reflect the error
+                    journal = RunJournal.initialize(run_identifier, context.config, [test_name])
+                    for rep in range(1, context.config.repetitions + 1):
+                        journal.update_task(
+                            host_name,
+                            test_name,
+                            rep,
+                            RunStatus.FAILED,
+                            action="container_run",
+                            error=str(e),
+                        )
+                    journal.save(journal_path)
+                    return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
 
-            return RunResult(context=context, summary=None)
+            # If the container run completed, prefer the inner journal/log generated inside the container.
+            if not journal_path.exists():
+                # Synthesize a failure journal to avoid reporting "done" when no data is present.
+                journal = RunJournal.initialize(run_identifier, context.config, context.target_tests)
+                for test_name in context.target_tests:
+                    for rep in range(1, context.config.repetitions + 1):
+                        journal.update_task(
+                            journal_host,
+                            test_name,
+                            rep,
+                            RunStatus.FAILED,
+                            action="container_run",
+                            error="Container run did not produce a journal",
+                        )
+                journal.save(journal_path)
+
+            return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path if log_path.exists() else None)
 
         if context.use_remote:
             return self._run_remote(
@@ -524,7 +566,11 @@ class RunService:
             )
 
         # --- LOCAL EXECUTION WITH 2-LEVEL SETUP ---
-        
+        journal, journal_path, dashboard, run_identifier = self._prepare_journal_and_dashboard(
+            context, run_id, ui_adapter
+        )
+        log_path = journal_path.parent / "run.log"
+        log_file = log_path.open("a", encoding="utf-8")
         runner = LocalRunner(context.config, registry=context.registry, ui_adapter=ui_adapter)
         
         # Level 1: Global Setup
@@ -536,7 +582,12 @@ class RunService:
                 if ui_adapter:
                     ui_adapter.show_error(msg)
                 print(msg)
-                return RunResult(context=context, summary=None)
+                log_file.write(msg + "\n")
+                log_file.close()
+                journal.save(journal_path)
+                if isinstance(dashboard, RunDashboard):
+                    dashboard.refresh()
+                return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
 
         try:
             for test_name in context.target_tests:
@@ -550,6 +601,8 @@ class RunService:
                 except Exception as e:
                     if ui_adapter:
                         ui_adapter.show_error(f"Skipping {test_name}: {e}")
+                    log_file.write(f"Skipping {test_name}: {e}\n")
+                    log_file.flush()
                     continue
 
                 # Level 2: Workload Setup
@@ -562,6 +615,8 @@ class RunService:
                         if ui_adapter:
                             ui_adapter.show_error(msg)
                         print(msg)
+                        log_file.write(msg + "\n")
+                        log_file.flush()
                         
                         # Cleanup attempt if setup failed? Usually setup is idempotent or fail-fast.
                         # We try teardown just in case.
@@ -569,9 +624,38 @@ class RunService:
                             self._setup_service.teardown_workload(plugin)
                         continue
 
+                host_name = (context.config.remote_hosts[0].name
+                             if context.config.remote_hosts else "localhost")
+                for rep in range(1, context.config.repetitions + 1):
+                    journal.update_task(host_name, test_name, rep, RunStatus.RUNNING, action="local_run")
+                journal.save(journal_path)
                 try:
                     # EXECUTION LOOP (LocalRunner handles repetitions)
-                    runner.run_benchmark(test_name)
+                    success = runner.run_benchmark(test_name)
+                    status = RunStatus.COMPLETED if success else RunStatus.FAILED
+                    for rep in range(1, context.config.repetitions + 1):
+                        journal.update_task(host_name, test_name, rep, status, action="local_run")
+                    if success:
+                        log_file.write(f"{test_name} completed locally\n")
+                    else:
+                        log_file.write(f"{test_name} failed locally\n")
+                    log_file.flush()
+                    journal.save(journal_path)
+                except Exception as e:
+                    for rep in range(1, context.config.repetitions + 1):
+                        journal.update_task(
+                            host_name,
+                            test_name,
+                            rep,
+                            RunStatus.FAILED,
+                            action="local_run",
+                            error=str(e),
+                        )
+                    journal.save(journal_path)
+                    log_file.write(f"{test_name} failed locally: {e}\n")
+                    log_file.flush()
+                    if ui_adapter:
+                        ui_adapter.show_error(f"{test_name} failed locally: {e}")
                 finally:
                     # Level 2: Workload Teardown
                     if context.config.remote_execution.run_teardown:
@@ -586,7 +670,10 @@ class RunService:
                     ui_adapter.show_info("Running global teardown (local)...")
                 self._setup_service.teardown_global()
 
-        return RunResult(context=context, summary=None)
+        log_file.close()
+        if isinstance(dashboard, RunDashboard):
+            dashboard.refresh()
+        return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
 
     def _run_remote(
         self,

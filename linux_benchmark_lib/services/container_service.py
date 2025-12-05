@@ -118,7 +118,7 @@ class ContainerRunner:
             "-v", f"{spec.artifacts_dir}:/app/benchmark_results",
         ]
 
-        env_args: List[str] = ["-e", "PYTHONPATH=/app", "-e", "LB_CONTAINER_MODE=1"]
+        env_args: List[str] = ["-e", "PYTHONPATH=/app", "-e", "LB_CONTAINER_MODE=1", "-e", "LB_SUPPRESS_SUMMARY=1"]
         if spec.config_path:
             cfg_host = spec.config_path.resolve()
             cfg_in_container = "/tmp/host_config.json"

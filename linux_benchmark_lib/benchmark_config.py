@@ -94,7 +94,7 @@ class BenchmarkConfig:
     
     # Test execution parameters
     repetitions: int = 3
-    test_duration_seconds: int = 60
+    test_duration_seconds: int = 3600
     metrics_interval_seconds: float = 1.0
     warmup_seconds: int = 5
     cooldown_seconds: int = 5
