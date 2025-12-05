@@ -166,12 +166,31 @@ class YabsPlugin(WorkloadPlugin):
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[YabsConfig]:
         # Intensities map to which portions we run; Geekbench remains skipped by default.
+        # Durations: each curl/wget+iperf+fio run adds seconds; cleanup skipped on lower levels to save time.
         if level == WorkloadIntensity.LOW:
-            return YabsConfig(skip_disk=True, skip_geekbench=True, skip_cleanup=True)
+            # Quick check: network only, skip disk to keep runtime short.
+            return YabsConfig(
+                skip_disk=True,
+                skip_network=False,
+                skip_geekbench=True,
+                skip_cleanup=True,
+            )
         if level == WorkloadIntensity.MEDIUM:
-            return YabsConfig(skip_geekbench=True, skip_cleanup=True)
+            # Network + disk, skip cleanup for speed.
+            return YabsConfig(
+                skip_disk=False,
+                skip_network=False,
+                skip_geekbench=True,
+                skip_cleanup=True,
+            )
         if level == WorkloadIntensity.HIGH:
-            return YabsConfig(skip_geekbench=True, skip_cleanup=False)
+            # Full run, include cleanup to leave system tidy.
+            return YabsConfig(
+                skip_disk=False,
+                skip_network=False,
+                skip_geekbench=True,
+                skip_cleanup=False,
+            )
         return None
 
     def get_required_apt_packages(self) -> List[str]:
