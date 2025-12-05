@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock, ANY, patch
 from pathlib import Path
 
-from linux_benchmark_lib.services.run_service import RunService, RunContext
+from linux_benchmark_lib.services.run_service import RunService, RunContext, RunStatus
 from linux_benchmark_lib.benchmark_config import BenchmarkConfig, WorkloadConfig, RemoteExecutionConfig
 from linux_benchmark_lib.services.config_service import ConfigService
 from linux_benchmark_lib.ui.types import UIAdapter
@@ -147,7 +147,7 @@ def test_execute_local_with_setup(run_service, mock_config_service, mock_registr
         mock_runner_instance.run_benchmark.assert_called()
         # Teardown logic is conditional on config.run_teardown which defaults to False/None in mock
         # Let's assume defaults. If we want to test teardown, we should set it in config.
-        
+
     def test_execute_local_skips_on_setup_failure(run_service, mock_config_service, mock_registry, mock_ui):
         """Test that workload execution is skipped if per-workload setup fails."""
         mock_setup = run_service._setup_service
@@ -167,3 +167,10 @@ def test_execute_local_with_setup(run_service, mock_config_service, mock_registr
             mock_runner_instance.run_benchmark.assert_not_called()
             # Should show error
             mock_ui.show_error.assert_any_call(ANY) # Check for error message match if desired
+
+
+def test_parse_progress_line():
+    service = RunService(lambda: MagicMock())
+    line = "LB_PROGRESS host=node1 workload=geekbench rep=2/3 status=running"
+    parsed = service._parse_progress_line(line)
+    assert parsed == {"host": "node1", "workload": "geekbench", "rep": 2, "status": "running"}

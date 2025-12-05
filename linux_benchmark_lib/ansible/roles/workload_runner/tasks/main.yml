@@ -104,6 +104,7 @@
     PYTHONUNBUFFERED: "1"
     PATH: >-
       {{ workload_runner_workdir }}/.venv/bin:{{ ansible_env.PATH | default('/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin') }}
+    LB_RUN_HOST: "{{ inventory_hostname }}"
   loop: "{{ workload_runner_tests | default([]) }}"
   loop_control:
     label: "{{ item }}"

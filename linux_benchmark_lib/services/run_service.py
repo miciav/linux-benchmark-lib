@@ -139,6 +139,7 @@ class RunService:
         self._registry_factory = registry_factory
         self._container_runner = ContainerRunner()
         self._setup_service = SetupService()
+        self._progress_token = "LB_PROGRESS"
 
     def get_run_plan(
         self,
@@ -571,7 +572,25 @@ class RunService:
         )
         log_path = journal_path.parent / "run.log"
         log_file = log_path.open("a", encoding="utf-8")
-        runner = LocalRunner(context.config, registry=context.registry, ui_adapter=ui_adapter)
+        def _progress_cb(host: str, workload: str, rep: int, total: int, status: str) -> None:
+            status_map = {
+                "running": RunStatus.RUNNING,
+                "done": RunStatus.COMPLETED,
+                "failed": RunStatus.FAILED,
+            }
+            mapped = status_map.get(status.lower(), RunStatus.RUNNING)
+            journal.update_task(host, workload, rep, mapped, action="local_run")
+            journal.save(journal_path)
+            if isinstance(dashboard, RunDashboard):
+                dashboard.refresh()
+
+        runner = LocalRunner(
+            context.config,
+            registry=context.registry,
+            ui_adapter=ui_adapter,
+            progress_callback=_progress_cb,
+            host_name=(context.config.remote_hosts[0].name if context.config.remote_hosts else "localhost"),
+        )
         
         # Level 1: Global Setup
         if context.config.remote_execution.run_setup:
@@ -632,9 +651,6 @@ class RunService:
                 try:
                     # EXECUTION LOOP (LocalRunner handles repetitions)
                     success = runner.run_benchmark(test_name)
-                    status = RunStatus.COMPLETED if success else RunStatus.FAILED
-                    for rep in range(1, context.config.repetitions + 1):
-                        journal.update_task(host_name, test_name, rep, status, action="local_run")
                     if success:
                         log_file.write(f"{test_name} completed locally\n")
                     else:
@@ -714,6 +730,24 @@ class RunService:
         log_file = log_path.open("a", encoding="utf-8")
         downstream = output_cb
 
+        def _handle_progress(line: str) -> None:
+            info = self._parse_progress_line(line)
+            if not info:
+                return
+            status_map = {
+                "running": RunStatus.RUNNING,
+                "done": RunStatus.COMPLETED,
+                "failed": RunStatus.FAILED,
+            }
+            mapped = status_map.get(info["status"].lower(), RunStatus.RUNNING)
+            try:
+                journal.update_task(info["host"], info["workload"], info["rep"], mapped, action="remote_run")
+                journal.save(journal_path)
+                if isinstance(dashboard, RunDashboard):
+                    dashboard.refresh()
+            except Exception:
+                pass
+
         def _tee_output(text: str, end: str = "") -> None:
             fragment = text + (end if end else "\n")
             try:
@@ -722,6 +756,8 @@ class RunService:
             except Exception:
                 # Logging should never break the run; swallow write errors.
                 pass
+            for line in fragment.splitlines():
+                _handle_progress(line)
             if downstream:
                 downstream(text, end=end)
 
@@ -844,3 +880,30 @@ class RunService:
     def _generate_run_id() -> str:
         """Generate a timestamped run id matching the controller's format."""
         return datetime.utcnow().strftime("run-%Y%m%d-%H%M%S")
+
+    def _parse_progress_line(self, line: str) -> dict[str, Any] | None:
+        """Parse progress markers emitted by LocalRunner."""
+        line = line.strip()
+        if not line.startswith(self._progress_token):
+            return None
+        parts = line[len(self._progress_token):].strip().split()
+        data: dict[str, Any] = {}
+        for part in parts:
+            if "=" not in part:
+                continue
+            key, val = part.split("=", 1)
+            data[key.strip()] = val.strip()
+        if not {"host", "workload", "rep", "status"} <= data.keys():
+            return None
+        rep_raw = data["rep"]
+        rep_num = 0
+        if "/" in rep_raw:
+            rep_num = int(rep_raw.split("/", 1)[0] or 0)
+        else:
+            rep_num = int(rep_raw or 0)
+        return {
+            "host": data["host"],
+            "workload": data["workload"],
+            "rep": rep_num,
+            "status": data["status"],
+        }

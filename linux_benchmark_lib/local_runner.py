@@ -17,7 +17,7 @@ import sys
 from datetime import UTC, datetime
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 
 from .benchmark_config import BenchmarkConfig, WorkloadConfig
 from .data_handler import DataHandler
@@ -41,7 +41,14 @@ class DateTimeEncoder(JSONEncoder):
 class LocalRunner:
     """Local agent for executing benchmarks on a single node."""
     
-    def __init__(self, config: BenchmarkConfig, registry: PluginRegistry, ui_adapter: UIAdapter | None = None):
+    def __init__(
+        self,
+        config: BenchmarkConfig,
+        registry: PluginRegistry,
+        ui_adapter: UIAdapter | None = None,
+        progress_callback: Optional[Callable[[str, str, int, int, str], None]] = None,
+        host_name: str | None = None,
+    ):
         """
         Initialize the local runner.
         
@@ -64,6 +71,8 @@ class LocalRunner:
         self._output_root: Optional[Path] = None
         self._data_export_root: Optional[Path] = None
         self._log_file_handler_attached: bool = False
+        self._progress_callback = progress_callback
+        self._host_name = host_name or platform.node() or "localhost"
         
     def collect_system_info(self) -> Dict[str, Any]:
         """
@@ -152,7 +161,8 @@ class LocalRunner:
         self,
         test_name: str,
         generator: Any,
-        repetition: int
+        repetition: int,
+        total_repetitions: int,
     ) -> Dict[str, Any]:
         """
         Run a single test with the specified generator.
@@ -310,6 +320,8 @@ class LocalRunner:
         elif gen_result not in (None, 0, True):
             failed = True
         result["success"] = not failed
+        # Emit per-repetition progress after completion
+        self._emit_progress(test_name, repetition, total_repetitions, "done" if not failed else "failed")
 
         # Collect data from each collector
         for collector in collectors:
@@ -347,6 +359,19 @@ class LocalRunner:
                     logger.debug("Skipping cache clearing (no sudo access)")
             except Exception as e:
                 logger.warning(f"Failed to perform pre-test cleanup: {e}")
+
+    def _emit_progress(self, test_name: str, repetition: int, total_repetitions: int, status: str) -> None:
+        """Notify progress callback and stdout marker for remote parsing."""
+        if self._progress_callback:
+            try:
+                self._progress_callback(self._host_name, test_name, repetition, total_repetitions, status)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug("Progress callback failed: %s", exc)
+        # Emit a lightweight marker so Ansible output formatter can parse it.
+        print(
+            f"LB_PROGRESS host={self._host_name} workload={test_name} rep={repetition}/{total_repetitions} status={status}",
+            flush=True,
+        )
     
     def run_benchmark(
         self,
@@ -393,7 +418,7 @@ class LocalRunner:
                 raise ValueError("Repetition index must be a positive integer")
 
             logger.info(f"Starting repetition {rep}/{total_reps}")
-            
+
             try:
                 plugin = self.plugin_registry.get(plugin_name)
                 
@@ -418,10 +443,12 @@ class LocalRunner:
                 self.ui.show_info(
                     f"==> Running workload '{test_type}' (repetition {rep}/{total_reps})"
                 )
+                self._emit_progress(test_type, rep, total_reps, "running")
                 result = self._run_single_test(
                     test_name=test_type,
                     generator=generator,
-                    repetition=rep
+                    repetition=rep,
+                    total_repetitions=total_reps,
                 )
                 test_results.append(result)
                 if not result.get("success", True):
@@ -432,6 +459,7 @@ class LocalRunner:
                     f"Skipping workload '{test_type}' on repetition {rep}: {e}"
                 )
                 success_overall = False
+                self._emit_progress(test_type, rep, total_reps, "failed")
                 break
         
         # Process and save results
