@@ -383,6 +383,8 @@ class RunService:
         # 2. Overrides
         # Force setup flag from CLI onto the config, which drives logic in execute()
         cfg.remote_execution.run_setup = setup
+        if not setup:
+            cfg.remote_execution.run_teardown = False
         
         if repetitions is not None:
             cfg.repetitions = repetitions

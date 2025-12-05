@@ -104,10 +104,12 @@ def test_create_session_setup_flag(run_service, mock_config_service):
     # Test default setup=True (signature default)
     context = run_service.create_session(mock_config_service)
     assert context.config.remote_execution.run_setup is True
+    assert context.config.remote_execution.run_teardown is True
 
     # Test setup=False
     context = run_service.create_session(mock_config_service, setup=False)
     assert context.config.remote_execution.run_setup is False
+    assert context.config.remote_execution.run_teardown is False
 
 def test_create_session_no_workloads_error(run_service, mock_config_service):
     """Test validation error when no workloads are selected."""
