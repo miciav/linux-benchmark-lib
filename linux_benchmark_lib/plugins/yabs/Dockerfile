@@ -16,7 +16,8 @@ WORKDIR /app
 # Copy plugin sources only
 COPY . /app
 
-# Install plugin dependencies (no deps to keep lean; host code mounted at runtime)
-RUN pip install --no-cache-dir --upgrade pip
+# Install runtime Python deps needed by the library when mounting host code
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir psutil pandas numpy jc rich typer PyYAML
 
 CMD ["bash"]
