@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     iperf3 \
     bc \
     tar \
+    sysstat \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
