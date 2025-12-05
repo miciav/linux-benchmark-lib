@@ -56,7 +56,6 @@ stress_ng = "linux_benchmark_lib.plugins.stress_ng.plugin:PLUGIN"
 iperf3 = "linux_benchmark_lib.plugins.iperf3.plugin:PLUGIN"
 fio = "linux_benchmark_lib.plugins.fio.plugin:PLUGIN"
 dd = "linux_benchmark_lib.plugins.dd.plugin:PLUGIN"
-top500_benchmark = "linux_benchmark_lib.plugins.top500_benchmark.plugin:PLUGIN"
 hpl = "linux_benchmark_lib.plugins.hpl.plugin:PLUGIN"
 
 [tool.uv]

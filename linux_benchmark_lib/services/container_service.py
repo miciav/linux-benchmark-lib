@@ -92,7 +92,15 @@ class ContainerRunner:
         image_tag = self.build_plugin_image(spec, plugin)
 
         # We execute the package CLI module inside the container (no uv in the minimal image).
-        inner_cmd = ["python3", "-m", "linux_benchmark_lib.cli", "run", workload_name, "--no-remote"]
+        inner_cmd = [
+            "python3",
+            "-m",
+            "linux_benchmark_lib.cli",
+            "run",
+            workload_name,
+            "--no-remote",
+            "--no-setup",  # Avoid ansible-runner in container images built for workload-only execution
+        ]
         if spec.run_id:
             inner_cmd.extend(["--run-id", spec.run_id])
         if spec.debug:
