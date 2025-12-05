@@ -11,9 +11,11 @@ from dataclasses import dataclass, asdict
 from contextlib import ExitStack
 from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
 from pathlib import Path
+import json
 
 from ..benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
 from ..journal import RunJournal, RunStatus
+from ..events import RunEvent, LogSink
 from ..local_runner import LocalRunner
 from ..plugin_system.registry import PluginRegistry
 from ..plugin_system.interface import WorkloadIntensity
@@ -139,7 +141,7 @@ class RunService:
         self._registry_factory = registry_factory
         self._container_runner = ContainerRunner()
         self._setup_service = SetupService()
-        self._progress_token = "LB_PROGRESS"
+        self._progress_token = "LB_EVENT"
 
     def get_run_plan(
         self,
@@ -730,19 +732,23 @@ class RunService:
         log_file = log_path.open("a", encoding="utf-8")
         downstream = output_cb
 
+        sink = LogSink(journal, journal_path, log_path)
+
         def _handle_progress(line: str) -> None:
             info = self._parse_progress_line(line)
             if not info:
                 return
-            status_map = {
-                "running": RunStatus.RUNNING,
-                "done": RunStatus.COMPLETED,
-                "failed": RunStatus.FAILED,
-            }
-            mapped = status_map.get(info["status"].lower(), RunStatus.RUNNING)
             try:
-                journal.update_task(info["host"], info["workload"], info["rep"], mapped, action="remote_run")
-                journal.save(journal_path)
+                event = RunEvent(
+                    run_id=journal.run_id,
+                    host=info["host"],
+                    workload=info["workload"],
+                    repetition=info["rep"],
+                    total_repetitions=info.get("total", context.config.repetitions),
+                    status=info["status"],
+                    timestamp=time.time(),
+                )
+                sink.emit(event)
                 if isinstance(dashboard, RunDashboard):
                     dashboard.refresh()
             except Exception:
@@ -750,12 +756,6 @@ class RunService:
 
         def _tee_output(text: str, end: str = "") -> None:
             fragment = text + (end if end else "\n")
-            try:
-                log_file.write(fragment)
-                log_file.flush()
-            except Exception:
-                # Logging should never break the run; swallow write errors.
-                pass
             for line in fragment.splitlines():
                 _handle_progress(line)
             if downstream:
@@ -797,6 +797,7 @@ class RunService:
         if isinstance(dashboard, RunDashboard):
             dashboard.refresh()
 
+        sink.close()
         return RunResult(
             context=context,
             summary=summary,
@@ -886,24 +887,21 @@ class RunService:
         line = line.strip()
         if not line.startswith(self._progress_token):
             return None
-        parts = line[len(self._progress_token):].strip().split()
-        data: dict[str, Any] = {}
-        for part in parts:
-            if "=" not in part:
-                continue
-            key, val = part.split("=", 1)
-            data[key.strip()] = val.strip()
-        if not {"host", "workload", "rep", "status"} <= data.keys():
-            return None
-        rep_raw = data["rep"]
-        rep_num = 0
-        if "/" in rep_raw:
-            rep_num = int(rep_raw.split("/", 1)[0] or 0)
-        else:
-            rep_num = int(rep_raw or 0)
-        return {
-            "host": data["host"],
-            "workload": data["workload"],
-            "rep": rep_num,
-            "status": data["status"],
-        }
+        payload = line[len(self._progress_token):].strip()
+        # Try JSON payload first
+        if payload.startswith("{"):
+            try:
+                data = json.loads(payload)
+            except Exception:
+                return None
+            required = {"host", "workload", "repetition", "status"}
+            if not required.issubset(data.keys()):
+                return None
+            return {
+                "host": data["host"],
+                "workload": data["workload"],
+                "rep": data.get("repetition", 0),
+                "status": data["status"],
+                "total": data.get("total_repetitions", 0),
+            }
+        return None

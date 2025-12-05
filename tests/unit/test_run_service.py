@@ -171,6 +171,6 @@ def test_execute_local_with_setup(run_service, mock_config_service, mock_registr
 
 def test_parse_progress_line():
     service = RunService(lambda: MagicMock())
-    line = "LB_PROGRESS host=node1 workload=geekbench rep=2/3 status=running"
+    line = 'LB_EVENT {"host": "node1", "workload": "geekbench", "repetition": 2, "total_repetitions": 3, "status": "running"}'
     parsed = service._parse_progress_line(line)
-    assert parsed == {"host": "node1", "workload": "geekbench", "rep": 2, "status": "running"}
+    assert parsed == {"host": "node1", "workload": "geekbench", "rep": 2, "status": "running", "total": 3}

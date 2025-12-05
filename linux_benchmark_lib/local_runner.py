@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
 from .benchmark_config import BenchmarkConfig, WorkloadConfig
+from .events import RunEvent
 from .data_handler import DataHandler
 from .plugin_system.registry import PluginRegistry, print_plugin_table
 from .plugin_system.interface import WorkloadIntensity
@@ -46,7 +47,7 @@ class LocalRunner:
         config: BenchmarkConfig,
         registry: PluginRegistry,
         ui_adapter: UIAdapter | None = None,
-        progress_callback: Optional[Callable[[str, str, int, int, str], None]] = None,
+        progress_callback: Optional[Callable[[RunEvent], None]] = None,
         host_name: str | None = None,
     ):
         """
@@ -362,16 +363,22 @@ class LocalRunner:
 
     def _emit_progress(self, test_name: str, repetition: int, total_repetitions: int, status: str) -> None:
         """Notify progress callback and stdout marker for remote parsing."""
+        event = RunEvent(
+            run_id=self._current_run_id or "",
+            host=self._host_name,
+            workload=test_name,
+            repetition=repetition,
+            total_repetitions=total_repetitions,
+            status=status,
+            timestamp=time.time(),
+        )
         if self._progress_callback:
             try:
-                self._progress_callback(self._host_name, test_name, repetition, total_repetitions, status)
+                self._progress_callback(event)
             except Exception as exc:  # pragma: no cover - defensive
                 logger.debug("Progress callback failed: %s", exc)
         # Emit a lightweight marker so Ansible output formatter can parse it.
-        print(
-            f"LB_PROGRESS host={self._host_name} workload={test_name} rep={repetition}/{total_repetitions} status={status}",
-            flush=True,
-        )
+        print(f"LB_EVENT {event.to_json()}", flush=True)
     
     def run_benchmark(
         self,
