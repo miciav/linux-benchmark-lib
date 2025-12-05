@@ -81,14 +81,14 @@ class MultipassService:
             image: The Ubuntu image alias to use.
         """
         logger.info(f"Launching Multipass VM '{self.vm_name}' (image: {image})...")
-        # We use conservative defaults: 2 CPUs, 4GB RAM to ensure it runs on most dev machines.
-        # Ideally, these should be configurable via CLI args in the future.
+        # Defaults: more generous to handle I/O heavy workloads (dd/fio).
+        # Ideally configurable via CLI in the future.
         cmd = [
             "multipass", "launch", image,
             "--name", self.vm_name,
-            "--cpus", "2",
-            "--disk", "10G",
-            "--memory", "4G"
+            "--cpus", "4",
+            "--disk", "20G",
+            "--memory", "8G",
         ]
         
         try:

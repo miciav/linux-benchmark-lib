@@ -690,7 +690,17 @@ class BenchmarkController:
                     gen_rc = gen_result.get("returncode")
                     if gen_error or (gen_rc not in (None, 0)):
                         task.status = RunStatus.FAILED
-                        task.current_action = gen_error or "Workload reported an error"
+                        err_parts = []
+                        if gen_error:
+                            err_parts.append(str(gen_error))
+                        if gen_rc not in (None, 0):
+                            err_parts.append(f"returncode={gen_rc}")
+                        cmd = gen_result.get("command")
+                        if cmd:
+                            err_parts.append(f"cmd={cmd}")
+                        message = " | ".join(err_parts) if err_parts else "Workload reported an error"
+                        task.current_action = message
+                        task.error = message
                     elif task.status not in (RunStatus.FAILED, RunStatus.SKIPPED):
                         task.status = RunStatus.COMPLETED
                     updated = True
