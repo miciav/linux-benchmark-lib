@@ -16,7 +16,7 @@ def test_container_run_updates_journal(tmp_path, monkeypatch):
     # Avoid touching a real container engine
     monkeypatch.setattr(service._container_runner, "ensure_engine", lambda engine: None)
 
-    def fake_run_workload(spec, workload_name, plugin):
+    def fake_run_workload(spec, workload_name, plugin, **kwargs):
         run_id = spec.run_id or "test-run"
         journal_dir = spec.artifacts_dir / run_id
         journal_dir.mkdir(parents=True, exist_ok=True)
@@ -28,6 +28,7 @@ def test_container_run_updates_journal(tmp_path, monkeypatch):
             journal.update_task(host_name, workload_name, rep, RunStatus.COMPLETED, action="container_run")
         journal.save(journal_dir / "run_journal.json")
         (journal_dir / "run.log").write_text("ok")
+        return run_id
 
     monkeypatch.setattr(service._container_runner, "run_workload", fake_run_workload)
 

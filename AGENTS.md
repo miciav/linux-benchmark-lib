@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 - The core library now lives under `linux_benchmark_lib/`: config dataclasses (`benchmark_config.py`), controllers (`controller.py`, `local_runner.py`), aggregation (`data_handler.py`), CLI (`cli.py`), and reporting (`reporter.py`).
-- Collectors sit in `linux_benchmark_lib/metric_collectors/` (PSUtil, CLI, perf, eBPF) and workload plugins in `linux_benchmark_lib/plugins/` (stress-ng, iperf3, dd, fio), each with base abstractions plus concrete implementations.
+- Collectors sit in `linux_benchmark_lib/metric_collectors/` (PSUtil, CLI, perf, eBPF) and workload plugins in `linux_benchmark_lib/plugins/` (stress-ng, dd, fio, hpl), each with base abstractions plus concrete implementations.
 - Tests are under `tests/`; sample usage is in `example.py`. Output artifacts are written to `benchmark_results/`, `reports/`, and `data_exports/` (these may be absent until generated).
 
 ## Build, Test, and Development Commands

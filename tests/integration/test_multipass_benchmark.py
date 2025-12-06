@@ -278,7 +278,7 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     config_args["plugin_settings"] = plugin_settings
     config_args["workloads"] = workload_defs
 
-    # Note: iperf3 and others can be added here similarly if needed
+    # Additional workloads can be added here similarly if needed
 
     config = BenchmarkConfig(**config_args)
 

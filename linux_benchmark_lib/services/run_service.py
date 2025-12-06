@@ -7,7 +7,6 @@ from collections import deque
 import os
 import time
 import re
-import ctypes.util
 from dataclasses import dataclass, asdict
 from contextlib import ExitStack
 from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
@@ -297,13 +296,6 @@ class RunService:
                 plan.append(item)
                 continue
 
-            # Special-case iperf3 check
-            if plugin.name == "iperf3":
-                lib = ctypes.util.find_library("iperf")
-                item["status"] = "[green]✓[/green]" if lib else "[red]✗ (Lib Missing)[/red]"
-                plan.append(item)
-                continue
-
             # General Environment Validation
             try:
                 # Create a temporary generator just to check environment
@@ -530,13 +522,14 @@ class RunService:
                 )
 
         if context.use_container:
-            run_identifier = run_id or self._generate_run_id()
-            journal_path = context.config.output_dir / run_identifier / "run_journal.json"
-            log_path = journal_path.parent / "run.log"
-            journal_host = (
-                context.config.remote_hosts[0].name if context.config.remote_hosts else "container"
+            journal, journal_path, dashboard, run_identifier = self._prepare_journal_and_dashboard(
+                context, run_id, ui_adapter
             )
-            root = context.docker_workdir or context.config.output_dir.parent.parent.resolve()
+            log_path = journal_path.parent / "run.log"
+            # Ensure directory exists
+            journal_path.parent.mkdir(parents=True, exist_ok=True)
+
+            root = context.docker_workdir or context.config.output_dir.parent.resolve()
             spec = ContainerRunSpec(
                 tests=context.target_tests,
                 cfg_path=context.config_path,
@@ -552,53 +545,89 @@ class RunService:
                 debug=context.debug,
                 repetitions=context.config.repetitions,
             )
-            
-            # Run each workload in its own container (or shared image)
-            for test_name in context.target_tests:
-                workload_cfg = context.config.workloads.get(test_name)
-                if not workload_cfg:
-                    continue
-                
-                try:
-                    plugin = context.registry.get(workload_cfg.plugin)
-                    host_name = journal_host
-                    self._container_runner.run_workload(spec, test_name, plugin)
-                except Exception as e:
-                    if ui_adapter:
-                        ui_adapter.show_error(f"Failed to run container for {test_name}: {e}")
-                    else:
-                        print(f"Error running {test_name}: {e}")
-                    # If the container failed, synthesize a journal entry to reflect the error
-                    journal = RunJournal.initialize(run_identifier, context.config, [test_name])
-                    for rep in range(1, context.config.repetitions + 1):
-                        journal.update_task(
-                            host_name,
-                            test_name,
-                            rep,
-                            RunStatus.FAILED,
-                            action="container_run",
-                            error=str(e),
-                        )
-                    journal.save(journal_path)
-                    return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
 
-            # If the container run completed, prefer the inner journal/log generated inside the container.
-            if not journal_path.exists():
-                # Synthesize a failure journal to avoid reporting "done" when no data is present.
-                journal = RunJournal.initialize(run_identifier, context.config, context.target_tests)
+            def _container_output_handler(line: str) -> None:
+                # 1. Parse Event for UI updates (In-Memory Only)
+                # We do NOT save to disk here to avoid race conditions with the inner process
+                # which has the volume mounted and writes the authoritative journal.
+                info = self._parse_progress_line(line)
+                if info:
+                    status_map = {
+                        "running": RunStatus.RUNNING,
+                        "done": RunStatus.COMPLETED,
+                        "failed": RunStatus.FAILED,
+                    }
+                    journal.update_task(
+                        info["host"],
+                        info["workload"],
+                        info["rep"],
+                        status_map.get(info["status"].lower(), RunStatus.RUNNING),
+                        action="container_run",
+                    )
+                    if isinstance(dashboard, RunDashboard):
+                        dashboard.refresh()
+                    return  # Do not log event protocol lines to the UI
+
+                # 2. Filter and Log to Dashboard
+                stripped = line.strip()
+                if not stripped:
+                    return
+
+                # Suppress progress bar updates from HeadlessUIAdapter
+                # Format: "workload (rep N): X%"
+                if "(rep " in stripped and stripped.endswith("%"):
+                    return
+
+                if isinstance(dashboard, RunDashboard):
+                    # Only show relevant logs, filter out likely internal noise if needed
+                    dashboard.add_log(line.rstrip())
+                else:
+                    print(line, end="")
+
+            with dashboard.live():
                 for test_name in context.target_tests:
-                    for rep in range(1, context.config.repetitions + 1):
-                        journal.update_task(
-                            journal_host,
-                            test_name,
-                            rep,
-                            RunStatus.FAILED,
-                            action="container_run",
-                            error="Container run did not produce a journal",
+                    workload_cfg = context.config.workloads.get(test_name)
+                    if not workload_cfg:
+                        continue
+                    
+                    try:
+                        plugin = context.registry.get(workload_cfg.plugin)
+                        self._container_runner.run_workload(
+                            spec, test_name, plugin, output_callback=_container_output_handler
                         )
-                journal.save(journal_path)
+                        
+                        # Reload journal from disk to ensure we have the authoritative state
+                        # (e.g. COMPLETED status) written by the inner process.
+                        if journal_path.exists():
+                            try:
+                                disk_journal = RunJournal.load(journal_path)
+                                journal.tasks = disk_journal.tasks
+                            except Exception:
+                                pass
 
-            return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path if log_path.exists() else None)
+                        if isinstance(dashboard, RunDashboard):
+                            dashboard.refresh()
+
+                    except Exception as e:
+                        if ui_adapter:
+                            ui_adapter.show_error(f"Failed to run container for {test_name}: {e}")
+                        else:
+                            print(f"Error running {test_name}: {e}")
+                        
+                        # Fail all reps for this workload
+                        for rep in range(1, context.config.repetitions + 1):
+                            h_name = context.config.remote_hosts[0].name if context.config.remote_hosts else "localhost"
+                            journal.update_task(
+                                h_name,
+                                test_name,
+                                rep,
+                                RunStatus.FAILED,
+                                action="container_run",
+                                error=str(e),
+                            )
+                        journal.save(journal_path)
+
+            return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
 
         if context.use_remote:
             return self._run_remote(
@@ -615,14 +644,14 @@ class RunService:
         )
         log_path = journal_path.parent / "run.log"
         log_file = log_path.open("a", encoding="utf-8")
-        def _progress_cb(host: str, workload: str, rep: int, total: int, status: str) -> None:
+        def _progress_cb(event: RunEvent) -> None:
             status_map = {
                 "running": RunStatus.RUNNING,
                 "done": RunStatus.COMPLETED,
                 "failed": RunStatus.FAILED,
             }
-            mapped = status_map.get(status.lower(), RunStatus.RUNNING)
-            journal.update_task(host, workload, rep, mapped, action="local_run")
+            mapped = status_map.get(event.status.lower(), RunStatus.RUNNING)
+            journal.update_task(event.host, event.workload, event.repetition, mapped, action="local_run")
             journal.save(journal_path)
             if isinstance(dashboard, RunDashboard):
                 dashboard.refresh()
@@ -693,7 +722,7 @@ class RunService:
                 journal.save(journal_path)
                 try:
                     # EXECUTION LOOP (LocalRunner handles repetitions)
-                    success = runner.run_benchmark(test_name)
+                    success = runner.run_benchmark(test_name, run_id=run_identifier)
                     if success:
                         log_file.write(f"{test_name} completed locally\n")
                     else:
@@ -929,6 +958,65 @@ class RunService:
             dashboard = NoopDashboard()
 
         return journal, journal_path, dashboard, run_identifier
+
+    def _build_journal_from_results(
+        self,
+        run_id: str,
+        context: RunContext,
+        host_name: str,
+    ) -> RunJournal:
+        """
+        Construct a RunJournal from existing *_results.json artifacts when a journal is missing.
+        """
+        journal = RunJournal.initialize(run_id, context.config, context.target_tests)
+        output_root = context.config.output_dir / run_id
+        for test_name in context.target_tests:
+            results_file = output_root / f"{test_name}_results.json"
+            if not results_file.exists():
+                continue
+            try:
+                entries = json.loads(results_file.read_text())
+            except Exception:
+                continue
+            for entry in entries or []:
+                rep = entry.get("repetition")
+                if rep is None:
+                    continue
+                task = journal.get_task(host_name, test_name, rep)
+                if not task:
+                    continue
+                start_str = entry.get("start_time")
+                end_str = entry.get("end_time")
+                if start_str:
+                    task.started_at = datetime.fromisoformat(start_str).timestamp()
+                if end_str:
+                    task.finished_at = datetime.fromisoformat(end_str).timestamp()
+                duration = entry.get("duration_seconds")
+                if duration is not None:
+                    task.duration_seconds = float(duration)
+                elif task.started_at is not None and task.finished_at is not None:
+                    task.duration_seconds = max(0.0, task.finished_at - task.started_at)
+                gen_result = entry.get("generator_result") or {}
+                gen_error = gen_result.get("error")
+                gen_rc = gen_result.get("returncode")
+                if gen_error or (gen_rc not in (None, 0)):
+                    journal.update_task(
+                        host_name,
+                        test_name,
+                        rep,
+                        RunStatus.FAILED,
+                        action="container_run",
+                        error=gen_error or f"returncode={gen_rc}",
+                    )
+                else:
+                    journal.update_task(
+                        host_name,
+                        test_name,
+                        rep,
+                        RunStatus.COMPLETED,
+                        action="container_run",
+                    )
+        return journal
 
     @staticmethod
     def _find_latest_journal(config: BenchmarkConfig) -> Path | None:

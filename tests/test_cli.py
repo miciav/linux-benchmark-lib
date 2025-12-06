@@ -98,7 +98,7 @@ def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, 
     cfg = BenchmarkConfig.load(cfg_path)
     assert cfg.workloads["stress_ng"].enabled is True
     assert cfg.workloads["dd"].enabled is True
-    assert cfg.workloads["iperf3"].enabled is False
+    assert cfg.workloads["fio"].enabled is False
 
 
 def test_plugin_select_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):

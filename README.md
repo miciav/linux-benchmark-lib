@@ -12,7 +12,7 @@ It supports two operation modes:
 ## Key Features
 
 - **Multi-level metrics**: PSUtil, Linux CLI tools, perf events, optional eBPF
-- **Plugin workloads**: stress-ng, iperf3, dd, fio shipped as plugins, extensible via entry points
+- **Plugin workloads**: stress-ng, dd, fio, and HPL shipped as plugins, extensible via entry points
 - **Data aggregation**: Pandas DataFrames with metrics as index, repetitions as columns
 - **Reporting**: Text reports and plots (Controller only)
 - **Centralized config**: Typed dataclasses for all knobs
@@ -28,8 +28,8 @@ It supports two operation modes:
 
 - **sysstat**: sar, vmstat, iostat, mpstat, pidstat
 - **stress-ng**: load generator
-- **iperf3**: network testing
 - **fio**: advanced I/O testing
+- **HPL**: Linpack benchmark (optional)
 - **perf**: Linux profiling
 - **bcc/eBPF tools**: optional kernel-level metrics
 

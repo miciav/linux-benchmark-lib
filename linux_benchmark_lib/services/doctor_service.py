@@ -51,7 +51,6 @@ class DoctorService:
             ("numpy", self._check_import("numpy"), True),
             ("matplotlib", self._check_import("matplotlib"), True),
             ("seaborn", self._check_import("seaborn"), True),
-            ("iperf3 (python)", self._check_import("iperf3"), True),
             ("jc", self._check_import("jc"), True),
             ("influxdb-client (optional)", self._check_import("influxdb_client"), False),
         ]

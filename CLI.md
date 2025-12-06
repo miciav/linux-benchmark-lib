@@ -50,7 +50,7 @@ Config management (`lb config ...`)
 Doctor checks (`lb doctor ...`)
 -------------------------------
 - `lb doctor controller` — Python deps + ansible/ansible-runner + config resolution.
-- `lb doctor local-tools` — stress-ng, iperf3, fio, sysstat tools, perf (needed only for local runs).
+- `lb doctor local-tools` — stress-ng, fio, sysstat tools, perf (needed only for local runs).
 - `lb doctor multipass` — check presence of multipass (optional).
 - `lb doctor all` — run all checks.
 

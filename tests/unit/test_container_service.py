@@ -11,10 +11,15 @@ def test_container_runner_forwards_repetitions(monkeypatch, tmp_path):
 
     captured: dict[str, list[str]] = {}
 
-    def fake_run(cmd, check):
+    def fake_popen(cmd, **kwargs):
         captured["cmd"] = cmd
+        mock = MagicMock()
+        mock.stdout = ["line1\n", "line2\n"]
+        mock.wait.return_value = None
+        mock.returncode = 0
+        return mock
 
-    monkeypatch.setattr(container_service.subprocess, "run", fake_run)
+    monkeypatch.setattr(container_service.subprocess, "Popen", fake_popen)
 
     spec = ContainerRunSpec(
         tests=["stress_ng"],

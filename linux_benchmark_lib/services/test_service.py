@@ -149,7 +149,7 @@ class TestService:
             workload_rows = [row_fio()]
             
         else:
-            # Generic fallback for iperf3 or others not explicitly detailed in intensity
+            # Generic fallback for workloads not explicitly detailed in intensity
             duration_label = "default"
             workload_rows = [(selection, "default", "1", "0s/0s", "default config")]
 

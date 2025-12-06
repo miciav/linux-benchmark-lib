@@ -11,7 +11,6 @@ dependencies = [
     "psutil>=7.0.0",
     "pandas>=2.0.0",
     "numpy>=1.24.0",
-    "iperf3>=0.1.11",
     "jc>=1.25.0",
     "rich>=13.7.0",
     "typer>=0.12.5",
@@ -53,7 +52,6 @@ ebpf = "linux_benchmark_lib.plugin_system.builtin:EBPF_COLLECTOR"
 
 [project.entry-points."linux_benchmark.workloads"]
 stress_ng = "linux_benchmark_lib.plugins.stress_ng.plugin:PLUGIN"
-iperf3 = "linux_benchmark_lib.plugins.iperf3.plugin:PLUGIN"
 fio = "linux_benchmark_lib.plugins.fio.plugin:PLUGIN"
 dd = "linux_benchmark_lib.plugins.dd.plugin:PLUGIN"
 hpl = "linux_benchmark_lib.plugins.hpl.plugin:PLUGIN"
