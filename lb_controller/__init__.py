@@ -11,7 +11,7 @@ from linux_benchmark_lib.controller import (
     InventorySpec,
     RunExecutionSummary,
 )
-from linux_benchmark_lib.events import LogSink, ProgressEmitter, RunEvent, StdoutEmitter
+from lb_runner.events import LogSink, ProgressEmitter, RunEvent, StdoutEmitter
 from linux_benchmark_lib.journal import RunJournal, RunStatus
 from linux_benchmark_lib.services.plugin_service import create_registry
 from linux_benchmark_lib.services.run_service import RunService

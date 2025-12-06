@@ -15,7 +15,7 @@ import json
 
 from ..benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
 from ..journal import RunJournal, RunStatus
-from ..events import RunEvent, LogSink
+from lb_runner.events import RunEvent, LogSink
 from ..local_runner import LocalRunner
 from ..plugin_system.registry import PluginRegistry
 from ..plugin_system.interface import WorkloadIntensity

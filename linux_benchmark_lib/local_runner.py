@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
 from .benchmark_config import BenchmarkConfig, WorkloadConfig
-from .events import RunEvent, StdoutEmitter
+from lb_runner.events import RunEvent, StdoutEmitter
 from .data_handler import DataHandler
 from .plugin_system.registry import PluginRegistry, print_plugin_table
 from .plugin_system.interface import WorkloadIntensity

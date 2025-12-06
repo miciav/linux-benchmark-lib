@@ -5,7 +5,7 @@ lightweight runner package without moving code yet.
 """
 
 from linux_benchmark_lib.benchmark_config import BenchmarkConfig
-from linux_benchmark_lib.events import ProgressEmitter, RunEvent, StdoutEmitter
+from lb_runner.events import ProgressEmitter, RunEvent, StdoutEmitter
 from linux_benchmark_lib.local_runner import LocalRunner
 from linux_benchmark_lib.plugin_system.base_generator import BaseGenerator
 from linux_benchmark_lib.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
