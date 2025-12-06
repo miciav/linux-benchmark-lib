@@ -128,6 +128,20 @@ def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[st
 
     target_reps = _target_repetitions(journal)
     columns = ["Host", "Workload", "Run", "Last Action"]
+    
+    def _shorten_action(text: str) -> str:
+        """Clamp the last action column to a sensible width based on terminal size."""
+        import shutil
+        import textwrap
+
+        try:
+            width = shutil.get_terminal_size(fallback=(100, 24)).columns
+        except Exception:
+            width = 100
+
+        # Deduct rough widths for other columns and spacing
+        max_len = max(20, width - 40)
+        return textwrap.shorten(text, width=max_len, placeholder="…") if text else ""
 
     pairs = sorted({(task.host, task.workload) for task in journal.tasks.values()})
     rows: list[list[str]] = []
@@ -141,7 +155,7 @@ def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[st
         last_action = ""
         if tasks:
             latest = max(tasks.values(), key=lambda t: t.timestamp)
-            last_action = latest.error or latest.current_action or ""
+            last_action = _shorten_action(latest.error or latest.current_action or "")
 
         status, progress = _summarize_progress(tasks, target_reps)
         row = [host, workload, f"{status}\n{progress}", last_action]
