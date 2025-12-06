@@ -1,13 +1,11 @@
-"""Service layer utilities for the CLI."""
+"""Compatibility shim for services package."""
 
-from .config_service import ConfigService
-from .plugin_service import create_registry
-from .run_service import RunContext, RunResult, RunService
+from __future__ import annotations
 
-__all__ = [
-    "ConfigService",
-    "RunContext",
-    "RunResult",
-    "RunService",
-    "create_registry",
-]
+import pkgutil
+from pathlib import Path
+
+import lb_controller.services as _services
+
+__path__ = pkgutil.extend_path(__path__, __name__)  # type: ignore[var-annotated]
+__path__.append(str(Path(_services.__file__).parent))
