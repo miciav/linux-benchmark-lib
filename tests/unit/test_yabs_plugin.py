@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 
-import linux_benchmark_lib.plugins.yabs.plugin as yabs_mod
+import lb_runner.plugins.yabs.plugin as yabs_mod
 
 
 def test_yabs_defaults():

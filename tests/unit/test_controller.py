@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
-from linux_benchmark_lib.controller import (
+from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+from lb_controller.controller import (
     AnsibleRunnerExecutor,
     BenchmarkController,
     ExecutionResult,

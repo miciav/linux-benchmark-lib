@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Generator, Optional
 from contextlib import contextmanager
 
-from ..benchmark_config import RemoteHostConfig
+from lb_runner.benchmark_config import RemoteHostConfig
 
 logger = logging.getLogger(__name__)
 

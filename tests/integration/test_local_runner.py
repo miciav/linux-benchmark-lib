@@ -2,14 +2,14 @@ from unittest.mock import MagicMock
 import pytest
 from dataclasses import asdict
 
-from linux_benchmark_lib.benchmark_config import (
+from lb_runner.benchmark_config import (
     BenchmarkConfig,
     MetricCollectorConfig,
     PerfConfig,
     WorkloadConfig,
 )
-from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
-from linux_benchmark_lib.local_runner import LocalRunner
+from lb_runner.plugins.stress_ng.plugin import StressNGConfig
+from lb_runner.local_runner import LocalRunner
 
 def test_run_stress_ng_benchmark(tmp_path, mocker):
     """
@@ -17,8 +17,8 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     Simulates the workload generator and collectors.
     """
     # --- Setup Mocks ---
-    mock_cleanup = mocker.patch('linux_benchmark_lib.local_runner.LocalRunner._pre_test_cleanup')
-    mock_data_handler_cls = mocker.patch('linux_benchmark_lib.local_runner.DataHandler')
+    mock_cleanup = mocker.patch('lb_runner.local_runner.LocalRunner._pre_test_cleanup')
+    mock_data_handler_cls = mocker.patch('lb_runner.local_runner.DataHandler')
     mock_data_handler_instance = mock_data_handler_cls.return_value
     mock_data_handler_instance.process_test_results.return_value = None
 

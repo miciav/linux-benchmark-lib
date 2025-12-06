@@ -77,7 +77,7 @@ class LogSink:
 
     def _update_journal(self, event: RunEvent) -> None:
         """Update journal tasks based on event state."""
-        from .journal import RunStatus
+        from lb_controller.journal import RunStatus
 
         status_map = {
             "running": RunStatus.RUNNING,

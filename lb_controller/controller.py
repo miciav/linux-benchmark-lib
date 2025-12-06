@@ -15,9 +15,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol, Set, Tuple
 import sys
 
-from .benchmark_config import BenchmarkConfig, RemoteHostConfig
-from .journal import RunJournal, RunStatus
-from .services.plugin_service import create_registry
+from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig
+from lb_controller.journal import RunJournal, RunStatus
+from lb_controller.services.plugin_service import create_registry
 
 logger = logging.getLogger(__name__)
 ANSIBLE_ROOT = Path(__file__).resolve().parent / "ansible"

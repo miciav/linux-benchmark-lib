@@ -9,10 +9,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Callable
 
-from ..benchmark_config import BenchmarkConfig
+from lb_runner.benchmark_config import BenchmarkConfig
 from .plugin_service import create_registry
-from ..plugin_system.interface import WorkloadPlugin
-from ..ui.types import UIAdapter
+from lb_runner.plugin_system.interface import WorkloadPlugin
+from lb_ui.ui.types import UIAdapter
 
 
 @dataclass

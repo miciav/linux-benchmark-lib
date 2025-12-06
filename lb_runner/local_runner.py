@@ -20,13 +20,13 @@ from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
-from .benchmark_config import BenchmarkConfig, WorkloadConfig
+from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.events import RunEvent, StdoutEmitter
-from .data_handler import DataHandler
-from .plugin_system.registry import PluginRegistry, print_plugin_table
-from .plugin_system.interface import WorkloadIntensity
-from .ui import get_ui_adapter
-from .ui.types import UIAdapter
+from lb_controller.data_handler import DataHandler
+from lb_runner.plugin_system.registry import PluginRegistry, print_plugin_table
+from lb_runner.plugin_system.interface import WorkloadIntensity
+from lb_ui.ui import get_ui_adapter
+from lb_ui.ui.types import UIAdapter
 
 
 logger = logging.getLogger(__name__)

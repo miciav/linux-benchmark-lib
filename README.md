@@ -114,7 +114,7 @@ See `CLI.md` for the full command reference. Highlights:
 
 ```python
 from linux_benchmark_lib.benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig
-from linux_benchmark_lib.controller import BenchmarkController
+from lb_controller.controller import BenchmarkController
 from linux_benchmark_lib.local_runner import LocalRunner
 from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.registry import PluginRegistry

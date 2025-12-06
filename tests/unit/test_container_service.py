@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
-import linux_benchmark_lib.services.container_service as container_service
-from linux_benchmark_lib.services.container_service import ContainerRunSpec, ContainerRunner
+import lb_controller.services.container_service as container_service
+from lb_controller.services.container_service import ContainerRunSpec, ContainerRunner
 
 
 def test_container_runner_forwards_repetitions(monkeypatch, tmp_path):

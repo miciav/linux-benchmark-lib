@@ -13,15 +13,15 @@ import json
 import time
 from dataclasses import asdict
 
-from linux_benchmark_lib.benchmark_config import (
+from lb_runner.benchmark_config import (
     BenchmarkConfig,
     MetricCollectorConfig,
     WorkloadConfig,
 )
-from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
-from linux_benchmark_lib.local_runner import LocalRunner
-from linux_benchmark_lib.plugin_system.builtin import builtin_plugins
-from linux_benchmark_lib.plugin_system.registry import PluginRegistry
+from lb_runner.plugins.stress_ng.plugin import StressNGConfig
+from lb_runner.local_runner import LocalRunner
+from lb_runner.plugin_system.builtin import builtin_plugins
+from lb_runner.plugin_system.registry import PluginRegistry
 
 
 class TestRealBenchmarkIntegration(unittest.TestCase):

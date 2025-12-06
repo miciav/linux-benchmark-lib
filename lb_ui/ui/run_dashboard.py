@@ -12,7 +12,7 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 
-from ..journal import RunJournal, RunStatus, TaskState
+from lb_controller.journal import RunJournal, RunStatus, TaskState
 
 
 class RunDashboard:

@@ -13,18 +13,18 @@ from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 import json
 
-from ..benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
-from ..journal import RunJournal, RunStatus
+from lb_runner.benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
 from lb_runner.events import RunEvent, LogSink
-from ..local_runner import LocalRunner
-from ..plugin_system.registry import PluginRegistry
-from ..plugin_system.interface import WorkloadIntensity
+from lb_runner.local_runner import LocalRunner
+from lb_runner.plugin_system.registry import PluginRegistry
+from lb_runner.plugin_system.interface import WorkloadIntensity
+from lb_controller.journal import RunJournal, RunStatus
 from .container_service import ContainerRunner, ContainerRunSpec
 from .multipass_service import MultipassService
 from .setup_service import SetupService
-from ..ui.console_adapter import ConsoleUIAdapter
-from ..ui.run_dashboard import NoopDashboard, RunDashboard
-from ..ui.types import UIAdapter
+from lb_ui.ui.console_adapter import ConsoleUIAdapter
+from lb_ui.ui.run_dashboard import NoopDashboard, RunDashboard
+from lb_ui.ui.types import UIAdapter
 
 if TYPE_CHECKING:
     from ..controller import BenchmarkController, RunExecutionSummary
@@ -101,7 +101,7 @@ class AnsibleOutputFormatter:
             return
 
         # Pass through interesting lines from the benchmark script
-        if "linux_benchmark_lib.local_runner" in line or "Running test" in line or "Progress:" in line or "Completed" in line:
+        if "lb_runner.local_runner" in line or "Running test" in line or "Progress:" in line or "Completed" in line:
             self._emit(f"  {line}", log_sink)
             return
         

@@ -2,7 +2,7 @@
 
 import pytest
 
-from linux_benchmark_lib.plugins.fio.plugin import FIOConfig, FIOGenerator
+from lb_runner.plugins.fio.plugin import FIOConfig, FIOGenerator
 
 
 def _make_generator() -> FIOGenerator:

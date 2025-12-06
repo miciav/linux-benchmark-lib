@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
-from ..benchmark_config import RemoteHostConfig
-from ..plugin_system.interface import WorkloadPlugin
+from lb_runner.benchmark_config import RemoteHostConfig
+from lb_runner.plugin_system.interface import WorkloadPlugin
 
 if TYPE_CHECKING:
     from ..controller import AnsibleRunnerExecutor, InventorySpec

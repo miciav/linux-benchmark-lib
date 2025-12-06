@@ -1,5 +1,5 @@
-from linux_benchmark_lib.cli import _build_journal_summary
-from linux_benchmark_lib.journal import RunJournal, RunStatus, TaskState
+from lb_ui.cli import _build_journal_summary
+from lb_controller.journal import RunJournal, RunStatus, TaskState
 
 
 def test_build_journal_summary_collapses_repetitions():

@@ -1,3 +1,6 @@
-"""Compatibility root for legacy imports."""
+"""Compatibility root for legacy imports.
 
-from lb_ui import *  # noqa: F401,F403
+Imports have moved to lb_runner, lb_controller, and lb_ui. This package
+remains to avoid breaking existing module paths but does not eagerly
+import subpackages to prevent circular dependencies.
+"""

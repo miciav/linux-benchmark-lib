@@ -1,7 +1,7 @@
 import subprocess
 import pytest
 
-import linux_benchmark_lib.plugins.geekbench.plugin as gb_mod
+import lb_runner.plugins.geekbench.plugin as gb_mod
 
 
 def test_geekbench_defaults():

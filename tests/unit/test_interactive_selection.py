@@ -2,11 +2,11 @@
 
 from unittest.mock import MagicMock, patch
 
-from linux_benchmark_lib.services.test_service import TestService
+from lb_controller.services.test_service import TestService
 
 
-@patch("linux_benchmark_lib.services.test_service.prompt_multipass")
-@patch("linux_benchmark_lib.services.test_service.sys.stdin.isatty", return_value=True)
+@patch("lb_controller.services.test_service.prompt_multipass")
+@patch("lb_controller.services.test_service.sys.stdin.isatty", return_value=True)
 def test_select_multipass_interactive(mock_isatty, mock_prompt):
     """Test interactive selection calls the Textual prompt and returns its value."""
     mock_prompt.return_value = ("fio", "high")
@@ -21,7 +21,7 @@ def test_select_multipass_interactive(mock_isatty, mock_prompt):
     assert level == "high"
 
 
-@patch("linux_benchmark_lib.services.test_service.sys.stdin.isatty", return_value=False)
+@patch("lb_controller.services.test_service.sys.stdin.isatty", return_value=False)
 def test_select_multipass_non_interactive(mock_isatty):
     """Test fallback when not interactive."""
     service = TestService()

@@ -11,8 +11,8 @@ from typing import Iterable
 
 import pytest
 
-from linux_benchmark_lib.plugin_system.builtin import builtin_plugins
-from linux_benchmark_lib.plugin_system.registry import PluginRegistry
+from lb_runner.plugin_system.builtin import builtin_plugins
+from lb_runner.plugin_system.registry import PluginRegistry
 
 MULTIPASS_ENV_FLAG = "MULTIPASS_TESTS"
 

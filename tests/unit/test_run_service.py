@@ -2,10 +2,10 @@ import pytest
 from unittest.mock import MagicMock, ANY, patch
 from pathlib import Path
 
-from linux_benchmark_lib.services.run_service import RunService, RunContext, RunStatus
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig, WorkloadConfig, RemoteExecutionConfig
-from linux_benchmark_lib.services.config_service import ConfigService
-from linux_benchmark_lib.ui.types import UIAdapter
+from lb_controller.services.run_service import RunService, RunContext, RunStatus
+from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig, RemoteExecutionConfig
+from lb_controller.services.config_service import ConfigService
+from lb_ui.ui.types import UIAdapter
 
 @pytest.fixture
 def mock_registry():
@@ -130,7 +130,7 @@ def test_execute_local_with_setup(run_service, mock_config_service, mock_registr
     mock_setup.teardown_global = MagicMock(return_value=True)
     
     # Mock LocalRunner to avoid real execution
-    with patch("linux_benchmark_lib.services.run_service.LocalRunner") as MockRunner:
+    with patch("lb_controller.services.run_service.LocalRunner") as MockRunner:
         mock_runner_instance = MockRunner.return_value
         mock_runner_instance.run_benchmark.return_value = True
         
@@ -156,7 +156,7 @@ def test_execute_local_with_setup(run_service, mock_config_service, mock_registr
         mock_setup.teardown_workload = MagicMock(return_value=True) # Prevent real call
         mock_setup.teardown_global = MagicMock(return_value=True)   # Prevent real call
         
-        with patch("linux_benchmark_lib.services.run_service.LocalRunner") as MockRunner:
+        with patch("lb_controller.services.run_service.LocalRunner") as MockRunner:
             mock_runner_instance = MockRunner.return_value
             
             context = run_service.create_session(mock_config_service, setup=True, ui_adapter=mock_ui)

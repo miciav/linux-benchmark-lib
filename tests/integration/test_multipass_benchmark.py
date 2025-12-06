@@ -19,23 +19,23 @@ import pytest
 from dataclasses import asdict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ANSIBLE_ROOT = REPO_ROOT / "linux_benchmark_lib" / "ansible"
+ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 
-from linux_benchmark_lib.benchmark_config import (
+from lb_runner.benchmark_config import (
     BenchmarkConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
 )
-from linux_benchmark_lib.plugins.dd.plugin import DDConfig
-from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
-from linux_benchmark_lib.controller import AnsibleRunnerExecutor, BenchmarkController
+from lb_runner.plugins.dd.plugin import DDConfig
+from lb_runner.plugins.stress_ng.plugin import StressNGConfig
+from lb_controller.controller import AnsibleRunnerExecutor, BenchmarkController
 from tests.integration.multipass_utils import (
     get_intensity,
     make_test_ansible_env,
     stage_private_key,
 )
-from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
+from lb_runner.plugins.fio.plugin import FIOConfig
 
 # Constants
 VM_NAME_PREFIX = "benchmark-test-vm"
