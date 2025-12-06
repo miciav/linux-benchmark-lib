@@ -1107,5 +1107,10 @@ def list_plugins(
     )
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console script entrypoint (Typer app)."""
     app()
+
+
+if __name__ == "__main__":
+    main()
