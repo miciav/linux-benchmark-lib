@@ -72,11 +72,27 @@
         cmd: "{{ (lb_python_bin.stdout or 'python3') }} -m venv {{ lb_workdir }}/.venv"
         creates: "{{ lb_workdir }}/.venv/bin/python"
 
-    - name: Install lb-runner package into virtualenv
-      ansible.builtin.pip:
-        name: "{{ runner_package | default('lb_runner') }}"
-        virtualenv: "{{ lb_workdir }}/.venv"
-        state: latest
+    - name: Synchronize benchmark library sources to remote host
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../../{{ item }}"
+        dest: "{{ lb_workdir }}/"
+        mode: preserve
+      loop:
+        - lb_runner
+        - lb_controller
+        - lb_ui
+        - pyproject.toml
+        - uv.lock
+
+    - name: Upgrade pip inside virtual environment
+      ansible.builtin.command:
+        cmd: "{{ lb_workdir }}/.venv/bin/pip install --upgrade pip"
+        chdir: "{{ lb_workdir }}"
+
+    - name: Install benchmark library in editable mode
+      ansible.builtin.command:
+        cmd: "{{ lb_workdir }}/.venv/bin/pip install -e ."
+        chdir: "{{ lb_workdir }}"
 
     - name: Ensure benchmark output directory exists
       ansible.builtin.file:
