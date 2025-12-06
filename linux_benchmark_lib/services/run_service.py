@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from collections import deque
 import os
 import time
 import re
@@ -37,6 +38,10 @@ class AnsibleOutputFormatter:
         self.task_pattern = re.compile(r"TASK \[(.*?)\]")
         self.bench_pattern = re.compile(r"Running benchmark: (.*)")
         self.current_phase = "Initializing" # Default phase
+        self._always_show_tasks = (
+            "workload_runner : Build repetitions list",
+            "workload_runner : Run benchmark via local runner (per repetition)",
+        )
     
     def set_phase(self, phase: str):
         self.current_phase = phase
@@ -60,6 +65,11 @@ class AnsibleOutputFormatter:
         if not line:
             return
 
+        progress = self._format_progress(line)
+        if progress:
+            self._emit(progress, log_sink)
+            return
+
         # Filter noise
         if any(x in line for x in ["PLAY [", "GATHERING FACTS", "RECAP", "ok:", "skipping:", "included:"]):
             return
@@ -73,7 +83,11 @@ class AnsibleOutputFormatter:
             # Cleanup "workload_runner :" prefix if present
             if " : " in task_name:
                 _, task_name = task_name.split(" : ", 1)
-            self._emit(f"• [{self.current_phase}] {task_name}", log_sink)
+            always = task_match.group(1).strip()
+            if always in self._always_show_tasks:
+                self._emit(f"• {always}", log_sink)
+            else:
+                self._emit(f"• [{self.current_phase}] {task_name}", log_sink)
             return
 
         # Format Benchmark Start (from python script)
@@ -100,6 +114,33 @@ class AnsibleOutputFormatter:
         # Pass through errors
         if "fatal:" in line or "ERROR" in line or "failed:" in line:
             self._emit(f"[!] {line}", log_sink)
+
+    def _format_progress(self, line: str) -> str | None:
+        """Render LB_EVENT progress lines into a concise message."""
+        token_idx = line.find("LB_EVENT")
+        if token_idx == -1:
+            return None
+        payload = line[token_idx + len("LB_EVENT"):].strip()
+        if "{" not in payload or "}" not in payload:
+            return None
+        try:
+            start = payload.find("{")
+            end = payload.rfind("}") + 1
+            data = json.loads(payload[start:end])
+        except Exception:
+            return None
+        host = data.get("host", "?")
+        workload = data.get("workload", "?")
+        rep = data.get("repetition", "?")
+        total = data.get("total_repetitions") or data.get("total") or "?"
+        status = (data.get("status") or "").lower()
+        if status == "running":
+            return f"{rep}/{total} running on {host} ({workload})"
+        if status == "done":
+            return f"{rep}/{total} completed on {host} ({workload})"
+        if status == "failed":
+            return f"{rep}/{total} failed on {host} ({workload})"
+        return f"{rep}/{total} {status} on {host} ({workload})"
 
 
 @dataclass
@@ -733,6 +774,29 @@ class RunService:
         downstream = output_cb
 
         sink = LogSink(journal, journal_path, log_path)
+        recent_events: deque[tuple[str, str, int, str]] = deque()
+        dedupe_limit = 200
+        recent_set: set[tuple[str, str, int, str]] = set()
+
+        def _ingest_event(event: RunEvent, source: str = "unknown") -> None:
+            key = (event.host, event.workload, event.repetition, event.status)
+            if key in recent_set:
+                return
+            recent_events.append(key)
+            recent_set.add(key)
+            # Keep the dedupe window bounded
+            if len(recent_events) > dedupe_limit:
+                old = recent_events.popleft()
+                if old in recent_set:
+                    recent_set.remove(old)
+
+            sink.emit(event)
+            if isinstance(dashboard, RunDashboard):
+                dashboard.mark_event(source)
+                dashboard.add_log(
+                    f"{event.repetition}/{event.total_repetitions} {event.status} on {event.host} ({event.workload})"
+                )
+                dashboard.refresh()
 
         def _handle_progress(line: str) -> None:
             info = self._parse_progress_line(line)
@@ -746,16 +810,21 @@ class RunService:
                     repetition=info["rep"],
                     total_repetitions=info.get("total", context.config.repetitions),
                     status=info["status"],
+                    message=info.get("message") or "",
                     timestamp=time.time(),
                 )
-                sink.emit(event)
-                if isinstance(dashboard, RunDashboard):
-                    dashboard.refresh()
+                _ingest_event(event, source="stdout")
             except Exception:
                 pass
 
         def _tee_output(text: str, end: str = "") -> None:
             fragment = text + (end if end else "\n")
+            # Log everything for post-mortem debugging.
+            try:
+                log_file.write(fragment)
+                log_file.flush()
+            except Exception:
+                pass
             for line in fragment.splitlines():
                 _handle_progress(line)
             if downstream:
@@ -885,14 +954,22 @@ class RunService:
     def _parse_progress_line(self, line: str) -> dict[str, Any] | None:
         """Parse progress markers emitted by LocalRunner."""
         line = line.strip()
-        if not line.startswith(self._progress_token):
+        token_idx = line.find(self._progress_token)
+        if token_idx == -1:
             return None
-        payload = line[len(self._progress_token):].strip()
-        # Try JSON payload first
-        if payload.startswith("{"):
-            try:
-                data = json.loads(payload)
-            except Exception:
+        payload = line[token_idx + len(self._progress_token):].strip()
+        # Try to extract a JSON object even if wrapped inside other text.
+        if "{" in payload and "}" in payload:
+            start = payload.find("{")
+            end = payload.rfind("}") + 1
+            candidate = payload[start:end]
+            for attempt in (candidate, candidate.replace(r"\"", '"')):
+                try:
+                    data = json.loads(attempt)
+                    break
+                except Exception:
+                    data = None
+            if not data:
                 return None
             required = {"host", "workload", "repetition", "status"}
             if not required.issubset(data.keys()):
@@ -903,5 +980,6 @@ class RunService:
                 "rep": data.get("repetition", 0),
                 "status": data["status"],
                 "total": data.get("total_repetitions", 0),
+                "message": data.get("message"),
             }
         return None

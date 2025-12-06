@@ -1,0 +1,114 @@
+- name: Set workload repetition context
+  ansible.builtin.set_fact:
+    workload_runner_current_workload: "{{ workload_item[0] }}"
+    workload_runner_current_rep: "{{ workload_item[1] | int }}"
+    workload_runner_total_reps: >-
+      {{
+        (workload_runner_reps | length)
+        if workload_runner_reps is defined and (workload_runner_reps | length) > 0
+        else (workload_runner_repetitions_total | default(1) | int)
+      }}
+
+- name: Emit start event for repetition
+  ansible.builtin.debug:
+    msg: >-
+      LB_EVENT {{
+        {
+          "run_id": run_id | default(""),
+          "host": inventory_hostname,
+          "workload": workload_runner_current_workload,
+          "repetition": workload_runner_current_rep,
+          "total_repetitions": workload_runner_total_reps,
+          "status": "running"
+        } | to_json
+      }}
+
+- name: Run workload repetition via LocalRunner
+  block:
+    - name: Execute {{ workload_runner_current_workload }} repetition {{ workload_runner_current_rep }}
+      ansible.builtin.shell: |
+        set -e
+        export PYTHONUNBUFFERED=1
+        "{{ lb_workdir | default('/opt/lb') }}/.venv/bin/python" - <<'PY'
+        import json
+        import sys
+        import time
+        from pathlib import Path
+
+        from linux_benchmark_lib.benchmark_config import BenchmarkConfig
+        from linux_benchmark_lib.local_runner import LocalRunner
+        from linux_benchmark_lib.services.plugin_service import create_registry
+
+        cfg_path = Path("{{ workload_runner_workdir }}/benchmark_config.generated.json")
+        cfg = BenchmarkConfig.from_dict(json.loads(cfg_path.read_text()))
+
+        runner = LocalRunner(
+            cfg,
+            registry=create_registry(),
+            ui_adapter=None,
+            progress_callback=None,
+            host_name="{{ inventory_hostname }}",
+        )
+
+        start = time.time()
+        success = runner.run_benchmark(
+            "{{ workload_runner_current_workload }}",
+            repetition_override={{ workload_runner_current_rep }},
+            total_repetitions={{ workload_runner_total_reps }},
+            run_id="{{ run_id }}",
+        )
+        duration = time.time() - start
+        payload = {
+            "run_id": "{{ run_id }}",
+            "host": "{{ inventory_hostname }}",
+            "workload": "{{ workload_runner_current_workload }}",
+            "repetition": {{ workload_runner_current_rep }},
+            "total_repetitions": {{ workload_runner_total_reps }},
+            "status": "done" if success else "failed",
+            "message": f"duration={duration:.1f}s",
+        }
+        print("LB_EVENT " + json.dumps(payload), flush=True)
+        if not success:
+            sys.exit(1)
+        PY
+      args:
+        chdir: "{{ workload_runner_workdir }}"
+      environment:
+        LB_RUN_HOST: "{{ inventory_hostname }}"
+      register: workload_runner_rep_result
+      changed_when: true
+
+    - name: Emit completion event for repetition
+      ansible.builtin.debug:
+        msg: >-
+          LB_EVENT {{
+            {
+              "run_id": run_id | default(""),
+              "host": inventory_hostname,
+              "workload": workload_runner_current_workload,
+              "repetition": workload_runner_current_rep,
+              "total_repetitions": workload_runner_total_reps,
+              "status": "done"
+            } | to_json
+          }}
+      when: workload_runner_rep_result.rc == 0
+
+  rescue:
+    - name: Emit failure event for repetition
+      ansible.builtin.debug:
+        msg: >-
+          LB_EVENT {{
+            {
+              "run_id": run_id | default(""),
+              "host": inventory_hostname,
+              "workload": workload_runner_current_workload,
+              "repetition": workload_runner_current_rep,
+              "total_repetitions": workload_runner_total_reps,
+              "status": "failed",
+              "message": (workload_runner_rep_result.stderr | default(workload_runner_rep_result.stdout | default(''))) | string
+            } | to_json
+          }}
+    - name: Fail workload repetition
+      ansible.builtin.fail:
+        msg: >-
+          Workload {{ workload_runner_current_workload }} repetition {{ workload_runner_current_rep }} failed (rc={{ workload_runner_rep_result.rc | default('unknown') }})

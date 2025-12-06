@@ -173,4 +173,24 @@ def test_parse_progress_line():
     service = RunService(lambda: MagicMock())
     line = 'LB_EVENT {"host": "node1", "workload": "geekbench", "repetition": 2, "total_repetitions": 3, "status": "running"}'
     parsed = service._parse_progress_line(line)
-    assert parsed == {"host": "node1", "workload": "geekbench", "rep": 2, "status": "running", "total": 3}
+    assert parsed == {
+        "host": "node1",
+        "workload": "geekbench",
+        "rep": 2,
+        "status": "running",
+        "total": 3,
+        "message": None,
+    }
+
+def test_parse_progress_line_escaped():
+    service = RunService(lambda: MagicMock())
+    line = '    "msg": "LB_EVENT {\\"host\\": \\"node1\\", \\"workload\\": \\"geekbench\\", \\"repetition\\": 2, \\"total_repetitions\\": 3, \\"status\\": \\"running\\"}"'
+    parsed = service._parse_progress_line(line)
+    assert parsed == {
+        "host": "node1",
+        "workload": "geekbench",
+        "rep": 2,
+        "status": "running",
+        "total": 3,
+        "message": None,
+    }

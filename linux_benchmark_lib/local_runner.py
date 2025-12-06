@@ -8,6 +8,7 @@ managing the overall benchmark workflow.
 from __future__ import annotations
 
 import json
+import os
 import logging
 import platform
 import shutil
@@ -20,7 +21,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
 from .benchmark_config import BenchmarkConfig, WorkloadConfig
-from .events import RunEvent
+from .events import RunEvent, StdoutEmitter
 from .data_handler import DataHandler
 from .plugin_system.registry import PluginRegistry, print_plugin_table
 from .plugin_system.interface import WorkloadIntensity
@@ -73,7 +74,8 @@ class LocalRunner:
         self._data_export_root: Optional[Path] = None
         self._log_file_handler_attached: bool = False
         self._progress_callback = progress_callback
-        self._host_name = host_name or platform.node() or "localhost"
+        self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
+        self._progress_emitter = StdoutEmitter()
         
     def collect_system_info(self) -> Dict[str, Any]:
         """
@@ -377,8 +379,11 @@ class LocalRunner:
                 self._progress_callback(event)
             except Exception as exc:  # pragma: no cover - defensive
                 logger.debug("Progress callback failed: %s", exc)
-        # Emit a lightweight marker so Ansible output formatter can parse it.
-        print(f"LB_EVENT {event.to_json()}", flush=True)
+        try:
+            self._progress_emitter.emit(event)
+        except Exception:
+            # Never break workload on progress path
+            pass
     
     def run_benchmark(
         self,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from typing import Dict, Iterable, List
+import time
 
 from rich.console import Console
 from rich.layout import Layout
@@ -34,6 +35,9 @@ class RunDashboard:
             Layout(name="logs", size=self.max_log_lines + 2),
         )
         self._live: Live | None = None
+        self.event_source: str = "waiting"
+        self.last_event_ts: float | None = None
+        self._intensity = {row.get("name"): row.get("intensity", "-") for row in plan_rows}
 
     @contextmanager
     def live(self):
@@ -67,7 +71,8 @@ class RunDashboard:
     def _render_logs(self) -> Panel:
         """Render the rolling log stream."""
         lines = self.log_buffer[-self.max_log_lines :]
-        text = "\n".join(lines)
+        status = self._event_status_line()
+        text = "\n".join([status] + lines) if status else "\n".join(lines)
         return Panel(
             text,
             title="[bold]Log Stream[/bold]",
@@ -78,14 +83,17 @@ class RunDashboard:
         table = Table(expand=True, box=None, padding=(0, 1))
         table.add_column("Host", style="bold cyan", width=24)
         table.add_column("Workload", width=10)
+        table.add_column("Intensity", width=10)
         table.add_column("Status", justify="center", width=10)
         table.add_column("Progress", justify="center", width=10)
         table.add_column("Current Action", style="dim italic")
+        table.add_column("Last Rep Time", justify="right", width=12)
 
         target_reps = self._target_repetitions()
 
         for host, workload in self._unique_pairs():
-            row: List[str] = [host, workload]
+            intensity = self._intensity.get(workload, "-")
+            row: List[str] = [host, workload, str(intensity)]
             tasks = self._tasks_for(host, workload)
             status = self._aggregate_status(tasks)
             active_action = ""
@@ -96,13 +104,16 @@ class RunDashboard:
             if running_task:
                 active_action = running_task.current_action or "Running..."
 
+            started = self._started_repetitions(tasks)
             completed = self._completed_repetitions(tasks)
             total = max(self._max_repetitions(), len(tasks)) or 0
+            last_duration = self._latest_duration(tasks)
 
             row.extend([
                 status,
-                f"{completed}/{total}",
+                f"{started}/{total}",
                 active_action,
+                last_duration,
             ])
             table.add_row(*row)
 
@@ -120,6 +131,18 @@ class RunDashboard:
         # Trim occasionally to avoid unbounded growth
         if len(self.log_buffer) > self.max_log_lines * 5:
             self.log_buffer = self.log_buffer[-self.max_log_lines * 5 :]
+
+    def mark_event(self, source: str) -> None:
+        """Record that an event arrived from the given source (e.g., tcp/stdout)."""
+        self.event_source = source or "unknown"
+        self.last_event_ts = time.monotonic()
+
+    def _event_status_line(self) -> str:
+        if self.last_event_ts is None:
+            return "[dim]Event stream: waiting[/dim]"
+        age = time.monotonic() - self.last_event_ts
+        freshness = "just now" if age < 1.0 else f"{age:.1f}s ago"
+        return f"[green]Event stream: live ({self.event_source}, {freshness})[/green]"
 
     def _target_repetitions(self) -> int:
         from_metadata = self.journal.metadata.get("repetitions")
@@ -189,6 +212,28 @@ class RunDashboard:
     @staticmethod
     def _completed_repetitions(tasks: Dict[int, TaskState]) -> int:
         return sum(1 for task in tasks.values() if task.status in {RunStatus.COMPLETED, RunStatus.SKIPPED})
+
+    @staticmethod
+    def _started_repetitions(tasks: Dict[int, TaskState]) -> int:
+        """Count repetitions that have begun (running, completed, failed, or skipped)."""
+        started_statuses = {
+            RunStatus.RUNNING,
+            RunStatus.COMPLETED,
+            RunStatus.FAILED,
+            RunStatus.SKIPPED,
+        }
+        return sum(1 for task in tasks.values() if task.status in started_statuses)
+
+    @staticmethod
+    def _latest_duration(tasks: Dict[int, TaskState]) -> str:
+        """Return the most recent duration (s) for any repetition."""
+        if not tasks:
+            return "-"
+        durations = [t.duration_seconds for t in tasks.values() if t.duration_seconds]
+        if not durations:
+            return "-"
+        latest = durations[-1]
+        return f"{latest:.1f}s"
 
 
 class NoopDashboard:
