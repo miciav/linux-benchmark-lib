@@ -130,7 +130,7 @@ class ContainerRunner:
             "python3",
             "-u",  # Force unbuffered binary stdout
             "-m",
-            "linux_benchmark_lib.cli",
+            "lb_ui.cli",
             "run",
             workload_name,
             "--no-remote",
