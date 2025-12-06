@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional, Tuple, Any
 from dataclasses import asdict
 
-from ..benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
 
 DEFAULT_CONFIG_NAME = "config.json"

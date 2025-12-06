@@ -11,15 +11,15 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
-from ..benchmark_config import RemoteHostConfig
-from ..plugin_system.interface import WorkloadPlugin
+from lb_runner.benchmark_config import RemoteHostConfig
+from lb_runner.plugin_system.interface import WorkloadPlugin
 
 if TYPE_CHECKING:
     from ..controller import AnsibleRunnerExecutor, InventorySpec
 
 logger = logging.getLogger(__name__)
 
-# Assuming standard layout: linux_benchmark_lib/ansible/playbooks
+# Assuming standard layout: lb_controller/ansible/playbooks
 ANSIBLE_ROOT = Path(__file__).resolve().parent.parent / "ansible"
 
 

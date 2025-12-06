@@ -32,29 +32,34 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["linux_benchmark_lib*"]
+include = ["linux_benchmark_lib*", "lb_runner*", "lb_controller*", "lb_ui*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [tool.setuptools.package-data]
-linux_benchmark_lib = [
-    "ansible/**/*",
+lb_runner = [
     "plugins/**/*",
+]
+lb_controller = [
+    "ansible/**/*",
 ]
 
 [project.scripts]
-lb = "linux_benchmark_lib.cli:app"
+lb = "lb_ui.cli:main"
+lb-runner = "lb_runner.cli:main"
+lb-controller = "lb_controller.cli:main"
+lb-ui = "lb_ui.cli:main"
 
 [project.entry-points."linux_benchmark.collectors"]
-psutil = "linux_benchmark_lib.plugin_system.builtin:PSUTIL_COLLECTOR"
-cli = "linux_benchmark_lib.plugin_system.builtin:CLI_COLLECTOR"
-perf = "linux_benchmark_lib.plugin_system.builtin:PERF_COLLECTOR"
-ebpf = "linux_benchmark_lib.plugin_system.builtin:EBPF_COLLECTOR"
+psutil = "lb_runner.plugin_system.builtin:PSUTIL_COLLECTOR"
+cli = "lb_runner.plugin_system.builtin:CLI_COLLECTOR"
+perf = "lb_runner.plugin_system.builtin:PERF_COLLECTOR"
+ebpf = "lb_runner.plugin_system.builtin:EBPF_COLLECTOR"
 
 [project.entry-points."linux_benchmark.workloads"]
-stress_ng = "linux_benchmark_lib.plugins.stress_ng.plugin:PLUGIN"
-fio = "linux_benchmark_lib.plugins.fio.plugin:PLUGIN"
-dd = "linux_benchmark_lib.plugins.dd.plugin:PLUGIN"
-hpl = "linux_benchmark_lib.plugins.hpl.plugin:PLUGIN"
+stress_ng = "lb_runner.plugins.stress_ng.plugin:PLUGIN"
+fio = "lb_runner.plugins.fio.plugin:PLUGIN"
+dd = "lb_runner.plugins.dd.plugin:PLUGIN"
+hpl = "lb_runner.plugins.hpl.plugin:PLUGIN"
 
 [tool.uv]
 package = true

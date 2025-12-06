@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Rich-based console adapter used for all TTY output."""
 
+import shutil
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -90,13 +91,19 @@ class ConsoleUIAdapter(UIAdapter):
 
     def show_table(self, title: str, columns: Sequence[str], rows: list[Sequence[str]]) -> None:
         # Keep tables within the visible console width and fold long cells.
-        table_width = None
+        term_width = 0
         try:
             term_width = self.console.size.width
-            if term_width and term_width > 0:
-                table_width = max(60, term_width - 2)
         except Exception:
-            table_width = None
+            pass
+
+        if not term_width:
+            try:
+                term_width = shutil.get_terminal_size(fallback=(100, 24)).columns
+            except Exception:
+                pass
+
+        table_width = max(60, term_width - 2) if term_width and term_width > 0 else None
 
         table = Table(
             title=f"[b]{title}[/b]",

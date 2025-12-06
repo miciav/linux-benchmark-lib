@@ -13,18 +13,18 @@ from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 import json
 
-from ..benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
-from ..journal import RunJournal, RunStatus
-from ..events import RunEvent, LogSink
-from ..local_runner import LocalRunner
-from ..plugin_system.registry import PluginRegistry
-from ..plugin_system.interface import WorkloadIntensity
+from lb_runner.benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
+from lb_runner.events import RunEvent, LogSink
+from lb_runner.local_runner import LocalRunner
+from lb_runner.plugin_system.registry import PluginRegistry
+from lb_runner.plugin_system.interface import WorkloadIntensity
+from lb_controller.journal import RunJournal, RunStatus
 from .container_service import ContainerRunner, ContainerRunSpec
 from .multipass_service import MultipassService
 from .setup_service import SetupService
-from ..ui.console_adapter import ConsoleUIAdapter
-from ..ui.run_dashboard import NoopDashboard, RunDashboard
-from ..ui.types import UIAdapter
+from lb_ui.ui.console_adapter import ConsoleUIAdapter
+from lb_ui.ui.run_dashboard import NoopDashboard, RunDashboard
+from lb_ui.ui.types import UIAdapter
 
 if TYPE_CHECKING:
     from ..controller import BenchmarkController, RunExecutionSummary
@@ -101,7 +101,7 @@ class AnsibleOutputFormatter:
             return
 
         # Pass through interesting lines from the benchmark script
-        if "linux_benchmark_lib.local_runner" in line or "Running test" in line or "Progress:" in line or "Completed" in line:
+        if "lb_runner.local_runner" in line or "Running test" in line or "Progress:" in line or "Completed" in line:
             self._emit(f"  {line}", log_sink)
             return
         
@@ -546,26 +546,6 @@ class RunService:
                 repetitions=context.config.repetitions,
             )
             
-            # Run each workload in its own container (or shared image)
-            for test_name in context.target_tests:
-                workload_cfg = context.config.workloads.get(test_name)
-                if not workload_cfg:
-                    continue
-                
-                try:
-                    plugin = context.registry.get(workload_cfg.plugin)
-                    self._container_runner.run_workload(
-                        spec,
-                        test_name,
-                        plugin,
-                        ui_adapter=ui_adapter,
-                    )
-                except Exception as e:
-                    if ui_adapter:
-                        ui_adapter.show_error(f"Failed to run container for {test_name}: {e}")
-                    else:
-                        print(f"Error running {test_name}: {e}")
-
             def _container_output_handler(line: str) -> None:
                 # 1. Parse Event for UI updates (In-Memory Only)
                 # We do NOT save to disk here to avoid race conditions with the inner process
@@ -613,7 +593,11 @@ class RunService:
                     try:
                         plugin = context.registry.get(workload_cfg.plugin)
                         self._container_runner.run_workload(
-                            spec, test_name, plugin, output_callback=_container_output_handler
+                            spec,
+                            test_name,
+                            plugin,
+                            ui_adapter=ui_adapter,
+                            output_callback=_container_output_handler,
                         )
                         
                         # Reload journal from disk to ensure we have the authoritative state

@@ -19,29 +19,29 @@ import pytest
 from dataclasses import asdict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ANSIBLE_ROOT = REPO_ROOT / "linux_benchmark_lib" / "ansible"
+ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 
-from linux_benchmark_lib.benchmark_config import (
+from lb_runner.benchmark_config import (
     BenchmarkConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
 )
-from linux_benchmark_lib.plugins.dd.plugin import DDConfig
-from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
-from linux_benchmark_lib.controller import AnsibleRunnerExecutor, BenchmarkController
+from lb_runner.plugins.dd.plugin import DDConfig
+from lb_runner.plugins.stress_ng.plugin import StressNGConfig
+from lb_controller.controller import AnsibleRunnerExecutor, BenchmarkController
 from tests.integration.multipass_utils import (
     get_intensity,
     make_test_ansible_env,
     stage_private_key,
 )
-from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
+from lb_runner.plugins.fio.plugin import FIOConfig
 
 # Constants
 VM_NAME_PREFIX = "benchmark-test-vm"
 MAX_VM_COUNT = 2
-SSH_KEY_PATH = Path("./test_key")
-SSH_PUB_KEY_PATH = Path("./test_key.pub")
+SSH_KEY_PATH = Path("./temp_keys/test_key")
+SSH_PUB_KEY_PATH = Path("./temp_keys/test_key.pub")
 
 def is_multipass_available():
     """Check if multipass is installed and available."""
@@ -139,6 +139,7 @@ def multipass_vm():
 
     # Generate SSH key pair if not exists
     if not SSH_KEY_PATH.exists():
+        SSH_KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(
             ["ssh-keygen", "-t", "rsa", "-f", str(SSH_KEY_PATH), "-N", ""],
             check=True,

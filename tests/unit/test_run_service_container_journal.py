@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig, WorkloadConfig
-from linux_benchmark_lib.plugin_system.builtin import builtin_plugins
-from linux_benchmark_lib.plugin_system.registry import PluginRegistry
-from linux_benchmark_lib.services.run_service import RunContext, RunService, RunResult, RunStatus
+from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
+from lb_runner.plugin_system.builtin import builtin_plugins
+from lb_runner.plugin_system.registry import PluginRegistry
+from lb_controller.services.run_service import RunContext, RunService, RunResult, RunStatus
 
 
 def test_container_run_updates_journal(tmp_path, monkeypatch):
@@ -20,7 +20,7 @@ def test_container_run_updates_journal(tmp_path, monkeypatch):
         run_id = spec.run_id or "test-run"
         journal_dir = spec.artifacts_dir / run_id
         journal_dir.mkdir(parents=True, exist_ok=True)
-        from linux_benchmark_lib.journal import RunJournal, RunStatus
+        from lb_controller.journal import RunJournal, RunStatus
 
         journal = RunJournal.initialize(run_id, cfg, [workload_name])
         host_name = cfg.remote_hosts[0].name if cfg.remote_hosts else "localhost"
@@ -53,7 +53,7 @@ def test_container_run_updates_journal(tmp_path, monkeypatch):
 
     result: RunResult = service.execute(context, run_id="test-run")
     assert result.journal_path and result.journal_path.exists()
-    from linux_benchmark_lib.journal import RunJournal
+    from lb_controller.journal import RunJournal
     loaded = RunJournal.load(result.journal_path)
     tasks = list(loaded.tasks.values())
     assert tasks, "journal should contain tasks"

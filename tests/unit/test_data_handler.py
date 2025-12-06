@@ -1,7 +1,7 @@
 import pandas as pd
 
-from linux_benchmark_lib.data_handler import DataHandler
-from linux_benchmark_lib.plugin_system.registry import CollectorPlugin
+from lb_controller.data_handler import DataHandler
+from lb_runner.plugin_system.registry import CollectorPlugin
 
 
 def test_data_handler_uses_registered_aggregator():

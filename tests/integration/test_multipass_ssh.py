@@ -10,7 +10,7 @@ import pytest
 from tests.integration.multipass_utils import ensure_ansible_available, make_test_ansible_env
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ANSIBLE_ROOT = REPO_ROOT / "linux_benchmark_lib" / "ansible"
+ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 
 
 def _multipass_available() -> bool:
@@ -417,7 +417,7 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             "-o",
             "UserKnownHostsFile=/dev/null",
             f"ubuntu@{ip_addr}",
-            "test -x /opt/lb/.venv/bin/python && test -f /opt/lb/linux_benchmark_lib/cli.py",
+            "test -x /opt/lb/.venv/bin/python && test -f /opt/lb/lb_ui/cli.py",
         ]
         subprocess.run(ssh_cmd, check=True)
 

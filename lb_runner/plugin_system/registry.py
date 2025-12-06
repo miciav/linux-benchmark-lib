@@ -18,8 +18,8 @@ from ..metric_collectors._base_collector import BaseCollector
 from .base_generator import BaseGenerator
 from ..benchmark_config import BenchmarkConfig
 from .interface import WorkloadPlugin as IWorkloadPlugin
-from ..ui import get_ui_adapter
-from ..ui.types import UIAdapter
+from lb_ui.ui import get_ui_adapter
+from lb_ui.ui.types import UIAdapter
 
 
 logger = logging.getLogger(__name__)

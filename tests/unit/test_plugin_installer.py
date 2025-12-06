@@ -6,19 +6,19 @@ from typing import Type
 
 import pytest
 
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig
-from linux_benchmark_lib.services import plugin_service as plugin_service_mod
-from linux_benchmark_lib.services.config_service import ConfigService
-from linux_benchmark_lib.services.plugin_service import PluginInstaller, create_registry
-from linux_benchmark_lib.plugin_system.interface import WorkloadPlugin
-from linux_benchmark_lib.plugin_system.base_generator import BaseGenerator
+from lb_runner.benchmark_config import BenchmarkConfig
+from lb_controller.services import plugin_service as plugin_service_mod
+from lb_controller.services.config_service import ConfigService
+from lb_controller.services.plugin_service import PluginInstaller, create_registry
+from lb_runner.plugin_system.interface import WorkloadPlugin
+from lb_runner.plugin_system.base_generator import BaseGenerator
 
 # Dummy plugin content to be written to files
 DUMMY_PLUGIN_CONTENT = """
 from dataclasses import dataclass
 from typing import Type
-from linux_benchmark_lib.plugin_system.interface import WorkloadPlugin
-from linux_benchmark_lib.plugin_system.base_generator import BaseGenerator
+from lb_runner.plugin_system.interface import WorkloadPlugin
+from lb_runner.plugin_system.base_generator import BaseGenerator
 
 @dataclass
 class DummyConfig:
@@ -70,7 +70,7 @@ def _patch_plugin_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     plugin_dir = tmp_path / "plugins"
     monkeypatch.setattr(plugin_service_mod, "USER_PLUGIN_DIR", plugin_dir)
     # Patch both plugin_service and registry modules
-    import linux_benchmark_lib.plugin_system.registry as registry_mod
+    import lb_runner.plugin_system.registry as registry_mod
     monkeypatch.setattr(registry_mod, "USER_PLUGIN_DIR", plugin_dir)
     monkeypatch.setattr(create_registry.__globals__['registry'], "USER_PLUGIN_DIR", plugin_dir)
     return plugin_dir

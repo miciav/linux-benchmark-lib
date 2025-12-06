@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Dict, Iterable, List
 import time
+import shutil
 
 from rich.console import Console
 from rich.layout import Layout
@@ -12,7 +13,7 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 
-from ..journal import RunJournal, RunStatus, TaskState
+from lb_controller.journal import RunJournal, RunStatus, TaskState
 
 
 class RunDashboard:
@@ -64,6 +65,11 @@ class RunDashboard:
 
     def render(self) -> Layout:
         """Return the layout for the current state."""
+        # Resize journal panel based on number of host/workload rows and terminal height.
+        row_count = max(1, sum(1 for _ in self._unique_pairs()))
+        journal_height = self._computed_journal_height(row_count)
+        self.layout["journal"].size = journal_height
+        self.layout["logs"].size = self._computed_log_height(journal_height)
         self.layout["journal"].update(self._render_journal())
         self.layout["logs"].update(self._render_logs())
         return self.layout
@@ -208,6 +214,59 @@ class RunDashboard:
 
         progress = f"{completed}/{total or '?'}"
         return status, progress
+
+    def _computed_journal_height(self, row_count: int) -> int | None:
+        """
+        Choose a journal pane height that fits the workload/host rows and terminal.
+
+        Returns None when we cannot determine a sensible size (Rich will auto-size).
+        """
+        # Rough estimate: header + borders + padding
+        target = row_count + 6
+
+        try:
+            term_height = self.console.size.height
+        except Exception:
+            term_height = 0
+
+        if not term_height:
+            try:
+                term_height = shutil.get_terminal_size(fallback=(100, 40)).lines
+            except Exception:
+                term_height = 0
+
+        logs_height = self.layout["logs"].size or (self.max_log_lines + 2)
+
+        if term_height and term_height > logs_height + 6:
+            max_height = max(10, term_height - logs_height - 2)
+            return max(8, min(target, max_height))
+
+        return None
+
+    def _computed_log_height(self, journal_height: int | None) -> int | None:
+        """
+        Let the log pane consume remaining space while keeping enough room for scrolling.
+        """
+        min_logs = self.max_log_lines + 2
+
+        try:
+            term_height = self.console.size.height
+        except Exception:
+            term_height = 0
+
+        if not term_height:
+            try:
+                term_height = shutil.get_terminal_size(fallback=(100, 40)).lines
+            except Exception:
+                term_height = 0
+
+        if term_height and journal_height:
+            remaining = term_height - journal_height - 2  # spacer
+            if remaining >= min_logs:
+                return remaining
+            return max(min_logs, remaining) if remaining > 0 else min_logs
+
+        return None
 
     @staticmethod
     def _completed_repetitions(tasks: Dict[int, TaskState]) -> int:

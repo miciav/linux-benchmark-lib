@@ -4,10 +4,10 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-import linux_benchmark_lib.cli as cli
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
-from linux_benchmark_lib.services.config_service import ConfigService
-from linux_benchmark_lib.services.run_service import RunContext, RunResult
+import lb_ui.cli as cli
+from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+from lb_controller.services.config_service import ConfigService
+from lb_controller.services.run_service import RunContext, RunResult
 
 
 runner = CliRunner()

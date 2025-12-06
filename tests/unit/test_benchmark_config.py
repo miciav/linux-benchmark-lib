@@ -15,7 +15,7 @@ from linux_benchmark_lib.benchmark_config import (
     RemoteHostConfig,
     WorkloadConfig,
 )
-from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
+from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 
 
 class TestBenchmarkConfig:

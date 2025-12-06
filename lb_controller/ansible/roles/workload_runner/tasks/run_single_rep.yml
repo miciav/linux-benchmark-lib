@@ -35,9 +35,9 @@
         import time
         from pathlib import Path
 
-        from linux_benchmark_lib.benchmark_config import BenchmarkConfig
-        from linux_benchmark_lib.local_runner import LocalRunner
-        from linux_benchmark_lib.services.plugin_service import create_registry
+        from lb_runner.benchmark_config import BenchmarkConfig
+        from lb_runner.local_runner import LocalRunner
+        from lb_controller.services.plugin_service import create_registry
 
         cfg_path = Path("{{ workload_runner_workdir }}/benchmark_config.generated.json")
         cfg = BenchmarkConfig.from_dict(json.loads(cfg_path.read_text()))

@@ -9,8 +9,8 @@ from typing import List, Tuple, Optional
 
 from .config_service import ConfigService
 from .plugin_service import create_registry
-from ..ui import get_ui_adapter
-from ..ui.types import UIAdapter
+from lb_ui.ui import get_ui_adapter
+from lb_ui.ui.types import UIAdapter
 
 class DoctorService:
     """Service to check local prerequisites and environment health."""

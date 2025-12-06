@@ -1,8 +1,8 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from linux_benchmark_lib.events import RunEvent, LogSink
-from linux_benchmark_lib.journal import RunJournal, RunStatus
+from lb_runner.events import RunEvent, LogSink
+from lb_controller.journal import RunJournal, RunStatus
 
 
 def test_log_sink_updates_journal_and_log(tmp_path):

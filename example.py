@@ -10,19 +10,19 @@ from pathlib import Path
 
 from dataclasses import asdict
 
-from linux_benchmark_lib.benchmark_config import (
+from lb_runner.benchmark_config import (
     BenchmarkConfig,
     MetricCollectorConfig,
     PerfConfig,
     WorkloadConfig,
 )
-from linux_benchmark_lib.local_runner import LocalRunner
-from linux_benchmark_lib.reporter import Reporter
-from linux_benchmark_lib.plugin_system.builtin import builtin_plugins
-from linux_benchmark_lib.plugin_system.registry import PluginRegistry
-from linux_benchmark_lib.plugins.dd.plugin import DDConfig
-from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
-from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
+from lb_runner.local_runner import LocalRunner
+from lb_ui.reporter import Reporter
+from lb_runner.plugin_system.builtin import builtin_plugins
+from lb_runner.plugin_system.registry import PluginRegistry
+from lb_runner.plugins.dd.plugin import DDConfig
+from lb_runner.plugins.stress_ng.plugin import StressNGConfig
+from lb_runner.plugins.fio.plugin import FIOConfig
 
 
 def setup_logging():

@@ -10,7 +10,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import logging
 
-ANSIBLE_ROOT = Path(__file__).resolve().parent / "ansible"
+_HERE = Path(__file__).resolve()
+_DEFAULT_ANSIBLE_ROOT = _HERE.parent / "ansible"
+_ALT_ANSIBLE_ROOT = _HERE.parent.parent / "lb_controller" / "ansible"
+# Prefer the in-tree controller ansible assets; fall back to the legacy path if present.
+if _ALT_ANSIBLE_ROOT.exists():
+    ANSIBLE_ROOT = _ALT_ANSIBLE_ROOT
+else:
+    ANSIBLE_ROOT = _DEFAULT_ANSIBLE_ROOT
 logger = logging.getLogger(__name__)
 
 
@@ -134,6 +141,7 @@ class BenchmarkConfig:
             self._populate_default_plugin_settings()
         self._ensure_workloads_from_plugin_settings()
         self._validate_remote_hosts()
+        self._normalize_playbook_paths()
 
     def ensure_output_dirs(self) -> None:
         for path in (self.output_dir, self.report_dir, self.data_export_dir):
@@ -266,6 +274,29 @@ class BenchmarkConfig:
                 self.plugin_settings[name] = config_cls()
             except Exception as exc:
                 logger.debug("Skipping default config for plugin '%s': %s", name, exc)
+
+    def _normalize_playbook_paths(self) -> None:
+        """Map legacy playbook paths to the current ansible root when needed."""
+        roots = [
+            ANSIBLE_ROOT,
+            Path(__file__).resolve().parent / "ansible",
+            Path(__file__).resolve().parent.parent / "lb_controller" / "ansible",
+        ]
+        playbooks = {
+            "setup_playbook": "setup.yml",
+            "run_playbook": "run_benchmark.yml",
+            "collect_playbook": "collect.yml",
+            "teardown_playbook": "teardown.yml",
+        }
+        for attr, fname in playbooks.items():
+            path: Path = getattr(self.remote_execution, attr)
+            if path and path.exists():
+                continue
+            for root in roots:
+                candidate = root / "playbooks" / fname
+                if candidate.exists():
+                    setattr(self.remote_execution, attr, candidate)
+                    break
 
     def _ensure_workloads_from_plugin_settings(self) -> None:
         """

@@ -1,25 +1,6 @@
+"""Compatibility root for legacy imports.
+
+Imports have moved to lb_runner, lb_controller, and lb_ui. This package
+remains to avoid breaking existing module paths but does not eagerly
+import subpackages to prevent circular dependencies.
 """
-linux_benchmark_lib package initializer.
-
-Exports primary classes for convenient imports.
-"""
-
-from .benchmark_config import (
-    BenchmarkConfig,
-    MetricCollectorConfig,
-    PerfConfig,
-    RemoteExecutionConfig,
-    RemoteHostConfig,
-    WorkloadConfig,
-)
-from .local_runner import LocalRunner
-
-__all__ = [
-    "BenchmarkConfig",
-    "MetricCollectorConfig",
-    "PerfConfig",
-    "RemoteExecutionConfig",
-    "RemoteHostConfig",
-    "WorkloadConfig",
-    "LocalRunner",
-]

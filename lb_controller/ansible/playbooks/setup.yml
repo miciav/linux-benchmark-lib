@@ -72,17 +72,17 @@
         cmd: "{{ (lb_python_bin.stdout or 'python3') }} -m venv {{ lb_workdir }}/.venv"
         creates: "{{ lb_workdir }}/.venv/bin/python"
 
-    - name: Synchronize benchmark library project to remote host
+    - name: Synchronize benchmark library sources to remote host
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../../../{{ item }}"
         dest: "{{ lb_workdir }}/"
         mode: preserve
       loop:
-        - linux_benchmark_lib
+        - lb_runner
+        - lb_controller
+        - lb_ui
         - pyproject.toml
-        - uv.lock # Include uv.lock as it contains dependency info
-      # Exclude tools/ directory unless it's explicitly part of the installed package
-      # The main reason is gen_plugin_assets.py is no longer used globally for deps
+        - uv.lock
 
     - name: Upgrade pip inside virtual environment
       ansible.builtin.command:

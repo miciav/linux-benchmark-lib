@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
-from linux_benchmark_lib.journal import RunJournal, RunStatus
+from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+from lb_controller.journal import RunJournal, RunStatus
 
 
 def _base_config() -> BenchmarkConfig:

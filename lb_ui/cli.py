@@ -17,16 +17,16 @@ from typing import Dict, List, Optional, Set
 
 import typer
 
-from .benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
-from .journal import RunJournal, RunStatus, TaskState
-from .plugin_system.registry import PluginRegistry, print_plugin_table
-from .services import ConfigService, RunService
-from .services.plugin_service import create_registry, PluginInstaller
-from .services.doctor_service import DoctorService
-from .services.test_service import TestService
-from .ui import get_ui_adapter
-from .ui.tui_prompts import prompt_multipass, prompt_plugins, prompt_remote_host
-from .ui.types import UIAdapter
+from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig
+from lb_controller.journal import RunJournal, RunStatus, TaskState
+from lb_runner.plugin_system.registry import PluginRegistry, print_plugin_table
+from lb_controller.services import ConfigService, RunService
+from lb_controller.services.plugin_service import create_registry, PluginInstaller
+from lb_controller.services.doctor_service import DoctorService
+from lb_controller.services.test_service import TestService
+from lb_ui.ui import get_ui_adapter
+from lb_ui.ui.tui_prompts import prompt_multipass, prompt_plugins, prompt_remote_host
+from lb_ui.ui.types import UIAdapter
 
 
 ui: UIAdapter = get_ui_adapter()
@@ -128,6 +128,20 @@ def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[st
 
     target_reps = _target_repetitions(journal)
     columns = ["Host", "Workload", "Run", "Last Action"]
+    
+    def _shorten_action(text: str) -> str:
+        """Clamp the last action column to a sensible width based on terminal size."""
+        import shutil
+        import textwrap
+
+        try:
+            width = shutil.get_terminal_size(fallback=(100, 24)).columns
+        except Exception:
+            width = 100
+
+        # Deduct rough widths for other columns and spacing
+        max_len = max(20, width - 40)
+        return textwrap.shorten(text, width=max_len, placeholder="…") if text else ""
 
     pairs = sorted({(task.host, task.workload) for task in journal.tasks.values()})
     rows: list[list[str]] = []
@@ -141,7 +155,7 @@ def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[st
         last_action = ""
         if tasks:
             latest = max(tasks.values(), key=lambda t: t.timestamp)
-            last_action = latest.error or latest.current_action or ""
+            last_action = _shorten_action(latest.error or latest.current_action or "")
 
         status, progress = _summarize_progress(tasks, target_reps)
         row = [host, workload, f"{status}\n{progress}", last_action]
@@ -208,10 +222,6 @@ def _print_run_journal_summary(journal_path: Path, log_path: Path | None = None)
     if log_path:
         ui.show_info(f"Ansible output log saved to {log_path}")
 
-
-# ... (_load_config) ...
-
-# ... (config commands) ...
 
 @config_app.command("edit")
 def config_edit(
@@ -384,7 +394,6 @@ def config_list_workloads(
         for name, wl in sorted(cfg.workloads.items())
     ]
     ui.show_table("Configured Workloads", ["Name", "Plugin", "Enabled"], rows)
-    # Emit simple text table for CLI runner capture
     header = "Name | Plugin | Enabled"
     lines = [f"{name} | {wl.plugin} | {'yes' if wl.enabled else 'no'}" for name, wl in sorted(cfg.workloads.items())]
     typer.echo("\n".join([header, *lines]))
@@ -456,7 +465,6 @@ def _select_workloads_interactively(
         ui.show_warning("Selection cancelled.")
         raise typer.Exit(1)
 
-    # Prompt intensity for enabled workloads
     def _prompt_intensities(selected: Set[str]) -> Dict[str, str]:
         from InquirerPy import inquirer
 
@@ -793,7 +801,6 @@ def _select_plugins_interactively(
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         ui.show_error("Interactive selection requires a TTY.")
         return None
-    # Show the same table used by `lb plugin` before asking for input.
     print_plugin_table(registry, enabled=enabled_map, ui_adapter=ui)
     plugins = {name: getattr(plugin, "description", "") or "" for name, plugin in registry.available().items()}
     selection = prompt_plugins(plugins, enabled_map, force=False, show_table=False)
@@ -852,7 +859,7 @@ def _list_plugins_command(
 ) -> None:
     """Show available workload plugins (built-ins and entry points)."""
     typer.echo("Available Workload Plugins")
-    typer.echo("Enabled")  # Ensure runner.capture picks up a header
+    typer.echo("Enabled")
     registry = create_registry()
     if not registry.available():
         ui.show_warning("No workload plugins registered.")
@@ -1015,6 +1022,7 @@ def plugin_install(
         ui.show_error(f"Installation failed: {e}")
         raise typer.Exit(1)
 
+
 @plugin_app.command("uninstall")
 def plugin_uninstall(
     name: str = typer.Argument(..., help="Name of the plugin to uninstall."),
@@ -1031,7 +1039,7 @@ def plugin_uninstall(
     ),
 ) -> None:
     """Uninstall a user plugin."""
-    requested_name = name  # Preserve logical plugin name for config cleanup
+    requested_name = name
     if name.startswith(("http://", "https://", "git@")) or name.endswith(".git"):
          ui.show_warning(f"'{name}' looks like a URL/path. `uninstall` expects the plugin name (e.g. 'unixbench').")
          ui.show_info("Run `lb plugin list` to see installed plugins.")
@@ -1039,30 +1047,18 @@ def plugin_uninstall(
 
     installer = PluginInstaller()
     
-    # Try to resolve logical name (e.g. "sysbench") to directory name (e.g. "sysbench-plugin")
-    # This handles the case where the plugin name differs from the folder name
     registry = create_registry()
     if name in registry.available():
         try:
             plugin = registry.get(name)
-            # Resolve the file path of the plugin class
             plugin_file = Path(inspect.getfile(plugin.__class__)).resolve()
             plugin_root = installer.plugin_dir.resolve()
-            
-            # Check if the plugin is actually inside the user plugin directory
             if plugin_root in plugin_file.parents:
-                # Find the top-level folder inside plugin_dir
-                # e.g. /.../plugins/sysbench-plugin/lb_sysbench/plugin.py
-                # relative -> sysbench-plugin/lb_sysbench/plugin.py
-                # parts[0] -> sysbench-plugin
                 rel_path = plugin_file.relative_to(plugin_root)
                 dir_name = rel_path.parts[0]
-                
                 if dir_name != name:
-                    # ui.show_info(f"Resolved plugin '{name}' to directory '{dir_name}'")
                     name = dir_name
         except Exception:
-            # Fallback: if resolution fails, assume name is the directory name
             pass
 
     config_path: Optional[Path] = None
@@ -1088,8 +1084,6 @@ def plugin_uninstall(
 
         if removed_config and config_path:
             ui.show_info(f"Removed '{requested_name}' from config {config_path}")
-        # elif purge_config and config_path:
-        #    ui.show_info(f"No config entries for '{name}' found in {config_path}")
         if config_stale:
             ui.show_warning(f"Saved default config not found: {config_stale}")
 
@@ -1126,5 +1120,11 @@ def list_plugins(
         config=config, enable=enable, disable=disable, set_default=set_default, select=select
     )
 
-if __name__ == "__main__":
+
+def main() -> None:
+    """Console script entrypoint (Typer app)."""
     app()
+
+
+if __name__ == "__main__":
+    main()
