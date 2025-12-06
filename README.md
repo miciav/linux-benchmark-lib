@@ -105,7 +105,7 @@ See `CLI.md` for the full command reference. Highlights:
 - Dependencies are defined in the plugin's Python class (`get_required_apt_packages`, etc.).
 - A dedicated Dockerfile can be provided in the plugin directory for containerized execution.
 
-  This updates the generated apt/pip install block in `Dockerfile` and rewrites `linux_benchmark_lib/ansible/roles/workload_runner/tasks/plugins.generated.yml`.
+  This updates the generated apt/pip install block in `Dockerfile` and rewrites `lb_controller/ansible/roles/workload_runner/tasks/plugins.generated.yml`.
 - Commit both the manifest and generated files so remote setup and the container stay in sync with available plugins.
 - See `docs/PLUGIN_DEVELOPMENT.md` for a full plugin authoring guide (WorkloadPlugin interface, manifests, packaging, git installs).
 - HPL plugin: vedi `linux_benchmark_lib/plugins/hpl/README.md` per note su packaging `.deb`, build VM/Docker e test `xhpl`.

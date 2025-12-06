@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Assuming standard layout: linux_benchmark_lib/ansible/playbooks
+# Assuming standard layout: lb_controller/ansible/playbooks
 ANSIBLE_ROOT = Path(__file__).resolve().parent.parent / "ansible"
 
 
