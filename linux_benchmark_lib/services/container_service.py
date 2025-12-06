@@ -11,6 +11,7 @@ from typing import List, Optional
 from ..benchmark_config import BenchmarkConfig
 from .plugin_service import create_registry
 from ..plugin_system.interface import WorkloadPlugin
+from ..ui.types import UIAdapter
 
 
 @dataclass
@@ -42,7 +43,12 @@ class ContainerRunner:
         if shutil.which(engine) is None:
             raise RuntimeError(f"{engine} not found in PATH")
 
-    def build_plugin_image(self, spec: ContainerRunSpec, plugin: WorkloadPlugin) -> str:
+    def build_plugin_image(
+        self,
+        spec: ContainerRunSpec,
+        plugin: WorkloadPlugin,
+        ui_adapter: UIAdapter | None = None,
+    ) -> str:
         """
         Build a dedicated image for the plugin using its specific Dockerfile.
         """
@@ -80,15 +86,38 @@ class ContainerRunner:
         if spec.no_cache:
             cmd.append("--no-cache")
             
-        print(f"Building specific image for {plugin.name} using {dockerfile}...")
-        subprocess.run(cmd, check=True)
+        message = f"Building container image for {plugin.name}..."
+        if ui_adapter:
+            ui_adapter.show_info(message)
+        else:
+            print(message)
+
+        if spec.debug:
+            subprocess.run(cmd, check=True)
+        else:
+            result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"Failed to build image '{image_tag}' for {plugin.name}: "
+                    f"{result.stderr or result.stdout}"
+                )
+            if ui_adapter:
+                ui_adapter.show_success(f"Image ready: {image_tag}")
+            else:
+                print(f"Image ready: {image_tag}")
         return image_tag
 
-    def run_workload(self, spec: ContainerRunSpec, workload_name: str, plugin: WorkloadPlugin) -> None:
+    def run_workload(
+        self,
+        spec: ContainerRunSpec,
+        workload_name: str,
+        plugin: WorkloadPlugin,
+        ui_adapter: UIAdapter | None = None,
+    ) -> None:
         """Run a single workload in its specific container."""
         self.ensure_engine(spec.engine)
         
-        image_tag = self.build_plugin_image(spec, plugin)
+        image_tag = self.build_plugin_image(spec, plugin, ui_adapter=ui_adapter)
 
         # We execute the package CLI module inside the container (no uv in the minimal image).
         inner_cmd = ["python3", "-m", "linux_benchmark_lib.cli", "run", workload_name, "--no-remote"]

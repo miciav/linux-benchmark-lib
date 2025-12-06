@@ -423,7 +423,12 @@ class RunService:
                 
                 try:
                     plugin = context.registry.get(workload_cfg.plugin)
-                    self._container_runner.run_workload(spec, test_name, plugin)
+                    self._container_runner.run_workload(
+                        spec,
+                        test_name,
+                        plugin,
+                        ui_adapter=ui_adapter,
+                    )
                 except Exception as e:
                     if ui_adapter:
                         ui_adapter.show_error(f"Failed to run container for {test_name}: {e}")
