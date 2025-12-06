@@ -41,11 +41,12 @@ htmlcov/
 *.log
 
 # Specific to benchmark results
-/benchmark_results/  # Directory per i risultati dei benchmark
-/benchmark_results
-/reports/            # Directory per i report generati
-/data_exports/       # Directory per le esportazioni CSV/JSON
+# (use explicit entries without inline comments to avoid mismatches)
+/benchmark_results/
+/reports/
+/data_exports/
 /tests/results
+/temp_keys/
 
 # Ansible runtime artifacts
 .ansible/

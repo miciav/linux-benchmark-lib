@@ -10,7 +10,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import logging
 
-ANSIBLE_ROOT = Path(__file__).resolve().parent / "ansible"
+_HERE = Path(__file__).resolve()
+_DEFAULT_ANSIBLE_ROOT = _HERE.parent / "ansible"
+_ALT_ANSIBLE_ROOT = _HERE.parent.parent / "lb_controller" / "ansible"
+# Prefer the in-tree controller ansible assets; fall back to the legacy path if present.
+if _ALT_ANSIBLE_ROOT.exists():
+    ANSIBLE_ROOT = _ALT_ANSIBLE_ROOT
+else:
+    ANSIBLE_ROOT = _DEFAULT_ANSIBLE_ROOT
 logger = logging.getLogger(__name__)
 
 

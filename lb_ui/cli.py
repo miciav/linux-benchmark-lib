@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Set
 
 import typer
 
-from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig
 from lb_controller.journal import RunJournal, RunStatus, TaskState
 from lb_runner.plugin_system.registry import PluginRegistry, print_plugin_table
 from lb_controller.services import ConfigService, RunService

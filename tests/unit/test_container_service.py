@@ -7,7 +7,7 @@ from lb_controller.services.container_service import ContainerRunSpec, Container
 def test_container_runner_forwards_repetitions(monkeypatch, tmp_path):
     runner = ContainerRunner()
     monkeypatch.setattr(runner, "ensure_engine", lambda engine: None)
-    monkeypatch.setattr(runner, "build_plugin_image", lambda spec, plugin: "tag")
+    monkeypatch.setattr(runner, "build_plugin_image", lambda spec, plugin, **kwargs: "tag")
 
     captured: dict[str, list[str]] = {}
 

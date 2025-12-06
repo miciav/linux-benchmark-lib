@@ -22,12 +22,17 @@ from typing import Any, Dict, List, Optional, Callable
 
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.events import RunEvent, StdoutEmitter
-from lb_controller.data_handler import DataHandler
 from lb_runner.plugin_system.registry import PluginRegistry, print_plugin_table
 from lb_runner.plugin_system.interface import WorkloadIntensity
 from lb_ui.ui import get_ui_adapter
 from lb_ui.ui.types import UIAdapter
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from lb_controller.data_handler import DataHandler
+
+# Provide a module attribute for tests to patch without forcing a hard import.
+DataHandler = None  # will be loaded lazily in _make_data_handler
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +69,7 @@ class LocalRunner:
                 collectors = registry.available_collectors()
             except Exception:
                 collectors = {}
-        self.data_handler = DataHandler(collectors=collectors)
+        self.data_handler = self._make_data_handler(collectors)
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = registry
@@ -515,6 +520,15 @@ class LocalRunner:
         if not workload.enabled:
             raise ValueError(f"Workload '{name}' is disabled in the configuration")
         return workload
+
+    def _make_data_handler(self, collectors: Dict[str, Any]):
+        """Construct a DataHandler lazily to avoid import cycles."""
+        handler_cls = DataHandler
+        if handler_cls is None:
+            # Local import to avoid circular dependency during module import
+            from lb_controller.data_handler import DataHandler as Handler  # type: ignore
+            handler_cls = Handler
+        return handler_cls(collectors=collectors)
 
     def _ensure_directories(self, run_id: str) -> tuple[Path, Path, Path]:
         """Create required local output directories for a run."""

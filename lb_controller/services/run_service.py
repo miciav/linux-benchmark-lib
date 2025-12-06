@@ -546,26 +546,6 @@ class RunService:
                 repetitions=context.config.repetitions,
             )
             
-            # Run each workload in its own container (or shared image)
-            for test_name in context.target_tests:
-                workload_cfg = context.config.workloads.get(test_name)
-                if not workload_cfg:
-                    continue
-                
-                try:
-                    plugin = context.registry.get(workload_cfg.plugin)
-                    self._container_runner.run_workload(
-                        spec,
-                        test_name,
-                        plugin,
-                        ui_adapter=ui_adapter,
-                    )
-                except Exception as e:
-                    if ui_adapter:
-                        ui_adapter.show_error(f"Failed to run container for {test_name}: {e}")
-                    else:
-                        print(f"Error running {test_name}: {e}")
-
             def _container_output_handler(line: str) -> None:
                 # 1. Parse Event for UI updates (In-Memory Only)
                 # We do NOT save to disk here to avoid race conditions with the inner process
@@ -613,7 +593,11 @@ class RunService:
                     try:
                         plugin = context.registry.get(workload_cfg.plugin)
                         self._container_runner.run_workload(
-                            spec, test_name, plugin, output_callback=_container_output_handler
+                            spec,
+                            test_name,
+                            plugin,
+                            ui_adapter=ui_adapter,
+                            output_callback=_container_output_handler,
                         )
                         
                         # Reload journal from disk to ensure we have the authoritative state

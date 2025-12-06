@@ -115,11 +115,15 @@ class ContainerRunner:
         workload_name: str,
         plugin: WorkloadPlugin,
         ui_adapter: UIAdapter | None = None,
-    ) -> None:
+        output_callback: Callable[[str], None] | None = None,
+    ) -> str | None:
         """Run a single workload in its specific container."""
         self.ensure_engine(spec.engine)
-        
-        image_tag = self.build_plugin_image(spec, plugin, ui_adapter=ui_adapter)
+
+        if ui_adapter:
+            image_tag = self.build_plugin_image(spec, plugin, ui_adapter=ui_adapter)
+        else:
+            image_tag = self.build_plugin_image(spec, plugin)
 
         # We execute the package CLI module inside the container (no uv in the minimal image).
         inner_cmd = [
@@ -132,6 +136,7 @@ class ContainerRunner:
             "--no-remote",
             "--no-setup",  # Avoid ansible-runner in container images built for workload-only execution
         ]
+        run_id = spec.run_id or workload_name
         inner_cmd.extend(["--run-id", run_id])
         if spec.debug:
             inner_cmd.append("--debug")
@@ -184,7 +189,7 @@ class ContainerRunner:
             bufsize=1,  # Line buffered
         )
 
-        captured_stdout = []
+        captured_stdout: list[str] = []
         if process.stdout:
             for line in process.stdout:
                 # Invoke callback if provided (e.g. for UI updates)

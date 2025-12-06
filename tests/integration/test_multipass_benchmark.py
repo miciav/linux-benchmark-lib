@@ -40,8 +40,8 @@ from lb_runner.plugins.fio.plugin import FIOConfig
 # Constants
 VM_NAME_PREFIX = "benchmark-test-vm"
 MAX_VM_COUNT = 2
-SSH_KEY_PATH = Path("./test_key")
-SSH_PUB_KEY_PATH = Path("./test_key.pub")
+SSH_KEY_PATH = Path("./temp_keys/test_key")
+SSH_PUB_KEY_PATH = Path("./temp_keys/test_key.pub")
 
 def is_multipass_available():
     """Check if multipass is installed and available."""
@@ -139,6 +139,7 @@ def multipass_vm():
 
     # Generate SSH key pair if not exists
     if not SSH_KEY_PATH.exists():
+        SSH_KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(
             ["ssh-keygen", "-t", "rsa", "-f", str(SSH_KEY_PATH), "-N", ""],
             check=True,
