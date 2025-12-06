@@ -89,15 +89,25 @@ class ConsoleUIAdapter(UIAdapter):
         self.console.rule(f"[b]{title}[/b]", style="accent")
 
     def show_table(self, title: str, columns: Sequence[str], rows: list[Sequence[str]]) -> None:
+        # Keep tables within the visible console width and fold long cells.
+        table_width = None
+        try:
+            term_width = self.console.size.width
+            if term_width and term_width > 0:
+                table_width = max(60, term_width - 2)
+        except Exception:
+            table_width = None
+
         table = Table(
             title=f"[b]{title}[/b]",
             border_style="accent",
             header_style="bold white",
             row_styles=("", "dim"),
-            expand=True,
+            expand=table_width is None,
+            width=table_width,
         )
         for column in columns:
-            table.add_column(column)
+            table.add_column(column, overflow="fold")
         for row in rows:
             table.add_row(*[str(cell) for cell in row])
         self.console.print(table)
