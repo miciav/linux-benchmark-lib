@@ -1,8 +1,11 @@
-"""
-UI adapter package providing Textual-based and headless renderers.
-"""
+"""Compatibility shim for UI package."""
 
-from .factory import get_ui_adapter
-from .types import UIAdapter, ProgressHandle
+from __future__ import annotations
 
-__all__ = ["get_ui_adapter", "UIAdapter", "ProgressHandle"]
+import pkgutil
+from pathlib import Path
+
+import lb_ui.ui as _ui
+
+__path__ = pkgutil.extend_path(__path__, __name__)  # type: ignore[var-annotated]
+__path__.append(str(Path(_ui.__file__).parent))
