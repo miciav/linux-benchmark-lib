@@ -32,7 +32,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["linux_benchmark_lib*"]
+include = ["linux_benchmark_lib*", "lb_runner*", "lb_controller*", "lb_ui*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [tool.setuptools.package-data]
@@ -43,6 +43,9 @@ linux_benchmark_lib = [
 
 [project.scripts]
 lb = "linux_benchmark_lib.cli:app"
+lb-runner = "lb_runner.cli:main"
+lb-controller = "lb_controller.cli:main"
+lb-ui = "lb_ui.cli:main"
 
 [project.entry-points."linux_benchmark.collectors"]
 psutil = "linux_benchmark_lib.plugin_system.builtin:PSUTIL_COLLECTOR"
