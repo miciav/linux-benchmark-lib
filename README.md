@@ -101,21 +101,21 @@ See `CLI.md` for the full command reference. Highlights:
 
 ### Plugin manifests and generated assets
 
-- Each workload is self-contained in `linux_benchmark_lib/plugins/<name>/`.
+- Each workload is self-contained in `lb_runner/plugins/<name>/`.
 - Dependencies are defined in the plugin's Python class (`get_required_apt_packages`, etc.).
 - A dedicated Dockerfile can be provided in the plugin directory for containerized execution.
 
   This updates the generated apt/pip install block in `Dockerfile` and rewrites `lb_controller/ansible/roles/workload_runner/tasks/plugins.generated.yml`.
 - Commit both the manifest and generated files so remote setup and the container stay in sync with available plugins.
 - See `docs/PLUGIN_DEVELOPMENT.md` for a full plugin authoring guide (WorkloadPlugin interface, manifests, packaging, git installs).
-- HPL plugin: vedi `linux_benchmark_lib/plugins/hpl/README.md` per note su packaging `.deb`, build VM/Docker e test `xhpl`.
+- HPL plugin: vedi `lb_runner/plugins/hpl/README.md` per note su packaging `.deb`, build VM/Docker e test `xhpl`.
 
 ## Quick Start
 
 ```python
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig
+from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig
 from lb_controller.controller import BenchmarkController
-from linux_benchmark_lib.local_runner import LocalRunner
+from lb_runner.local_runner import LocalRunner
 from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.registry import PluginRegistry
 
@@ -147,18 +147,12 @@ print(summary.per_host_output)
 
 ```
 linux-benchmark-lib/
-├── linux_benchmark_lib/
-│   ├── benchmark_config.py      # Centralized configuration
-│   ├── controller.py            # Remote controller using Ansible Runner
-│   ├── local_runner.py          # Local agent for single-node runs
-│   ├── data_handler.py          # Data processing and aggregation
-│   ├── reporter.py              # Reports and plots
-│   ├── metric_collectors/       # Metric collectors (Plugins)
-│   ├── plugins/                 # Plugin registry and built-ins
-│   └── ansible/                 # Playbooks and roles for remote execution
-├── tests/                       # Unit and integration tests
-├── tools/                       # Helper scripts (mode switching, etc.)
-└── pyproject.toml               # Project configuration (Core + Extras)
+├── lb_runner/           # Runner (plugins, collectors, local runner, events)
+├── lb_controller/       # Orchestration (services, ansible, journal, data_handler)
+├── lb_ui/               # CLI/UI (Typer app, adapters, reporter)
+├── tests/               # Unit and integration tests
+├── tools/               # Helper scripts (mode switching, etc.)
+└── pyproject.toml       # Project configuration (Core + Extras)
 ```
 
 ## Configuration
@@ -167,7 +161,7 @@ All knobs are defined in `BenchmarkConfig`:
 
 ```python
 from pathlib import Path
-from linux_benchmark_lib.benchmark_config import BenchmarkConfig
+from lb_runner.benchmark_config import BenchmarkConfig
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 
 config = BenchmarkConfig(
