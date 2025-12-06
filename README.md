@@ -116,8 +116,8 @@ See `CLI.md` for the full command reference. Highlights:
 from linux_benchmark_lib.benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig
 from linux_benchmark_lib.controller import BenchmarkController
 from linux_benchmark_lib.local_runner import LocalRunner
-from linux_benchmark_lib.plugin_system.builtin import builtin_plugins
-from linux_benchmark_lib.plugin_system.registry import PluginRegistry
+from lb_runner.plugin_system.builtin import builtin_plugins
+from lb_runner.plugin_system.registry import PluginRegistry
 
 # Create a configuration
 config = BenchmarkConfig(
@@ -168,7 +168,7 @@ All knobs are defined in `BenchmarkConfig`:
 ```python
 from pathlib import Path
 from linux_benchmark_lib.benchmark_config import BenchmarkConfig
-from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
+from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 
 config = BenchmarkConfig(
     repetitions=5,

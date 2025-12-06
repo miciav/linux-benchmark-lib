@@ -11,8 +11,8 @@ This guide explains how to build, package, and install custom workload plugins f
 ```python
 from dataclasses import dataclass, field
 from typing import List, Optional, Type
-from linux_benchmark_lib.plugin_system.interface import WorkloadPlugin
-from linux_benchmark_lib.plugin_system.base_generator import BaseGenerator
+from lb_runner.plugin_system.interface import WorkloadPlugin
+from lb_runner.plugin_system.base_generator import BaseGenerator
 
 
 @dataclass
@@ -134,7 +134,7 @@ linux_benchmark_lib/plugins/<plugin_name>/
 **linux_benchmark_lib/plugins/dd/plugin.py**:
 ```python
 from pathlib import Path
-from linux_benchmark_lib.plugin_system.interface import WorkloadPlugin
+from lb_runner.plugin_system.interface import WorkloadPlugin
 # ... imports ...
 
 class DDPlugin(WorkloadPlugin):

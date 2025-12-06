@@ -36,15 +36,15 @@ include = ["linux_benchmark_lib*", "lb_runner*", "lb_controller*", "lb_ui*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [tool.setuptools.package-data]
-linux_benchmark_lib = [
-    "ansible/**/*",
-]
 lb_runner = [
     "plugins/**/*",
 ]
+lb_controller = [
+    "ansible/**/*",
+]
 
 [project.scripts]
-lb = "linux_benchmark_lib.cli:app"
+lb = "lb_ui.cli:main"
 lb-runner = "lb_runner.cli:main"
 lb-controller = "lb_controller.cli:main"
 lb-ui = "lb_ui.cli:main"
