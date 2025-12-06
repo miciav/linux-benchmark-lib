@@ -162,6 +162,7 @@ except ModuleNotFoundError:
                 self._populate_default_plugin_settings()
             self._ensure_workloads_from_plugin_settings()
             self._validate_remote_hosts()
+            self._normalize_playbook_paths()
 
         def ensure_output_dirs(self) -> None:
             for path in (self.output_dir, self.report_dir, self.data_export_dir):
@@ -299,3 +300,26 @@ except ModuleNotFoundError:
                 StressNGConfig = None  # type: ignore
             if StressNGConfig and "stress_ng" not in self.plugin_settings:
                 self.plugin_settings["stress_ng"] = StressNGConfig()
+
+        def _normalize_playbook_paths(self) -> None:
+            """Map legacy playbook paths to the current ansible root when needed."""
+            roots = [
+                ANSIBLE_ROOT,
+                Path(__file__).resolve().parent / "ansible",
+                Path(__file__).resolve().parent.parent / "lb_controller" / "ansible",
+            ]
+            playbooks = {
+                "setup_playbook": "setup.yml",
+                "run_playbook": "run_benchmark.yml",
+                "collect_playbook": "collect.yml",
+                "teardown_playbook": "teardown.yml",
+            }
+            for attr, fname in playbooks.items():
+                path: Path = getattr(self.remote_execution, attr)
+                if path and path.exists():
+                    continue
+                for root in roots:
+                    candidate = root / "playbooks" / fname
+                    if candidate.exists():
+                        setattr(self.remote_execution, attr, candidate)
+                        break
