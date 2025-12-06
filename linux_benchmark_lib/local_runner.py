@@ -8,6 +8,7 @@ managing the overall benchmark workflow.
 from __future__ import annotations
 
 import json
+import os
 import logging
 import platform
 import shutil
@@ -17,9 +18,10 @@ import sys
 from datetime import UTC, datetime
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 
 from .benchmark_config import BenchmarkConfig, WorkloadConfig
+from .events import RunEvent, StdoutEmitter
 from .data_handler import DataHandler
 from .plugin_system.registry import PluginRegistry, print_plugin_table
 from .plugin_system.interface import WorkloadIntensity
@@ -41,7 +43,14 @@ class DateTimeEncoder(JSONEncoder):
 class LocalRunner:
     """Local agent for executing benchmarks on a single node."""
     
-    def __init__(self, config: BenchmarkConfig, registry: PluginRegistry, ui_adapter: UIAdapter | None = None):
+    def __init__(
+        self,
+        config: BenchmarkConfig,
+        registry: PluginRegistry,
+        ui_adapter: UIAdapter | None = None,
+        progress_callback: Optional[Callable[[RunEvent], None]] = None,
+        host_name: str | None = None,
+    ):
         """
         Initialize the local runner.
         
@@ -63,6 +72,10 @@ class LocalRunner:
         self._current_run_id: Optional[str] = None
         self._output_root: Optional[Path] = None
         self._data_export_root: Optional[Path] = None
+        self._log_file_handler_attached: bool = False
+        self._progress_callback = progress_callback
+        self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
+        self._progress_emitter = StdoutEmitter()
         
     def collect_system_info(self) -> Dict[str, Any]:
         """
@@ -151,7 +164,8 @@ class LocalRunner:
         self,
         test_name: str,
         generator: Any,
-        repetition: int
+        repetition: int,
+        total_repetitions: int,
     ) -> Dict[str, Any]:
         """
         Run a single test with the specified generator.
@@ -198,17 +212,24 @@ class LocalRunner:
                 total=duration,
             )
 
+            # Run generator setup before metrics collection to avoid skew
+            try:
+                generator.prepare()
+            except Exception as e:
+                logger.error(f"Generator setup failed: {e}")
+                raise
+
+            # Warmup period
+            if self.config.warmup_seconds > 0:
+                logger.info(f"Warmup period: {self.config.warmup_seconds} seconds")
+                time.sleep(self.config.warmup_seconds)
+
             # Start collectors
             for collector in collectors:
                 try:
                     collector.start()
                 except Exception as e:
                     logger.error(f"Failed to start collector {collector.name}: {e}")
-            
-            # Warmup period
-            if self.config.warmup_seconds > 0:
-                logger.info(f"Warmup period: {self.config.warmup_seconds} seconds")
-                time.sleep(self.config.warmup_seconds)
             
             # Start workload generator
             test_start_time = datetime.now()
@@ -274,16 +295,37 @@ class LocalRunner:
                     logger.error(f"Failed to stop collector {collector.name}: {e}")
         
         # Collect results
+        duration_seconds = (
+            (test_end_time - test_start_time).total_seconds()
+            if test_start_time and test_end_time
+            else 0
+        )
+        if duration_seconds:
+            logger.info("Repetition %s completed in %.2fs", repetition, duration_seconds)
+
         result = {
             "test_name": test_name,
             "repetition": repetition,
             "start_time": test_start_time.isoformat() if test_start_time else None,
             "end_time": test_end_time.isoformat() if test_end_time else None,
-            "duration_seconds": (test_end_time - test_start_time).total_seconds() if test_start_time and test_end_time else 0,
+            "duration_seconds": duration_seconds,
             "generator_result": generator.get_result(),
             "metrics": {}
         }
-        
+        gen_result = result["generator_result"]
+        failed = False
+        if isinstance(gen_result, dict):
+            if gen_result.get("error"):
+                failed = True
+            rc = gen_result.get("returncode")
+            if rc not in (None, 0):
+                failed = True
+        elif gen_result not in (None, 0, True):
+            failed = True
+        result["success"] = not failed
+        # Emit per-repetition progress after completion
+        self._emit_progress(test_name, repetition, total_repetitions, "done" if not failed else "failed")
+
         # Collect data from each collector
         for collector in collectors:
             collector_data = collector.get_data()
@@ -320,6 +362,28 @@ class LocalRunner:
                     logger.debug("Skipping cache clearing (no sudo access)")
             except Exception as e:
                 logger.warning(f"Failed to perform pre-test cleanup: {e}")
+
+    def _emit_progress(self, test_name: str, repetition: int, total_repetitions: int, status: str) -> None:
+        """Notify progress callback and stdout marker for remote parsing."""
+        event = RunEvent(
+            run_id=self._current_run_id or "",
+            host=self._host_name,
+            workload=test_name,
+            repetition=repetition,
+            total_repetitions=total_repetitions,
+            status=status,
+            timestamp=time.time(),
+        )
+        if self._progress_callback:
+            try:
+                self._progress_callback(event)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug("Progress callback failed: %s", exc)
+        try:
+            self._progress_emitter.emit(event)
+        except Exception:
+            # Never break workload on progress path
+            pass
     
     def run_benchmark(
         self,
@@ -327,7 +391,7 @@ class LocalRunner:
         repetition_override: int | None = None,
         total_repetitions: int | None = None,
         run_id: str | None = None,
-    ) -> None:
+    ) -> bool:
         """
         Run a complete benchmark test.
         
@@ -341,7 +405,9 @@ class LocalRunner:
         run_identifier = run_id or self._generate_run_id()
         self._current_run_id = run_identifier
         self._output_root, self._data_export_root, _ = self._ensure_directories(run_identifier)
-        
+
+        self._ensure_runner_log(self._output_root or self.config.output_dir)
+
         # Collect system info if enabled
         if self.config.collect_system_info and not self.system_info:
             self.collect_system_info()
@@ -358,12 +424,13 @@ class LocalRunner:
             else list(range(1, self.config.repetitions + 1))
         )
 
+        success_overall = True
         for rep in reps:
             if rep is None or rep <= 0:
                 raise ValueError("Repetition index must be a positive integer")
 
             logger.info(f"Starting repetition {rep}/{total_reps}")
-            
+
             try:
                 plugin = self.plugin_registry.get(plugin_name)
                 
@@ -388,17 +455,23 @@ class LocalRunner:
                 self.ui.show_info(
                     f"==> Running workload '{test_type}' (repetition {rep}/{total_reps})"
                 )
+                self._emit_progress(test_type, rep, total_reps, "running")
                 result = self._run_single_test(
                     test_name=test_type,
                     generator=generator,
-                    repetition=rep
+                    repetition=rep,
+                    total_repetitions=total_reps,
                 )
                 test_results.append(result)
+                if not result.get("success", True):
+                    success_overall = False
                 
             except Exception as e:
                 logger.error(
                     f"Skipping workload '{test_type}' on repetition {rep}: {e}"
                 )
+                success_overall = False
+                self._emit_progress(test_type, rep, total_reps, "failed")
                 break
         
         # Process and save results
@@ -406,6 +479,7 @@ class LocalRunner:
             self._process_results(test_type, test_results)
         
         logger.info(f"Completed benchmark: {test_type}")
+        return success_overall
     
     def _process_results(self, test_name: str, results: List[Dict[str, Any]]) -> None:
         """
@@ -451,6 +525,30 @@ class LocalRunner:
         for path in (output_root, report_root, data_export_root):
             path.mkdir(parents=True, exist_ok=True)
         return output_root, data_export_root, report_root
+
+    def _ensure_runner_log(self, output_dir: Path) -> None:
+        """
+        Attach a single runner.log file handler if one is not already present.
+
+        This keeps logging consistent across local, container, and remote runners.
+        """
+        if self._log_file_handler_attached:
+            return
+        for handler in logger.handlers:
+            if isinstance(handler, logging.FileHandler):
+                self._log_file_handler_attached = True
+                return
+        try:
+            log_path = output_dir / "runner.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = logging.FileHandler(log_path)
+            file_handler.setFormatter(
+                logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+            )
+            logger.addHandler(file_handler)
+            self._log_file_handler_attached = True
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug(f"Failed to attach file handler: {exc}")
 
     def _print_available_plugins(self) -> None:
         """Print the available workload plugins at startup."""

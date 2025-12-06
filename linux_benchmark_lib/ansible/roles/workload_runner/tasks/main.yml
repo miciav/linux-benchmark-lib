@@ -32,80 +32,27 @@
   ansible.builtin.copy:
     dest: "{{ workload_runner_workdir }}/benchmark_config.generated.json"
     content: "{{ workload_runner_config_rendered | to_nice_json }}"
-    mode: "0644" # Ensure proper permissions
+    mode: "0644"
 
-- name: Run benchmark via local runner
-  ansible.builtin.shell: |
-    {{ workload_runner_workdir }}/.venv/bin/python - <<'PY'
-    from pathlib import Path
-    import sys
-    import logging
+- name: Build repetitions list
+  set_fact:
+    workload_runner_reps: >-
+      {{
+        workload_runner_pending_reps
+        if workload_runner_pending_reps is defined and (workload_runner_pending_reps | length) > 0
+        else (
+          (range(1, (workload_runner_repetitions_total | int) + 1) | list)
+          if (workload_runner_repetitions_total | int) > 0 else [1]
+        )
+      }}
+  when:
+    - workload_runner_mode == "execute"
 
-    # Configure logging
-    output_dir = Path("{{ workload_runner_output_dir | default('/tmp') }}")
-    log_file = output_dir / "runner.log"
-    
-    # Ensure output directory exists (it should, but to be safe)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    handlers = [
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(log_file)
-    ]
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=handlers
-    )
-
-    # __file__ is not defined in stdin scripts; use cwd provided by Ansible
-    workdir = Path.cwd().resolve()
-    sys.path.insert(0, str(workdir))
-    from linux_benchmark_lib.benchmark_config import BenchmarkConfig
-    from linux_benchmark_lib.local_runner import LocalRunner
-    from linux_benchmark_lib.plugin_system.builtin import builtin_plugins
-    from linux_benchmark_lib.plugin_system.registry import PluginRegistry
-
-    def _safe_int(value, default=0):
-        try:
-            return int(str(value).strip())
-        except Exception:
-            return default
-
-    config_path = Path("benchmark_config.generated.json")
-    with config_path.open() as fh:
-        cfg = BenchmarkConfig.from_json(fh.read())
-
-    registry = PluginRegistry(builtin_plugins())
-    runner = LocalRunner(cfg, registry=registry)
-    repetition_raw = "{{ workload_runner_repetition_index | default(0) }}"
-    repetitions_total_raw = "{{ workload_runner_repetitions_total | default(0) }}"
-    repetition_index = _safe_int(repetition_raw, default=0)
-    repetitions_total = _safe_int(repetitions_total_raw, default=0)
-    repetition_override = repetition_index if repetition_index > 0 else None
-    total_reps = repetitions_total if repetitions_total > 0 else None
-    test_name = "{{ item }}"
-    print(f"Running benchmark: {test_name}", flush=True)
-    
-    print(f"\n>>> Starting {test_name}", flush=True)
-    runner.run_benchmark(
-        test_name,
-        repetition_override=repetition_override,
-        total_repetitions=total_reps,
-    )
-    print(f"<<< Finished {test_name}\n", flush=True)
-    PY
-  args:
-    chdir: "{{ workload_runner_workdir }}"
-  environment:
-    PYTHONPATH: >-
-      {{ workload_runner_workdir }}:{{ lookup('env', 'PYTHONPATH') | default('') }}
-    PYTHONUNBUFFERED: "1"
-    PATH: >-
-      {{ workload_runner_workdir }}/.venv/bin:{{ ansible_env.PATH | default('/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin') }}
-  loop: "{{ workload_runner_tests | default([]) }}"
+- name: Run workload per repetition (separate tasks)
+  ansible.builtin.include_tasks: run_single_rep.yml
+  loop: "{{ query('cartesian', workload_runner_tests | default([]), workload_runner_reps | default([1])) }}"
   loop_control:
-    label: "{{ item }}"
+    loop_var: workload_item
+    label: "{{ workload_item[0] }} rep {{ workload_item[1] }}"
   when:
     - workload_runner_mode == "execute"

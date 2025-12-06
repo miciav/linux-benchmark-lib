@@ -1,0 +1,64 @@
+- name: Install Geekbench prerequisites
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    geekbench_packages:
+      - curl
+      - wget
+      - tar
+      - sysstat
+      - ca-certificates
+    geekbench_version: "6.3.0"
+    geekbench_arm_url: "https://cdn.geekbench.com/Geekbench-6.5.0-LinuxARMPreview.tar.gz"
+    geekbench_base_dir: /opt/geekbench
+
+  tasks:
+    - name: Install Geekbench packages
+      ansible.builtin.apt:
+        name: "{{ geekbench_packages }}"
+        state: present
+        update_cache: true
+      when: ansible_facts['os_family'] | default('') == 'Debian'
+
+    - name: Ensure Geekbench base directory exists
+      ansible.builtin.file:
+        path: "{{ geekbench_base_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Select Geekbench download for ARM
+      ansible.builtin.set_fact:
+        geekbench_url: "{{ geekbench_arm_url }}"
+        geekbench_archive: "{{ geekbench_base_dir }}/{{ geekbench_arm_url | basename }}"
+        geekbench_extract_dir: "{{ geekbench_base_dir }}/{{ (geekbench_arm_url | basename) | regex_replace('\\.tar\\.gz$', '') }}"
+      when: ansible_architecture is defined and ansible_architecture | lower is search("arm")
+
+    - name: Select Geekbench download for x86
+      ansible.builtin.set_fact:
+        geekbench_url: "https://cdn.geekbench.com/Geekbench-{{ geekbench_version }}-Linux.tar.gz"
+        geekbench_archive: "{{ geekbench_base_dir }}/Geekbench-{{ geekbench_version }}-Linux.tar.gz"
+        geekbench_extract_dir: "{{ geekbench_base_dir }}/Geekbench-{{ geekbench_version }}-Linux"
+      when: geekbench_url is not defined
+
+    - name: Download Geekbench archive
+      ansible.builtin.get_url:
+        url: "{{ geekbench_url }}"
+        dest: "{{ geekbench_archive }}"
+        mode: "0644"
+        force: false
+      register: geekbench_download
+
+    - name: Extract Geekbench archive
+      ansible.builtin.unarchive:
+        src: "{{ geekbench_archive }}"
+        dest: "{{ geekbench_base_dir }}"
+        remote_src: true
+        creates: "{{ geekbench_extract_dir }}"
+
+    - name: Ensure Geekbench binary is executable
+      ansible.builtin.file:
+        path: "{{ geekbench_extract_dir }}/geekbench6"
+        mode: "0755"
+        state: file

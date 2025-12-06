@@ -22,7 +22,6 @@ from linux_benchmark_lib.plugin_system.builtin import builtin_plugins
 from linux_benchmark_lib.plugin_system.registry import PluginRegistry
 from linux_benchmark_lib.plugins.dd.plugin import DDConfig
 from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
-from linux_benchmark_lib.plugins.iperf3.plugin import IPerf3Config
 from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
 
 
@@ -48,12 +47,6 @@ def create_custom_config() -> BenchmarkConfig:
         io_workers=1,
         timeout=30,
     )
-    iperf_cfg = IPerf3Config(
-        server_host="localhost",  # Requires iperf3 server running
-        parallel=2,
-        time=30,
-        protocol="tcp",
-    )
     dd_cfg = DDConfig(
         bs="4M",
         oflag="direct",
@@ -75,13 +68,11 @@ def create_custom_config() -> BenchmarkConfig:
         cooldown_seconds=5,
         plugin_settings={
             "stress_ng": stress_cfg,
-            "iperf3": iperf_cfg,
             "dd": dd_cfg,
             "fio": fio_cfg,
         },
         workloads={
             "stress_ng": WorkloadConfig(plugin="stress_ng", enabled=True, options=asdict(stress_cfg)),
-            "iperf3": WorkloadConfig(plugin="iperf3", enabled=True, options=asdict(iperf_cfg)),
             "dd": WorkloadConfig(plugin="dd", enabled=False, options=asdict(dd_cfg)),
             "fio": WorkloadConfig(plugin="fio", enabled=False, options=asdict(fio_cfg)),
         },
@@ -168,8 +159,7 @@ def main():
     # Run individual benchmarks
     # Note: Some tests may require specific setup:
     # - stress_ng: Should work out of the box if installed
-    # - iperf3: Requires an iperf3 server running
-    # - dd: Should work, but be careful with disk space
+    # - dd: Should work, but be careful with disk space and throughput settings
     # - fio: Should work if installed
     
     # Example: Run only stress-ng benchmark
@@ -179,7 +169,6 @@ def main():
     # Uncomment to run other benchmarks:
     # run_single_benchmark(config, "dd")
     # run_single_benchmark(config, "fio")
-    # run_single_benchmark(config, "iperf3")  # Requires iperf3 server
     
     # Generate reports
     generate_reports(config)

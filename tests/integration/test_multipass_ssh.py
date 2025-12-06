@@ -384,6 +384,7 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             "benchmark_config": {},  # Not used by setup.yml today
             "use_container_fallback": False,
             "workload_runner_install_deps": False,
+            "collector_apt_packages": ["stress-ng"],
             "_lb_inventory_path": str(inventory_path),
         }
         extravars_path = tmp_path / "extravars.json"
@@ -423,10 +424,14 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
         # Run the workload runner playbook for stress_ng (smoke: single test).
         extravars["tests"] = ["stress_ng"]
         extravars["benchmark_config"] = {
-            "workloads": {"stress_ng": {"plugin": "stress_ng", "enabled": True, "options": {}}},
-            "plugin_settings": {
-                "stress_ng": {"cpu_workers": 1, "timeout": 3, "metrics_brief": True}
+            "workloads": {
+                "stress_ng": {
+                    "plugin": "stress_ng", 
+                    "enabled": True, 
+                    "options": {"vm_workers": 0, "cpu_workers": 1, "timeout": 3, "metrics_brief": True}
+                }
             },
+            "plugin_settings": {},
             "repetitions": 1,
             "test_duration_seconds": 3,
             "warmup_seconds": 0,

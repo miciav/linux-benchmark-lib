@@ -104,7 +104,6 @@ def prompt_multipass(options: Iterable[str], default_level: str = "medium") -> O
         "stress_ng": "CPU/memory stress (default)",
         "dd": "Disk throughput (dd)",
         "fio": "Random I/O (fio)",
-        "iperf3": "Network throughput",
         "multi": "stress_ng + dd + fio combo",
     }
 

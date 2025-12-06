@@ -25,6 +25,24 @@ def ensure_ansible_available() -> None:
         pytest.skip("ansible-playbook not available on this host")
 
 
+def stage_private_key(source_key: Path, target_dir: Path) -> Path:
+    """
+    Copy the generated SSH private key into a target directory that Ansible will access.
+
+    The staging location avoids macOS folder permissions (e.g., Downloads) and ensures the
+    key remains available even if the original is cleaned up during teardown.
+    """
+    source_key = Path(source_key)
+    if not source_key.exists():
+        raise FileNotFoundError(f"SSH key not found at {source_key}")
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    staged_key = target_dir / source_key.name
+    shutil.copy2(source_key, staged_key)
+    staged_key.chmod(0o600)
+    return staged_key
+
+
 def make_test_ansible_env(tmp_path: Path, roles_path: Optional[Path] = None) -> Dict[str, str]:
     """
     Build an Ansible environment that avoids host-level callback plugins.

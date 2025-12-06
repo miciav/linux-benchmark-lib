@@ -109,30 +109,16 @@ def _print_run_plan(
             item["plugin"],
             item["intensity"],
             item["details"],
+            item.get("repetitions", ""),
             item["status"],
         ]
         for item in plan
     ]
     ui.show_table(
         "Run Plan",
-        ["Workload", "Plugin", "Intensity", "Configuration", "Status"],
+        ["Workload", "Plugin", "Intensity", "Configuration", "Repetitions", "Status"],
         rows,
     )
-
-
-def _format_task_status(task: TaskState | None) -> str:
-    """Normalize task status for compact table output."""
-    if task is None:
-        return "pending"
-    if task.status == RunStatus.COMPLETED:
-        return "done"
-    if task.status == RunStatus.RUNNING:
-        return "running"
-    if task.status == RunStatus.FAILED:
-        return "failed"
-    if task.status == RunStatus.SKIPPED:
-        return "skipped"
-    return "pending"
 
 
 def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[str]]]:
@@ -140,8 +126,8 @@ def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[st
     if not journal.tasks:
         return ["Host", "Workload"], []
 
-    max_rep = max(task.repetition for task in journal.tasks.values())
-    columns = ["Host", "Workload"] + [f"Rep {i}" for i in range(1, max_rep + 1)] + ["Last Action"]
+    target_reps = _target_repetitions(journal)
+    columns = ["Host", "Workload", "Run", "Last Action"]
 
     pairs = sorted({(task.host, task.workload) for task in journal.tasks.values()})
     rows: list[list[str]] = []
@@ -157,13 +143,49 @@ def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[st
             latest = max(tasks.values(), key=lambda t: t.timestamp)
             last_action = latest.error or latest.current_action or ""
 
-        row = [host, workload]
-        for rep in range(1, max_rep + 1):
-            row.append(_format_task_status(tasks.get(rep)))
-        row.append(last_action)
+        status, progress = _summarize_progress(tasks, target_reps)
+        row = [host, workload, f"{status}\n{progress}", last_action]
         rows.append(row)
 
     return columns, rows
+
+
+def _target_repetitions(journal: RunJournal) -> int:
+    from_metadata = journal.metadata.get("repetitions")
+    if isinstance(from_metadata, int) and from_metadata > 0:
+        return from_metadata
+    reps = [task.repetition for task in journal.tasks.values()]
+    return max(reps) if reps else 0
+
+
+def _summarize_progress(
+    tasks: dict[int, TaskState], target_reps: int
+) -> tuple[str, str]:
+    total = target_reps or len(tasks)
+    completed = sum(
+        1
+        for task in tasks.values()
+        if task.status in (RunStatus.COMPLETED, RunStatus.SKIPPED, RunStatus.FAILED)
+    )
+    running = any(task.status == RunStatus.RUNNING for task in tasks.values())
+    failed = any(task.status == RunStatus.FAILED for task in tasks.values())
+    skipped = tasks and all(task.status == RunStatus.SKIPPED for task in tasks.values())
+
+    if failed:
+        status = "failed"
+    elif running:
+        status = "running"
+    elif skipped:
+        status = "skipped"
+    elif total and completed >= total:
+        status = "done"
+    elif completed > 0:
+        status = "partial"
+    else:
+        status = "pending"
+
+    progress = f"{completed}/{total or '?'}"
+    return status, progress
 
 
 def _print_run_journal_summary(journal_path: Path, log_path: Path | None = None) -> None:
@@ -240,12 +262,23 @@ def config_init(
         "-i",
         help="Prompt for a remote host while creating the config.",
     ),
+    repetitions: int = typer.Option(
+        3,
+        "--repetitions",
+        "-r",
+        help="Number of repetitions to run for each workload (must be >= 1).",
+    ),
 ) -> None:
     """Create a config file from defaults and optionally set it as default."""
     target = Path(path).expanduser() if path else config_service.default_target
     target.parent.mkdir(parents=True, exist_ok=True)
 
+    if repetitions < 1:
+        ui.show_error("Repetitions must be at least 1.")
+        raise typer.Exit(1)
+
     cfg = config_service.create_default_config()
+    cfg.repetitions = repetitions
     if interactive:
         details = prompt_remote_host(
             {
@@ -278,6 +311,34 @@ def config_init(
     if set_default:
         config_service.write_saved_config_path(target)
         ui.show_info(f"Default config set to {target}")
+
+
+@config_app.command("set-repetitions")
+def config_set_repetitions(
+    repetitions: int = typer.Argument(..., help="Number of repetitions to store in the config."),
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file to update."),
+    set_default: bool = typer.Option(
+        False,
+        "--set-default/--no-set-default",
+        help="Remember this config as the default.",
+    ),
+) -> None:
+    """Persist the desired repetitions count to the configuration file."""
+
+    if repetitions < 1:
+        ui.show_error("Repetitions must be at least 1.")
+        raise typer.Exit(1)
+
+    cfg, target, stale, _ = config_service.load_for_write(config, allow_create=True)
+    cfg.repetitions = repetitions
+    cfg.save(target)
+
+    if set_default:
+        config_service.write_saved_config_path(target)
+
+    if stale:
+        ui.show_warning(f"Saved default config not found: {stale}")
+    ui.show_success(f"Repetitions set to {repetitions} in {target}")
 
 
 @config_app.command("set-default")
@@ -629,6 +690,12 @@ def run(
         "--docker-no-cache",
         help="Disable cache when building the image with --docker.",
     ),
+    repetitions: Optional[int] = typer.Option(
+        None,
+        "--repetitions",
+        "-r",
+        help="Override the number of repetitions for this run (must be >= 1).",
+    ),
     multipass: bool = typer.Option(
         False,
         "--multipass",
@@ -650,80 +717,73 @@ def run(
         "-i",
         help="Override workload intensity (low, medium, high, user_defined).",
     ),
-    ) -> None:
-        """Run workloads locally, remotely, or inside the container image."""
-        if debug:
-            logging.basicConfig(
-                level=logging.DEBUG,
-                format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-                force=True,
-            )
-            ui.show_info("Debug logging enabled")
+    setup: bool = typer.Option(
+        True,
+        "--setup/--no-setup",
+        help="Run environment setup (Global + Workload) before execution.",
+    ),
+) -> None:
+    """Run workloads locally, remotely, or inside the container image."""
+    if debug:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            force=True,
+        )
+        ui.show_info("Debug logging enabled")
 
-        if multipass and multipass_vm_count < 1:
-            ui.show_error("When using --multipass, --multipass-vm-count must be at least 1.")
-            raise typer.Exit(1)
+    if multipass and multipass_vm_count < 1:
+        ui.show_error("When using --multipass, --multipass-vm-count must be at least 1.")
+        raise typer.Exit(1)
 
-        if resume and run_id:
-            ui.show_error("Use either --resume or --run-id, not both.")
-            raise typer.Exit(1)
+    if repetitions is not None and repetitions < 1:
+        ui.show_error("Repetitions must be at least 1.")
+        raise typer.Exit(1)
 
-        cfg, resolved, stale = config_service.load_for_read(config)
-        if stale:
-            ui.show_warning(f"Saved default config not found: {stale}")
-        if resolved:
-            ui.show_success(f"Loaded config: {resolved}")
-        else:
-            ui.show_warning("No config file found; using built-in defaults.")
-
-        if hasattr(run_service, "apply_overrides"):
-            run_service.apply_overrides(cfg, intensity=intensity, debug=debug)
-        if intensity:
-            ui.show_info(f"Global intensity override: {intensity}")
-
-        cfg.ensure_output_dirs()
-
-        target_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
-        if not target_tests:
-            ui.show_warning("No workloads selected to run.")
-            raise typer.Exit(1)
-
-        registry = create_registry()
-        effective_remote = remote if remote is not None else cfg.remote_execution.enabled
-        _print_run_plan(
-            cfg,
-            target_tests,
-            registry=registry,
-            docker_mode=docker,
-            multipass_mode=multipass,
-            remote_mode=effective_remote,
+    try:
+        context = run_service.create_session(
+            config_service=config_service,
+            tests=tests,
+            config_path=config,
+            run_id=run_id,
+            resume=resume,
+            remote=remote,
+            docker=docker,
+            docker_image=docker_image,
+            docker_engine=docker_engine,
+            docker_no_build=docker_no_build,
+            docker_no_cache=docker_no_cache,
+            repetitions=repetitions,
+            multipass=multipass,
+            multipass_vm_count=multipass_vm_count,
+            debug=debug,
+            intensity=intensity,
+            ui_adapter=ui,
+            setup=setup,
         )
 
-        try:
-            context = run_service.build_context(
-                cfg,
-                target_tests,
-                remote_override=remote,
-                docker=docker,
-                multipass=multipass,
-                docker_image=docker_image,
-                docker_engine=docker_engine,
-                docker_build=not docker_no_build,
-                docker_no_cache=docker_no_cache,
-                config_path=resolved,
-                debug=debug,
-                resume=resume,
-                multipass_vm_count=multipass_vm_count,
-            )
-            result = run_service.execute(context, run_id, ui_adapter=ui)
-        except Exception as exc:
-            ui.show_error(f"Run failed: {exc}")
-            raise typer.Exit(1)
+        _print_run_plan(
+            context.config,
+            context.target_tests,
+            registry=context.registry,
+            docker_mode=context.use_container,
+            multipass_mode=context.use_multipass,
+            remote_mode=context.use_remote,
+        )
 
-        if result and result.journal_path:
-            _print_run_journal_summary(result.journal_path, log_path=result.log_path)
+        result = run_service.execute(context, run_id, ui_adapter=ui)
 
-        ui.show_success("Run completed.")
+    except ValueError as e:
+        ui.show_warning(str(e))
+        raise typer.Exit(1)
+    except Exception as exc:
+        ui.show_error(f"Run failed: {exc}")
+        raise typer.Exit(1)
+
+    if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):
+        _print_run_journal_summary(result.journal_path, log_path=result.log_path)
+
+    ui.show_success("Run completed.")
 
 
 def _select_plugins_interactively(

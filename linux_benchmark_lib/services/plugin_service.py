@@ -16,11 +16,18 @@ from ..plugin_system import registry as registry  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-def create_registry() -> PluginRegistry:
+_REGISTRY_CACHE: PluginRegistry | None = None
+
+
+def create_registry(refresh: bool = False) -> PluginRegistry:
     """
     Build a plugin registry with built-ins, entry points, and user plugins.
     """
-    return PluginRegistry(builtin_plugins())
+    global _REGISTRY_CACHE
+    if not refresh and _REGISTRY_CACHE is not None:
+        return _REGISTRY_CACHE
+    _REGISTRY_CACHE = PluginRegistry(builtin_plugins())
+    return _REGISTRY_CACHE
 
 
 class PluginInstaller:

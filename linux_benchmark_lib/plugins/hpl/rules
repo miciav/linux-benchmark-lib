@@ -1,0 +1,21 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+export MAKEFLAGS=-j1
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# no configure step
+
+override_dh_auto_build:
+	$(MAKE) arch=Linux
+
+override_dh_auto_install:
+	mkdir -p debian/hpl/opt/hpl-2.3/bin/Linux
+	cp bin/Linux/xhpl debian/hpl/opt/hpl-2.3/bin/Linux/
+
+override_dh_auto_clean:
+	- [ -d src/auxil/Linux ] && $(MAKE) arch=Linux clean
+	rm -rf bin/Linux lib/Linux

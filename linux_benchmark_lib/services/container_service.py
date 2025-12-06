@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 from ..benchmark_config import BenchmarkConfig
 from .plugin_service import create_registry
@@ -30,6 +31,7 @@ class ContainerRunSpec:
     build: bool = True
     no_cache: bool = False
     debug: bool = False
+    repetitions: int | None = None
 
 
 class ContainerRunner:
@@ -120,27 +122,37 @@ class ContainerRunner:
         image_tag = self.build_plugin_image(spec, plugin, ui_adapter=ui_adapter)
 
         # We execute the package CLI module inside the container (no uv in the minimal image).
-        inner_cmd = ["python3", "-m", "linux_benchmark_lib.cli", "run", workload_name, "--no-remote"]
-        if spec.run_id:
-            inner_cmd.extend(["--run-id", spec.run_id])
+        inner_cmd = [
+            "python3",
+            "-u",  # Force unbuffered binary stdout
+            "-m",
+            "linux_benchmark_lib.cli",
+            "run",
+            workload_name,
+            "--no-remote",
+            "--no-setup",  # Avoid ansible-runner in container images built for workload-only execution
+        ]
+        inner_cmd.extend(["--run-id", run_id])
         if spec.debug:
             inner_cmd.append("--debug")
+        if spec.repetitions and spec.repetitions > 0:
+            inner_cmd.extend(["--repetitions", str(spec.repetitions)])
 
         spec.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
         # Mount logic
-        # We mount the project root to /app to allow the inner run to work 
+        # We mount the project root to /app to allow the inner run to work
         # on the current code (development mode).
         volume_args = [
             "-v", f"{spec.workdir}:/app",  # Mount source code
             "-v", f"{spec.artifacts_dir}:/app/benchmark_results",
         ]
 
-        env_args: List[str] = ["-e", "PYTHONPATH=/app"]
+        env_args: List[str] = ["-e", "PYTHONPATH=/app", "-e", "LB_CONTAINER_MODE=1", "-e", "PYTHONUNBUFFERED=1"]
         if spec.config_path:
             cfg_host = spec.config_path.resolve()
             cfg_in_container = "/tmp/host_config.json"
-            # Ensure local config dir exists mapped into container if needed, 
+            # Ensure local config dir exists mapped into container if needed,
             # but mapping single file is safer.
             # However, if we map /app (workdir), we might shadow config.
             # Let's just map the config file explicitly.
@@ -151,7 +163,8 @@ class ContainerRunner:
             spec.engine,
             "run",
             "--rm",
-            "-t",
+            "--name",
+            f"lb-{workload_name}-{run_id}",
             "-w",
             "/app",
             *volume_args,
@@ -161,7 +174,61 @@ class ContainerRunner:
         ]
 
         print(f"Running container for {workload_name} [{image_tag}]...")
-        subprocess.run(cmd, check=True)
+        print(f"Container command: {' '.join(cmd)}")
+
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # Merge stderr into stdout
+            text=True,
+            bufsize=1,  # Line buffered
+        )
+
+        captured_stdout = []
+        if process.stdout:
+            for line in process.stdout:
+                # Invoke callback if provided (e.g. for UI updates)
+                if output_callback:
+                    output_callback(line)
+                else:
+                    print(line, end="")
+                captured_stdout.append(line)
+
+        process.wait()
+        full_output = "".join(captured_stdout)
+
+        if process.returncode != 0:
+            raise RuntimeError(f"Container run failed (rc={process.returncode})")
+
+        inner_run_id = self._extract_run_id(full_output) or run_id
+        return inner_run_id
+
+    @staticmethod
+    def _extract_run_id(output: str) -> str | None:
+        """Parse LB_EVENT lines to recover the run_id emitted inside the container."""
+        if not output:
+            return None
+        import json  # Local import to avoid overhead when unused
+        latest = None
+        for line in output.splitlines():
+            token_idx = line.find("LB_EVENT")
+            if token_idx == -1:
+                continue
+            payload = line[token_idx + len("LB_EVENT"):].strip()
+            if "{" not in payload or "}" not in payload:
+                continue
+            start = payload.find("{")
+            end = payload.rfind("}") + 1
+            candidate = payload[start:end]
+            for attempt in (candidate, candidate.replace(r"\"", '"')):
+                try:
+                    data = json.loads(attempt)
+                    rid = data.get("run_id")
+                    if rid:
+                        latest = rid
+                except Exception:
+                    continue
+        return latest
 
 
 def resolve_config_path_for_container(cfg: BenchmarkConfig, explicit: Optional[Path]) -> Optional[Path]:

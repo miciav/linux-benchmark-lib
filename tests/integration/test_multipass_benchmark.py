@@ -30,7 +30,11 @@ from linux_benchmark_lib.benchmark_config import (
 from linux_benchmark_lib.plugins.dd.plugin import DDConfig
 from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
 from linux_benchmark_lib.controller import AnsibleRunnerExecutor, BenchmarkController
-from tests.integration.multipass_utils import get_intensity, make_test_ansible_env
+from tests.integration.multipass_utils import (
+    get_intensity,
+    make_test_ansible_env,
+    stage_private_key,
+)
 from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
 
 # Constants
@@ -183,9 +187,15 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     output_dir = base_dir / "results"
     report_dir = base_dir / "reports"
     export_dir = base_dir / "exports"
+    ansible_dir = tmp_path / "ansible_data"
 
     workloads = os.environ.get("LB_MULTIPASS_WORKLOADS", "stress_ng").split(",")
     workloads = [w.strip() for w in workloads if w.strip()]
+
+    staged_key = stage_private_key(
+        Path(multipass_vms[0]["key_path"]),
+        ansible_dir / "keys",
+    )
 
     # Create configuration
     host_configs = [
@@ -195,7 +205,7 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
             user=vm["user"],
             become=True,
             vars={
-                "ansible_ssh_private_key_file": str(vm["key_path"]),
+                "ansible_ssh_private_key_file": str(staged_key),
                 "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
             },
         )
@@ -268,13 +278,10 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     config_args["plugin_settings"] = plugin_settings
     config_args["workloads"] = workload_defs
 
-    # Note: iperf3 and others can be added here similarly if needed
+    # Additional workloads can be added here similarly if needed
 
     config = BenchmarkConfig(**config_args)
 
-    # Use a separate temp dir for ansible runner data
-    ansible_dir = tmp_path / "ansible_data"
-    
     # Ensure Ansible finds roles and uses a minimal callback config
     os.environ.update(make_test_ansible_env(ansible_dir, roles_path=ANSIBLE_ROOT / "roles"))
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
@@ -295,7 +302,8 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         assert summary.phases[f"setup_{test_name}"].success
         assert f"run_{test_name}" in summary.phases
         assert summary.phases[f"run_{test_name}"].success
-    assert "collect" in summary.phases and summary.phases["collect"].success
+        assert f"collect_{test_name}" in summary.phases
+        assert summary.phases[f"collect_{test_name}"].success
 
     # Verify artifacts for each VM
     for vm in multipass_vms:

@@ -428,12 +428,6 @@ wheels = [
 ]
 
 [[package]]
-name = "iperf3"
-version = "0.1.11"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d5/c1/ca9dee2fdd3bf403e90f949da4978ae9ba5330476f867ee8fb28f8c1c26e/iperf3-0.1.11.tar.gz", hash = "sha256:d50eebbf2dcf445a173f98a82f9c433e0302d3dfb7987e1f21b86b35ef63ce26", size = 14286, upload-time = "2019-04-13T07:54:02.119Z" }
-
-[[package]]
 name = "jc"
 version = "1.25.5"
 source = { registry = "https://pypi.org/simple" }
@@ -516,7 +510,6 @@ version = "0.11.0"
 source = { editable = "." }
 dependencies = [
     { name = "inquirerpy" },
-    { name = "iperf3" },
     { name = "jc" },
     { name = "numpy" },
     { name = "pandas" },
@@ -555,7 +548,6 @@ requires-dist = [
     { name = "ansible-runner", marker = "extra == 'controller'", specifier = ">=2.4.0" },
     { name = "influxdb-client", marker = "extra == 'controller'", specifier = ">=1.36.0" },
     { name = "inquirerpy", specifier = ">=0.3.4" },
-    { name = "iperf3", specifier = ">=0.1.11" },
     { name = "jc", specifier = ">=1.25.0" },
     { name = "matplotlib", marker = "extra == 'controller'", specifier = ">=3.7.0" },
     { name = "numpy", specifier = ">=1.24.0" },

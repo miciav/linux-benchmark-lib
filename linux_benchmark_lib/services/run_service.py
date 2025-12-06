@@ -3,21 +3,25 @@
 from __future__ import annotations
 
 from datetime import datetime
+from collections import deque
+import os
 import time
 import re
-import ctypes.util
 from dataclasses import dataclass, asdict
 from contextlib import ExitStack
 from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
 from pathlib import Path
+import json
 
 from ..benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
-from ..journal import RunJournal
+from ..journal import RunJournal, RunStatus
+from ..events import RunEvent, LogSink
 from ..local_runner import LocalRunner
 from ..plugin_system.registry import PluginRegistry
 from ..plugin_system.interface import WorkloadIntensity
 from .container_service import ContainerRunner, ContainerRunSpec
 from .multipass_service import MultipassService
+from .setup_service import SetupService
 from ..ui.console_adapter import ConsoleUIAdapter
 from ..ui.run_dashboard import NoopDashboard, RunDashboard
 from ..ui.types import UIAdapter
@@ -33,6 +37,10 @@ class AnsibleOutputFormatter:
         self.task_pattern = re.compile(r"TASK \[(.*?)\]")
         self.bench_pattern = re.compile(r"Running benchmark: (.*)")
         self.current_phase = "Initializing" # Default phase
+        self._always_show_tasks = (
+            "workload_runner : Build repetitions list",
+            "workload_runner : Run benchmark via local runner (per repetition)",
+        )
     
     def set_phase(self, phase: str):
         self.current_phase = phase
@@ -56,6 +64,11 @@ class AnsibleOutputFormatter:
         if not line:
             return
 
+        progress = self._format_progress(line)
+        if progress:
+            self._emit(progress, log_sink)
+            return
+
         # Filter noise
         if any(x in line for x in ["PLAY [", "GATHERING FACTS", "RECAP", "ok:", "skipping:", "included:"]):
             return
@@ -69,7 +82,11 @@ class AnsibleOutputFormatter:
             # Cleanup "workload_runner :" prefix if present
             if " : " in task_name:
                 _, task_name = task_name.split(" : ", 1)
-            self._emit(f"• [{self.current_phase}] {task_name}", log_sink)
+            always = task_match.group(1).strip()
+            if always in self._always_show_tasks:
+                self._emit(f"• {always}", log_sink)
+            else:
+                self._emit(f"• [{self.current_phase}] {task_name}", log_sink)
             return
 
         # Format Benchmark Start (from python script)
@@ -96,6 +113,33 @@ class AnsibleOutputFormatter:
         # Pass through errors
         if "fatal:" in line or "ERROR" in line or "failed:" in line:
             self._emit(f"[!] {line}", log_sink)
+
+    def _format_progress(self, line: str) -> str | None:
+        """Render LB_EVENT progress lines into a concise message."""
+        token_idx = line.find("LB_EVENT")
+        if token_idx == -1:
+            return None
+        payload = line[token_idx + len("LB_EVENT"):].strip()
+        if "{" not in payload or "}" not in payload:
+            return None
+        try:
+            start = payload.find("{")
+            end = payload.rfind("}") + 1
+            data = json.loads(payload[start:end])
+        except Exception:
+            return None
+        host = data.get("host", "?")
+        workload = data.get("workload", "?")
+        rep = data.get("repetition", "?")
+        total = data.get("total_repetitions") or data.get("total") or "?"
+        status = (data.get("status") or "").lower()
+        if status == "running":
+            return f"{rep}/{total} running on {host} ({workload})"
+        if status == "done":
+            return f"{rep}/{total} completed on {host} ({workload})"
+        if status == "failed":
+            return f"{rep}/{total} failed on {host} ({workload})"
+        return f"{rep}/{total} {status} on {host} ({workload})"
 
 
 @dataclass
@@ -136,6 +180,8 @@ class RunService:
     def __init__(self, registry_factory: Callable[[], PluginRegistry]):
         self._registry_factory = registry_factory
         self._container_runner = ContainerRunner()
+        self._setup_service = SetupService()
+        self._progress_token = "LB_EVENT"
 
     def get_run_plan(
         self,
@@ -153,6 +199,8 @@ class RunService:
         """
         registry = registry or self._registry_factory()
         plan = []
+        container_env = os.getenv("LB_CONTAINER_MODE", "").lower() in ("1", "true", "yes")
+        container_mode = docker_mode or container_env
         
         for name in tests:
             wl = cfg.workloads.get(name)
@@ -233,7 +281,7 @@ class RunService:
                 except Exception:
                     item["details"] = str(config_obj)
 
-            if docker_mode:
+            if container_mode:
                 item["status"] = "[green]Container[/green]"
                 plan.append(item)
                 continue
@@ -245,13 +293,6 @@ class RunService:
 
             if remote_mode:
                 item["status"] = "[blue]Remote[/blue]"
-                plan.append(item)
-                continue
-
-            # Special-case iperf3 check
-            if plugin.name == "iperf3":
-                lib = ctypes.util.find_library("iperf")
-                item["status"] = "[green]✓[/green]" if lib else "[red]✗ (Lib Missing)[/red]"
                 plan.append(item)
                 continue
 
@@ -339,6 +380,82 @@ class RunService:
             resume_latest=resume == "latest",
         )
 
+    def create_session(
+        self,
+        config_service: Any,
+        tests: Optional[List[str]] = None,
+        config_path: Optional[Path] = None,
+        run_id: Optional[str] = None,
+        resume: Optional[str] = None,
+        remote: Optional[bool] = None,
+        docker: bool = False,
+        docker_image: str = "linux-benchmark-lib:dev",
+        docker_engine: str = "docker",
+        docker_no_build: bool = False,
+        docker_no_cache: bool = False,
+        repetitions: Optional[int] = None,
+        multipass: bool = False,
+        multipass_vm_count: int = 1,
+        debug: bool = False,
+        intensity: Optional[str] = None,
+        ui_adapter: UIAdapter | None = None,
+        setup: bool = True,
+    ) -> RunContext:
+        """
+        Orchestrate the creation of a RunContext from raw inputs.
+        
+        This method consolidates configuration loading, overrides, and context building.
+        """
+        # 1. Load Config
+        cfg, resolved, stale = config_service.load_for_read(config_path)
+        if ui_adapter:
+            if stale:
+                ui_adapter.show_warning(f"Saved default config not found: {stale}")
+            if resolved:
+                ui_adapter.show_success(f"Loaded config: {resolved}")
+            else:
+                ui_adapter.show_warning("No config file found; using built-in defaults.")
+
+        # 2. Overrides
+        # Force setup flag from CLI onto the config, which drives logic in execute()
+        cfg.remote_execution.run_setup = setup
+        if not setup:
+            cfg.remote_execution.run_teardown = False
+        
+        if repetitions is not None:
+            cfg.repetitions = repetitions
+            if ui_adapter:
+                ui_adapter.show_info(f"Using {repetitions} repetitions for this run")
+
+        self.apply_overrides(cfg, intensity=intensity, debug=debug)
+        if intensity and ui_adapter:
+            ui_adapter.show_info(f"Global intensity override: {intensity}")
+            
+        cfg.ensure_output_dirs()
+        
+        # 3. Target Tests
+        target_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+        if not target_tests:
+            raise ValueError("No workloads selected to run.")
+
+        # 4. Build Context
+        context = self.build_context(
+            cfg,
+            target_tests,
+            remote_override=remote,
+            docker=docker,
+            multipass=multipass,
+            docker_image=docker_image,
+            docker_engine=docker_engine,
+            docker_build=not docker_no_build,
+            docker_no_cache=docker_no_cache,
+            config_path=resolved,
+            debug=debug,
+            resume=resume,
+            multipass_vm_count=multipass_vm_count,
+        )
+        return context
+
     def execute(
         self,
         context: RunContext,
@@ -347,6 +464,12 @@ class RunService:
         ui_adapter: UIAdapter | None = None,
     ) -> RunResult:
         """Execute benchmarks using the provided context."""
+        # Shared journal/log setup for all modes (local, container, remote)
+        journal: RunJournal | None = None
+        journal_path: Path | None = None
+        log_path: Path | None = None
+        run_identifier = run_id
+        dashboard: NoopDashboard | RunDashboard | None = None
         
         # Ensure we always stream output for remote/multipass to show progress
         formatter: AnsibleOutputFormatter | None = None
@@ -399,12 +522,19 @@ class RunService:
                 )
 
         if context.use_container:
-            root = context.docker_workdir or context.config.output_dir.parent.parent.resolve()
+            journal, journal_path, dashboard, run_identifier = self._prepare_journal_and_dashboard(
+                context, run_id, ui_adapter
+            )
+            log_path = journal_path.parent / "run.log"
+            # Ensure directory exists
+            journal_path.parent.mkdir(parents=True, exist_ok=True)
+
+            root = context.docker_workdir or context.config.output_dir.parent.resolve()
             spec = ContainerRunSpec(
                 tests=context.target_tests,
                 cfg_path=context.config_path,
                 config_path=context.config_path,
-                run_id=run_id,
+                run_id=run_identifier,
                 remote=context.use_remote,
                 image=context.docker_image,
                 workdir=root,
@@ -413,6 +543,7 @@ class RunService:
                 build=context.docker_build,
                 no_cache=context.docker_no_cache,
                 debug=context.debug,
+                repetitions=context.config.repetitions,
             )
             
             # Run each workload in its own container (or shared image)
@@ -435,7 +566,88 @@ class RunService:
                     else:
                         print(f"Error running {test_name}: {e}")
 
-            return RunResult(context=context, summary=None)
+            def _container_output_handler(line: str) -> None:
+                # 1. Parse Event for UI updates (In-Memory Only)
+                # We do NOT save to disk here to avoid race conditions with the inner process
+                # which has the volume mounted and writes the authoritative journal.
+                info = self._parse_progress_line(line)
+                if info:
+                    status_map = {
+                        "running": RunStatus.RUNNING,
+                        "done": RunStatus.COMPLETED,
+                        "failed": RunStatus.FAILED,
+                    }
+                    journal.update_task(
+                        info["host"],
+                        info["workload"],
+                        info["rep"],
+                        status_map.get(info["status"].lower(), RunStatus.RUNNING),
+                        action="container_run",
+                    )
+                    if isinstance(dashboard, RunDashboard):
+                        dashboard.refresh()
+                    return  # Do not log event protocol lines to the UI
+
+                # 2. Filter and Log to Dashboard
+                stripped = line.strip()
+                if not stripped:
+                    return
+
+                # Suppress progress bar updates from HeadlessUIAdapter
+                # Format: "workload (rep N): X%"
+                if "(rep " in stripped and stripped.endswith("%"):
+                    return
+
+                if isinstance(dashboard, RunDashboard):
+                    # Only show relevant logs, filter out likely internal noise if needed
+                    dashboard.add_log(line.rstrip())
+                else:
+                    print(line, end="")
+
+            with dashboard.live():
+                for test_name in context.target_tests:
+                    workload_cfg = context.config.workloads.get(test_name)
+                    if not workload_cfg:
+                        continue
+                    
+                    try:
+                        plugin = context.registry.get(workload_cfg.plugin)
+                        self._container_runner.run_workload(
+                            spec, test_name, plugin, output_callback=_container_output_handler
+                        )
+                        
+                        # Reload journal from disk to ensure we have the authoritative state
+                        # (e.g. COMPLETED status) written by the inner process.
+                        if journal_path.exists():
+                            try:
+                                disk_journal = RunJournal.load(journal_path)
+                                journal.tasks = disk_journal.tasks
+                            except Exception:
+                                pass
+
+                        if isinstance(dashboard, RunDashboard):
+                            dashboard.refresh()
+
+                    except Exception as e:
+                        if ui_adapter:
+                            ui_adapter.show_error(f"Failed to run container for {test_name}: {e}")
+                        else:
+                            print(f"Error running {test_name}: {e}")
+                        
+                        # Fail all reps for this workload
+                        for rep in range(1, context.config.repetitions + 1):
+                            h_name = context.config.remote_hosts[0].name if context.config.remote_hosts else "localhost"
+                            journal.update_task(
+                                h_name,
+                                test_name,
+                                rep,
+                                RunStatus.FAILED,
+                                action="container_run",
+                                error=str(e),
+                            )
+                        journal.save(journal_path)
+
+            return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
 
         if context.use_remote:
             return self._run_remote(
@@ -446,10 +658,130 @@ class RunService:
                 ui_adapter,
             )
 
-        runner = LocalRunner(context.config, registry=context.registry, ui_adapter=ui_adapter)
-        for test_name in context.target_tests:
-            runner.run_benchmark(test_name)
-        return RunResult(context=context, summary=None)
+        # --- LOCAL EXECUTION WITH 2-LEVEL SETUP ---
+        journal, journal_path, dashboard, run_identifier = self._prepare_journal_and_dashboard(
+            context, run_id, ui_adapter
+        )
+        log_path = journal_path.parent / "run.log"
+        log_file = log_path.open("a", encoding="utf-8")
+        def _progress_cb(event: RunEvent) -> None:
+            status_map = {
+                "running": RunStatus.RUNNING,
+                "done": RunStatus.COMPLETED,
+                "failed": RunStatus.FAILED,
+            }
+            mapped = status_map.get(event.status.lower(), RunStatus.RUNNING)
+            journal.update_task(event.host, event.workload, event.repetition, mapped, action="local_run")
+            journal.save(journal_path)
+            if isinstance(dashboard, RunDashboard):
+                dashboard.refresh()
+
+        runner = LocalRunner(
+            context.config,
+            registry=context.registry,
+            ui_adapter=ui_adapter,
+            progress_callback=_progress_cb,
+            host_name=(context.config.remote_hosts[0].name if context.config.remote_hosts else "localhost"),
+        )
+        
+        # Level 1: Global Setup
+        if context.config.remote_execution.run_setup:
+            if ui_adapter:
+                ui_adapter.show_info("Running global setup (local)...")
+            if not self._setup_service.provision_global():
+                msg = "Global setup failed (local)."
+                if ui_adapter:
+                    ui_adapter.show_error(msg)
+                print(msg)
+                log_file.write(msg + "\n")
+                log_file.close()
+                journal.save(journal_path)
+                if isinstance(dashboard, RunDashboard):
+                    dashboard.refresh()
+                return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
+
+        try:
+            for test_name in context.target_tests:
+                workload_cfg = context.config.workloads.get(test_name)
+                if not workload_cfg:
+                    continue
+
+                # Get plugin from registry (cache check already done by builder)
+                try:
+                    plugin = context.registry.get(workload_cfg.plugin)
+                except Exception as e:
+                    if ui_adapter:
+                        ui_adapter.show_error(f"Skipping {test_name}: {e}")
+                    log_file.write(f"Skipping {test_name}: {e}\n")
+                    log_file.flush()
+                    continue
+
+                # Level 2: Workload Setup
+                if context.config.remote_execution.run_setup:
+                    if ui_adapter:
+                        ui_adapter.show_info(f"Running setup for {test_name} (local)...")
+                    
+                    if not self._setup_service.provision_workload(plugin):
+                        msg = f"Setup failed for {test_name} (local). Skipping."
+                        if ui_adapter:
+                            ui_adapter.show_error(msg)
+                        print(msg)
+                        log_file.write(msg + "\n")
+                        log_file.flush()
+                        
+                        # Cleanup attempt if setup failed? Usually setup is idempotent or fail-fast.
+                        # We try teardown just in case.
+                        if context.config.remote_execution.run_teardown:
+                            self._setup_service.teardown_workload(plugin)
+                        continue
+
+                host_name = (context.config.remote_hosts[0].name
+                             if context.config.remote_hosts else "localhost")
+                for rep in range(1, context.config.repetitions + 1):
+                    journal.update_task(host_name, test_name, rep, RunStatus.RUNNING, action="local_run")
+                journal.save(journal_path)
+                try:
+                    # EXECUTION LOOP (LocalRunner handles repetitions)
+                    success = runner.run_benchmark(test_name, run_id=run_identifier)
+                    if success:
+                        log_file.write(f"{test_name} completed locally\n")
+                    else:
+                        log_file.write(f"{test_name} failed locally\n")
+                    log_file.flush()
+                    journal.save(journal_path)
+                except Exception as e:
+                    for rep in range(1, context.config.repetitions + 1):
+                        journal.update_task(
+                            host_name,
+                            test_name,
+                            rep,
+                            RunStatus.FAILED,
+                            action="local_run",
+                            error=str(e),
+                        )
+                    journal.save(journal_path)
+                    log_file.write(f"{test_name} failed locally: {e}\n")
+                    log_file.flush()
+                    if ui_adapter:
+                        ui_adapter.show_error(f"{test_name} failed locally: {e}")
+                finally:
+                    # Level 2: Workload Teardown
+                    if context.config.remote_execution.run_teardown:
+                        if ui_adapter:
+                            ui_adapter.show_info(f"Running teardown for {test_name} (local)...")
+                        self._setup_service.teardown_workload(plugin)
+        
+        finally:
+            # Level 1: Global Teardown
+            if context.config.remote_execution.run_teardown:
+                if ui_adapter:
+                    ui_adapter.show_info("Running global teardown (local)...")
+                self._setup_service.teardown_global()
+
+        log_file.close()
+        if isinstance(dashboard, RunDashboard):
+            dashboard.refresh()
+        return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
 
     def _run_remote(
         self,
@@ -490,14 +822,60 @@ class RunService:
         log_file = log_path.open("a", encoding="utf-8")
         downstream = output_cb
 
+        sink = LogSink(journal, journal_path, log_path)
+        recent_events: deque[tuple[str, str, int, str]] = deque()
+        dedupe_limit = 200
+        recent_set: set[tuple[str, str, int, str]] = set()
+
+        def _ingest_event(event: RunEvent, source: str = "unknown") -> None:
+            key = (event.host, event.workload, event.repetition, event.status)
+            if key in recent_set:
+                return
+            recent_events.append(key)
+            recent_set.add(key)
+            # Keep the dedupe window bounded
+            if len(recent_events) > dedupe_limit:
+                old = recent_events.popleft()
+                if old in recent_set:
+                    recent_set.remove(old)
+
+            sink.emit(event)
+            if isinstance(dashboard, RunDashboard):
+                dashboard.mark_event(source)
+                dashboard.add_log(
+                    f"{event.repetition}/{event.total_repetitions} {event.status} on {event.host} ({event.workload})"
+                )
+                dashboard.refresh()
+
+        def _handle_progress(line: str) -> None:
+            info = self._parse_progress_line(line)
+            if not info:
+                return
+            try:
+                event = RunEvent(
+                    run_id=journal.run_id,
+                    host=info["host"],
+                    workload=info["workload"],
+                    repetition=info["rep"],
+                    total_repetitions=info.get("total", context.config.repetitions),
+                    status=info["status"],
+                    message=info.get("message") or "",
+                    timestamp=time.time(),
+                )
+                _ingest_event(event, source="stdout")
+            except Exception:
+                pass
+
         def _tee_output(text: str, end: str = "") -> None:
             fragment = text + (end if end else "\n")
+            # Log everything for post-mortem debugging.
             try:
                 log_file.write(fragment)
                 log_file.flush()
             except Exception:
-                # Logging should never break the run; swallow write errors.
                 pass
+            for line in fragment.splitlines():
+                _handle_progress(line)
             if downstream:
                 downstream(text, end=end)
 
@@ -509,9 +887,10 @@ class RunService:
             output_formatter=formatter if not context.debug else None,
             journal_refresh=dashboard.refresh if dashboard else None,
         )
-
+        elapsed: float | None = None
         try:
             with dashboard.live():
+                start_ts = time.monotonic()
                 summary = controller.run(
                     context.target_tests,
                     run_id=effective_run_id,
@@ -519,12 +898,24 @@ class RunService:
                     resume=resume_requested,
                     journal_path=journal_path,
                 )
+                elapsed = time.monotonic() - start_ts
+                msg = f"Run {effective_run_id} completed in {elapsed:.1f}s"
+                try:
+                    log_file.write(msg + "\n")
+                    log_file.flush()
+                except Exception:
+                    pass
+                if ui_adapter:
+                    ui_adapter.show_info(msg)
+                else:
+                    print(msg)
         finally:
             log_file.close()
 
         if isinstance(dashboard, RunDashboard):
             dashboard.refresh()
 
+        sink.close()
         return RunResult(
             context=context,
             summary=summary,
@@ -588,6 +979,65 @@ class RunService:
 
         return journal, journal_path, dashboard, run_identifier
 
+    def _build_journal_from_results(
+        self,
+        run_id: str,
+        context: RunContext,
+        host_name: str,
+    ) -> RunJournal:
+        """
+        Construct a RunJournal from existing *_results.json artifacts when a journal is missing.
+        """
+        journal = RunJournal.initialize(run_id, context.config, context.target_tests)
+        output_root = context.config.output_dir / run_id
+        for test_name in context.target_tests:
+            results_file = output_root / f"{test_name}_results.json"
+            if not results_file.exists():
+                continue
+            try:
+                entries = json.loads(results_file.read_text())
+            except Exception:
+                continue
+            for entry in entries or []:
+                rep = entry.get("repetition")
+                if rep is None:
+                    continue
+                task = journal.get_task(host_name, test_name, rep)
+                if not task:
+                    continue
+                start_str = entry.get("start_time")
+                end_str = entry.get("end_time")
+                if start_str:
+                    task.started_at = datetime.fromisoformat(start_str).timestamp()
+                if end_str:
+                    task.finished_at = datetime.fromisoformat(end_str).timestamp()
+                duration = entry.get("duration_seconds")
+                if duration is not None:
+                    task.duration_seconds = float(duration)
+                elif task.started_at is not None and task.finished_at is not None:
+                    task.duration_seconds = max(0.0, task.finished_at - task.started_at)
+                gen_result = entry.get("generator_result") or {}
+                gen_error = gen_result.get("error")
+                gen_rc = gen_result.get("returncode")
+                if gen_error or (gen_rc not in (None, 0)):
+                    journal.update_task(
+                        host_name,
+                        test_name,
+                        rep,
+                        RunStatus.FAILED,
+                        action="container_run",
+                        error=gen_error or f"returncode={gen_rc}",
+                    )
+                else:
+                    journal.update_task(
+                        host_name,
+                        test_name,
+                        rep,
+                        RunStatus.COMPLETED,
+                        action="container_run",
+                    )
+        return journal
+
     @staticmethod
     def _find_latest_journal(config: BenchmarkConfig) -> Path | None:
         """Return the most recent journal path if present."""
@@ -608,3 +1058,36 @@ class RunService:
     def _generate_run_id() -> str:
         """Generate a timestamped run id matching the controller's format."""
         return datetime.utcnow().strftime("run-%Y%m%d-%H%M%S")
+
+    def _parse_progress_line(self, line: str) -> dict[str, Any] | None:
+        """Parse progress markers emitted by LocalRunner."""
+        line = line.strip()
+        token_idx = line.find(self._progress_token)
+        if token_idx == -1:
+            return None
+        payload = line[token_idx + len(self._progress_token):].strip()
+        # Try to extract a JSON object even if wrapped inside other text.
+        if "{" in payload and "}" in payload:
+            start = payload.find("{")
+            end = payload.rfind("}") + 1
+            candidate = payload[start:end]
+            for attempt in (candidate, candidate.replace(r"\"", '"')):
+                try:
+                    data = json.loads(attempt)
+                    break
+                except Exception:
+                    data = None
+            if not data:
+                return None
+            required = {"host", "workload", "repetition", "status"}
+            if not required.issubset(data.keys()):
+                return None
+            return {
+                "host": data["host"],
+                "workload": data["workload"],
+                "rep": data.get("repetition", 0),
+                "status": data["status"],
+                "total": data.get("total_repetitions", 0),
+                "message": data.get("message"),
+            }
+        return None

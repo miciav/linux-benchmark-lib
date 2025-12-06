@@ -15,7 +15,7 @@ from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
 from linux_benchmark_lib.plugins.dd.plugin import DDConfig
 from linux_benchmark_lib.controller import AnsibleRunnerExecutor, BenchmarkController
 from tests.integration.test_multipass_benchmark import multipass_vm
-from tests.integration.multipass_utils import get_intensity, make_test_ansible_env
+from tests.integration.multipass_utils import get_intensity, make_test_ansible_env, stage_private_key
 from linux_benchmark_lib.plugins.fio.plugin import FIOConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +32,11 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
     """
     intensity = get_intensity()
     multipass_vms = multipass_vm
+    ansible_dir = tmp_path / "ansible_data"
+    staged_key = stage_private_key(
+        Path(multipass_vms[0]["key_path"]),
+        ansible_dir / "keys",
+    )
     host_configs = [
         RemoteHostConfig(
             name=vm["name"],
@@ -39,7 +44,7 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
             user=vm["user"],
             become=True,
             vars={
-                "ansible_ssh_private_key_file": str(vm["key_path"]),
+                "ansible_ssh_private_key_file": str(staged_key),
                 "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
             },
         )
@@ -86,8 +91,7 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
         },
     )
 
-    ansible_dir = tmp_path / "ansible_data"
-    os.environ.update(make_test_ansible_env(tmp_path, roles_path=ANSIBLE_ROOT / "roles"))
+    os.environ.update(make_test_ansible_env(ansible_dir, roles_path=ANSIBLE_ROOT / "roles"))
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)
@@ -103,7 +107,6 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
         assert summary.phases[f"run_{workload}"].success
         assert summary.phases.get(f"collect_{workload}", None) is not None
         assert summary.phases[f"collect_{workload}"].success
-    assert "collect" in summary.phases and summary.phases["collect"].success
 
     for vm in multipass_vms:
         host_output_dir = summary.per_host_output[vm["name"]]

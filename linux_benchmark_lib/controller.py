@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Protocol
+from typing import Any, Callable, Dict, List, Optional, Protocol, Set, Tuple
 import sys
 
 from .benchmark_config import BenchmarkConfig, RemoteHostConfig
@@ -148,7 +148,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             "ANSIBLE_LOCAL_TEMP": str(self.local_tmp),
             "ANSIBLE_REMOTE_TMP": "/tmp/.ansible",
             "ANSIBLE_CONFIG": str((ANSIBLE_ROOT / "ansible.cfg").resolve()),
-            # Force safe stdout callback; ansible-runner's awx_display is broken with newer ansible-core.
+            # Use default callback; debug tasks echo LB_EVENT markers.
             "ANSIBLE_STDOUT_CALLBACK": "default",
             "ANSIBLE_CALLBACK_PLUGINS": "",
         }
@@ -315,6 +315,8 @@ class BenchmarkController:
         )
         self.plugin_registry = create_registry()
         self._journal_refresh = journal_refresh
+        # Use event stream as the source of truth; avoid mass RUNNING/COMPLETED updates.
+        self._use_progress_stream = True
 
     def run(
         self,
@@ -347,6 +349,12 @@ class BenchmarkController:
             hosts=self.config.remote_hosts,
             inventory_path=self.config.remote_execution.inventory_path,
         )
+
+        target_reps = (
+            (journal.metadata.get("repetitions") if journal else None)
+            or self.config.repetitions
+        )
+
         output_root, report_root, data_export_root = self._prepare_run_dirs(
             resolved_run_id
         )
@@ -376,12 +384,12 @@ class BenchmarkController:
             "per_host_output": {k: str(v) for k, v in per_host_output.items()},
             "benchmark_config": self.config.to_dict(),
             "use_container_fallback": self.config.remote_execution.use_container_fallback,
+            "collector_apt_packages": sorted(self._collector_apt_packages()),
             "workload_runner_install_deps": False,  # Dependencies are now handled by per-plugin setup
             # Let the workload runner handle all repetitions in one go.
-            "repetitions_total": self.config.repetitions,
+            "repetitions_total": target_reps,
             "repetition_index": 0,
         }
-
         phases: Dict[str, ExecutionResult] = {}
 
         # Helper for logging - purely backend logging now, UI is handled by callback
@@ -393,7 +401,7 @@ class BenchmarkController:
                 return self.config.remote_hosts
             hosts: List[RemoteHostConfig] = []
             for host in self.config.remote_hosts:
-                for rep in range(1, self.config.repetitions + 1):
+                for rep in range(1, target_reps + 1):
                     if active_journal.should_run(host.name, test_name, rep):
                         hosts.append(host)
                         break
@@ -438,11 +446,18 @@ class BenchmarkController:
                 ui_log(f"Failed to load plugin for {test_name}: {e}")
                 all_tests_success = False
                 continue
-
             pending_hosts = _pending_hosts_for(test_name)
             if not pending_hosts:
                 ui_log(f"All repetitions already completed for {test_name}, skipping.")
                 continue
+            # Compute pending repetitions per host for finer-grained skip.
+            pending_reps: Dict[str, List[int]] = {}
+            for host in pending_hosts:
+                reps_for_host: List[int] = []
+                for rep in range(1, target_reps + 1):
+                    if active_journal.should_run(host.name, test_name, rep):
+                        reps_for_host.append(rep)
+                pending_reps[host.name] = reps_for_host or [1]
 
             # A. Plugin Setup
             setup_pb = plugin.get_ansible_setup_path()
@@ -464,17 +479,19 @@ class BenchmarkController:
             ui_log(f"Run: {test_name} on {len(pending_hosts)} host(s)")
             if self.output_formatter:
                 self.output_formatter.set_phase(f"Run: {test_name}")
-            self._update_all_reps(
-                active_journal,
-                journal_file,
-                pending_hosts,
-                test_name,
-                RunStatus.RUNNING,
-                action="Running workload...",
-            )
+            if not self._use_progress_stream:
+                self._update_all_reps(
+                    active_journal,
+                    journal_file,
+                    pending_hosts,
+                    test_name,
+                    RunStatus.RUNNING,
+                    action="Running workload...",
+                )
 
             loop_extravars = extravars.copy()
             loop_extravars["tests"] = [test_name]
+            loop_extravars["pending_repetitions"] = pending_reps
 
             res_run = self.executor.run_playbook(
                 self.config.remote_execution.run_playbook,
@@ -484,15 +501,16 @@ class BenchmarkController:
             phases[f"run_{test_name}"] = res_run
             status = RunStatus.COMPLETED if res_run.success else RunStatus.FAILED
 
-            self._update_all_reps(
-                active_journal,
-                journal_file,
-                pending_hosts,
-                test_name,
-                status,
-                action="Completed" if res_run.success else "Failed",
-                error=None if res_run.success else "ansible-playbook failed",
-            )
+            if not self._use_progress_stream:
+                self._update_all_reps(
+                    active_journal,
+                    journal_file,
+                    pending_hosts,
+                    test_name,
+                    status,
+                    action="Completed" if res_run.success else "Failed",
+                    error=None if res_run.success else "ansible-playbook failed",
+                )
 
             if not res_run.success:
                 ui_log(f"Run failed for {test_name}")
@@ -503,29 +521,47 @@ class BenchmarkController:
                 ui_log(f"Collect: {test_name}")
                 if self.output_formatter:
                     self.output_formatter.set_phase(f"Collect: {test_name}")
-                self._update_all_reps(
-                    active_journal,
-                    journal_file,
-                    pending_hosts,
-                    test_name,
-                    status,
-                    action="Collecting results",
-                )
+                if not self._use_progress_stream:
+                    self._update_all_reps(
+                        active_journal,
+                        journal_file,
+                        pending_hosts,
+                        test_name,
+                        status,
+                        action="Collecting results",
+                    )
                 res_col = self.executor.run_playbook(
                     self.config.remote_execution.collect_playbook,
                     inventory=inventory,
                     extravars=extravars,
                 )
                 phases[f"collect_{test_name}"] = res_col
-                phases["collect"] = res_col
-                self._update_all_reps(
+                self._backfill_timings_from_results(
                     active_journal,
                     journal_file,
                     pending_hosts,
                     test_name,
-                    status,
-                    action="Done",
+                    per_host_output,
                 )
+            else:
+                # If collect is disabled, still try to backfill from any locally available results.
+                self._backfill_timings_from_results(
+                    active_journal,
+                    journal_file,
+                    pending_hosts,
+                    test_name,
+                    per_host_output,
+                )
+                phases["collect"] = res_col
+                if not self._use_progress_stream:
+                    self._update_all_reps(
+                        active_journal,
+                        journal_file,
+                        pending_hosts,
+                        test_name,
+                        status,
+                        action="Done",
+                    )
 
             # D. Plugin Teardown
             teardown_pb = plugin.get_ansible_teardown_path()
@@ -567,6 +603,14 @@ class BenchmarkController:
             report_root=report_root,
             data_export_root=data_export_root,
         )
+
+    def _collector_apt_packages(self) -> Set[str]:
+        """Return apt packages needed for enabled collectors."""
+        packages: Set[str] = set()
+        if self.config.collectors.cli_commands:
+            # sar/mpstat/iostat/pidstat
+            packages.update({"sysstat", "procps"})
+        return packages
 
     def _run_for_hosts(
         self,
@@ -613,6 +657,78 @@ class BenchmarkController:
             )
         journal.save(journal_path)
         self._refresh_journal()
+
+    def _backfill_timings_from_results(
+        self,
+        journal: RunJournal,
+        journal_path: Path,
+        hosts: List[RemoteHostConfig],
+        workload: str,
+        per_host_output: Dict[str, Path],
+    ) -> None:
+        """Backfill per-repetition timing data from all *_results.json artifacts."""
+        updated = False
+        for host in hosts:
+            host_dir = per_host_output.get(host.name)
+            if not host_dir:
+                continue
+            # Consider all result files for this workload, not just the newest.
+            candidates = sorted(
+                host_dir.rglob(f"{workload}_results.json"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            if not candidates:
+                continue
+            for results_file in candidates:
+                try:
+                    entries = json.loads(results_file.read_text())
+                except Exception as exc:
+                    logger.debug("Failed to parse results for %s: %s", host.name, exc)
+                    continue
+                for entry in entries or []:
+                    rep = entry.get("repetition")
+                    if rep is None:
+                        continue
+                    task = journal.get_task(host.name, workload, rep)
+                    if not task:
+                        continue
+                    try:
+                        start_str = entry.get("start_time")
+                        end_str = entry.get("end_time")
+                        if start_str:
+                            task.started_at = datetime.fromisoformat(start_str).timestamp()
+                        if end_str:
+                            task.finished_at = datetime.fromisoformat(end_str).timestamp()
+                        duration = entry.get("duration_seconds")
+                        if duration is not None:
+                            task.duration_seconds = float(duration)
+                        elif task.started_at is not None and task.finished_at is not None:
+                            task.duration_seconds = max(0.0, task.finished_at - task.started_at)
+                        gen_result = entry.get("generator_result") or {}
+                        gen_error = gen_result.get("error")
+                        gen_rc = gen_result.get("returncode")
+                        if gen_error or (gen_rc not in (None, 0)):
+                            task.status = RunStatus.FAILED
+                            err_parts = []
+                            if gen_error:
+                                err_parts.append(str(gen_error))
+                            if gen_rc not in (None, 0):
+                                err_parts.append(f"returncode={gen_rc}")
+                            cmd = gen_result.get("command")
+                            if cmd:
+                                err_parts.append(f"cmd={cmd}")
+                            message = " | ".join(err_parts) if err_parts else "Workload reported an error"
+                            task.current_action = message
+                            task.error = message
+                        elif task.status not in (RunStatus.FAILED, RunStatus.SKIPPED):
+                            task.status = RunStatus.COMPLETED
+                        updated = True
+                    except Exception as exc:
+                        logger.debug("Failed to backfill timing for %s rep %s: %s", host.name, rep, exc)
+        if updated:
+            journal.save(journal_path)
+            self._refresh_journal()
 
     def _update_all_reps(
         self,

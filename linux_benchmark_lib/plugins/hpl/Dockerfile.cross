@@ -1,0 +1,42 @@
+FROM debian:bookworm AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gfortran \
+    openmpi-bin \
+    libopenmpi-dev \
+    libopenblas-dev \
+    make \
+    wget \
+    tar \
+    devscripts \
+    debhelper \
+    dh-python \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /hpl-deb
+
+# Fetch HPL source
+RUN wget -q http://www.netlib.org/benchmark/hpl/hpl-2.3.tar.gz && tar xf hpl-2.3.tar.gz
+
+# Copy packaging files
+COPY linux_benchmark_lib/plugins/hpl/Make.Linux hpl-2.3/Make.Linux
+COPY linux_benchmark_lib/plugins/hpl/control hpl-2.3/debian/control
+COPY linux_benchmark_lib/plugins/hpl/rules hpl-2.3/debian/rules
+
+RUN cd hpl-2.3 && chmod +x debian/rules
+
+# Changelog
+RUN cd hpl-2.3 && DEBFULLNAME='HPL Builder' DEBEMAIL='builder@example.com' \
+    dch --create -v 2.3-1 --package hpl "Cross-built package."
+
+# Build .deb (binary only)
+RUN cd hpl-2.3 && dpkg-buildpackage -b -us -uc -Zgzip -z3
+
+FROM scratch AS artifact
+COPY --from=builder /hpl-deb/*.deb /out/

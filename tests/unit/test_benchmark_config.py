@@ -16,7 +16,6 @@ from linux_benchmark_lib.benchmark_config import (
     WorkloadConfig,
 )
 from linux_benchmark_lib.plugins.stress_ng.plugin import StressNGConfig
-from linux_benchmark_lib.plugins.iperf3.plugin import IPerf3Config
 
 
 class TestBenchmarkConfig:
@@ -27,7 +26,7 @@ class TestBenchmarkConfig:
         config = BenchmarkConfig()
         
         assert config.repetitions == 3
-        assert config.test_duration_seconds == 60
+        assert config.test_duration_seconds == 3600
         assert config.metrics_interval_seconds == 1.0
         assert isinstance(config.plugin_settings["stress_ng"], StressNGConfig)
         assert "stress_ng" in config.workloads
@@ -155,34 +154,6 @@ class TestStressNGConfig:
         assert config.cpu_method == "matrixprod"
         assert config.vm_bytes == "2G"
         assert "--verbose" in config.extra_args
-
-
-class TestIPerf3Config:
-    """Test cases for IPerf3Config class."""
-    
-    def test_default_values(self):
-        """Test default IPerf3Config values."""
-        config = IPerf3Config()
-        
-        assert config.server_host == "localhost"
-        assert config.server_port == 5201
-        assert config.protocol == "tcp"
-        assert config.parallel == 1
-        assert config.time == 60
-        
-    def test_custom_values(self):
-        """Test custom IPerf3Config values."""
-        config = IPerf3Config(
-            server_host="192.168.1.100",
-            protocol="udp",
-            parallel=4,
-            bandwidth="100M"
-        )
-        
-        assert config.server_host == "192.168.1.100"
-        assert config.protocol == "udp"
-        assert config.parallel == 4
-        assert config.bandwidth == "100M"
 
 
 class TestPerfConfig:

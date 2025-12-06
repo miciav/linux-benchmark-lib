@@ -49,6 +49,19 @@ class FakeRunService:
         self.contexts.append((cfg, tests, remote_override, kwargs))
         return context
 
+    def create_session(self, config_service, tests=None, config_path=None, setup=True, **kwargs):
+        # Mimic what RunService.create_session does partially
+        cfg, _, _ = config_service.load_for_read(config_path)
+        
+        # Extract args that build_context expects as positional
+        remote = kwargs.get("remote")
+        
+        # In the real implementation, tests defaults to all enabled workloads
+        target_tests = tests or ["dummy"] # simplification for test
+        
+        # Call build_context to record the interaction
+        return self.build_context(cfg, target_tests, remote_override=remote, **kwargs)
+
     def execute(self, context, run_id=None, **kwargs):
         self.executions.append((context, run_id, kwargs))
         return RunResult(context=context, summary=None)

@@ -22,3 +22,4 @@
         lb_workdir: "{{ lb_workdir | default('/opt/lb') }}" # Pass lb_workdir to the role
         workload_runner_repetition_index: "{{ repetition_index | default(0) }}"
         workload_runner_repetitions_total: "{{ repetitions_total | default(0) }}"
+        workload_runner_pending_reps: "{{ (pending_repetitions | default({})).get(inventory_hostname, []) }}"

@@ -47,6 +47,15 @@ class BaseGenerator(ABC):
             True if the environment is valid, False otherwise
         """
         pass
+
+    def prepare(self) -> None:
+        """
+        Optional pre-run hook executed synchronously before collectors start.
+
+        Generators can override to perform expensive setup (e.g., build binaries)
+        so collectors do not capture that time. Default is a no-op.
+        """
+        return None
     
     @abstractmethod
     def _stop_workload(self) -> None:
@@ -68,7 +77,14 @@ class BaseGenerator(ABC):
             raise RuntimeError(f"{self.name} generator cannot run in this environment")
 
         self._is_running = True
-        self._thread = threading.Thread(target=self._run_command)
+        def _wrapper() -> None:
+            try:
+                self._run_command()
+            finally:
+                # Always clear running flag when the worker exits (success or failure)
+                self._is_running = False
+
+        self._thread = threading.Thread(target=_wrapper)
         self._thread.start()
 
         logger.info(f"{self.name} generator started")

@@ -12,7 +12,7 @@ It supports two operation modes:
 ## Key Features
 
 - **Multi-level metrics**: PSUtil, Linux CLI tools, perf events, optional eBPF
-- **Plugin workloads**: stress-ng, iperf3, dd, fio shipped as plugins, extensible via entry points
+- **Plugin workloads**: stress-ng, dd, fio, and HPL shipped as plugins, extensible via entry points
 - **Data aggregation**: Pandas DataFrames with metrics as index, repetitions as columns
 - **Reporting**: Text reports and plots (Controller only)
 - **Centralized config**: Typed dataclasses for all knobs
@@ -28,8 +28,8 @@ It supports two operation modes:
 
 - **sysstat**: sar, vmstat, iostat, mpstat, pidstat
 - **stress-ng**: load generator
-- **iperf3**: network testing
 - **fio**: advanced I/O testing
+- **HPL**: Linpack benchmark (optional)
 - **perf**: Linux profiling
 - **bcc/eBPF tools**: optional kernel-level metrics
 
@@ -108,6 +108,7 @@ See `CLI.md` for the full command reference. Highlights:
   This updates the generated apt/pip install block in `Dockerfile` and rewrites `linux_benchmark_lib/ansible/roles/workload_runner/tasks/plugins.generated.yml`.
 - Commit both the manifest and generated files so remote setup and the container stay in sync with available plugins.
 - See `docs/PLUGIN_DEVELOPMENT.md` for a full plugin authoring guide (WorkloadPlugin interface, manifests, packaging, git installs).
+- HPL plugin: vedi `linux_benchmark_lib/plugins/hpl/README.md` per note su packaging `.deb`, build VM/Docker e test `xhpl`.
 
 ## Quick Start
 
@@ -121,7 +122,7 @@ from linux_benchmark_lib.plugin_system.registry import PluginRegistry
 # Create a configuration
 config = BenchmarkConfig(
     repetitions=3,
-    test_duration_seconds=60,
+    test_duration_seconds=3600,
     metrics_interval_seconds=1.0
 )
 
