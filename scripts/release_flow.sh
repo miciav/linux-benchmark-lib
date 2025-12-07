@@ -54,9 +54,19 @@ cd "$ROOT_DIR"
 echo "==> Using branch: $BRANCH, version: $VERSION"
 
 # Ensure clean working tree
+# Allow a single dirty file if it is the provided release notes path
 if [[ -n "$(git status --porcelain)" ]]; then
-  echo "Working tree is dirty. Commit or stash changes first." >&2
-  exit 1
+  dirty="$(git status --porcelain)"
+  allowed=0
+  if [[ -n "$NOTES_FILE" ]]; then
+    if [[ "$dirty" == "?? $NOTES_FILE"* || "$dirty" == " M $NOTES_FILE"* ]]; then
+      allowed=1
+    fi
+  fi
+  if [[ "$allowed" -eq 0 ]]; then
+    echo "Working tree is dirty. Commit or stash changes first." >&2
+    exit 1
+  fi
 fi
 
 # 1) Create PR if missing and merge into main
