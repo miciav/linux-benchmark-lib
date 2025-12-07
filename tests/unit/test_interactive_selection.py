@@ -6,10 +6,11 @@ from lb_controller.services.test_service import TestService
 
 
 @patch("lb_controller.services.test_service.prompt_multipass")
-@patch("lb_controller.services.test_service.sys.stdin.isatty", return_value=True)
-def test_select_multipass_interactive(mock_isatty, mock_prompt):
+@patch("lb_controller.services.test_service.sys.stdin", new_callable=MagicMock)
+def test_select_multipass_interactive(mock_stdin, mock_prompt):
     """Test interactive selection calls the Textual prompt and returns its value."""
     mock_prompt.return_value = ("fio", "high")
+    mock_stdin.isatty.return_value = True
 
     service = TestService()
     service.ui = MagicMock()

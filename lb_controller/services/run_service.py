@@ -824,7 +824,7 @@ class RunService:
             if isinstance(dashboard, RunDashboard):
                 dashboard.mark_event(source)
                 dashboard.add_log(
-                    f"{event.repetition}/{event.total_repetitions} {event.status} on {event.host} ({event.workload})"
+                    f"• {event.repetition}/{event.total_repetitions} {event.status} on {event.host} ({event.workload})"
                 )
                 dashboard.refresh()
 
