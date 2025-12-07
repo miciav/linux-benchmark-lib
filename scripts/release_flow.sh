@@ -71,6 +71,10 @@ fi
 
 # 1) Create PR if missing and merge into main
 git checkout "$BRANCH"
+# Ensure branch tracks remote
+if ! git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
+  git branch --set-upstream-to="origin/$BRANCH" "$BRANCH" || true
+fi
 git pull --rebase
 
 if ! gh pr view "$BRANCH" >/dev/null 2>&1; then
@@ -80,22 +84,36 @@ else
   echo "==> PR already exists for $BRANCH"
 fi
 
-echo "==> Merging PR"
-gh pr merge "$BRANCH" --merge --delete-branch
+PR_STATE=""
+if gh pr view "$BRANCH" >/dev/null 2>&1; then
+  PR_STATE="$(gh pr view "$BRANCH" --json state --jq .state)"
+fi
+
+if [[ "$PR_STATE" == "MERGED" ]]; then
+  echo "==> PR already merged; skipping merge step"
+else
+  echo "==> Merging PR"
+  gh pr merge "$BRANCH" --merge
+fi
 
 # 2) Bump version on main, tag, and create release
 git checkout main
 git pull
 
 echo "==> Bumping version to $VERSION"
-python3 - <<PY
+VERSION="$VERSION" python3 - <<'PY'
 from pathlib import Path
 import re
 path = Path("pyproject.toml")
 text = path.read_text()
-text = re.sub(r'^version\\s*=\\s*\"[^\"]+\"', f'version = "{version}"', text, flags=re.MULTILINE)
-path.write_text(text)
+version = __import__("os").environ["VERSION"]
+new_text = re.sub(r'^version\\s*=\\s*\"[^\"]+\"', f'version = "{version}"', text, flags=re.MULTILINE)
+path.write_text(new_text)
 PY
+if [[ -z "$(git status --porcelain pyproject.toml)" ]]; then
+  echo "Version is already set to $VERSION; aborting." >&2
+  exit 1
+fi
 
 git status --short
 git commit -am "Bump version to $VERSION"
