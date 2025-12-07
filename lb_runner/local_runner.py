@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Callable
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.events import RunEvent, StdoutEmitter
 from lb_runner.plugin_system.registry import PluginRegistry, print_plugin_table
-from lb_runner.plugin_system.interface import WorkloadIntensity
+from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
 from lb_ui.ui import get_ui_adapter
 from lb_ui.ui.types import UIAdapter
 from typing import TYPE_CHECKING
@@ -419,6 +419,7 @@ class LocalRunner:
 
         workload_cfg = self._resolve_workload(test_type)
         plugin_name = workload_cfg.plugin
+        plugin: WorkloadPlugin = self.plugin_registry.get(plugin_name)
 
         # Run multiple repetitions
         test_results = []
@@ -437,8 +438,6 @@ class LocalRunner:
             logger.info(f"Starting repetition {rep}/{total_reps}")
 
             try:
-                plugin = self.plugin_registry.get(plugin_name)
-                
                 # Determine configuration: Preset or User Options
                 config_input = workload_cfg.options
                 
@@ -481,12 +480,12 @@ class LocalRunner:
         
         # Process and save results
         if test_results:
-            self._process_results(test_type, test_results)
+            self._process_results(test_type, test_results, plugin=plugin)
         
         logger.info(f"Completed benchmark: {test_type}")
         return success_overall
     
-    def _process_results(self, test_name: str, results: List[Dict[str, Any]]) -> None:
+    def _process_results(self, test_name: str, results: List[Dict[str, Any]], plugin: WorkloadPlugin | None = None) -> None:
         """
         Process and save test results.
         
@@ -511,6 +510,20 @@ class LocalRunner:
             csv_file = export_root / f"{test_name}_aggregated.csv"
             aggregated_df.to_csv(csv_file)
             logger.info(f"Saved aggregated results to {csv_file}")
+
+        # Allow plugin-specific CSV exports for raw generator outputs
+        if plugin:
+            try:
+                exported = plugin.export_results_to_csv(
+                    results=results,
+                    output_dir=target_root,
+                    run_id=self._current_run_id or "",
+                    test_name=test_name,
+                )
+                for path in exported:
+                    logger.info("Plugin exported CSV: %s", path)
+            except Exception as exc:
+                logger.warning("Plugin '%s' export_results_to_csv failed: %s", plugin.name, exc)
 
     def _resolve_workload(self, name: str) -> WorkloadConfig:
         """Return the workload configuration ensuring it is enabled."""
