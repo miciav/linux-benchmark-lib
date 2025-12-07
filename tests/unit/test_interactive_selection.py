@@ -5,26 +5,35 @@ from unittest.mock import MagicMock, patch
 from lb_controller.services.test_service import TestService
 
 
-@patch("lb_controller.services.test_service.prompt_multipass")
-@patch("lb_controller.services.test_service.sys.stdin", new_callable=MagicMock)
-def test_select_multipass_interactive(mock_stdin, mock_prompt):
+def test_select_multipass_interactive(monkeypatch):
     """Test interactive selection calls the Textual prompt and returns its value."""
-    mock_prompt.return_value = ("fio", "high")
-    mock_stdin.isatty.return_value = True
+    monkeypatch.setattr(
+        "lb_controller.services.test_service.sys.stdin.isatty",
+        lambda: True,
+        raising=False,
+    )
 
-    service = TestService()
-    service.ui = MagicMock()
+    with patch("lb_controller.services.test_service.prompt_multipass") as mock_prompt:
+        mock_prompt.return_value = ("fio", "high")
 
-    scenario, level = service.select_multipass(False, default_level="medium")
+        service = TestService()
+        service.ui = MagicMock()
 
-    mock_prompt.assert_called_once()
-    assert scenario == "fio"
-    assert level == "high"
+        scenario, level = service.select_multipass(False, default_level="medium")
+
+        mock_prompt.assert_called_once()
+        assert scenario == "fio"
+        assert level == "high"
 
 
-@patch("lb_controller.services.test_service.sys.stdin.isatty", return_value=False)
-def test_select_multipass_non_interactive(mock_isatty):
+def test_select_multipass_non_interactive(monkeypatch):
     """Test fallback when not interactive."""
+    monkeypatch.setattr(
+        "lb_controller.services.test_service.sys.stdin.isatty",
+        lambda: False,
+        raising=False,
+    )
+
     service = TestService()
     scenario, level = service.select_multipass(False, default_level="low")
     assert scenario == "stress_ng"
