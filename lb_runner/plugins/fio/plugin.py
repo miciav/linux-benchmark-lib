@@ -9,7 +9,7 @@ import logging
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional, Type, Dict
 
 from ...plugin_system.base_generator import BaseGenerator
 from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin
@@ -294,6 +294,44 @@ class FIOPlugin(WorkloadPlugin):
 
     def get_required_local_tools(self) -> List[str]:
         return ["fio"]
+
+    def export_results_to_csv(
+        self,
+        results: List[Dict[str, Any]],
+        output_dir: Path,
+        run_id: str,
+        test_name: str,
+    ) -> List[Path]:
+        """Export parsed fio metrics to a CSV file."""
+        rows: list[dict[str, Any]] = []
+        for entry in results:
+            rep = entry.get("repetition")
+            gen_result = entry.get("generator_result") or {}
+            parsed = gen_result.get("parsed") or {}
+            rows.append(
+                {
+                    "run_id": run_id,
+                    "workload": test_name,
+                    "repetition": rep,
+                    "returncode": gen_result.get("returncode"),
+                    "read_iops": parsed.get("read_iops"),
+                    "read_bw_mb": parsed.get("read_bw_mb"),
+                    "read_lat_ms": parsed.get("read_lat_ms"),
+                    "write_iops": parsed.get("write_iops"),
+                    "write_bw_mb": parsed.get("write_bw_mb"),
+                    "write_lat_ms": parsed.get("write_lat_ms"),
+                }
+            )
+
+        if not rows:
+            return []
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = output_dir / f"{test_name}_plugin.csv"
+        import pandas as pd
+
+        pd.DataFrame(rows).to_csv(csv_path, index=False)
+        return [csv_path]
 
     def get_dockerfile_path(self) -> Optional[Path]:
         return Path(__file__).parent / "Dockerfile"

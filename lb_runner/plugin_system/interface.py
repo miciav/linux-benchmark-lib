@@ -4,6 +4,8 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
+import pandas as pd
+
 class WorkloadIntensity(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
@@ -94,3 +96,41 @@ class WorkloadPlugin(ABC):
         Executed after the workload runs (even on failure) on remote hosts.
         """
         return None
+
+    # Optional: allow plugins to normalize their own results into CSV before collection
+    def export_results_to_csv(
+        self,
+        results: List[Dict[str, Any]],
+        output_dir: Path,
+        run_id: str,
+        test_name: str,
+    ) -> List[Path]:
+        """
+        Normalize plugin-specific results into CSV files stored in output_dir.
+
+        Default implementation flattens generator_result and metadata into a single CSV.
+        Plugins with richer report formats can override to write multiple CSVs.
+        """
+        rows: list[dict[str, Any]] = []
+        for entry in results:
+            row = {
+                "run_id": run_id,
+                "workload": test_name,
+                "repetition": entry.get("repetition"),
+                "duration_seconds": entry.get("duration_seconds"),
+                "success": entry.get("success"),
+            }
+            gen_result = entry.get("generator_result") or {}
+            if isinstance(gen_result, dict):
+                for key, value in gen_result.items():
+                    row[f"generator_{key}"] = value
+            rows.append(row)
+
+        if not rows:
+            return []
+
+        df = pd.DataFrame(rows)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = output_dir / f"{test_name}_plugin.csv"
+        df.to_csv(csv_path, index=False)
+        return [csv_path]

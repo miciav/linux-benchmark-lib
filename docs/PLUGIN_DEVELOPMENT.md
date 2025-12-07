@@ -1,10 +1,10 @@
 # Plugin Development Guide
 
-This guide explains how to build, package, and install custom workload plugins for `linux-benchmark-lib`.
+This guide explains how to build, package, and install custom workload plugins for `lb_runner`.
 
 ## Plugin anatomy
-- Implement the `WorkloadPlugin` interface (`linux_benchmark_lib/plugin_system/interface.py`).
-- Provide a config class (usually a dataclass) and a generator derived from `linux_benchmark_lib/plugin_system/base_generator.py`.
+- Implement the `WorkloadPlugin` interface (`lb_runner/plugin_system/interface.py`).
+- Provide a config class (usually a dataclass) and a generator derived from `lb_runner/plugin_system/base_generator.py`.
 - Export a module-level `PLUGIN` variable pointing to your `WorkloadPlugin` instance.
 
 ### Minimal example
@@ -101,7 +101,7 @@ To pin default options, add to `plugin_settings` or `workloads` in `benchmark_co
 For more complex plugins that require specific Docker environments or Ansible playbooks, use the modular directory structure:
 
 ```text
-linux_benchmark_lib/plugins/<plugin_name>/
+lb_runner/plugins/<plugin_name>/
 ├── __init__.py
 ├── plugin.py       # Contains the Plugin class and Generator implementation
 ├── Dockerfile      # (Optional) Dedicated Docker build for this plugin
@@ -131,7 +131,7 @@ linux_benchmark_lib/plugins/<plugin_name>/
 
 ### Example: `dd` Plugin
 
-**linux_benchmark_lib/plugins/dd/plugin.py**:
+**lb_runner/plugins/dd/plugin.py**:
 ```python
 from pathlib import Path
 from lb_runner.plugin_system.interface import WorkloadPlugin
@@ -150,7 +150,7 @@ class DDPlugin(WorkloadPlugin):
 PLUGIN = DDPlugin()
 ```
 
-**linux_benchmark_lib/plugins/dd/Dockerfile**:
+**lb_runner/plugins/dd/Dockerfile**:
 ```dockerfile
 FROM python:3.12-slim
 RUN apt-get update && apt-get install -y coreutils ...
