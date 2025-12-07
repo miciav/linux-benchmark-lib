@@ -82,7 +82,7 @@ fi
 
 PR_STATE=""
 if gh pr view "$BRANCH" >/dev/null 2>&1; then
-  PR_STATE="$(gh pr view \"$BRANCH\" --json state --jq .state)"
+  PR_STATE="$(gh pr view "$BRANCH" --json state --jq .state)"
 fi
 
 if [[ "$PR_STATE" == "MERGED" ]]; then
