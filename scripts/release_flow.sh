@@ -71,6 +71,10 @@ fi
 
 # 1) Create PR if missing and merge into main
 git checkout "$BRANCH"
+# Ensure branch tracks remote
+if ! git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
+  git branch --set-upstream-to="origin/$BRANCH" "$BRANCH" || true
+fi
 git pull --rebase
 
 if ! gh pr view "$BRANCH" >/dev/null 2>&1; then
@@ -103,9 +107,13 @@ import re
 path = Path("pyproject.toml")
 text = path.read_text()
 version = __import__("os").environ["VERSION"]
-text = re.sub(r'^version\\s*=\\s*\"[^\"]+\"', f'version = "{version}"', text, flags=re.MULTILINE)
-path.write_text(text)
+new_text = re.sub(r'^version\\s*=\\s*\"[^\"]+\"', f'version = "{version}"', text, flags=re.MULTILINE)
+path.write_text(new_text)
 PY
+if [[ -z "$(git status --porcelain pyproject.toml)" ]]; then
+  echo "Version is already set to $VERSION; aborting." >&2
+  exit 1
+fi
 
 git status --short
 git commit -am "Bump version to $VERSION"
