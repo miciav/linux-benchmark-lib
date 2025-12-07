@@ -4,7 +4,7 @@ Delegates to the existing Typer application while controller packaging
 is split out.
 """
 
-from linux_benchmark_lib.cli import app
+from lb_ui.cli import app
 
 
 def main() -> None:

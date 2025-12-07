@@ -13,9 +13,9 @@ PKGDIR="${WORKDIR}/hpl-2.3"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-MAKE_FILE="${REPO_ROOT}/linux_benchmark_lib/plugins/hpl/Make.Linux"
-CONTROL_FILE="${REPO_ROOT}/linux_benchmark_lib/plugins/hpl/control"
-RULES_FILE="${REPO_ROOT}/linux_benchmark_lib/plugins/hpl/rules"
+MAKE_FILE="${REPO_ROOT}/lb_runner/plugins/hpl/Make.Linux"
+CONTROL_FILE="${REPO_ROOT}/lb_runner/plugins/hpl/control"
+RULES_FILE="${REPO_ROOT}/lb_runner/plugins/hpl/rules"
 
 # Validate files before launching
 for f in "$MAKE_FILE" "$CONTROL_FILE" "$RULES_FILE"; do

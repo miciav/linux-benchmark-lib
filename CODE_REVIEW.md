@@ -33,7 +33,7 @@ The project has a **solid architectural foundation**: it successfully unifies lo
 ## 3. Project Structure, Duplication, and Configuration
 
 **Structure:**
-The structure is generally logical but `linux_benchmark_lib` is crowded.
+The structure now uses split packages (`lb_core`, `lb_runner`, `lb_controller`, `lb_ui`) instead of a monolith.
 *   `services/` mixes business logic (`RunService`) with infrastructure adapters (`MultipassService`).
 *   `ansible/` being inside the package is correct for distribution but makes the package heavy.
 
@@ -76,7 +76,7 @@ Instead of `BenchmarkController` managing the test loop, we should view Remote/D
 1.  **Unified Interface:** `ExecutionTarget` (Local, Docker, SSH/Ansible).
 2.  **Unified Logic:** `RunService` instructs the `ExecutionTarget` to:
     *   *Prepare:* Copy the library/venv and plugins.
-    *   *Execute:* Run `python -m linux_benchmark_lib.cli run --local ...` on the target.
+    *   *Execute:* Run `python -m lb_ui.cli run --local ...` on the target.
 3.  **Streamed Results:** The remote process should stream structured logs (or JSON events) back to the CLI. Currently, `RunService` attempts to parse Ansible output text, which is brittle.
 
 **Benefits:**

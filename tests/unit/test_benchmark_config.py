@@ -8,7 +8,7 @@ import tempfile
 
 import pytest
 
-from linux_benchmark_lib.benchmark_config import (
+from lb_core.benchmark_config import (
     BenchmarkConfig,
     MetricCollectorConfig,
     PerfConfig,
@@ -115,7 +115,7 @@ class TestBenchmarkConfig:
 
     def test_module_does_not_create_default_instance(self):
         """The module should not instantiate configs at import time."""
-        import linux_benchmark_lib.benchmark_config as bc
+        import lb_core.benchmark_config as bc
 
         assert not hasattr(bc, "default_config")
 

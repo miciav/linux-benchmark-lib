@@ -8,7 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-DOCKERFILE="${REPO_ROOT}/linux_benchmark_lib/plugins/hpl/Dockerfile.cross"
+DOCKERFILE="${REPO_ROOT}/lb_runner/plugins/hpl/Dockerfile.cross"
 TARGET_ARCH="${TARGET_ARCH:-linux/amd64}"
 OUT_DIR="${OUT_DIR:-${REPO_ROOT}/out-${TARGET_ARCH//\//-}}"
 BUILDER="${BUILDER:-hpl-cross-builder}"
