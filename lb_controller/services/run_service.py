@@ -721,9 +721,6 @@ class RunService:
 
                 host_name = (context.config.remote_hosts[0].name
                              if context.config.remote_hosts else "localhost")
-                for rep in range(1, context.config.repetitions + 1):
-                    journal.update_task(host_name, test_name, rep, RunStatus.RUNNING, action="local_run")
-                journal.save(journal_path)
                 try:
                     # EXECUTION LOOP (LocalRunner handles repetitions)
                     success = runner.run_benchmark(test_name, run_id=run_identifier)
