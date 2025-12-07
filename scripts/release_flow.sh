@@ -80,19 +80,29 @@ else
   echo "==> PR already exists for $BRANCH"
 fi
 
-echo "==> Merging PR"
-gh pr merge "$BRANCH" --merge --delete-branch
+PR_STATE=""
+if gh pr view "$BRANCH" >/dev/null 2>&1; then
+  PR_STATE="$(gh pr view \"$BRANCH\" --json state --jq .state)"
+fi
+
+if [[ "$PR_STATE" == "MERGED" ]]; then
+  echo "==> PR already merged; skipping merge step"
+else
+  echo "==> Merging PR"
+  gh pr merge "$BRANCH" --merge
+fi
 
 # 2) Bump version on main, tag, and create release
 git checkout main
 git pull
 
 echo "==> Bumping version to $VERSION"
-python3 - <<PY
+VERSION="$VERSION" python3 - <<'PY'
 from pathlib import Path
 import re
 path = Path("pyproject.toml")
 text = path.read_text()
+version = __import__("os").environ["VERSION"]
 text = re.sub(r'^version\\s*=\\s*\"[^\"]+\"', f'version = "{version}"', text, flags=re.MULTILINE)
 path.write_text(text)
 PY
