@@ -9,8 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from lb_runner.benchmark_config import BenchmarkConfig
 from .config_service import ConfigService
-from lb_runner.interfaces import UIAdapter
-from lb_runner.noop_ui import NoOpUIAdapter
+from lb_controller.ui_interfaces import UIAdapter, NoOpUIAdapter
 
 
 @dataclass

@@ -8,6 +8,7 @@ Run repeatable workloads and collect detailed system metrics under synthetic loa
 It supports two operation modes:
 1. **Agent/Runner**: Lightweight installation for target nodes (local execution).
 2. **Controller**: Full orchestration layer for managing remote benchmarks (includes Ansible, plotting tools).
+3. **UI/CLI**: User interaction lives in `lb_ui` and talks only to the controller; the runner does not import or know about UI concerns.
 
 ## Key Features
 
@@ -95,9 +96,10 @@ See `CLI.md` for the full command reference. Highlights:
 - Test helpers (`lb test ...`) are available in dev mode (create `.lb_dev_cli` or export `LB_ENABLE_TEST_CLI=1`).
 
 ### UI layer
+- The CLI/UI entrypoint is `python -m lb_ui.cli` (or the installed `lb` shim). Runner/controller modules no longer import UI.
 - Progress bars and tables are text-friendly; headless output works in CI and when piping.
 - Force headless output with `LB_HEADLESS_UI=1` when running under CI or when piping output.
-- The UI adapter powers both interactive prompts and headless rendering used by tests.
+- UI adapters live in `lb_ui/ui/*` and depend on controller-owned interfaces (`lb_controller.ui_interfaces`); the runner only emits events/logs.
 
 ### Plugin manifests and generated assets
 

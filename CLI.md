@@ -1,6 +1,8 @@
 CLI Reference
 =============
 
+> Note: the user-facing CLI lives in `lb_ui` (invoke via `lb` or `python -m lb_ui.cli`). Runner/controller packages no longer import the UI or expose separate entrypoints.
+
 Setup
 -----
 - Install in a venv: `uv venv && uv pip install -e .`

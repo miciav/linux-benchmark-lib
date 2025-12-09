@@ -22,8 +22,7 @@ from lb_controller.journal import RunJournal, RunStatus, LogSink
 from .container_service import ContainerRunner, ContainerRunSpec
 from .multipass_service import MultipassService
 from .setup_service import SetupService
-from lb_runner.interfaces import UIAdapter, DashboardHandle
-from lb_runner.noop_ui import NoOpDashboardHandle
+from lb_controller.ui_interfaces import UIAdapter, DashboardHandle, NoOpDashboardHandle
 
 if TYPE_CHECKING:
     from ..controller import BenchmarkController, RunExecutionSummary
@@ -661,7 +660,6 @@ class RunService:
         runner = LocalRunner(
             context.config,
             registry=context.registry,
-            ui_adapter=ui_adapter,
             progress_callback=_progress_cb,
             host_name=(context.config.remote_hosts[0].name if context.config.remote_hosts else "localhost"),
         )

@@ -12,7 +12,7 @@ from typing import List, Optional, Callable
 from lb_runner.benchmark_config import BenchmarkConfig
 from .plugin_service import create_registry
 from lb_runner.plugin_system.interface import WorkloadPlugin
-from lb_runner.interfaces import UIAdapter
+from lb_controller.ui_interfaces import UIAdapter
 
 
 @dataclass

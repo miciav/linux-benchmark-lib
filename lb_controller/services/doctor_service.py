@@ -9,8 +9,7 @@ from typing import List, Tuple, Optional
 
 from .config_service import ConfigService
 from .plugin_service import create_registry
-from lb_runner.interfaces import UIAdapter
-from lb_runner.noop_ui import NoOpUIAdapter
+from lb_controller.ui_interfaces import UIAdapter, NoOpUIAdapter
 
 class DoctorService:
     """Service to check local prerequisites and environment health."""

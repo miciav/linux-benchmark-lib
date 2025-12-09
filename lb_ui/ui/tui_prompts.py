@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from lb_runner.interfaces import UIAdapter
+from lb_controller.ui_interfaces import UIAdapter
 
 
 console = Console()

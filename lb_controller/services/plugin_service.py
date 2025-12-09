@@ -7,7 +7,7 @@ import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, List, Dict
 
 from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.registry import PluginRegistry, USER_PLUGIN_DIR
@@ -233,42 +233,23 @@ class PluginInstaller:
         combined = "".join(suffixes[-2:]) if len(suffixes) >= 2 else ""
         return path.suffix in {".zip", ".gz", ".tar", ".tgz"} or combined in {".tar.gz", ".tar.bz2", ".tar.xz"}
 
-    # --- Git helpers ---
+def build_plugin_table(registry: PluginRegistry, enabled: Optional[Dict[str, bool]] = None) -> tuple[List[str], List[List[str]]]:
+    """
+    Return headers and rows describing available workload plugins.
 
-    def _looks_like_git_url(self, value: str) -> bool:
-        """Return True when the provided string resembles a git clone URL."""
-        lowered = value.lower()
-        if lowered.startswith(("http://", "https://", "ssh://", "git@", "file://")):
-            return True
-        return lowered.endswith(".git") and ("://" in lowered or lowered.startswith("git@"))
+    The caller is responsible for rendering the table via its own UI adapter.
+    """
+    rows: List[List[str]] = []
+    for name, plugin in sorted(registry.available(load_entrypoints=True).items()):
+        description = getattr(plugin, "description", "")
+        config_name = plugin.config_cls.__name__
+        if enabled is None:
+            rows.append([name, description, config_name])
+        else:
+            status = "✓" if enabled.get(name) else "✗"
+            rows.append([name, status, description, config_name])
 
-    def _install_from_git(self, url: str, force: bool) -> str:
-        """Clone a git repository and install the plugin from the checked-out tree."""
-        if shutil.which("git") is None:
-            raise RuntimeError("git is required to install plugins from repositories.")
-
-        # Infer plugin name from URL (e.g. "https://.../my-plugin.git" -> "my-plugin")
-        plugin_name = url.rstrip("/").split("/")[-1]
-        if plugin_name.endswith(".git"):
-            plugin_name = plugin_name[:-4]
-            
-        # Fallback if URL parsing fails strangely
-        if not plugin_name:
-            plugin_name = "plugin_from_git"
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            clone_path = Path(tmp_dir) / plugin_name
-            try:
-                subprocess.run(
-                    ["git", "clone", "--depth", "1", url, str(clone_path)],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-            except subprocess.CalledProcessError as exc:
-                stdout = exc.stdout.strip() if exc.stdout else ""
-                stderr = exc.stderr.strip() if exc.stderr else ""
-                msg = f"git clone failed for {url}: {stderr or stdout or exc}"
-                raise RuntimeError(msg) from exc
-
-            return self.install(clone_path, force=force)
+    headers: List[str] = ["Name", "Description", "Config"]
+    if enabled is not None:
+        headers.insert(1, "Enabled")
+    return headers, rows

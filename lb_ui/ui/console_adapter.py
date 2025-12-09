@@ -23,7 +23,7 @@ from rich.progress import (
 from rich.table import Table
 from rich.theme import Theme
 
-from lb_runner.interfaces import DashboardHandle
+from lb_controller.ui_interfaces import DashboardHandle
 from .run_dashboard import RunDashboard, NoopDashboard
 from .tui_prompts import prompt_multipass
 from .types import ProgressHandle, UIAdapter

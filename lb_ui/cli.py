@@ -17,16 +17,15 @@ from typing import Dict, List, Optional, Set
 
 import typer
 
-from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig
 from lb_controller.journal import RunJournal, RunStatus, TaskState
-from lb_runner.plugin_system.registry import PluginRegistry, print_plugin_table
+from lb_controller.contracts import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig, PluginRegistry
 from lb_controller.services import ConfigService, RunService
-from lb_controller.services.plugin_service import create_registry, PluginInstaller
+from lb_controller.services.plugin_service import build_plugin_table, create_registry, PluginInstaller
 from lb_controller.services.doctor_service import DoctorService
 from lb_controller.services.test_service import TestService
 from lb_ui.ui.console_adapter import ConsoleUIAdapter
 from lb_ui.ui.tui_prompts import prompt_multipass, prompt_plugins, prompt_remote_host
-from lb_runner.interfaces import UIAdapter
+from lb_controller.ui_interfaces import UIAdapter
 
 
 ui: UIAdapter = ConsoleUIAdapter()
@@ -815,7 +814,8 @@ def _select_plugins_interactively(
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         ui.show_error("Interactive selection requires a TTY.")
         return None
-    print_plugin_table(registry, enabled=enabled_map, ui_adapter=ui)
+    headers, rows = build_plugin_table(registry, enabled=enabled_map)
+    ui.show_table("Available Workload Plugins", headers, rows)
     plugins = {name: getattr(plugin, "description", "") or "" for name, plugin in registry.available().items()}
     selection = prompt_plugins(plugins, enabled_map, force=False, show_table=False)
     if selection is None:
@@ -906,7 +906,8 @@ def _list_plugins_command(
             raise typer.Exit(1)
         enabled_map = _apply_plugin_selection(registry, selection, config, set_default)
 
-    print_plugin_table(registry, enabled=enabled_map, ui_adapter=ui)
+    headers, rows = build_plugin_table(registry, enabled=enabled_map)
+    ui.show_table("Available Workload Plugins", headers, rows)
 
 
 @plugin_app.callback(invoke_without_command=True)

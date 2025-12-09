@@ -22,9 +22,7 @@ from typing import Any, Dict, List, Optional, Callable
 
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.events import RunEvent, StdoutEmitter
-from lb_runner.interfaces import UIAdapter
-from lb_runner.noop_ui import NoOpUIAdapter
-from lb_runner.plugin_system.registry import PluginRegistry, print_plugin_table
+from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
 from typing import TYPE_CHECKING
 
@@ -52,7 +50,6 @@ class LocalRunner:
         self,
         config: BenchmarkConfig,
         registry: PluginRegistry,
-        ui_adapter: UIAdapter | None = None,
         progress_callback: Optional[Callable[[RunEvent], None]] = None,
         host_name: str | None = None,
     ):
@@ -73,7 +70,6 @@ class LocalRunner:
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = registry
-        self.ui = ui_adapter or NoOpUIAdapter()
         self._current_run_id: Optional[str] = None
         self._output_root: Optional[Path] = None
         self._data_export_root: Optional[Path] = None
@@ -209,14 +205,9 @@ class LocalRunner:
         test_start_time = None
         test_end_time = None
 
-        progress = None
+        last_progress_log = 0
 
         try:
-            progress = self.ui.create_progress(
-                f"{test_name} (rep {repetition})",
-                total=duration,
-            )
-
             # Run generator setup before metrics collection to avoid skew
             try:
                 generator.prepare()
@@ -256,14 +247,13 @@ class LocalRunner:
                 time.sleep(1)
                 elapsed += 1
 
-                # Update progress (cap at duration to keep bar clean)
-                if progress:
-                    progress.update(min(elapsed, duration))
-                else:
+                # Emit lightweight progress logs for long runs
+                if duration:
                     step = max(1, duration // 10)
                     percent = int((min(elapsed, duration) / duration) * 100)
-                    if elapsed % step == 0:
-                        self.ui.show_info(f"Progress: {percent}%")
+                    if elapsed % step == 0 and elapsed != last_progress_log:
+                        logger.info("Progress for %s rep %s: %s%%", test_name, repetition, percent)
+                        last_progress_log = elapsed
 
             # Stop workload generator only if it's still running (timeout reached)
             if getattr(generator, "_is_running", False):
@@ -282,8 +272,6 @@ class LocalRunner:
             raise
 
         finally:
-            if progress:
-                progress.finish()
             # Ensure generator is stopped if an error occurred while it was running
             if generator_started:
                 try:
@@ -456,8 +444,11 @@ class LocalRunner:
                 generator = self.plugin_registry.create_generator(
                     plugin_name, config_input
                 )
-                self.ui.show_info(
-                    f"==> Running workload '{test_type}' (repetition {rep}/{total_reps})"
+                logger.info(
+                    "==> Running workload '%s' (repetition %s/%s)",
+                    test_type,
+                    rep,
+                    total_reps,
                 )
                 self._emit_progress(test_type, rep, total_reps, "running")
                 result = self._run_single_test(
@@ -576,11 +567,6 @@ class LocalRunner:
             self._log_file_handler_attached = True
         except Exception as exc:  # pragma: no cover - defensive
             logger.debug(f"Failed to attach file handler: {exc}")
-
-    def _print_available_plugins(self) -> None:
-        """Print the available workload plugins at startup."""
-        enabled = {name: wl.enabled for name, wl in self.config.workloads.items()}
-        print_plugin_table(self.plugin_registry, enabled=enabled, ui_adapter=self.ui)
 
     @staticmethod
     def _generate_run_id() -> str:
