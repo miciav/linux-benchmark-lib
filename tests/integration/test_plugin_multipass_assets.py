@@ -63,9 +63,8 @@ if not PLAYBOOKS:
 
 MULTIPASS_READY = _multipass_status()
 
+pytestmark = [pytest.mark.integration, pytest.mark.multipass, pytest.mark.slow]
 
-@pytest.mark.integration
-@pytest.mark.multipass
 @pytest.mark.skipif(not MULTIPASS_READY.ready, reason=MULTIPASS_READY.reason or "multipass unavailable")
 @pytest.mark.parametrize("plugin_name,kind,playbook_path", PLAYBOOKS)
 def test_plugin_playbook_syntax(plugin_name: str, kind: str, playbook_path: Path) -> None:

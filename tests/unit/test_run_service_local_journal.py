@@ -3,8 +3,13 @@
 import time
 from pathlib import Path
 
+import pytest
+
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.events import RunEvent
+
+pytestmark = pytest.mark.unit
+
 from lb_controller.journal import RunJournal
 from lb_controller.services import run_service as run_service_module
 from lb_controller.services.run_service import RunContext, RunService

@@ -7,6 +7,9 @@ import pytest
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 from lb_controller.journal import RunJournal, RunStatus
 
+pytestmark = pytest.mark.unit
+
+
 
 def _base_config() -> BenchmarkConfig:
     cfg = BenchmarkConfig(

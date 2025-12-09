@@ -3,9 +3,14 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.local_runner import LocalRunner
 from lb_runner.plugin_system.interface import WorkloadPlugin
+
+pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+
 
 
 class DummyPlugin(WorkloadPlugin):

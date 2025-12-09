@@ -1,40 +1,104 @@
 """Tests for the TestService interactive logic."""
 
+import sys
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from lb_controller.services.test_service import TestService
+from lb_ui.ui import tui_prompts
+
+pytestmark = [pytest.mark.unit, pytest.mark.cli]
 
 
 def test_select_multipass_interactive(monkeypatch):
     """Test interactive selection calls the Textual prompt and returns its value."""
-    monkeypatch.setattr(
-        "lb_controller.services.test_service.sys.stdin.isatty",
-        lambda: True,
-        raising=False,
-    )
+    mock_stdin = MagicMock()
+    mock_stdin.isatty.return_value = True
+    monkeypatch.setattr(sys, "stdin", mock_stdin)
+    mock_stdout = MagicMock()
+    mock_stdout.isatty.return_value = True
+    monkeypatch.setattr(sys, "stdout", mock_stdout)
 
-    with patch("lb_controller.services.test_service.prompt_multipass") as mock_prompt:
-        mock_prompt.return_value = ("fio", "high")
+    class DummyPrompt:
+        def __init__(self, value):
+            self._value = value
+
+        def execute(self):
+            return self._value
+
+
+    class DummyInquirer:
+        def checkbox(self, **_kwargs):
+            return DummyPrompt(["fio"])
+
+        def select(self, **_kwargs):
+            return DummyPrompt("high")
+
+    monkeypatch.setattr(tui_prompts, "_check_tty", lambda: True)
+    monkeypatch.setattr(tui_prompts, "_load_inquirer", lambda: DummyInquirer())
+
+    with patch(
+        "lb_controller.services.test_service.ConfigService"
+    ) as mock_cfg_cls:
+        mock_cfg = mock_cfg_cls.return_value
+        mock_cfg.create_default_config.return_value.workloads = {
+            "stress_ng": {},
+            "dd": {},
+            "fio": {},
+        }
 
         service = TestService()
         service.ui = MagicMock()
 
         scenario, level = service.select_multipass(False, default_level="medium")
 
-        mock_prompt.assert_called_once()
         assert scenario == "fio"
         assert level == "high"
 
 
 def test_select_multipass_non_interactive(monkeypatch):
     """Test fallback when not interactive."""
-    monkeypatch.setattr(
-        "lb_controller.services.test_service.sys.stdin.isatty",
-        lambda: False,
-        raising=False,
+    mock_stdin = MagicMock()
+    mock_stdin.isatty.return_value = False
+    monkeypatch.setattr(sys, "stdin", mock_stdin)
+    mock_stdout = MagicMock()
+    mock_stdout.isatty.return_value = True
+    monkeypatch.setattr(sys, "stdout", mock_stdout)
+
+    with patch("lb_controller.services.test_service.ConfigService") as mock_cfg_cls:
+        mock_cfg = mock_cfg_cls.return_value
+        mock_cfg.create_default_config.return_value.workloads = {"stress_ng": {}}
+
+        service = TestService()
+        scenario, level = service.select_multipass(False, default_level="low")
+        assert scenario == "stress_ng"
+        assert level == "low"
+
+
+def test_prompt_multipass_without_inquirer(monkeypatch):
+    """Fallback to defaults when InquirerPy is missing."""
+
+    class DummyUI:
+        def __init__(self):
+            self.warning = None
+
+        def show_table(self, *_args, **_kwargs):
+            return None
+
+        def show_warning(self, message: str):
+            self.warning = message
+
+    ui = DummyUI()
+    monkeypatch.setattr(tui_prompts, "_check_tty", lambda: True)
+    monkeypatch.setattr(tui_prompts, "_load_inquirer", lambda: None)
+    monkeypatch.setattr(tui_prompts, "get_ui_adapter", lambda: ui)
+
+    scenario, level = tui_prompts.prompt_multipass(
+        ["stress_ng", "dd"],
+        default_level="high",
     )
 
-    service = TestService()
-    scenario, level = service.select_multipass(False, default_level="low")
     assert scenario == "stress_ng"
-    assert level == "low"
+    assert level == "high"
+    assert ui.warning and "InquirerPy" in ui.warning

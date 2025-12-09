@@ -11,6 +11,9 @@ from lb_runner.benchmark_config import (
     RemoteHostConfig,
     WorkloadConfig,
 )
+
+pytestmark = [pytest.mark.e2e, pytest.mark.multipass, pytest.mark.slowest]
+
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 from lb_runner.plugins.dd.plugin import DDConfig
 from lb_controller.controller import AnsibleRunnerExecutor, BenchmarkController

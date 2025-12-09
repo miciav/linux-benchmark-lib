@@ -1,7 +1,12 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 import lb_controller.services.container_service as container_service
 from lb_controller.services.container_service import ContainerRunSpec, ContainerRunner
+
+pytestmark = pytest.mark.unit
+
 
 
 def test_container_runner_forwards_repetitions(monkeypatch, tmp_path):

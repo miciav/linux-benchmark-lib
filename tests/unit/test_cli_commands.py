@@ -2,9 +2,13 @@
 
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 import lb_ui.cli as cli
+
+pytestmark = [pytest.mark.unit, pytest.mark.cli]
+
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 from lb_controller.services.config_service import ConfigService
 from lb_controller.services.run_service import RunContext, RunResult

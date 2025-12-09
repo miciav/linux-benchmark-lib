@@ -2,10 +2,13 @@ import pytest
 from unittest.mock import MagicMock, ANY, patch
 from pathlib import Path
 
+from lb_controller.services import run_service as run_service_module
 from lb_controller.services.run_service import RunService, RunContext, RunStatus
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig, RemoteExecutionConfig
 from lb_controller.services.config_service import ConfigService
 from lb_ui.ui.types import UIAdapter
+
+pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_registry():
@@ -130,7 +133,7 @@ def test_execute_local_with_setup(run_service, mock_config_service, mock_registr
     mock_setup.teardown_global = MagicMock(return_value=True)
     
     # Mock LocalRunner to avoid real execution
-    with patch("lb_controller.services.run_service.LocalRunner") as MockRunner:
+    with patch.object(run_service_module, "LocalRunner") as MockRunner:
         mock_runner_instance = MockRunner.return_value
         mock_runner_instance.run_benchmark.return_value = True
         
@@ -148,25 +151,25 @@ def test_execute_local_with_setup(run_service, mock_config_service, mock_registr
         # Teardown logic is conditional on config.run_teardown which defaults to False/None in mock
         # Let's assume defaults. If we want to test teardown, we should set it in config.
 
-    def test_execute_local_skips_on_setup_failure(run_service, mock_config_service, mock_registry, mock_ui):
-        """Test that workload execution is skipped if per-workload setup fails."""
-        mock_setup = run_service._setup_service
-        mock_setup.provision_global = MagicMock(return_value=True)
-        mock_setup.provision_workload = MagicMock(return_value=False) # Fail setup
-        mock_setup.teardown_workload = MagicMock(return_value=True) # Prevent real call
-        mock_setup.teardown_global = MagicMock(return_value=True)   # Prevent real call
+def test_execute_local_skips_on_setup_failure(run_service, mock_config_service, mock_registry, mock_ui):
+    """Test that workload execution is skipped if per-workload setup fails."""
+    mock_setup = run_service._setup_service
+    mock_setup.provision_global = MagicMock(return_value=True)
+    mock_setup.provision_workload = MagicMock(return_value=False) # Fail setup
+    mock_setup.teardown_workload = MagicMock(return_value=True) # Prevent real call
+    mock_setup.teardown_global = MagicMock(return_value=True)   # Prevent real call
+    
+    with patch.object(run_service_module, "LocalRunner") as MockRunner:
+        mock_runner_instance = MockRunner.return_value
         
-        with patch("lb_controller.services.run_service.LocalRunner") as MockRunner:
-            mock_runner_instance = MockRunner.return_value
-            
-            context = run_service.create_session(mock_config_service, setup=True, ui_adapter=mock_ui)
-            run_service.execute(context, run_id="test_run", ui_adapter=mock_ui)
-            
-            mock_setup.provision_workload.assert_called()
-            # Should NOT run benchmark
-            mock_runner_instance.run_benchmark.assert_not_called()
-            # Should show error
-            mock_ui.show_error.assert_any_call(ANY) # Check for error message match if desired
+        context = run_service.create_session(mock_config_service, setup=True, ui_adapter=mock_ui)
+        run_service.execute(context, run_id="test_run", ui_adapter=mock_ui)
+        
+        mock_setup.provision_workload.assert_called()
+        # Should NOT run benchmark
+        mock_runner_instance.run_benchmark.assert_not_called()
+        # Should show error
+        mock_ui.show_error.assert_any_call(ANY) # Check for error message match if desired
 
 
 def test_parse_progress_line():

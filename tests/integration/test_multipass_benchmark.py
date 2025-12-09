@@ -18,6 +18,8 @@ import pytest
 
 from dataclasses import asdict
 
+pytestmark = [pytest.mark.e2e, pytest.mark.multipass, pytest.mark.slowest]
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 

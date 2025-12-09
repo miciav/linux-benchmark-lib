@@ -78,7 +78,9 @@ class TestService:
         }
 
     def select_multipass(
-        self, multi_workloads: bool, default_level: str = "medium"
+        self, 
+        multi_workloads: bool, 
+        default_level: str = "medium"
     ) -> Tuple[str, str]:
         """
         Return (scenario, intensity_level) using the Textual prompt when possible.
@@ -90,12 +92,12 @@ class TestService:
         names = sorted(cfg_preview.keys())
         options = list(dict.fromkeys(names + ["multi"]).keys())
 
-        if sys.stdin.isatty():
-            result = prompt_multipass(options, default_level=default_level)
-            if result:
-                scenario, level = result
-                self.ui.show_success(f"Selected: {scenario} @ {level}")
-                return scenario, level
+       
+        result = prompt_multipass(options, default_level=default_level)
+        if result:
+            scenario, level = result
+            self.ui.show_success(f"Selected: {scenario} @ {level}")
+            return scenario, level
 
         # Fallback for non-interactive contexts
         self.ui.show_info(f"Non-interactive mode, defaulting to stress_ng ({default_level}).")

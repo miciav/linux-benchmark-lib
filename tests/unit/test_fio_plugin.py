@@ -4,6 +4,9 @@ import pytest
 
 from lb_runner.plugins.fio.plugin import FIOConfig, FIOGenerator
 
+pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+
+
 
 def _make_generator() -> FIOGenerator:
     return FIOGenerator(FIOConfig())

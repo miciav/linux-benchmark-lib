@@ -3,6 +3,9 @@ import pytest
 
 import lb_runner.plugins.geekbench.plugin as gb_mod
 
+pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+
+
 
 def test_geekbench_defaults():
     cfg = gb_mod.GeekbenchConfig()

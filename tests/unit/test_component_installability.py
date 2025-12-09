@@ -5,6 +5,11 @@ import sys
 from pathlib import Path
 import tomllib
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
+
 
 def _import_without(additional_path: str, module_name: str) -> None:
     """

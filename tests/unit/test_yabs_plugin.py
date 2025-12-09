@@ -2,7 +2,12 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 import lb_runner.plugins.yabs.plugin as yabs_mod
+
+pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+
 
 
 def test_yabs_defaults():

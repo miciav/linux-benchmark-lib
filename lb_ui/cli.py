@@ -466,7 +466,17 @@ def _select_workloads_interactively(
         raise typer.Exit(1)
 
     def _prompt_intensities(selected: Set[str]) -> Dict[str, str]:
-        from InquirerPy import inquirer
+        try:
+            from InquirerPy import inquirer
+        except ModuleNotFoundError:
+            ui.show_warning(
+                "InquirerPy not installed; keeping existing intensities for selection."
+            )
+            return {
+                name: cfg.workloads.get(name, WorkloadConfig(plugin=name)).intensity
+                or "medium"
+                for name in selected
+            }
 
         intensities: Dict[str, str] = {}
         choices = ["user_defined", "low", "medium", "high"]

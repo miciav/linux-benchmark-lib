@@ -9,6 +9,9 @@ from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugin_system.interface import WorkloadPlugin
 from lb_runner.plugin_system.base_generator import BaseGenerator
 
+pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+
+
 
 @dataclass
 class DummyConfig:

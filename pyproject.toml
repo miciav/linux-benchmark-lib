@@ -91,6 +91,12 @@ markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "docker: integration tests that build/run plugin Docker images",
     "multipass: integration tests that validate plugin multipass/ansible assets",
+    "unit: test isolati e veloci (senza I/O o side effects)",
+    "e2e: test end-to-end completi (es. con VM reali)",
+    "cli: test dell'interfaccia a riga di comando",
+    "plugins: test specifici per i plugin di workload",
+    "slow: test che richiedono > 1 secondo",
+    "slowest: test molto lenti (minuti) come provisioning VM",
 ]
 python_files = "test_*.py"
 python_classes = "Test*"

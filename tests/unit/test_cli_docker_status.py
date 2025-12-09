@@ -1,7 +1,12 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from lb_ui.cli import _print_run_plan
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
+
+pytestmark = [pytest.mark.unit, pytest.mark.cli]
+
 
 def test_print_run_plan_docker_mode():
     """Test that _print_run_plan returns correct status in Docker mode."""

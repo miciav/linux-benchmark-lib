@@ -9,6 +9,9 @@ import pytest
 
 from tests.integration.multipass_utils import ensure_ansible_available, make_test_ansible_env
 
+pytestmark = [pytest.mark.e2e, pytest.mark.multipass, pytest.mark.slowest]
+
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 
