@@ -14,17 +14,16 @@ from pathlib import Path
 import json
 
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
-from lb_runner.events import RunEvent, LogSink
+from lb_runner.events import RunEvent
 from lb_runner.local_runner import LocalRunner
 from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugin_system.interface import WorkloadIntensity
-from lb_controller.journal import RunJournal, RunStatus
+from lb_controller.journal import RunJournal, RunStatus, LogSink
 from .container_service import ContainerRunner, ContainerRunSpec
 from .multipass_service import MultipassService
 from .setup_service import SetupService
-from lb_ui.ui.console_adapter import ConsoleUIAdapter
-from lb_ui.ui.run_dashboard import NoopDashboard, RunDashboard
-from lb_ui.ui.types import UIAdapter
+from lb_runner.interfaces import UIAdapter, DashboardHandle
+from lb_runner.noop_ui import NoOpDashboardHandle
 
 if TYPE_CHECKING:
     from ..controller import BenchmarkController, RunExecutionSummary
@@ -54,8 +53,7 @@ class AnsibleOutputFormatter:
             self._handle_line(line, log_sink=log_sink)
 
     def _emit(self, message: str, log_sink: Callable[[str], None] | None) -> None:
-        """Send formatted message to stdout and optional sink."""
-        print(message)
+        """Send formatted message to optional sink."""
         if log_sink:
             log_sink(message)
 
@@ -469,7 +467,7 @@ class RunService:
         journal_path: Path | None = None
         log_path: Path | None = None
         run_identifier = run_id
-        dashboard: NoopDashboard | RunDashboard | None = None
+        dashboard: DashboardHandle | None = None
         
         # Ensure we always stream output for remote/multipass to show progress
         formatter: AnsibleOutputFormatter | None = None
@@ -564,7 +562,7 @@ class RunService:
                         status_map.get(info["status"].lower(), RunStatus.RUNNING),
                         action="container_run",
                     )
-                    if isinstance(dashboard, RunDashboard):
+                    if dashboard:
                         dashboard.refresh()
                     return  # Do not log event protocol lines to the UI
 
@@ -578,7 +576,7 @@ class RunService:
                 if "(rep " in stripped and stripped.endswith("%"):
                     return
 
-                if isinstance(dashboard, RunDashboard):
+                if dashboard:
                     # Only show relevant logs, filter out likely internal noise if needed
                     dashboard.add_log(line.rstrip())
                 else:
@@ -609,7 +607,7 @@ class RunService:
                             except Exception:
                                 pass
 
-                        if isinstance(dashboard, RunDashboard):
+                        if dashboard:
                             dashboard.refresh()
 
                     except Exception as e:
@@ -657,7 +655,7 @@ class RunService:
             mapped = status_map.get(event.status.lower(), RunStatus.RUNNING)
             journal.update_task(event.host, event.workload, event.repetition, mapped, action="local_run")
             journal.save(journal_path)
-            if isinstance(dashboard, RunDashboard):
+            if dashboard:
                 dashboard.refresh()
 
         runner = LocalRunner(
@@ -680,7 +678,7 @@ class RunService:
                 log_file.write(msg + "\n")
                 log_file.close()
                 journal.save(journal_path)
-                if isinstance(dashboard, RunDashboard):
+                if dashboard:
                     dashboard.refresh()
                 return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
 
@@ -760,7 +758,7 @@ class RunService:
                 self._setup_service.teardown_global()
 
         log_file.close()
-        if isinstance(dashboard, RunDashboard):
+        if dashboard:
             dashboard.refresh()
         return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
 
@@ -783,7 +781,7 @@ class RunService:
 
         # Fan-out Ansible output to both formatter and dashboard log stream.
         output_cb = output_callback
-        if isinstance(dashboard, RunDashboard) and output_callback is not None:
+        if dashboard and output_callback is not None:
             last_refresh = 0.0
             def _dashboard_callback(text: str, end: str = ""):
                 nonlocal last_refresh
@@ -821,7 +819,7 @@ class RunService:
                     recent_set.remove(old)
 
             sink.emit(event)
-            if isinstance(dashboard, RunDashboard):
+            if dashboard:
                 dashboard.mark_event(source)
                 dashboard.add_log(
                     f"• {event.repetition}/{event.total_repetitions} {event.status} on {event.host} ({event.workload})"
@@ -893,7 +891,7 @@ class RunService:
         finally:
             log_file.close()
 
-        if isinstance(dashboard, RunDashboard):
+        if dashboard:
             dashboard.refresh()
 
         sink.close()
@@ -909,7 +907,7 @@ class RunService:
         context: RunContext,
         run_id: Optional[str],
         ui_adapter: UIAdapter | None,
-    ) -> tuple[RunJournal, Path, NoopDashboard | RunDashboard, str]:
+    ) -> tuple[RunJournal, Path, DashboardHandle, str]:
         """Load or create the run journal and optional dashboard."""
         resume_requested = context.resume_from is not None or context.resume_latest
 
@@ -943,7 +941,8 @@ class RunService:
         journal_path.parent.mkdir(parents=True, exist_ok=True)
         journal.save(journal_path)
 
-        if ui_adapter and isinstance(ui_adapter, ConsoleUIAdapter):
+        dashboard: DashboardHandle
+        if ui_adapter:
             plan = self.get_run_plan(
                 context.config,
                 context.target_tests,
@@ -952,11 +951,9 @@ class RunService:
                 remote_mode=context.use_remote,
                 registry=context.registry,
             )
-            dashboard: NoopDashboard | RunDashboard = RunDashboard(
-                ui_adapter.console, plan, journal
-            )
+            dashboard = ui_adapter.create_dashboard(plan, journal)
         else:
-            dashboard = NoopDashboard()
+            dashboard = NoOpDashboardHandle()
 
         return journal, journal_path, dashboard, run_identifier
 

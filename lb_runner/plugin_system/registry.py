@@ -18,8 +18,7 @@ from ..metric_collectors._base_collector import BaseCollector
 from .base_generator import BaseGenerator
 from ..benchmark_config import BenchmarkConfig
 from .interface import WorkloadPlugin as IWorkloadPlugin
-from lb_ui.ui import get_ui_adapter
-from lb_ui.ui.types import UIAdapter
+from lb_runner.interfaces import UIAdapter
 
 
 logger = logging.getLogger(__name__)
@@ -256,7 +255,9 @@ def print_plugin_table(
     enabled: Optional[Dict[str, bool]] = None,
     ui_adapter: Optional[UIAdapter] = None,
 ) -> None:
-    ui = ui_adapter or get_ui_adapter()
+    if not ui_adapter:
+        raise ValueError("UIAdapter is required for print_plugin_table")
+    ui = ui_adapter
     rows = []
     for name, plugin in sorted(registry.available(load_entrypoints=True).items()):
         description = getattr(plugin, "description", "")

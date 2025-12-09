@@ -17,7 +17,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--modules",
         nargs="+",
-        default=["lb_core", "lb_runner", "lb_controller", "lb_ui"],
+        default=["lb_runner", "lb_controller", "lb_ui"],
         help="Component roots to scan.",
     )
     parser.add_argument(

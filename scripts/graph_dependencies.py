@@ -10,7 +10,7 @@ from typing import Iterable, Sequence
 
 
 DEFAULT_EXCLUDE = ["tests", "tests.*"]
-DEFAULT_COMPONENTS = ["lb_core", "lb_runner", "lb_controller", "lb_ui"]
+DEFAULT_COMPONENTS = ["lb_runner", "lb_controller", "lb_ui"]
 
 
 def build_cmd(

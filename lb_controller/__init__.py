@@ -12,11 +12,11 @@ from lb_controller.controller import (
     RunExecutionSummary,
 )
 from lb_controller.data_handler import DataHandler
-from lb_controller.journal import RunJournal, RunStatus
+from lb_controller.journal import RunJournal, RunStatus, LogSink
 from lb_controller.services.plugin_service import create_registry
 from lb_controller.services.run_service import RunService
 from lb_controller.services.setup_service import SetupService
-from lb_runner.events import LogSink, ProgressEmitter, RunEvent, StdoutEmitter
+from lb_runner.events import ProgressEmitter, RunEvent, StdoutEmitter
 
 __all__ = [
     "AnsibleRunnerExecutor",

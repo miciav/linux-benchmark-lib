@@ -9,8 +9,8 @@ from typing import List, Tuple, Optional
 
 from .config_service import ConfigService
 from .plugin_service import create_registry
-from lb_ui.ui import get_ui_adapter
-from lb_ui.ui.types import UIAdapter
+from lb_runner.interfaces import UIAdapter
+from lb_runner.noop_ui import NoOpUIAdapter
 
 class DoctorService:
     """Service to check local prerequisites and environment health."""
@@ -20,7 +20,7 @@ class DoctorService:
         ui_adapter: Optional[UIAdapter] = None,
         config_service: Optional[ConfigService] = None,
     ):
-        self.ui = ui_adapter or get_ui_adapter()
+        self.ui = ui_adapter or NoOpUIAdapter()
         self.config_service = config_service or ConfigService()
 
     def _check_import(self, name: str) -> bool:

@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_runner.events import RunEvent, LogSink
-from lb_controller.journal import RunJournal, RunStatus
+from lb_runner.events import RunEvent
+from lb_controller.journal import RunJournal, RunStatus, LogSink
 
 pytestmark = pytest.mark.unit
 

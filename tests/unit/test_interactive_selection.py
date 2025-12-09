@@ -50,6 +50,7 @@ def test_select_multipass_interactive(monkeypatch):
 
         service = TestService()
         service.ui = MagicMock()
+        service.ui.prompt_multipass_scenario.return_value = ("fio", "high")
 
         scenario, level = service.select_multipass(False, default_level="medium")
 
@@ -71,6 +72,10 @@ def test_select_multipass_non_interactive(monkeypatch):
         mock_cfg.create_default_config.return_value.workloads = {"stress_ng": {}}
 
         service = TestService()
+        # Mock UI for non-interactive case too, though logic should bypass prompt
+        service.ui = MagicMock()
+        service.ui.prompt_multipass_scenario.return_value = None
+        
         scenario, level = service.select_multipass(False, default_level="low")
         assert scenario == "stress_ng"
         assert level == "low"
@@ -92,10 +97,10 @@ def test_prompt_multipass_without_inquirer(monkeypatch):
     ui = DummyUI()
     monkeypatch.setattr(tui_prompts, "_check_tty", lambda: True)
     monkeypatch.setattr(tui_prompts, "_load_inquirer", lambda: None)
-    monkeypatch.setattr(tui_prompts, "get_ui_adapter", lambda: ui)
-
+    
     scenario, level = tui_prompts.prompt_multipass(
         ["stress_ng", "dd"],
+        ui_adapter=ui,
         default_level="high",
     )
 

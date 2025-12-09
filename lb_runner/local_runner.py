@@ -22,10 +22,10 @@ from typing import Any, Dict, List, Optional, Callable
 
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.events import RunEvent, StdoutEmitter
+from lb_runner.interfaces import UIAdapter
+from lb_runner.noop_ui import NoOpUIAdapter
 from lb_runner.plugin_system.registry import PluginRegistry, print_plugin_table
 from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
-from lb_ui.ui import get_ui_adapter
-from lb_ui.ui.types import UIAdapter
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -73,7 +73,7 @@ class LocalRunner:
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = registry
-        self.ui = ui_adapter or get_ui_adapter()
+        self.ui = ui_adapter or NoOpUIAdapter()
         self._current_run_id: Optional[str] = None
         self._output_root: Optional[Path] = None
         self._data_export_root: Optional[Path] = None

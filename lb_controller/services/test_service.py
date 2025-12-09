@@ -9,9 +9,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from lb_runner.benchmark_config import BenchmarkConfig
 from .config_service import ConfigService
-from lb_ui.ui import get_ui_adapter
-from lb_ui.ui.tui_prompts import prompt_multipass
-from lb_ui.ui.types import UIAdapter
+from lb_runner.interfaces import UIAdapter
+from lb_runner.noop_ui import NoOpUIAdapter
 
 
 @dataclass
@@ -31,7 +30,7 @@ class TestService:
     __test__ = False  # Prevent pytest from collecting this production service as a test
 
     def __init__(self, ui_adapter: Optional[UIAdapter] = None):
-        self.ui = ui_adapter or get_ui_adapter()
+        self.ui = ui_adapter or NoOpUIAdapter()
 
     def get_multipass_intensity(self, force_env: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -93,7 +92,7 @@ class TestService:
         options = list(dict.fromkeys(names + ["multi"]).keys())
 
        
-        result = prompt_multipass(options, default_level=default_level)
+        result = self.ui.prompt_multipass_scenario(options, default_level)
         if result:
             scenario, level = result
             self.ui.show_success(f"Selected: {scenario} @ {level}")

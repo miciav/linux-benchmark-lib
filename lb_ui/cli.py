@@ -24,12 +24,12 @@ from lb_controller.services import ConfigService, RunService
 from lb_controller.services.plugin_service import create_registry, PluginInstaller
 from lb_controller.services.doctor_service import DoctorService
 from lb_controller.services.test_service import TestService
-from lb_ui.ui import get_ui_adapter
+from lb_ui.ui.console_adapter import ConsoleUIAdapter
 from lb_ui.ui.tui_prompts import prompt_multipass, prompt_plugins, prompt_remote_host
-from lb_ui.ui.types import UIAdapter
+from lb_runner.interfaces import UIAdapter
 
 
-ui: UIAdapter = get_ui_adapter()
+ui: UIAdapter = ConsoleUIAdapter()
 app = typer.Typer(help="Run linux-benchmark workloads locally or against remote hosts.", no_args_is_help=True)
 config_app = typer.Typer(help="Manage benchmark configuration files.", no_args_is_help=True)
 doctor_app = typer.Typer(help="Check local prerequisites.", no_args_is_help=True)
@@ -67,8 +67,12 @@ def entry(
     """Global entry point handling interactive vs headless modes."""
     global ui
     if headless:
-        ui = get_ui_adapter(force_headless=True)
+        # Force non-interactive console
+        from rich.console import Console
+        if isinstance(ui, ConsoleUIAdapter):
+            ui.console = Console(force_terminal=False, force_interactive=False)
         doctor_service.ui = ui
+        test_service.ui = ui
 
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
