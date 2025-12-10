@@ -1,7 +1,12 @@
 from pathlib import Path
 
+import pytest
+
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.plugin_system.builtin import builtin_plugins
+
+pytestmark = pytest.mark.unit
+
 from lb_runner.plugin_system.registry import PluginRegistry
 from lb_controller.services.run_service import RunContext, RunService, RunResult, RunStatus
 

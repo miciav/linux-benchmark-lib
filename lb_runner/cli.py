@@ -1,15 +1,13 @@
 """Runner CLI placeholder.
 
-Delegates to the existing Typer application while runner packaging is
-split out.
+This entrypoint intentionally avoids importing the UI layer to keep the
+runner independent. The user-facing CLI lives in lb_ui.
 """
-
-from lb_ui.cli import app
 
 
 def main() -> None:
-    """Invoke the shared lb Typer application."""
-    app()
+    """Inform users to invoke the UI package for CLI functionality."""
+    raise SystemExit("Runner CLI is deprecated. Use `python -m lb_ui.cli` instead.")
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -46,6 +46,8 @@ htmlcov/
 /reports/
 /data_exports/
 /tests/results
+/lb_runner/plugins/sysbench-plugin/
+/lb_runner/plugins/unixbench-plugin/
 /temp_keys/
 
 # Ansible runtime artifacts

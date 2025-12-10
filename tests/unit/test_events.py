@@ -1,8 +1,13 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from lb_runner.events import RunEvent, LogSink
-from lb_controller.journal import RunJournal, RunStatus
+import pytest
+
+from lb_runner.events import RunEvent
+from lb_controller.journal import RunJournal, RunStatus, LogSink
+
+pytestmark = pytest.mark.unit
+
 
 
 def test_log_sink_updates_journal_and_log(tmp_path):

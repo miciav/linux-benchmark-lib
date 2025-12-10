@@ -22,10 +22,9 @@ from typing import Any, Dict, List, Optional, Callable
 
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.events import RunEvent, StdoutEmitter
-from lb_runner.plugin_system.registry import PluginRegistry, print_plugin_table
+from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
-from lb_ui.ui import get_ui_adapter
-from lb_ui.ui.types import UIAdapter
+from lb_runner import system_info
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -52,7 +51,6 @@ class LocalRunner:
         self,
         config: BenchmarkConfig,
         registry: PluginRegistry,
-        ui_adapter: UIAdapter | None = None,
         progress_callback: Optional[Callable[[RunEvent], None]] = None,
         host_name: str | None = None,
     ):
@@ -73,7 +71,6 @@ class LocalRunner:
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = registry
-        self.ui = ui_adapter or get_ui_adapter()
         self._current_run_id: Optional[str] = None
         self._output_root: Optional[Path] = None
         self._data_export_root: Optional[Path] = None
@@ -90,71 +87,20 @@ class LocalRunner:
             Dictionary containing system information
         """
         logger.info("Collecting system information")
-        
-        try:
-            import psutil
-        except ImportError:
-            logger.warning("psutil not found, system info will be limited")
-            psutil = None
 
-        info = {
-            "timestamp": datetime.now().isoformat(),
-            "platform": {
-                "system": platform.system(),
-                "node": platform.node(),
-                "release": platform.release(),
-                "version": platform.version(),
-                "machine": platform.machine(),
-                "processor": platform.processor(),
-            },
-            "python": {
-                "version": platform.python_version(),
-                "implementation": platform.python_implementation(),
-            }
-        }
-        
-        if psutil:
-            # CPU information via psutil
-            try:
-                info["cpu_count_logical"] = psutil.cpu_count(logical=True)
-                info["cpu_count_physical"] = psutil.cpu_count(logical=False)
-                # Frequency might be None on some systems
-                freq = psutil.cpu_freq()
-                if freq:
-                    info["cpu_freq_current"] = freq.current
-                    info["cpu_freq_min"] = freq.min
-                    info["cpu_freq_max"] = freq.max
-            except Exception as e:
-                logger.debug(f"Failed to collect CPU info via psutil: {e}")
+        collected = system_info.collect_system_info()
+        self.system_info = collected.to_dict()
 
-            # Memory information via psutil
+        # Persist JSON/CSV alongside run outputs when available
+        if self._output_root:
+            json_path = self._output_root / "system_info.json"
+            csv_path = self._output_root / "system_info.csv"
             try:
-                vm = psutil.virtual_memory()
-                info["memory_total_bytes"] = vm.total
-                info["memory_available_bytes"] = vm.available
-                swap = psutil.swap_memory()
-                info["swap_total_bytes"] = swap.total
-            except Exception as e:
-                logger.debug(f"Failed to collect memory info via psutil: {e}")
+                system_info.write_outputs(collected, json_path, csv_path)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug("Failed to write system info artifacts: %s", exc)
 
-        # Collect additional Linux-specific information (Distribution)
-        if platform.system() == "Linux":
-            try:
-                # robustly check for lsb_release
-                if shutil.which("lsb_release"):
-                    result = subprocess.run(
-                        ["lsb_release", "-a"],
-                        capture_output=True,
-                        text=True,
-                        timeout=2
-                    )
-                    if result.returncode == 0:
-                        info["distribution"] = result.stdout.strip()
-            except Exception as e:
-                logger.debug(f"Failed to collect distribution info: {e}")
-        
-        self.system_info = info
-        return info
+        return self.system_info
     
     def _setup_collectors(self) -> List[Any]:
         """
@@ -209,14 +155,9 @@ class LocalRunner:
         test_start_time = None
         test_end_time = None
 
-        progress = None
+        last_progress_log = 0
 
         try:
-            progress = self.ui.create_progress(
-                f"{test_name} (rep {repetition})",
-                total=duration,
-            )
-
             # Run generator setup before metrics collection to avoid skew
             try:
                 generator.prepare()
@@ -256,14 +197,13 @@ class LocalRunner:
                 time.sleep(1)
                 elapsed += 1
 
-                # Update progress (cap at duration to keep bar clean)
-                if progress:
-                    progress.update(min(elapsed, duration))
-                else:
+                # Emit lightweight progress logs for long runs
+                if duration:
                     step = max(1, duration // 10)
                     percent = int((min(elapsed, duration) / duration) * 100)
-                    if elapsed % step == 0:
-                        self.ui.show_info(f"Progress: {percent}%")
+                    if elapsed % step == 0 and elapsed != last_progress_log:
+                        logger.info("Progress for %s rep %s: %s%%", test_name, repetition, percent)
+                        last_progress_log = elapsed
 
             # Stop workload generator only if it's still running (timeout reached)
             if getattr(generator, "_is_running", False):
@@ -282,8 +222,6 @@ class LocalRunner:
             raise
 
         finally:
-            if progress:
-                progress.finish()
             # Ensure generator is stopped if an error occurred while it was running
             if generator_started:
                 try:
@@ -456,8 +394,11 @@ class LocalRunner:
                 generator = self.plugin_registry.create_generator(
                     plugin_name, config_input
                 )
-                self.ui.show_info(
-                    f"==> Running workload '{test_type}' (repetition {rep}/{total_reps})"
+                logger.info(
+                    "==> Running workload '%s' (repetition %s/%s)",
+                    test_type,
+                    rep,
+                    total_reps,
                 )
                 self._emit_progress(test_type, rep, total_reps, "running")
                 result = self._run_single_test(
@@ -576,11 +517,6 @@ class LocalRunner:
             self._log_file_handler_attached = True
         except Exception as exc:  # pragma: no cover - defensive
             logger.debug(f"Failed to attach file handler: {exc}")
-
-    def _print_available_plugins(self) -> None:
-        """Print the available workload plugins at startup."""
-        enabled = {name: wl.enabled for name, wl in self.config.workloads.items()}
-        print_plugin_table(self.plugin_registry, enabled=enabled, ui_adapter=self.ui)
 
     @staticmethod
     def _generate_run_id() -> str:

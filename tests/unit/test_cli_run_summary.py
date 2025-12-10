@@ -1,5 +1,10 @@
+import pytest
+
 from lb_ui.cli import _build_journal_summary
 from lb_controller.journal import RunJournal, RunStatus, TaskState
+
+pytestmark = [pytest.mark.unit, pytest.mark.cli]
+
 
 
 def test_build_journal_summary_collapses_repetitions():

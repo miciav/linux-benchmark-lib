@@ -97,6 +97,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         """
         self.private_data_dir = private_data_dir or Path(".ansible_runner")
         self.private_data_dir.mkdir(parents=True, exist_ok=True)
+        self.event_log_path = self.private_data_dir / "lb_events.jsonl"
         self._runner_fn = runner_fn
         self.stream_output = stream_output
         # Force Ansible temp into a writable location inside the runner dir to avoid host-level permission issues
@@ -143,6 +144,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
 
         repo_roles = (ANSIBLE_ROOT / "roles").resolve()
         runner_roles = (self.private_data_dir / "roles").resolve()
+        callback_dir = (ANSIBLE_ROOT / "callback_plugins").resolve()
         envvars = {
             "ANSIBLE_ROLES_PATH": f"{runner_roles}:{repo_roles}",
             "ANSIBLE_LOCAL_TEMP": str(self.local_tmp),
@@ -150,7 +152,9 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             "ANSIBLE_CONFIG": str((ANSIBLE_ROOT / "ansible.cfg").resolve()),
             # Use default callback; debug tasks echo LB_EVENT markers.
             "ANSIBLE_STDOUT_CALLBACK": "default",
-            "ANSIBLE_CALLBACK_PLUGINS": "",
+            "ANSIBLE_CALLBACK_PLUGINS": str(callback_dir),
+            "ANSIBLE_CALLBACKS_ENABLED": "lb_events",
+            "LB_EVENT_LOG_PATH": str(self.event_log_path),
         }
 
         if self._runner_fn:

@@ -18,8 +18,6 @@ from ..metric_collectors._base_collector import BaseCollector
 from .base_generator import BaseGenerator
 from ..benchmark_config import BenchmarkConfig
 from .interface import WorkloadPlugin as IWorkloadPlugin
-from lb_ui.ui import get_ui_adapter
-from lb_ui.ui.types import UIAdapter
 
 
 logger = logging.getLogger(__name__)
@@ -249,25 +247,3 @@ class PluginRegistry:
                     logger.debug(f"Skipping {path}: No PLUGIN variable found")
         except Exception as e:
             logger.warning(f"Failed to load user plugin {path}: {e}")
-
-
-def print_plugin_table(
-    registry: "PluginRegistry",
-    enabled: Optional[Dict[str, bool]] = None,
-    ui_adapter: Optional[UIAdapter] = None,
-) -> None:
-    ui = ui_adapter or get_ui_adapter()
-    rows = []
-    for name, plugin in sorted(registry.available(load_entrypoints=True).items()):
-        description = getattr(plugin, "description", "")
-        config_name = plugin.config_cls.__name__
-        if enabled is None:
-            rows.append([name, description, config_name])
-        else:
-            status = "✓" if enabled.get(name) else "✗"
-            rows.append([name, status, description, config_name])
-            
-    headers = ["Name", "Description", "Config"]
-    if enabled is not None:
-        headers.insert(1, "Enabled")
-    ui.show_table("Available Workload Plugins", headers, rows)

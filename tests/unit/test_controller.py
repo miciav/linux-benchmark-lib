@@ -6,6 +6,9 @@ from types import SimpleNamespace
 import pytest
 
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+
+pytestmark = pytest.mark.unit
+
 from lb_controller.controller import (
     AnsibleRunnerExecutor,
     BenchmarkController,

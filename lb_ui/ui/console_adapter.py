@@ -6,7 +6,8 @@ import shutil
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import IO, Sequence
+from typing import IO, Sequence, Any
+from contextlib import AbstractContextManager, nullcontext
 
 from rich.console import Console
 from rich.panel import Panel
@@ -22,6 +23,9 @@ from rich.progress import (
 from rich.table import Table
 from rich.theme import Theme
 
+from lb_controller.ui_interfaces import DashboardHandle
+from .run_dashboard import RunDashboard, NoopDashboard
+from .tui_prompts import prompt_multipass
 from .types import ProgressHandle, UIAdapter
 
 THEME = Theme(
@@ -57,6 +61,22 @@ class _RichProgress(ProgressHandle):
         self.progress.update(self.task_id, completed=self.total)
         self.progress.stop()
         self.finished = True
+
+
+class StreamDashboard(DashboardHandle):
+    """Simple dashboard that streams logs to stdout for non-interactive use."""
+
+    def live(self) -> AbstractContextManager[None]:
+        return nullcontext()
+
+    def add_log(self, line: str) -> None:
+        print(line)
+
+    def refresh(self) -> None:
+        pass
+
+    def mark_event(self, source: str) -> None:
+        pass
 
 
 class ConsoleUIAdapter(UIAdapter):
@@ -149,3 +169,13 @@ class ConsoleUIAdapter(UIAdapter):
             progress=progress,
             task_id=task_id,
         )
+
+    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any) -> DashboardHandle:
+        """Create a run dashboard."""
+        if self.console.is_interactive:
+            return RunDashboard(self.console, plan, journal)  # type: ignore
+        return StreamDashboard()
+
+    def prompt_multipass_scenario(self, options: list[str], default_level: str) -> tuple[str, str] | None:
+        """Prompt user for multipass scenario selection."""
+        return prompt_multipass(options, self, default_level=default_level)

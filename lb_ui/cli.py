@@ -17,19 +17,18 @@ from typing import Dict, List, Optional, Set
 
 import typer
 
-from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig
 from lb_controller.journal import RunJournal, RunStatus, TaskState
-from lb_runner.plugin_system.registry import PluginRegistry, print_plugin_table
+from lb_controller.contracts import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig, PluginRegistry
 from lb_controller.services import ConfigService, RunService
-from lb_controller.services.plugin_service import create_registry, PluginInstaller
+from lb_controller.services.plugin_service import build_plugin_table, create_registry, PluginInstaller
 from lb_controller.services.doctor_service import DoctorService
 from lb_controller.services.test_service import TestService
-from lb_ui.ui import get_ui_adapter
+from lb_ui.ui.console_adapter import ConsoleUIAdapter
 from lb_ui.ui.tui_prompts import prompt_multipass, prompt_plugins, prompt_remote_host
-from lb_ui.ui.types import UIAdapter
+from lb_controller.ui_interfaces import UIAdapter
 
 
-ui: UIAdapter = get_ui_adapter()
+ui: UIAdapter = ConsoleUIAdapter()
 app = typer.Typer(help="Run linux-benchmark workloads locally or against remote hosts.", no_args_is_help=True)
 config_app = typer.Typer(help="Manage benchmark configuration files.", no_args_is_help=True)
 doctor_app = typer.Typer(help="Check local prerequisites.", no_args_is_help=True)
@@ -67,8 +66,12 @@ def entry(
     """Global entry point handling interactive vs headless modes."""
     global ui
     if headless:
-        ui = get_ui_adapter(force_headless=True)
+        # Force non-interactive console
+        from rich.console import Console
+        if isinstance(ui, ConsoleUIAdapter):
+            ui.console = Console(force_terminal=False, force_interactive=False)
         doctor_service.ui = ui
+        test_service.ui = ui
 
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
@@ -466,7 +469,17 @@ def _select_workloads_interactively(
         raise typer.Exit(1)
 
     def _prompt_intensities(selected: Set[str]) -> Dict[str, str]:
-        from InquirerPy import inquirer
+        try:
+            from InquirerPy import inquirer
+        except ModuleNotFoundError:
+            ui.show_warning(
+                "InquirerPy not installed; keeping existing intensities for selection."
+            )
+            return {
+                name: cfg.workloads.get(name, WorkloadConfig(plugin=name)).intensity
+                or "medium"
+                for name in selected
+            }
 
         intensities: Dict[str, str] = {}
         choices = ["user_defined", "low", "medium", "high"]
@@ -801,7 +814,8 @@ def _select_plugins_interactively(
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         ui.show_error("Interactive selection requires a TTY.")
         return None
-    print_plugin_table(registry, enabled=enabled_map, ui_adapter=ui)
+    headers, rows = build_plugin_table(registry, enabled=enabled_map)
+    ui.show_table("Available Workload Plugins", headers, rows)
     plugins = {name: getattr(plugin, "description", "") or "" for name, plugin in registry.available().items()}
     selection = prompt_plugins(plugins, enabled_map, force=False, show_table=False)
     if selection is None:
@@ -892,7 +906,8 @@ def _list_plugins_command(
             raise typer.Exit(1)
         enabled_map = _apply_plugin_selection(registry, selection, config, set_default)
 
-    print_plugin_table(registry, enabled=enabled_map, ui_adapter=ui)
+    headers, rows = build_plugin_table(registry, enabled=enabled_map)
+    ui.show_table("Available Workload Plugins", headers, rows)
 
 
 @plugin_app.callback(invoke_without_command=True)

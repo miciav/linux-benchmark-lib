@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from typing import Dict, Iterable, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from . import get_ui_adapter
+from lb_controller.ui_interfaces import UIAdapter
 
 
 console = Console()
@@ -24,6 +24,15 @@ console = Console()
 def _check_tty() -> bool:
     """Return True when running in an interactive terminal."""
     return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _load_inquirer() -> Optional[Any]:
+    """Return the InquirerPy module when available."""
+    try:
+        from InquirerPy import inquirer
+    except Exception:
+        return None
+    return inquirer
 
 
 def prompt_plugins(
@@ -40,7 +49,12 @@ def prompt_plugins(
     if not (_check_tty() or force):
         return None
 
-    from InquirerPy import inquirer
+    inquirer = _load_inquirer()
+    if inquirer is None:
+        console.print(
+            "[yellow]InquirerPy not installed; keeping existing plugin selection.[/yellow]"
+        )
+        return {name for name, active in enabled.items() if active}
 
     if show_table:
         table = Table(title="Workload plugins", show_lines=False)
@@ -94,7 +108,11 @@ def prompt_remote_host(defaults: Optional[Dict[str, str]] = None) -> Optional[Re
     return RemoteHostDetails(name=name, address=address, user=user, key_path=key_path, become=bool(become))
 
 
-def prompt_multipass(options: Iterable[str], default_level: str = "medium") -> Optional[Tuple[str, str]]:
+def prompt_multipass(
+    options: Iterable[str],
+    ui_adapter: UIAdapter,
+    default_level: str = "medium",
+) -> Optional[Tuple[str, str]]:
     """Prompt for Multipass scenario and intensity."""
     if not _check_tty():
         return None
@@ -107,11 +125,16 @@ def prompt_multipass(options: Iterable[str], default_level: str = "medium") -> O
         "multi": "stress_ng + dd + fio combo",
     }
 
-    ui = get_ui_adapter()
     rows = [[name, descriptions.get(name, "-")] for name in options_list]
-    ui.show_table("Multipass Scenarios", ["Scenario", "Description"], rows)
+    ui_adapter.show_table("Multipass Scenarios", ["Scenario", "Description"], rows)
 
-    from InquirerPy import inquirer
+    inquirer = _load_inquirer()
+    if inquirer is None:
+        fallback = options_list[0] if options_list else "stress_ng"
+        ui_adapter.show_warning(
+            f"InquirerPy not installed; selecting {fallback} @ {default_level}."
+        )
+        return fallback, default_level
 
     choices = [
         {"name": f"{name} — {descriptions.get(name, '')}".strip(" —"), "value": name}

@@ -3,9 +3,14 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.local_runner import LocalRunner
 from lb_runner.plugin_system.interface import WorkloadPlugin
+
+pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+
 
 
 class DummyPlugin(WorkloadPlugin):
@@ -69,7 +74,7 @@ def test_plugin_export_hook_writes_csv(monkeypatch, tmp_path):
     )
     plugin = DummyPlugin()
     registry = DummyRegistry(plugin)
-    runner = LocalRunner(cfg, registry=registry, ui_adapter=None)
+    runner = LocalRunner(cfg, registry=registry)
 
     # Avoid running the full pipeline; return a canned result.
     monkeypatch.setattr(

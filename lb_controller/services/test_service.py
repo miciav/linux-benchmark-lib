@@ -9,9 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from lb_runner.benchmark_config import BenchmarkConfig
 from .config_service import ConfigService
-from lb_ui.ui import get_ui_adapter
-from lb_ui.ui.tui_prompts import prompt_multipass
-from lb_ui.ui.types import UIAdapter
+from lb_controller.ui_interfaces import UIAdapter, NoOpUIAdapter
 
 
 @dataclass
@@ -31,7 +29,7 @@ class TestService:
     __test__ = False  # Prevent pytest from collecting this production service as a test
 
     def __init__(self, ui_adapter: Optional[UIAdapter] = None):
-        self.ui = ui_adapter or get_ui_adapter()
+        self.ui = ui_adapter or NoOpUIAdapter()
 
     def get_multipass_intensity(self, force_env: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -78,7 +76,9 @@ class TestService:
         }
 
     def select_multipass(
-        self, multi_workloads: bool, default_level: str = "medium"
+        self, 
+        multi_workloads: bool, 
+        default_level: str = "medium"
     ) -> Tuple[str, str]:
         """
         Return (scenario, intensity_level) using the Textual prompt when possible.
@@ -90,12 +90,12 @@ class TestService:
         names = sorted(cfg_preview.keys())
         options = list(dict.fromkeys(names + ["multi"]).keys())
 
-        if sys.stdin.isatty():
-            result = prompt_multipass(options, default_level=default_level)
-            if result:
-                scenario, level = result
-                self.ui.show_success(f"Selected: {scenario} @ {level}")
-                return scenario, level
+       
+        result = self.ui.prompt_multipass_scenario(options, default_level)
+        if result:
+            scenario, level = result
+            self.ui.show_success(f"Selected: {scenario} @ {level}")
+            return scenario, level
 
         # Fallback for non-interactive contexts
         self.ui.show_info(f"Non-interactive mode, defaulting to stress_ng ({default_level}).")

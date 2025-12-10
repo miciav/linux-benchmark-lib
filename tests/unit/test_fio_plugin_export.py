@@ -1,6 +1,11 @@
 from pathlib import Path
 
+import pytest
+
 from lb_runner.plugins.fio.plugin import FIOPlugin
+
+pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+
 
 
 def test_fio_plugin_export_parsed_metrics(tmp_path: Path):

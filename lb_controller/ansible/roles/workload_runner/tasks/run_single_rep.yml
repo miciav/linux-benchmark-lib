@@ -8,8 +8,9 @@
         if workload_runner_reps is defined and (workload_runner_reps | length) > 0
         else (workload_runner_repetitions_total | default(1) | int)
       }}
+    run_prefix: "[run:{{ inventory_hostname }}:{{ workload_item[0] }}]"
 
-- name: Emit start event for repetition
+- name: "{{ run_prefix }} Emit start event for repetition"
   ansible.builtin.debug:
     msg: >-
       LB_EVENT {{
@@ -25,7 +26,7 @@
 
 - name: Run workload repetition via LocalRunner
   block:
-    - name: Execute {{ workload_runner_current_workload }} repetition {{ workload_runner_current_rep }}
+    - name: "{{ run_prefix }} Execute {{ workload_runner_current_workload }} repetition {{ workload_runner_current_rep }}"
       ansible.builtin.shell: |
         set -e
         export PYTHONUNBUFFERED=1
@@ -45,7 +46,6 @@
         runner = LocalRunner(
             cfg,
             registry=create_registry(),
-            ui_adapter=None,
             progress_callback=None,
             host_name="{{ inventory_hostname }}",
         )
@@ -94,7 +94,7 @@
       when: workload_runner_rep_result.rc == 0
 
   rescue:
-    - name: Emit failure event for repetition
+    - name: "{{ run_prefix }} Emit failure event for repetition"
       ansible.builtin.debug:
         msg: >-
           LB_EVENT {{

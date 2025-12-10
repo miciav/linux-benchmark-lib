@@ -2,10 +2,14 @@
 
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 import lb_ui.cli as cli
-from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+
+pytestmark = [pytest.mark.unit, pytest.mark.cli]
+
+from lb_controller.contracts import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 from lb_controller.services.config_service import ConfigService
 from lb_controller.services.run_service import RunContext, RunResult
 
@@ -124,7 +128,8 @@ def test_config_enable_workload_uses_service(tmp_path, monkeypatch):
 def test_plugins_command_lists_registry(monkeypatch):
     """Plugins command should succeed even with empty registry."""
     monkeypatch.setattr(cli, "create_registry", lambda: DummyRegistry())
-    monkeypatch.setattr(cli, "print_plugin_table", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "build_plugin_table", lambda *args, **kwargs: ([], []))
+    monkeypatch.setattr(cli.ui, "show_table", lambda *args, **kwargs: None)
     result = runner.invoke(cli.app, ["plugin", "ls"])
     # Dummy registry yields available workload placeholder
     assert result.exit_code == 0

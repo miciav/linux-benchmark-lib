@@ -7,6 +7,9 @@ from lb_runner.local_runner import LocalRunner
 from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.registry import PluginRegistry
 
+pytestmark = pytest.mark.unit
+
+
 
 def test_local_runner_requires_registry(tmp_path):
     """LocalRunner should rely on an injected registry, not a hidden default."""

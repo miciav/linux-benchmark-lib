@@ -7,7 +7,7 @@ import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, List, Dict
 
 from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.registry import PluginRegistry, USER_PLUGIN_DIR
@@ -272,3 +272,24 @@ class PluginInstaller:
                 raise RuntimeError(msg) from exc
 
             return self.install(clone_path, force=force)
+
+def build_plugin_table(registry: PluginRegistry, enabled: Optional[Dict[str, bool]] = None) -> tuple[List[str], List[List[str]]]:
+    """
+    Return headers and rows describing available workload plugins.
+
+    The caller is responsible for rendering the table via its own UI adapter.
+    """
+    rows: List[List[str]] = []
+    for name, plugin in sorted(registry.available(load_entrypoints=True).items()):
+        description = getattr(plugin, "description", "")
+        config_name = plugin.config_cls.__name__
+        if enabled is None:
+            rows.append([name, description, config_name])
+        else:
+            status = "✓" if enabled.get(name) else "✗"
+            rows.append([name, status, description, config_name])
+
+    headers: List[str] = ["Name", "Description", "Config"]
+    if enabled is not None:
+        headers.insert(1, "Enabled")
+    return headers, rows

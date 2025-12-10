@@ -57,9 +57,8 @@ if not DOCKER_PLUGINS:
 
 DOCKER_READY = _docker_status()
 
+pytestmark = [pytest.mark.integration, pytest.mark.docker, pytest.mark.slow]
 
-@pytest.mark.integration
-@pytest.mark.docker
 @pytest.mark.skipif(not DOCKER_READY.ready, reason=DOCKER_READY.reason or "docker unavailable")
 @pytest.mark.parametrize("plugin_name,dockerfile", DOCKER_PLUGINS)
 def test_plugin_dockerfile_builds_and_runs(plugin_name: str, dockerfile: Path) -> None:

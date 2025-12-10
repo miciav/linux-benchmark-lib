@@ -8,6 +8,9 @@ from lb_runner.benchmark_config import (
     PerfConfig,
     WorkloadConfig,
 )
+
+pytestmark = [pytest.mark.integration, pytest.mark.slow]
+
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 from lb_runner.local_runner import LocalRunner
 
