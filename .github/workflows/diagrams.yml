@@ -30,10 +30,10 @@ jobs:
       - name: Generate diagrams
         run: |
           mkdir -p docs/diagrams
-          pyreverse -o png -p linux-benchmark lb_runner lb_controller lb_ui -S --colorized=no
+          pyreverse -o png -p linux-benchmark lb_runner lb_controller lb_ui -S
           mv classes.png docs/diagrams/classes.png
           mv packages.png docs/diagrams/packages.png
-          pyreverse -o puml -p linux-benchmark lb_runner lb_controller lb_ui -S --colorized=no
+          pyreverse -o puml -p linux-benchmark lb_runner lb_controller lb_ui -S
           mv classes.puml docs/diagrams/classes.puml
           mv packages.puml docs/diagrams/packages.puml
 

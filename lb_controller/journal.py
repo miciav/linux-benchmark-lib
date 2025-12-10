@@ -51,6 +51,7 @@ class RunJournal:
             "created_at": datetime.now().isoformat(),
             "config_summary": str(config),  # Simple representation
             "repetitions": getattr(config, "repetitions", None),
+            "system_info": {},  # host -> summary string/path mapping
         }
         
         # Pre-populate tasks based on config

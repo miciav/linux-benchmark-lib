@@ -42,12 +42,11 @@
 
     - name: Install collector dependencies (APT)
       ansible.builtin.apt:
-        name: "{{ collector_apt_packages | default([]) }}"
+        name: "{{ (collector_apt_packages | default([])) + ['pciutils', 'smartmontools'] }}"
         state: present
         update_cache: true
       when:
         - ansible_facts['os_family'] | default('') == 'Debian'
-        - (collector_apt_packages | default([])) | length > 0
       tags: deps
 
     - name: Define Python interpreter for the virtual environment

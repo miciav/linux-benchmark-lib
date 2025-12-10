@@ -24,6 +24,7 @@ from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.events import RunEvent, StdoutEmitter
 from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
+from lb_runner import system_info
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -86,71 +87,20 @@ class LocalRunner:
             Dictionary containing system information
         """
         logger.info("Collecting system information")
-        
-        try:
-            import psutil
-        except ImportError:
-            logger.warning("psutil not found, system info will be limited")
-            psutil = None
 
-        info = {
-            "timestamp": datetime.now().isoformat(),
-            "platform": {
-                "system": platform.system(),
-                "node": platform.node(),
-                "release": platform.release(),
-                "version": platform.version(),
-                "machine": platform.machine(),
-                "processor": platform.processor(),
-            },
-            "python": {
-                "version": platform.python_version(),
-                "implementation": platform.python_implementation(),
-            }
-        }
-        
-        if psutil:
-            # CPU information via psutil
-            try:
-                info["cpu_count_logical"] = psutil.cpu_count(logical=True)
-                info["cpu_count_physical"] = psutil.cpu_count(logical=False)
-                # Frequency might be None on some systems
-                freq = psutil.cpu_freq()
-                if freq:
-                    info["cpu_freq_current"] = freq.current
-                    info["cpu_freq_min"] = freq.min
-                    info["cpu_freq_max"] = freq.max
-            except Exception as e:
-                logger.debug(f"Failed to collect CPU info via psutil: {e}")
+        collected = system_info.collect_system_info()
+        self.system_info = collected.to_dict()
 
-            # Memory information via psutil
+        # Persist JSON/CSV alongside run outputs when available
+        if self._output_root:
+            json_path = self._output_root / "system_info.json"
+            csv_path = self._output_root / "system_info.csv"
             try:
-                vm = psutil.virtual_memory()
-                info["memory_total_bytes"] = vm.total
-                info["memory_available_bytes"] = vm.available
-                swap = psutil.swap_memory()
-                info["swap_total_bytes"] = swap.total
-            except Exception as e:
-                logger.debug(f"Failed to collect memory info via psutil: {e}")
+                system_info.write_outputs(collected, json_path, csv_path)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug("Failed to write system info artifacts: %s", exc)
 
-        # Collect additional Linux-specific information (Distribution)
-        if platform.system() == "Linux":
-            try:
-                # robustly check for lsb_release
-                if shutil.which("lsb_release"):
-                    result = subprocess.run(
-                        ["lsb_release", "-a"],
-                        capture_output=True,
-                        text=True,
-                        timeout=2
-                    )
-                    if result.returncode == 0:
-                        info["distribution"] = result.stdout.strip()
-            except Exception as e:
-                logger.debug(f"Failed to collect distribution info: {e}")
-        
-        self.system_info = info
-        return info
+        return self.system_info
     
     def _setup_collectors(self) -> List[Any]:
         """

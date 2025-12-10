@@ -9,14 +9,16 @@
 - name: Define workload runner workdir (use globally installed lb_workdir)
   set_fact:
     workload_runner_workdir: "{{ lb_workdir | default('/opt/lb') }}"
+    setup_prefix: "[setup:{{ inventory_hostname }}]"
+    run_prefix: "[run:{{ inventory_hostname }}]"
 
-- name: Ensure workload output directory exists
+- name: "{{ setup_prefix }} Ensure workload output directory exists"
   ansible.builtin.file:
     path: "{{ workload_runner_output_dir | default('/tmp') }}"
     state: directory
     mode: "0755"
 
-- name: Prepare benchmark configuration for this host
+- name: "{{ run_prefix }} Prepare benchmark configuration for this host"
   set_fact:
     workload_runner_config_rendered: >-
       {{
@@ -28,13 +30,27 @@
           }, recursive=True)
       }}
 
-- name: Write benchmark configuration file
+- name: "{{ run_prefix }} Collect static system information (JSON + CSV)"
+  ansible.builtin.shell: |
+    set -e
+    export PYTHONUNBUFFERED=1
+    "{{ lb_workdir | default('/opt/lb') }}/.venv/bin/python" -m lb_runner.system_info \
+      --json "{{ workload_runner_output_dir | default('/tmp') }}/system_info.json" \
+      --csv "{{ workload_runner_output_dir | default('/tmp') }}/system_info.csv"
+  args:
+    chdir: "{{ workload_runner_workdir }}"
+  register: workload_runner_sysinfo
+  changed_when: true
+  when:
+    - workload_runner_mode == "execute"
+
+- name: "{{ run_prefix }} Write benchmark configuration file"
   ansible.builtin.copy:
     dest: "{{ workload_runner_workdir }}/benchmark_config.generated.json"
     content: "{{ workload_runner_config_rendered | to_nice_json }}"
     mode: "0644"
 
-- name: Build repetitions list
+- name: "{{ run_prefix }} Build repetitions list"
   set_fact:
     workload_runner_reps: >-
       {{
@@ -48,9 +64,10 @@
   when:
     - workload_runner_mode == "execute"
 
-- name: Run workload per repetition (separate tasks)
+- name: "{{ run_prefix }} Run workload per repetition (separate tasks)"
   ansible.builtin.include_tasks: run_single_rep.yml
-  loop: "{{ query('cartesian', workload_runner_tests | default([]), workload_runner_reps | default([1])) }}"
+  # Use built-in product filter to avoid external lookup dependency
+  loop: "{{ (workload_runner_tests | default([])) | product(workload_runner_reps | default([1])) | list }}"
   loop_control:
     loop_var: workload_item
     label: "{{ workload_item[0] }} rep {{ workload_item[1] }}"

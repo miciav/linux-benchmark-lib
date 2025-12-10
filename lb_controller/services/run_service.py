@@ -9,7 +9,7 @@ import time
 import re
 from dataclasses import dataclass, asdict
 from contextlib import ExitStack
-from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING
+from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING, IO
 from pathlib import Path
 import json
 
@@ -28,11 +28,54 @@ if TYPE_CHECKING:
     from ..controller import BenchmarkController, RunExecutionSummary
 
 
+def _extract_lb_event_data(line: str, token: str = "LB_EVENT") -> dict[str, Any] | None:
+    """Extract LB_EVENT JSON payloads from noisy Ansible output."""
+    token_idx = line.find(token)
+    if token_idx == -1:
+        return None
+
+    payload = line[token_idx + len(token):].strip()
+    start = payload.find("{")
+    if start == -1:
+        return None
+
+    # Walk the payload to find the matching closing brace to avoid picking up
+    # trailing characters from debug output (e.g., quotes + extra braces).
+    depth = 0
+    end: int | None = None
+    for idx, ch in enumerate(payload[start:], start):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                end = idx + 1
+                break
+    if end is None:
+        return None
+
+    raw = payload[start:end]
+    candidates = (
+        raw,
+        raw.strip("\"'"),
+        raw.replace(r"\"", '"'),
+        raw.strip("\"'").replace(r"\"", '"'),
+    )
+    for candidate in candidates:
+        try:
+            return json.loads(candidate)
+        except Exception:
+            continue
+    return None
+
+
 class AnsibleOutputFormatter:
     """Parses raw Ansible output stream and prints user-friendly status updates."""
-    
+
     def __init__(self):
-        self.task_pattern = re.compile(r"TASK \[(.*?)\]")
+        # Greedy match so nested brackets in task names (e.g., role prefix + [run:...])
+        # are captured in full.
+        self.task_pattern = re.compile(r"TASK \[(.*)\]")
         self.bench_pattern = re.compile(r"Running benchmark: (.*)")
         self.current_phase = "Initializing" # Default phase
         self._always_show_tasks = (
@@ -56,6 +99,18 @@ class AnsibleOutputFormatter:
         if log_sink:
             log_sink(message)
 
+    def _emit_bullet(self, phase: str, message: str, log_sink: Callable[[str], None] | None) -> None:
+        phase_clean = self._slug_phase(phase)
+        self._emit(f"• [{phase_clean}] {message}", log_sink)
+
+    @staticmethod
+    def _slug_phase(phase: str) -> str:
+        """Normalize phase labels for consistent rendering."""
+        cleaned = phase.replace(":", "-").strip()
+        cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", cleaned)
+        cleaned = re.sub(r"-{2,}", "-", cleaned)
+        return cleaned.strip("-") or "run"
+
     def _handle_line(self, line: str, log_sink: Callable[[str], None] | None = None):
         line = line.strip()
         if not line:
@@ -63,7 +118,8 @@ class AnsibleOutputFormatter:
 
         progress = self._format_progress(line)
         if progress:
-            self._emit(progress, log_sink)
+            phase, message = progress
+            self._emit_bullet(phase, message, log_sink)
             return
 
         # Filter noise
@@ -75,22 +131,35 @@ class AnsibleOutputFormatter:
         # Format Tasks
         task_match = self.task_pattern.search(line)
         if task_match:
-            task_name = task_match.group(1).strip()
+            raw_task = task_match.group(1).strip()
+            task_name = raw_task
             # Cleanup "workload_runner :" prefix if present
             if " : " in task_name:
                 _, task_name = task_name.split(" : ", 1)
-            always = task_match.group(1).strip()
-            if always in self._always_show_tasks:
-                self._emit(f"• {always}", log_sink)
-            else:
-                self._emit(f"• [{self.current_phase}] {task_name}", log_sink)
+            phase = self.current_phase
+            message = task_name
+
+            # If the task embeds a bracketed prefix, treat that as the phase.
+            if task_name.startswith("[") and "]" in task_name:
+                closing = task_name.find("]")
+                embedded = task_name[1:closing]
+                message = task_name[closing + 1:].strip()
+                phase = embedded or self.current_phase
+                if not message:
+                    message = raw_task
+
+            # Show certain tasks even if they're "boring", but keep unified formatting.
+            if raw_task in self._always_show_tasks or task_name in self._always_show_tasks:
+                message = task_name
+
+            self._emit_bullet(phase, message, log_sink)
             return
 
         # Format Benchmark Start (from python script)
         bench_match = self.bench_pattern.search(line)
         if bench_match:
             bench_name = bench_match.group(1)
-            self._emit(f"\n>>> Benchmark: {bench_name} <<<\n", log_sink)
+            self._emit_bullet(self.current_phase, f"Benchmark: {bench_name}", log_sink)
             return
 
         # Format Changes (usually means success in ansible terms)
@@ -99,44 +168,39 @@ class AnsibleOutputFormatter:
 
         # Pass through interesting lines from the benchmark script
         if "lb_runner.local_runner" in line or "Running test" in line or "Progress:" in line or "Completed" in line:
-            self._emit(f"  {line}", log_sink)
+            self._emit_bullet(self.current_phase, line, log_sink)
             return
         
         # Pass through raw output that looks like a progress bar (rich output often has special chars)
         if "━" in line:
-            self._emit(f"  {line}", log_sink)
+            self._emit_bullet(self.current_phase, line, log_sink)
             return
 
         # Pass through errors
         if "fatal:" in line or "ERROR" in line or "failed:" in line:
-            self._emit(f"[!] {line}", log_sink)
+            self._emit_bullet(self.current_phase, f"[!] {line}", log_sink)
 
-    def _format_progress(self, line: str) -> str | None:
+    def _format_progress(self, line: str) -> tuple[str, str] | None:
         """Render LB_EVENT progress lines into a concise message."""
-        token_idx = line.find("LB_EVENT")
-        if token_idx == -1:
-            return None
-        payload = line[token_idx + len("LB_EVENT"):].strip()
-        if "{" not in payload or "}" not in payload:
-            return None
-        try:
-            start = payload.find("{")
-            end = payload.rfind("}") + 1
-            data = json.loads(payload[start:end])
-        except Exception:
+        data = _extract_lb_event_data(line, token="LB_EVENT")
+        if not data:
             return None
         host = data.get("host", "?")
         workload = data.get("workload", "?")
         rep = data.get("repetition", "?")
         total = data.get("total_repetitions") or data.get("total") or "?"
         status = (data.get("status") or "").lower()
+        message = f"{rep}/{total} {status}"
+        if data.get("message"):
+            message = f"{message} ({data['message']})"
+        phase = f"run {host} {workload}"
         if status == "running":
-            return f"{rep}/{total} running on {host} ({workload})"
+            return phase, message
         if status == "done":
-            return f"{rep}/{total} completed on {host} ({workload})"
+            return phase, message
         if status == "failed":
-            return f"{rep}/{total} failed on {host} ({workload})"
-        return f"{rep}/{total} {status} on {host} ({workload})"
+            return phase, message
+        return phase, f"{rep}/{total} {status}"
 
 
 @dataclass
@@ -525,6 +589,7 @@ class RunService:
             log_path = journal_path.parent / "run.log"
             # Ensure directory exists
             journal_path.parent.mkdir(parents=True, exist_ok=True)
+            log_file = log_path.open("a", encoding="utf-8")
 
             root = context.docker_workdir or context.config.output_dir.parent.resolve()
             spec = ContainerRunSpec(
@@ -549,6 +614,7 @@ class RunService:
                 # which has the volume mounted and writes the authoritative journal.
                 info = self._parse_progress_line(line)
                 if info:
+                    status_text = f"[run:{info['host']}:{info['workload']}] {info['rep']}/{info['total'] or '?'} {info['status']}"
                     status_map = {
                         "running": RunStatus.RUNNING,
                         "done": RunStatus.COMPLETED,
@@ -562,7 +628,17 @@ class RunService:
                         action="container_run",
                     )
                     if dashboard:
+                        dashboard.add_log(status_text)
+                        dashboard.mark_event(info["workload"])
                         dashboard.refresh()
+                    elif ui_adapter:
+                        ui_adapter.show_info(status_text)
+                    if log_file:
+                        try:
+                            log_file.write(status_text + "\n")
+                            log_file.flush()
+                        except Exception:
+                            pass
                     return  # Do not log event protocol lines to the UI
 
                 # 2. Filter and Log to Dashboard
@@ -575,11 +651,20 @@ class RunService:
                 if "(rep " in stripped and stripped.endswith("%"):
                     return
 
+                if log_file:
+                    try:
+                        log_file.write(line)
+                        if not line.endswith("\n"):
+                            log_file.write("\n")
+                        log_file.flush()
+                    except Exception:
+                        pass
+
                 if dashboard:
                     # Only show relevant logs, filter out likely internal noise if needed
-                    dashboard.add_log(line.rstrip())
+                    dashboard.add_log(f"[container] {line.rstrip()}")
                 else:
-                    print(line, end="")
+                    print(f"[container] {line}", end="")
 
             with dashboard.live():
                 for test_name in context.target_tests:
@@ -627,7 +712,11 @@ class RunService:
                                 error=str(e),
                             )
                         journal.save(journal_path)
-
+            output_root = journal_path.parent
+            hosts = [h.name for h in context.config.remote_hosts] if context.config.remote_hosts else ["localhost"]
+            if self._attach_system_info(journal, output_root, hosts, dashboard, ui_adapter, log_file):
+                journal.save(journal_path)
+            log_file.close()
             return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
 
         if context.use_remote:
@@ -667,12 +756,12 @@ class RunService:
         # Level 1: Global Setup
         if context.config.remote_execution.run_setup:
             if ui_adapter:
-                ui_adapter.show_info("Running global setup (local)...")
+                    ui_adapter.show_info("[local] Running global setup (local)...")
             if not self._setup_service.provision_global():
                 msg = "Global setup failed (local)."
                 if ui_adapter:
                     ui_adapter.show_error(msg)
-                print(msg)
+                print(f"[local] {msg}")
                 log_file.write(msg + "\n")
                 log_file.close()
                 journal.save(journal_path)
@@ -699,13 +788,13 @@ class RunService:
                 # Level 2: Workload Setup
                 if context.config.remote_execution.run_setup:
                     if ui_adapter:
-                        ui_adapter.show_info(f"Running setup for {test_name} (local)...")
+                        ui_adapter.show_info(f"[local] Running setup for {test_name} (local)...")
                     
                     if not self._setup_service.provision_workload(plugin):
                         msg = f"Setup failed for {test_name} (local). Skipping."
                         if ui_adapter:
                             ui_adapter.show_error(msg)
-                        print(msg)
+                        print(f"[local] {msg}")
                         log_file.write(msg + "\n")
                         log_file.flush()
                         
@@ -740,24 +829,28 @@ class RunService:
                     log_file.write(f"{test_name} failed locally: {e}\n")
                     log_file.flush()
                     if ui_adapter:
-                        ui_adapter.show_error(f"{test_name} failed locally: {e}")
+                        ui_adapter.show_error(f"[local] {test_name} failed locally: {e}")
                 finally:
                     # Level 2: Workload Teardown
                     if context.config.remote_execution.run_teardown:
                         if ui_adapter:
-                            ui_adapter.show_info(f"Running teardown for {test_name} (local)...")
+                            ui_adapter.show_info(f"[local] Running teardown for {test_name} (local)...")
                         self._setup_service.teardown_workload(plugin)
         
         finally:
             # Level 1: Global Teardown
             if context.config.remote_execution.run_teardown:
                 if ui_adapter:
-                    ui_adapter.show_info("Running global teardown (local)...")
+                    ui_adapter.show_info("[local] Running global teardown (local)...")
                 self._setup_service.teardown_global()
 
         log_file.close()
         if dashboard:
             dashboard.refresh()
+        output_root = journal_path.parent
+        hosts = [h.name for h in context.config.remote_hosts] if context.config.remote_hosts else ["localhost"]
+        if self._attach_system_info(journal, output_root, hosts, dashboard, ui_adapter, log_file):
+            journal.save(journal_path)
         return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
 
     def _run_remote(
@@ -820,7 +913,7 @@ class RunService:
             if dashboard:
                 dashboard.mark_event(source)
                 dashboard.add_log(
-                    f"• {event.repetition}/{event.total_repetitions} {event.status} on {event.host} ({event.workload})"
+                    f"[run:{event.host}:{event.workload}] {event.repetition}/{event.total_repetitions} {event.status}"
                 )
                 dashboard.refresh()
 
@@ -893,6 +986,10 @@ class RunService:
             dashboard.refresh()
 
         sink.close()
+        output_root = journal_path.parent
+        hosts = [h.name for h in context.config.remote_hosts] if context.config.remote_hosts else ["localhost"]
+        if self._attach_system_info(journal, output_root, hosts, dashboard, ui_adapter, log_file):
+            journal.save(journal_path)
         return RunResult(
             context=context,
             summary=summary,
@@ -1038,32 +1135,117 @@ class RunService:
     def _parse_progress_line(self, line: str) -> dict[str, Any] | None:
         """Parse progress markers emitted by LocalRunner."""
         line = line.strip()
-        token_idx = line.find(self._progress_token)
-        if token_idx == -1:
+        data = _extract_lb_event_data(line, token=self._progress_token)
+        if not data:
             return None
-        payload = line[token_idx + len(self._progress_token):].strip()
-        # Try to extract a JSON object even if wrapped inside other text.
-        if "{" in payload and "}" in payload:
-            start = payload.find("{")
-            end = payload.rfind("}") + 1
-            candidate = payload[start:end]
-            for attempt in (candidate, candidate.replace(r"\"", '"')):
+        required = {"host", "workload", "repetition", "status"}
+        if not required.issubset(data.keys()):
+            return None
+        return {
+            "host": data["host"],
+            "workload": data["workload"],
+            "rep": data.get("repetition", 0),
+            "status": data["status"],
+            "total": data.get("total_repetitions", 0),
+            "message": data.get("message"),
+        }
+
+    # --- System info helpers ---
+
+    def _system_info_candidates(self, base_dir: Path, host: str) -> list[Path]:
+        """Return candidate paths for system info files for a given host."""
+        return [
+            base_dir / host / "system_info.json",
+            base_dir / "system_info.json",
+        ]
+
+    def _summarize_system_info(self, path: Path) -> str | None:
+        """Return a one-line summary for a system_info.json file."""
+        try:
+            data = json.loads(path.read_text())
+        except Exception:
+            return None
+        os_info = data.get("os", {}) if isinstance(data, dict) else {}
+        kernel = data.get("kernel", {}) if isinstance(data, dict) else {}
+        cpu = data.get("cpu", {}) if isinstance(data, dict) else {}
+        mem = data.get("memory", {}) if isinstance(data, dict) else {}
+        disks = data.get("disks", []) if isinstance(data, dict) else []
+
+        os_name = os_info.get("name") or os_info.get("id") or "Unknown OS"
+        os_ver = os_info.get("version") or os_info.get("version_id") or ""
+        kernel_rel = kernel.get("release") or kernel.get("version") or "kernel ?"
+
+        model = cpu.get("model_name") or cpu.get("model") or cpu.get("model_name:") or cpu.get("modelname") or cpu.get("architecture")
+        phys = cpu.get("physical_cpus") or cpu.get("cpu_cores") or "?"
+        logi = cpu.get("logical_cpus") or cpu.get("cpus") or "?"
+
+        def _to_gib(val: Any) -> str:
+            try:
+                return f"{int(val) / (1024**3):.1f}G"
+            except Exception:
+                return "?"
+
+        ram_total = mem.get("total_bytes") or mem.get("memtotal") or mem.get("memtotal:")
+        ram_str = _to_gib(ram_total) if ram_total is not None else "?"
+
+        disk_summary = ""
+        if isinstance(disks, list) and disks:
+            first = disks[0]
+            if isinstance(first, dict):
+                name = first.get("name") or "disk"
+                size = first.get("size_bytes") or first.get("size") or ""
+                rota = first.get("rotational")
+                kind = "SSD" if rota is False else "HDD" if rota is True else "disk"
+                size_str = _to_gib(size) if size else ""
+                disk_summary = f"{name} {kind} {size_str}".strip()
+
+        parts = [
+            f"OS: {os_name} {os_ver}".strip(),
+            f"Kernel: {kernel_rel}",
+            f"CPU: {model or '?'} ({phys}c/{logi}t)",
+            f"RAM: {ram_str}",
+        ]
+        if disk_summary:
+            parts.append(f"Disk: {disk_summary}")
+        return " | ".join(parts)
+
+    def _attach_system_info(
+        self,
+        journal: RunJournal,
+        base_dir: Path,
+        hosts: list[str],
+        dashboard: DashboardHandle | None,
+        ui_adapter: UIAdapter | None,
+        log_file: IO[str] | None = None,
+    ) -> bool:
+        """Load system info summaries and surface them in metadata/logs. Returns True if any summary was added."""
+        summaries: dict[str, str] = {}
+        for host in hosts:
+            summary = None
+            for candidate in self._system_info_candidates(base_dir, host):
+                if candidate.exists():
+                    summary = self._summarize_system_info(candidate)
+                    if summary:
+                        break
+            if summary:
+                summaries[host] = summary
+                journal.metadata.setdefault("system_info", {})[host] = summary
+        if not summaries:
+            return False
+        for host, summary in summaries.items():
+            line = f"{host}: {summary}"
+            if dashboard:
+                dashboard.add_log(f"[system] {line}")
+                dashboard.mark_event("system_info")
+                dashboard.refresh()
+            elif ui_adapter:
+                ui_adapter.show_info(f"[system] {line}")
+            else:
+                print(f"[system] {line}")
+            if log_file:
                 try:
-                    data = json.loads(attempt)
-                    break
+                    log_file.write(f"[system] {line}\n")
+                    log_file.flush()
                 except Exception:
-                    data = None
-            if not data:
-                return None
-            required = {"host", "workload", "repetition", "status"}
-            if not required.issubset(data.keys()):
-                return None
-            return {
-                "host": data["host"],
-                "workload": data["workload"],
-                "rep": data.get("repetition", 0),
-                "status": data["status"],
-                "total": data.get("total_repetitions", 0),
-                "message": data.get("message"),
-            }
-        return None
+                    pass
+        return True
