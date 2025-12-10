@@ -12,7 +12,9 @@ import json
 import platform
 import shutil
 import subprocess
+import sys
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -97,8 +99,11 @@ class SmartStatus:
 @dataclass
 class SystemInfo:
     host: str
+    timestamp: str
     os: dict[str, Any]
     kernel: dict[str, Any]
+    platform: dict[str, Any]
+    python: dict[str, Any]
     cpu: dict[str, Any]
     memory: dict[str, Any]
     disks: list[DiskInfo] = field(default_factory=list)
@@ -109,8 +114,11 @@ class SystemInfo:
     def to_dict(self) -> dict[str, Any]:
         return {
             "host": self.host,
+            "timestamp": self.timestamp,
             "os": self.os,
             "kernel": self.kernel,
+            "platform": self.platform,
+            "python": self.python,
             "cpu": self.cpu,
             "memory": self.memory,
             "disks": [asdict(d) for d in self.disks],
@@ -127,6 +135,11 @@ class SystemInfo:
             rows.append({"category": category, "name": name, "value": str(value)})
 
         # Basic sections
+        add("meta", "timestamp", self.timestamp)
+        for k, v in self.platform.items():
+            add("platform", k, v)
+        for k, v in self.python.items():
+            add("python", k, v)
         for k, v in self.os.items():
             add("os", k, v)
         for k, v in self.kernel.items():
@@ -341,10 +354,19 @@ def _collect_smart(disks: Iterable[DiskInfo]) -> list[SmartStatus]:
 
 def collect_system_info() -> SystemInfo:
     """Collect system information into a structured dataclass."""
+    now = datetime.now(timezone.utc).isoformat()
     uname = platform.uname()
     os_release = _read_os_release()
     host = uname.node or platform.node() or ""
 
+    platform_info = {
+        "system": uname.system,
+        "node": uname.node,
+        "release": uname.release,
+        "version": uname.version,
+        "machine": uname.machine,
+        "processor": uname.processor,
+    }
     os_info = {
         "name": os_release.get("PRETTY_NAME") or os_release.get("NAME") or "",
         "id": os_release.get("ID") or "",
@@ -358,12 +380,20 @@ def collect_system_info() -> SystemInfo:
         "system": uname.system,
         "processor": uname.processor,
     }
+    python_info = {
+        "version": platform.python_version(),
+        "implementation": platform.python_implementation(),
+        "executable": sys.executable or "",
+    }
 
     disks = _collect_disks()
     info = SystemInfo(
         host=host,
+        timestamp=now,
         os=os_info,
         kernel=kernel_info,
+        platform=platform_info,
+        python=python_info,
         cpu=_collect_cpu(),
         memory=_collect_memory(),
         disks=disks,

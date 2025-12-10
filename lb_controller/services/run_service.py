@@ -12,6 +12,7 @@ from contextlib import ExitStack
 from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING, IO
 from pathlib import Path
 import json
+import threading
 
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig
 from lb_runner.events import RunEvent
@@ -23,6 +24,7 @@ from .container_service import ContainerRunner, ContainerRunSpec
 from .multipass_service import MultipassService
 from .setup_service import SetupService
 from lb_controller.ui_interfaces import UIAdapter, DashboardHandle, NoOpDashboardHandle
+from rich.markup import escape
 
 if TYPE_CHECKING:
     from ..controller import BenchmarkController, RunExecutionSummary
@@ -69,6 +71,57 @@ def _extract_lb_event_data(line: str, token: str = "LB_EVENT") -> dict[str, Any]
     return None
 
 
+class JsonEventTailer:
+    """Tail a JSONL event file and emit parsed events to a callback."""
+
+    def __init__(self, path: Path, on_event: Callable[[dict[str, Any]], None], poll_interval: float = 0.1):
+        self.path = path
+        self.on_event = on_event
+        self.poll_interval = poll_interval
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._pos = 0
+
+    def start(self) -> None:
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, name="lb-event-tailer", daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread:
+            self._thread.join(timeout=2)
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                size = self.path.stat().st_size
+            except FileNotFoundError:
+                time.sleep(self.poll_interval)
+                continue
+
+            if self._pos > size:
+                self._pos = 0
+
+            try:
+                with self.path.open("r", encoding="utf-8") as fp:
+                    fp.seek(self._pos)
+                    for line in fp:
+                        self._pos = fp.tell()
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            data = json.loads(line)
+                        except Exception:
+                            continue
+                        self.on_event(data)
+            except Exception:
+                pass
+
+            time.sleep(self.poll_interval)
+
+
 class AnsibleOutputFormatter:
     """Parses raw Ansible output stream and prints user-friendly status updates."""
 
@@ -78,6 +131,7 @@ class AnsibleOutputFormatter:
         self.task_pattern = re.compile(r"TASK \[(.*)\]")
         self.bench_pattern = re.compile(r"Running benchmark: (.*)")
         self.current_phase = "Initializing" # Default phase
+        self.suppress_progress = False
         self._always_show_tasks = (
             "workload_runner : Build repetitions list",
             "workload_runner : Run benchmark via local runner (per repetition)",
@@ -101,7 +155,9 @@ class AnsibleOutputFormatter:
 
     def _emit_bullet(self, phase: str, message: str, log_sink: Callable[[str], None] | None) -> None:
         phase_clean = self._slug_phase(phase)
-        self._emit(f"• [{phase_clean}] {message}", log_sink)
+        rendered = f"• [{phase_clean}] {message}"
+        safe = escape(rendered)
+        self._emit(safe, log_sink)
 
     @staticmethod
     def _slug_phase(phase: str) -> str:
@@ -182,6 +238,8 @@ class AnsibleOutputFormatter:
 
     def _format_progress(self, line: str) -> tuple[str, str] | None:
         """Render LB_EVENT progress lines into a concise message."""
+        if self.suppress_progress:
+            return None
         data = _extract_lb_event_data(line, token="LB_EVENT")
         if not data:
             return None
@@ -912,10 +970,29 @@ class RunService:
             sink.emit(event)
             if dashboard:
                 dashboard.mark_event(source)
-                dashboard.add_log(
-                    f"[run:{event.host}:{event.workload}] {event.repetition}/{event.total_repetitions} {event.status}"
-                )
+                label = f"run-{event.host}".replace(":", "-").replace(" ", "-") + f"-{event.workload}".replace(":", "-").replace(" ", "-")
+                text = f"• [{label}] {event.repetition}/{event.total_repetitions} {event.status}"
+                dashboard.add_log(escape(text))
                 dashboard.refresh()
+
+        def _event_from_payload(data: Dict[str, Any]) -> RunEvent | None:
+            required = {"host", "workload", "repetition", "status"}
+            if not required.issubset(data.keys()):
+                return None
+            return RunEvent(
+                run_id=journal.run_id,
+                host=str(data.get("host", "")),
+                workload=str(data.get("workload", "")),
+                repetition=int(data.get("repetition") or 0),
+                total_repetitions=int(
+                    data.get("total_repetitions")
+                    or data.get("total")
+                    or context.config.repetitions
+                ),
+                status=str(data.get("status", "")),
+                message=str(data.get("message") or ""),
+                timestamp=time.time(),
+            )
 
         def _handle_progress(line: str) -> None:
             info = self._parse_progress_line(line)
@@ -957,6 +1034,18 @@ class RunService:
             output_formatter=formatter if not context.debug else None,
             journal_refresh=dashboard.refresh if dashboard else None,
         )
+        event_tailer: JsonEventTailer | None = None
+        event_log_path = getattr(getattr(controller, "executor", None), "event_log_path", None)
+        if event_log_path:
+            def _on_event_payload(data: Dict[str, Any]) -> None:
+                event = _event_from_payload(data)
+                if event:
+                    _ingest_event(event, source="callback")
+            event_tailer = JsonEventTailer(Path(event_log_path), _on_event_payload)
+            # When callback stream is active, avoid duplicate progress from stdout parsing.
+            if formatter:
+                formatter.suppress_progress = True
+            event_tailer.start()
         elapsed: float | None = None
         try:
             with dashboard.live():
@@ -980,6 +1069,8 @@ class RunService:
                 else:
                     print(msg)
         finally:
+            if event_tailer:
+                event_tailer.stop()
             log_file.close()
 
         if dashboard:

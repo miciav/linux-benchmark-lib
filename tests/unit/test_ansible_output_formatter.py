@@ -13,7 +13,7 @@ def test_task_parsing_with_nested_brackets():
     formatter.process(line, log_sink=captured.append)
 
     assert captured == [
-        "• [run-lb-worker-1a003223] Prepare benchmark configuration for this host"
+        "• \\[run-lb-worker-1a003223] Prepare benchmark configuration for this host"
     ]
 
 
@@ -28,7 +28,7 @@ def test_progress_parsing_from_raw_lb_event():
 
     formatter.process(line, log_sink=captured.append)
 
-    assert captured == ["• [run-h1-fio] 1/3 running"]
+    assert captured == ["• \\[run-h1-fio] 1/3 running"]
 
 
 def test_progress_parsing_from_ansible_debug_wrapped_event():
@@ -47,7 +47,7 @@ def test_progress_parsing_from_ansible_debug_wrapped_event():
 
     formatter.process(line, log_sink=captured.append)
 
-    assert captured == ["• [run-lb-worker-1a003223-fio] 1/3 running"]
+    assert captured == ["• \\[run-lb-worker-1a003223-fio] 1/3 running"]
 
 
 def test_progress_parse_helper_used_by_run_service():
@@ -74,3 +74,8 @@ def test_progress_parse_helper_used_by_run_service():
         "total": 3,
         "message": None,
     }
+
+
+def test_slug_phase_collapses_multiple_dash():
+    formatter = AnsibleOutputFormatter()
+    assert formatter._slug_phase("run::host  workload") == "run-host-workload"
