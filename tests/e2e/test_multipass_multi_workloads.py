@@ -17,8 +17,8 @@ pytestmark = [pytest.mark.e2e, pytest.mark.multipass, pytest.mark.slowest]
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 from lb_runner.plugins.dd.plugin import DDConfig
 from lb_controller.controller import AnsibleRunnerExecutor, BenchmarkController
-from tests.integration.test_multipass_benchmark import multipass_vm
-from tests.integration.multipass_utils import get_intensity, make_test_ansible_env, stage_private_key
+from tests.e2e.test_multipass_benchmark import multipass_vm
+from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
 from lb_runner.plugins.fio.plugin import FIOConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

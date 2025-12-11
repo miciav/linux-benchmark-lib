@@ -95,13 +95,13 @@ def test_geekbench_download_detects_bad_archive(monkeypatch, tmp_path):
         def __enter__(self):
             return self
 
-        def __exit__(self, exc_type, exc, tb):
+        def __exit__(self, *_args):
             return False
 
-    def fake_tmpfile(delete=False):
+    def fake_tmpfile(*_args, **_kwargs):
         return FakeTmp(bad_tmp)
 
-    def fake_run(cmd, check=False, capture_output=False, text=False):
+    def fake_run(cmd, **_kwargs):
         bad_tmp.write_text("<html>redirect</html>")
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 

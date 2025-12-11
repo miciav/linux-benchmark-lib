@@ -1,0 +1,20 @@
+[
+  {
+    "timestamp": "2024-01-01T00:00:00",
+    "cpu_percent": 50.0,
+    "memory_usage": 20.0,
+    "disk_read_bytes": 0,
+    "disk_write_bytes": 1024,
+    "net_bytes_sent": 0,
+    "net_bytes_recv": 0
+  },
+  {
+    "timestamp": "2024-01-01T00:00:01",
+    "cpu_percent": 70.0,
+    "memory_usage": 22.0,
+    "disk_read_bytes": 1024,
+    "disk_write_bytes": 2048,
+    "net_bytes_sent": 1024,
+    "net_bytes_recv": 2048
+  }
+]

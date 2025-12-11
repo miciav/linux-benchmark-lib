@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from lb_controller.data_handler import DataHandler
+from lb_analytics import DataHandler
 from lb_runner.plugin_system.registry import CollectorPlugin
 
 pytestmark = pytest.mark.unit

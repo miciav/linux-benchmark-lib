@@ -1,7 +1,3 @@
-Ecco il **prompt rigenerato**, aggiornato per riflettere chiaramente che **`lb_analytics` è un package top-level separato**, usato da `lb_controller` ma non contenuto al suo interno, e che mantiene una **dipendenza unidirezionale pulita**:
-
----
-
 You are a **senior software architect and software-engineering researcher (PhD-level)**.
 You have full access to the code in this workspace.
 
@@ -122,11 +118,3 @@ Each step should explain:
 * All analysis must be in **English**.
 * Focus on **architecture, cohesion, and principled design**, not on rewriting everything.
 * Avoid UI redesign for now — analytics is *purely backend* at this stage.
-
----
-
-Se vuoi, posso generare anche:
-
-* una versione *più concisa* del prompt,
-* una versione dedicata al reasoning automatico dell’agente,
-* oppure un diagramma testuale del modello finale.

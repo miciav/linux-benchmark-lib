@@ -271,9 +271,9 @@ def test_multipass_helper_sets_artifacts_env(monkeypatch: pytest.MonkeyPatch, tm
 
     called = {}
 
-    def fake_run(cmd, check, env):
+    def fake_run(cmd, **kwargs):
         called["cmd"] = cmd
-        called["env"] = env
+        called["env"] = kwargs.get("env", {})
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_run)
@@ -288,7 +288,7 @@ def test_multipass_helper_sets_artifacts_env(monkeypatch: pytest.MonkeyPatch, tm
     assert cmd is not None
     assert cmd[0] == sys.executable
     assert "pytest" in cmd
-    assert "tests/integration/test_multipass_benchmark.py" in cmd
+    assert "tests/e2e/test_multipass_benchmark.py" in cmd
 
 
 def test_multipass_helper_allows_vm_count_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -300,9 +300,9 @@ def test_multipass_helper_allows_vm_count_override(monkeypatch: pytest.MonkeyPat
 
     called = {}
 
-    def fake_run(cmd, check, env):
+    def fake_run(cmd, **kwargs):
         called["cmd"] = cmd
-        called["env"] = env
+        called["env"] = kwargs.get("env", {})
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_run)
@@ -312,7 +312,7 @@ def test_multipass_helper_allows_vm_count_override(monkeypatch: pytest.MonkeyPat
     assert called["env"]["LB_MULTIPASS_VM_COUNT"] == "2"
     cmd = called.get("cmd")
     assert cmd is not None
-    assert "tests/integration/test_multipass_benchmark.py" in cmd
+    assert "tests/e2e/test_multipass_benchmark.py" in cmd
     assert "VM count" in result.output
     assert "2 (multi-VM)" in result.output
 
@@ -326,9 +326,9 @@ def test_multipass_helper_runs_multi_workloads(monkeypatch: pytest.MonkeyPatch, 
 
     called = {}
 
-    def fake_run(cmd, check, env):
+    def fake_run(cmd, **kwargs):
         called["cmd"] = cmd
-        called["env"] = env
+        called["env"] = kwargs.get("env", {})
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_run)
@@ -340,7 +340,7 @@ def test_multipass_helper_runs_multi_workloads(monkeypatch: pytest.MonkeyPatch, 
     assert result.exit_code == 0, result.output
     assert called["env"]["LB_MULTIPASS_VM_COUNT"] == "2"
     cmd = called["cmd"]
-    assert "tests/integration/test_multipass_multi_workloads.py" in cmd
+    assert "tests/e2e/test_multipass_multi_workloads.py" in cmd
     # extra args should pass through
     assert "-k" in cmd and "smoke" in cmd
 
@@ -354,9 +354,9 @@ def test_multipass_helper_accepts_pytest_flags_without_separator(monkeypatch: py
 
     called = {}
 
-    def fake_run(cmd, check, env):
+    def fake_run(cmd, **kwargs):
         called["cmd"] = cmd
-        called["env"] = env
+        called["env"] = kwargs.get("env", {})
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_run)

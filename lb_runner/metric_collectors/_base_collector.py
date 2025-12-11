@@ -203,6 +203,6 @@ class BaseCollector(ABC):
         self.start()
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, *_args):
         """Context manager exit."""
         self.stop()

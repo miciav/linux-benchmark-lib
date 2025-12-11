@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 
 def make_data_handler(collectors: Dict[str, Any]):
-    """Instantiate the controller DataHandler lazily to avoid import cycles."""
-    from lb_controller.data_handler import DataHandler as Handler  # type: ignore
+    """Instantiate the analytics DataHandler lazily to avoid import cycles."""
+    from lb_analytics.aggregators.data_handler import DataHandler as Handler  # type: ignore
 
     return Handler(collectors=collectors)
