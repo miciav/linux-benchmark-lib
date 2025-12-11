@@ -1,32 +1,26 @@
-from __future__ import annotations
-
 """Rich-based console adapter used for all TTY output."""
+
+from __future__ import annotations
 
 import shutil
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import IO, Sequence, Any
-from contextlib import AbstractContextManager, nullcontext
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import (
-    BarColumn,
-    Progress,
-    TaskID,
-    TaskProgressColumn,
-    TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
-)
+from rich.progress import TaskID
 from rich.table import Table
 from rich.theme import Theme
 
 from lb_controller.ui_interfaces import DashboardHandle
-from .run_dashboard import RunDashboard, NoopDashboard
-from .tui_prompts import prompt_multipass
-from .types import ProgressHandle, UIAdapter
+from lb_ui.ui.dashboard import RunDashboard, StreamDashboard
+from lb_ui.ui.progress import RichProgressHandle, rich_progress
+from lb_ui.ui.prompts import prompt_multipass
+from lb_ui.ui.utils import format_table
+from lb_ui.ui.viewmodels import plan_rows
+from lb_controller.ui_interfaces import UIAdapter
 
 THEME = Theme(
     {
@@ -37,46 +31,6 @@ THEME = Theme(
         "accent": "#3ea6ff",
     }
 )
-
-
-@dataclass
-class _RichProgress(ProgressHandle):
-    """Progress handle backed by rich.Progress."""
-
-    description: str
-    total: int
-    progress: Progress
-    task_id: TaskID
-    finished: bool = False
-
-    def update(self, completed: int) -> None:
-        if self.finished:
-            return
-        clamped = min(completed, self.total)
-        self.progress.update(self.task_id, completed=clamped)
-
-    def finish(self) -> None:
-        if self.finished:
-            return
-        self.progress.update(self.task_id, completed=self.total)
-        self.progress.stop()
-        self.finished = True
-
-
-class StreamDashboard(DashboardHandle):
-    """Simple dashboard that streams logs to stdout for non-interactive use."""
-
-    def live(self) -> AbstractContextManager[None]:
-        return nullcontext()
-
-    def add_log(self, line: str) -> None:
-        print(line)
-
-    def refresh(self) -> None:
-        pass
-
-    def mark_event(self, source: str) -> None:
-        pass
 
 
 class ConsoleUIAdapter(UIAdapter):
@@ -149,21 +103,12 @@ class ConsoleUIAdapter(UIAdapter):
                 status.update(f"[error]Failed.[/error]")
                 raise
 
-    def create_progress(self, description: str, total: int) -> ProgressHandle:
+    def create_progress(self, description: str, total: int):
         normalized_total = max(total, 1)
-        progress = Progress(
-            TextColumn("[bold accent]{task.description}[/bold accent]"),
-            BarColumn(bar_width=40, complete_style="accent", finished_style="accent"),
-            TaskProgressColumn(),
-            TimeElapsedColumn(),
-            TimeRemainingColumn(),
-            console=self.console,
-            transient=True,
-            expand=True,
-        )
-        task_id = progress.add_task(description, total=normalized_total)
+        progress = rich_progress(self.console)
+        task_id: TaskID = progress.add_task(description, total=normalized_total)
         progress.start()
-        return _RichProgress(
+        return RichProgressHandle(
             description=description,
             total=normalized_total,
             progress=progress,

@@ -6,7 +6,7 @@ from lb_controller.services import run_service as run_service_module
 from lb_controller.services.run_service import RunService, RunContext, RunStatus
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig, RemoteExecutionConfig
 from lb_controller.services.config_service import ConfigService
-from lb_ui.ui.types import UIAdapter
+from lb_controller.ui_interfaces import UIAdapter
 
 pytestmark = pytest.mark.unit
 

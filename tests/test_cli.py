@@ -180,7 +180,6 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
             str(cfg_path),
             "--run-id",
             "test-run",
-            "--docker-no-build",
             "--repetitions",
             "2",
         ],
@@ -193,6 +192,7 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 def test_run_command_allows_repetition_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
+    monkeypatch.setattr(cli, "DEV_MODE", True)
     runner = CliRunner()
 
     cfg = BenchmarkConfig()

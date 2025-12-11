@@ -91,6 +91,7 @@ def test_run_uses_run_service(monkeypatch):
 
 def test_run_docker_flag(monkeypatch):
     """Docker flag should set use_container in the run context."""
+    monkeypatch.setattr(cli, "DEV_MODE", True)
     fake_service = FakeRunService()
     fake_service._container_runner = type("CR", (), {"run": lambda self, spec: None})()  # noqa: SLF001
     monkeypatch.setattr(cli, "run_service", fake_service)
