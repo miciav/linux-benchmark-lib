@@ -10,13 +10,11 @@ from __future__ import annotations
 import importlib
 from typing import Any, Dict
 
-__all__ = ["PSUtilCollector", "CLICollector", "PerfCollector", "EBPFCollector"]
+__all__ = ["PSUtilCollector", "CLICollector"]
 
 _LAZY_MODULES: Dict[str, str] = {
     "PSUtilCollector": "psutil_collector",
     "CLICollector": "cli_collector",
-    "PerfCollector": "perf_collector",
-    "EBPFCollector": "ebpf_collector",
 }
 
 

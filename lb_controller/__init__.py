@@ -16,7 +16,7 @@ from lb_controller.journal import RunJournal, RunStatus, LogSink
 from lb_controller.services.plugin_service import create_registry
 from lb_controller.services.run_service import RunService
 from lb_controller.services.setup_service import SetupService
-from lb_runner.events import ProgressEmitter, RunEvent, StdoutEmitter
+from lb_runner.events import RunEvent, StdoutEmitter
 
 __all__ = [
     "AnsibleRunnerExecutor",
@@ -30,7 +30,6 @@ __all__ = [
     "SetupService",
     "DataHandler",
     "RunEvent",
-    "ProgressEmitter",
     "StdoutEmitter",
     "LogSink",
     "create_registry",
