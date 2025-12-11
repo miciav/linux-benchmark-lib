@@ -32,7 +32,7 @@ from lb_runner.benchmark_config import (
 from lb_runner.plugins.dd.plugin import DDConfig
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 from lb_controller.controller import AnsibleRunnerExecutor, BenchmarkController
-from tests.integration.multipass_utils import (
+from tests.helpers.multipass import (
     get_intensity,
     make_test_ansible_env,
     stage_private_key,

@@ -6,13 +6,13 @@ and UI without changing behavior yet.
 
 from lb_controller.ansible_executor import AnsibleRunnerExecutor
 from lb_controller.controller import BenchmarkController
-from lb_controller.data_handler import DataHandler
-from lb_controller.journal import RunJournal, RunStatus, LogSink
+from lb_controller.journal import LogSink, RunJournal, RunStatus
 from lb_controller.services.plugin_service import create_registry
 from lb_controller.services.run_service import RunService
 from lb_controller.services.setup_service import SetupService
 from lb_controller.types import ExecutionResult, InventorySpec, RunExecutionSummary
 from lb_runner.events import RunEvent, StdoutEmitter
+from lb_analytics import DataHandler
 
 __all__ = [
     "AnsibleRunnerExecutor",

@@ -178,7 +178,7 @@ class LocalRunner:
             elapsed = 0
 
             while elapsed < max_wait:
-                if not getattr(generator, "_is_running", False):
+                if not self._generator_running(generator):
                     break
 
                 time.sleep(1)
@@ -193,7 +193,7 @@ class LocalRunner:
                         last_progress_log = elapsed
 
             # Stop workload generator only if it's still running (timeout reached)
-            if getattr(generator, "_is_running", False):
+            if self._generator_running(generator):
                 logger.warning(f"Workload exceeded {max_wait}s (duration + safety). Forcing stop.")
                 generator.stop()
                 generator_started = False
@@ -314,6 +314,17 @@ class LocalRunner:
         except Exception:
             # Never break workload on progress path
             pass
+
+    @staticmethod
+    def _generator_running(generator: Any) -> bool:
+        """
+        Safely interpret the generator's running flag.
+
+        MagicMock instances used in tests may return a non-bool sentinel for
+        `_is_running`; treat any non-bool as False to avoid long sleep loops.
+        """
+        state = getattr(generator, "_is_running", False)
+        return state is True or (isinstance(state, bool) and state)
     
     def run_benchmark(
         self,

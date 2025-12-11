@@ -45,11 +45,11 @@ def test_yabs_generator_builds_command(monkeypatch, tmp_path):
 
     calls = []
 
-    def fake_run(cmd, check=False, capture_output=False, text=False, env=None):
+    def fake_run(cmd, **_kwargs):
         calls.append(cmd)
         return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
 
-    def fake_mkstemp(prefix, suffix):
+    def fake_mkstemp(*_args, **_kwargs):
         p = tmp_path / "yabs.sh"
         # Create file and return a valid fd
         fd = os.open(p, os.O_CREAT | os.O_RDWR)

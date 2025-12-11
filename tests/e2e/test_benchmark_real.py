@@ -21,7 +21,7 @@ from lb_runner.benchmark_config import (
     WorkloadConfig,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.e2e, pytest.mark.slow]
+pytestmark = [pytest.mark.e2e, pytest.mark.slow]
 
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 from lb_runner.local_runner import LocalRunner

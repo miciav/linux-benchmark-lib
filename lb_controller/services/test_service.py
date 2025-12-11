@@ -107,7 +107,7 @@ class TestService:
         """Construct the scenario details for the test plan."""
         
         # Defaults for generic single workload
-        target = "tests/integration/test_multipass_benchmark.py"
+        target = "tests/e2e/test_multipass_benchmark.py"
         target_label = "benchmark"
         workload_label = selection
         duration_label = f"{selection} (default duration)"
@@ -125,7 +125,7 @@ class TestService:
             return ("fio", f"{intensity['fio_runtime']}s", "1", "0s/0s", f"size={intensity['fio_size']}, randrw, bs=4k")
 
         if selection == "multi":
-            target = "tests/integration/test_multipass_multi_workloads.py"
+            target = "tests/e2e/test_multipass_multi_workloads.py"
             target_label = "multi-workloads"
             workload_label = "stress_ng, dd, fio"
             duration_label = (

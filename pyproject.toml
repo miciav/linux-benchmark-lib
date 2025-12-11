@@ -1,6 +1,6 @@
 [project]
 name = "linux-benchmark-lib"
-version = "0.23.0"
+version = "0.24.0"
 description = "A robust and configurable Python library for benchmarking Linux computational node performance"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -26,13 +26,17 @@ controller = [
     "seaborn>=0.12.0",
     "influxdb-client>=1.36.0",
 ]
+dev = [
+    "pytest-cov>=4.1.0",
+    "vulture>=2.10",
+]
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["lb_runner*", "lb_controller*", "lb_ui*"]
+include = ["lb_runner*", "lb_controller*", "lb_ui*", "lb_analytics*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [tool.setuptools.package-data]
@@ -130,4 +134,5 @@ dev = [
     "mypy>=1.0.0",
     "pre-commit>=3.2.0",
     "ansible-runner>=2.4.0",
+    "vulture>=2.10",
 ]
