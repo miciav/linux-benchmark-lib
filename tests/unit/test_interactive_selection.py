@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lb_controller.services.test_service import TestService
-from lb_ui.ui import tui_prompts
+from lb_ui.ui import prompts as tui_prompts
 
 pytestmark = [pytest.mark.unit, pytest.mark.cli]
 

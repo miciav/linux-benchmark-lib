@@ -1,11 +1,10 @@
-from __future__ import annotations
-
 """Rich dashboard rendering for the run journal."""
 
-from contextlib import contextmanager
+from __future__ import annotations
+
+from contextlib import contextmanager, nullcontext
 from typing import Dict, Iterable, List
 import time
-import shutil
 
 from rich.console import Console
 from rich.layout import Layout
@@ -14,9 +13,10 @@ from rich.panel import Panel
 from rich.table import Table
 
 from lb_controller.journal import RunJournal, RunStatus, TaskState
+from lb_controller.ui_interfaces import DashboardHandle
 
 
-class RunDashboard:
+class RunDashboard(DashboardHandle):
     """Render run plan and journal tables with Live refreshes."""
 
     def __init__(
@@ -33,7 +33,7 @@ class RunDashboard:
         self.layout = Layout()
         self.layout.split_column(
             Layout(name="journal"),
-            Layout(name="logs", size=self.max_log_lines + 2),
+            Layout(name="logs"),
         )
         self._live: Live | None = None
         self.event_source: str = "waiting"
@@ -67,16 +67,20 @@ class RunDashboard:
         """Return the layout for the current state."""
         # Resize journal panel based on number of host/workload rows and terminal height.
         row_count = max(1, sum(1 for _ in self._unique_pairs()))
-        journal_height = self._computed_journal_height(row_count)
+        term_height = self.console.size.height if self.console.size else 40
+        journal_height = self._computed_journal_height(row_count, term_height)
+        logs_height = self._computed_log_height(journal_height, term_height)
         self.layout["journal"].size = journal_height
-        self.layout["logs"].size = self._computed_log_height(journal_height)
+        self.layout["logs"].size = logs_height
+        self._visible_log_lines = max(3, logs_height - 2)
         self.layout["journal"].update(self._render_journal())
         self.layout["logs"].update(self._render_logs())
         return self.layout
 
     def _render_logs(self) -> Panel:
         """Render the rolling log stream."""
-        lines = self.log_buffer[-self.max_log_lines :]
+        max_visible = getattr(self, "_visible_log_lines", self.max_log_lines)
+        lines = self.log_buffer[-max_visible :]
         status = self._event_status_line()
         text = "\n".join([status] + lines) if status else "\n".join(lines)
         return Panel(
@@ -135,8 +139,9 @@ class RunDashboard:
             return
         self.log_buffer.append(message.strip())
         # Trim occasionally to avoid unbounded growth
-        if len(self.log_buffer) > self.max_log_lines * 5:
-            self.log_buffer = self.log_buffer[-self.max_log_lines * 5 :]
+        trim_target = getattr(self, "_visible_log_lines", self.max_log_lines) * 5
+        if len(self.log_buffer) > trim_target:
+            self.log_buffer = self.log_buffer[-trim_target :]
 
     def mark_event(self, source: str) -> None:
         """Record that an event arrived from the given source (e.g., tcp/stdout)."""
@@ -200,112 +205,83 @@ class RunDashboard:
         skipped = tasks and all(task.status == RunStatus.SKIPPED for task in tasks.values())
 
         if failed:
-            status = "[red]✘ Fail[/red]"
+            status = "failed"
         elif running:
-            status = "[yellow]⟳ Run[/yellow]"
+            status = "running"
         elif skipped:
-            status = "[cyan]Skip[/cyan]"
+            status = "skipped"
         elif total and completed >= total:
-            status = "[green]✔ Done[/green]"
+            status = "done"
         elif completed > 0:
-            status = "[cyan]▶ Partial[/cyan]"
+            status = "partial"
         else:
-            status = "[dim]Wait[/dim]"
+            status = "pending"
 
-        progress = f"{completed}/{total or '?'}"
+        progress = f"{completed}/{total}" if total else "0/0"
         return status, progress
 
-    def _computed_journal_height(self, row_count: int) -> int | None:
-        """
-        Choose a journal pane height that fits the workload/host rows and terminal.
+    def _started_repetitions(self, tasks: Dict[int, TaskState]) -> int:
+        return sum(1 for task in tasks.values() if task.status != RunStatus.PENDING)
 
-        Returns None when we cannot determine a sensible size (Rich will auto-size).
-        """
-        # Rough estimate: header + borders + padding
-        target = row_count + 6
+    def _completed_repetitions(self, tasks: Dict[int, TaskState]) -> int:
+        return sum(
+            1
+            for task in tasks.values()
+            if task.status in (RunStatus.COMPLETED, RunStatus.SKIPPED, RunStatus.FAILED)
+        )
 
-        try:
-            term_height = self.console.size.height
-        except Exception:
-            term_height = 0
+    def _latest_duration(self, tasks: Dict[int, TaskState]) -> str:
+        latest = None
+        for task in tasks.values():
+            if task.finished_at:
+                if latest is None or task.finished_at > latest.finished_at:
+                    latest = task
+        if latest and latest.duration_seconds is not None:
+            return f"{latest.duration_seconds:.1f}s"
+        return ""
 
-        if not term_height:
-            try:
-                term_height = shutil.get_terminal_size(fallback=(100, 40)).lines
-            except Exception:
-                term_height = 0
+    def _computed_journal_height(self, row_count: int, term_height: int) -> int:
+        """Pick a journal height that leaves room for logs."""
+        min_height = min(30, max(10, row_count + 5))
+        log_min = 6
+        available = max(10, term_height - log_min)
+        return min(available, min_height)
 
-        logs_height = self.layout["logs"].size or (self.max_log_lines + 2)
-
-        if term_height and term_height > logs_height + 6:
-            max_height = max(10, term_height - logs_height - 2)
-            return max(8, min(target, max_height))
-
-        return None
-
-    def _computed_log_height(self, journal_height: int | None) -> int | None:
-        """
-        Let the log pane consume remaining space while keeping enough room for scrolling.
-        """
-        min_logs = self.max_log_lines + 2
-
-        try:
-            term_height = self.console.size.height
-        except Exception:
-            term_height = 0
-
-        if not term_height:
-            try:
-                term_height = shutil.get_terminal_size(fallback=(100, 40)).lines
-            except Exception:
-                term_height = 0
-
-        if term_height and journal_height:
-            remaining = term_height - journal_height - 2  # spacer
-            if remaining >= min_logs:
-                return remaining
-            return max(min_logs, remaining) if remaining > 0 else min_logs
-
-        return None
-
-    @staticmethod
-    def _completed_repetitions(tasks: Dict[int, TaskState]) -> int:
-        return sum(1 for task in tasks.values() if task.status in {RunStatus.COMPLETED, RunStatus.SKIPPED})
-
-    @staticmethod
-    def _started_repetitions(tasks: Dict[int, TaskState]) -> int:
-        """Count repetitions that have begun (running, completed, failed, or skipped)."""
-        started_statuses = {
-            RunStatus.RUNNING,
-            RunStatus.COMPLETED,
-            RunStatus.FAILED,
-            RunStatus.SKIPPED,
-        }
-        return sum(1 for task in tasks.values() if task.status in started_statuses)
-
-    @staticmethod
-    def _latest_duration(tasks: Dict[int, TaskState]) -> str:
-        """Return the most recent duration (s) for any repetition."""
-        if not tasks:
-            return "-"
-        durations = [t.duration_seconds for t in tasks.values() if t.duration_seconds]
-        if not durations:
-            return "-"
-        latest = durations[-1]
-        return f"{latest:.1f}s"
+    def _computed_log_height(self, journal_height: int, term_height: int) -> int:
+        """Assign remaining height to logs without hard caps."""
+        log_min = 6
+        padding = 2
+        remaining = max(log_min, term_height - journal_height - padding)
+        return remaining
 
 
-class NoopDashboard:
+class StreamDashboard(DashboardHandle):
+    """Simple dashboard that streams logs to stdout for non-interactive use."""
+
+    def live(self):
+        return nullcontext()
+
+    def add_log(self, line: str) -> None:
+        print(line)
+
+    def refresh(self) -> None:
+        pass
+
+    def mark_event(self, source: str) -> None:
+        pass
+
+
+class NoopDashboard(DashboardHandle):
     """Placeholder used when no TTY is available."""
 
-    @contextmanager
     def live(self):
-        yield self
+        return nullcontext()
 
-    def refresh(self) -> None:  # noqa: D401 - simple no-op
-        """No-op refresh."""
-        return
+    def add_log(self, line: str) -> None:
+        pass
 
-    def add_log(self, _: str) -> None:
-        """No-op log appender."""
-        return
+    def refresh(self) -> None:
+        pass
+
+    def mark_event(self, source: str) -> None:
+        pass

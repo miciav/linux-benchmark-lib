@@ -21,8 +21,8 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     """
     # --- Setup Mocks ---
     mock_cleanup = mocker.patch('lb_runner.local_runner.LocalRunner._pre_test_cleanup')
-    mock_data_handler_cls = mocker.patch('lb_runner.local_runner.DataHandler')
-    mock_data_handler_instance = mock_data_handler_cls.return_value
+    mock_data_handler_factory = mocker.patch('lb_runner.local_runner.make_data_handler')
+    mock_data_handler_instance = mock_data_handler_factory.return_value
     mock_data_handler_instance.process_test_results.return_value = None
 
     mock_gen_instance = MagicMock()

@@ -11,28 +11,20 @@ import json
 import os
 import logging
 import platform
-import shutil
 import subprocess
 import time
-import sys
 from datetime import UTC, datetime
 from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
+from lb_runner.data_handler_bridge import make_data_handler
 from lb_runner.events import RunEvent, StdoutEmitter
+from lb_runner.output_helpers import ensure_run_dirs, ensure_runner_log, write_system_info_artifacts
 from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
 from lb_runner import system_info
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from lb_controller.data_handler import DataHandler
-
-# Provide a module attribute for tests to patch without forcing a hard import.
-DataHandler = None  # will be loaded lazily in _make_data_handler
-
 logger = logging.getLogger(__name__)
 
 
@@ -67,7 +59,7 @@ class LocalRunner:
                 collectors = registry.available_collectors()
             except Exception:
                 collectors = {}
-        self.data_handler = self._make_data_handler(collectors)
+        self.data_handler = make_data_handler(collectors)
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = registry
@@ -93,12 +85,7 @@ class LocalRunner:
 
         # Persist JSON/CSV alongside run outputs when available
         if self._output_root:
-            json_path = self._output_root / "system_info.json"
-            csv_path = self._output_root / "system_info.csv"
-            try:
-                system_info.write_outputs(collected, json_path, csv_path)
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.debug("Failed to write system info artifacts: %s", exc)
+            write_system_info_artifacts(collected, self._output_root, logger)
 
         return self.system_info
     
@@ -347,9 +334,10 @@ class LocalRunner:
 
         run_identifier = run_id or self._generate_run_id()
         self._current_run_id = run_identifier
-        self._output_root, self._data_export_root, _ = self._ensure_directories(run_identifier)
+        self._output_root, self._data_export_root, _ = ensure_run_dirs(self.config, run_identifier)
 
-        self._ensure_runner_log(self._output_root or self.config.output_dir)
+        if not self._log_file_handler_attached and self._output_root:
+            self._log_file_handler_attached = ensure_runner_log(self._output_root, logger)
 
         # Collect system info if enabled
         if self.config.collect_system_info and not self.system_info:
@@ -474,49 +462,6 @@ class LocalRunner:
         if not workload.enabled:
             raise ValueError(f"Workload '{name}' is disabled in the configuration")
         return workload
-
-    def _make_data_handler(self, collectors: Dict[str, Any]):
-        """Construct a DataHandler lazily to avoid import cycles."""
-        handler_cls = DataHandler
-        if handler_cls is None:
-            # Local import to avoid circular dependency during module import
-            from lb_controller.data_handler import DataHandler as Handler  # type: ignore
-            handler_cls = Handler
-        return handler_cls(collectors=collectors)
-
-    def _ensure_directories(self, run_id: str) -> tuple[Path, Path, Path]:
-        """Create required local output directories for a run."""
-        self.config.ensure_output_dirs()
-        output_root = (self.config.output_dir / run_id).resolve()
-        report_root = (self.config.report_dir / run_id).resolve()
-        data_export_root = (self.config.data_export_dir / run_id).resolve()
-        for path in (output_root, report_root, data_export_root):
-            path.mkdir(parents=True, exist_ok=True)
-        return output_root, data_export_root, report_root
-
-    def _ensure_runner_log(self, output_dir: Path) -> None:
-        """
-        Attach a single runner.log file handler if one is not already present.
-
-        This keeps logging consistent across local, container, and remote runners.
-        """
-        if self._log_file_handler_attached:
-            return
-        for handler in logger.handlers:
-            if isinstance(handler, logging.FileHandler):
-                self._log_file_handler_attached = True
-                return
-        try:
-            log_path = output_dir / "runner.log"
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            file_handler = logging.FileHandler(log_path)
-            file_handler.setFormatter(
-                logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-            )
-            logger.addHandler(file_handler)
-            self._log_file_handler_attached = True
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.debug(f"Failed to attach file handler: {exc}")
 
     @staticmethod
     def _generate_run_id() -> str:

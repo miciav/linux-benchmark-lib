@@ -1,36 +1,15 @@
+"""Headless UI adapter for deterministic test-friendly output."""
+
 from __future__ import annotations
 
 import sys
 from contextlib import contextmanager
-from dataclasses import dataclass
 from typing import IO, Sequence
 
-from ._shared import format_table
-from .types import ProgressHandle, UIAdapter
-
-
-@dataclass
-class _Progress(ProgressHandle):
-    """Lightweight progress tracker for headless mode."""
-
-    description: str
-    total: int
-    stream: IO[str]
-    last_written: int = 0
-
-    def update(self, completed: int) -> None:
-        completed = min(completed, self.total)
-        if completed == self.last_written:
-            return
-        self.last_written = completed
-        percent = int((completed / self.total) * 100) if self.total else 100
-        self.stream.write(f"\r{self.description}: {percent}%")
-        self.stream.flush()
-
-    def finish(self) -> None:
-        self.update(self.total)
-        self.stream.write("\n")
-        self.stream.flush()
+from lb_controller.ui_interfaces import DashboardHandle, UIAdapter
+from lb_ui.ui.dashboard import NoopDashboard
+from lb_ui.ui.progress import StreamProgressHandle
+from lb_ui.ui.utils import format_table
 
 
 class HeadlessUIAdapter(UIAdapter):
@@ -75,5 +54,11 @@ class HeadlessUIAdapter(UIAdapter):
             self._write("Failed.")
             raise
 
-    def create_progress(self, description: str, total: int) -> ProgressHandle:
-        return _Progress(description=description, total=total, stream=self.stream)
+    def create_progress(self, description: str, total: int):
+        return StreamProgressHandle(description=description, total=total, stream=self.stream)
+
+    def create_dashboard(self, plan: list[dict], journal: any) -> DashboardHandle:
+        return NoopDashboard()
+
+    def prompt_multipass_scenario(self, options: list[str], default_level: str):
+        return None

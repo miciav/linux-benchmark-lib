@@ -28,18 +28,7 @@ class RunEvent:
         return json.dumps(self.to_dict())
 
 
-class ProgressEmitter:
-    """Dispatch RunEvent instances."""
-
-    def emit(self, event: RunEvent) -> None:
-        raise NotImplementedError
-
-    def close(self) -> None:  # pragma: no cover - interface hook
-        """Optional shutdown hook for emitters."""
-        return
-
-
-class StdoutEmitter(ProgressEmitter):
+class StdoutEmitter:
     """Emit progress markers to stdout for parsing in Ansible streams."""
 
     def emit(self, event: RunEvent) -> None:

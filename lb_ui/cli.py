@@ -12,20 +12,21 @@ import subprocess
 import sys
 import re
 import inspect
+import tomllib
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 import typer
 
-from lb_controller.journal import RunJournal, RunStatus, TaskState
+from lb_controller.journal import RunJournal
 from lb_controller.contracts import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig, PluginRegistry
 from lb_controller.services import ConfigService, RunService
 from lb_controller.services.plugin_service import build_plugin_table, create_registry, PluginInstaller
 from lb_controller.services.doctor_service import DoctorService
 from lb_controller.services.test_service import TestService
-from lb_ui.ui.console_adapter import ConsoleUIAdapter
-from lb_ui.ui.tui_prompts import prompt_multipass, prompt_plugins, prompt_remote_host
+from lb_ui.ui import ConsoleUIAdapter, prompt_multipass, prompt_plugins, prompt_remote_host
 from lb_controller.ui_interfaces import UIAdapter
+from lb_ui.ui import viewmodels
 
 
 ui: UIAdapter = ConsoleUIAdapter()
@@ -37,10 +38,28 @@ plugin_app = typer.Typer(help="Inspect and manage workload plugins.", no_args_is
 
 _CLI_ROOT = Path(__file__).resolve().parent.parent
 _DEV_MARKER = _CLI_ROOT / ".lb_dev_cli"
-TEST_CLI_ENABLED = bool(
-    os.environ.get("LB_ENABLE_TEST_CLI")
-    or _DEV_MARKER.exists()
-)
+
+
+def _load_dev_mode() -> bool:
+    """Return True when dev mode is enabled via marker file or pyproject flag."""
+    if _DEV_MARKER.exists():
+        return True
+    pyproject = _CLI_ROOT / "pyproject.toml"
+    if pyproject.exists():
+        try:
+            data = tomllib.loads(pyproject.read_text())
+            tool_cfg = data.get("tool", {}).get("lb_ui", {}) or {}
+            if isinstance(tool_cfg, dict):
+                dev_flag = tool_cfg.get("dev_mode")
+                if isinstance(dev_flag, bool):
+                    return dev_flag
+        except Exception:
+            pass
+    return False
+
+
+DEV_MODE = _load_dev_mode()
+TEST_CLI_ENABLED = bool(os.environ.get("LB_ENABLE_TEST_CLI")) or DEV_MODE
 
 config_service = ConfigService()
 run_service = RunService(registry_factory=create_registry)
@@ -126,83 +145,7 @@ def _print_run_plan(
 
 def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[str]]]:
     """Return column headers and rows for a run journal snapshot."""
-    if not journal.tasks:
-        return ["Host", "Workload"], []
-
-    target_reps = _target_repetitions(journal)
-    columns = ["Host", "Workload", "Run", "Last Action"]
-    
-    def _shorten_action(text: str) -> str:
-        """Clamp the last action column to a sensible width based on terminal size."""
-        import shutil
-        import textwrap
-
-        try:
-            width = shutil.get_terminal_size(fallback=(100, 24)).columns
-        except Exception:
-            width = 100
-
-        # Deduct rough widths for other columns and spacing
-        max_len = max(20, width - 40)
-        return textwrap.shorten(text, width=max_len, placeholder="…") if text else ""
-
-    pairs = sorted({(task.host, task.workload) for task in journal.tasks.values()})
-    rows: list[list[str]] = []
-    for host, workload in pairs:
-        tasks = {
-            task.repetition: task
-            for task in journal.tasks.values()
-            if task.host == host and task.workload == workload
-        }
-        # Track the most recent action/error for this host/workload pair
-        last_action = ""
-        if tasks:
-            latest = max(tasks.values(), key=lambda t: t.timestamp)
-            last_action = _shorten_action(latest.error or latest.current_action or "")
-
-        status, progress = _summarize_progress(tasks, target_reps)
-        row = [host, workload, f"{status}\n{progress}", last_action]
-        rows.append(row)
-
-    return columns, rows
-
-
-def _target_repetitions(journal: RunJournal) -> int:
-    from_metadata = journal.metadata.get("repetitions")
-    if isinstance(from_metadata, int) and from_metadata > 0:
-        return from_metadata
-    reps = [task.repetition for task in journal.tasks.values()]
-    return max(reps) if reps else 0
-
-
-def _summarize_progress(
-    tasks: dict[int, TaskState], target_reps: int
-) -> tuple[str, str]:
-    total = target_reps or len(tasks)
-    completed = sum(
-        1
-        for task in tasks.values()
-        if task.status in (RunStatus.COMPLETED, RunStatus.SKIPPED, RunStatus.FAILED)
-    )
-    running = any(task.status == RunStatus.RUNNING for task in tasks.values())
-    failed = any(task.status == RunStatus.FAILED for task in tasks.values())
-    skipped = tasks and all(task.status == RunStatus.SKIPPED for task in tasks.values())
-
-    if failed:
-        status = "failed"
-    elif running:
-        status = "running"
-    elif skipped:
-        status = "skipped"
-    elif total and completed >= total:
-        status = "done"
-    elif completed > 0:
-        status = "partial"
-    else:
-        status = "pending"
-
-    progress = f"{completed}/{total or '?'}"
-    return status, progress
+    return viewmodels.journal_rows(journal)
 
 
 def _print_run_journal_summary(journal_path: Path, log_path: Path | None = None) -> None:
@@ -745,6 +688,10 @@ def run(
     ),
 ) -> None:
     """Run workloads locally, remotely, or inside the container image."""
+    if not DEV_MODE and (docker or multipass):
+        ui.show_error("--docker and --multipass are available only in dev mode.")
+        raise typer.Exit(1)
+
     if debug:
         logging.basicConfig(
             level=logging.DEBUG,

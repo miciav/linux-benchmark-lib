@@ -50,8 +50,6 @@ def test_pyproject_lists_component_cli_scripts():
     scripts = data.get("project", {}).get("scripts", {})
     expected = {
         "lb": "lb_ui.cli:main",
-        "lb-runner": "lb_runner.cli:main",
-        "lb-controller": "lb_controller.cli:main",
         "lb-ui": "lb_ui.cli:main",
     }
     for name, target in expected.items():

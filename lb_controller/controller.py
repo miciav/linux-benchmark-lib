@@ -4,298 +4,29 @@ This module keeps orchestration logic inside Python while delegating remote
 execution to Ansible Runner.
 """
 
-import json
 import logging
-import os
-import subprocess
 import time
-from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Protocol, Set, Tuple
-import sys
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig
+
+from lb_controller.ansible_executor import AnsibleRunnerExecutor
 from lb_controller.journal import RunJournal, RunStatus
+from lb_controller.journal_sync import (
+    backfill_timings_from_results,
+    update_all_reps,
+)
+from lb_controller.paths import generate_run_id, prepare_per_host_dirs, prepare_run_dirs
 from lb_controller.services.plugin_service import create_registry
+from lb_controller.types import (
+    ExecutionResult,
+    InventorySpec,
+    RemoteExecutor,
+    RunExecutionSummary,
+)
 
 logger = logging.getLogger(__name__)
-ANSIBLE_ROOT = Path(__file__).resolve().parent / "ansible"
-
-
-@dataclass
-class InventorySpec:
-    """Inventory specification for Ansible execution."""
-
-    hosts: List[RemoteHostConfig]
-    inventory_path: Optional[Path] = None
-
-
-@dataclass
-class ExecutionResult:
-    """Result of a single Ansible playbook execution."""
-
-    rc: int
-    status: str
-    stats: Dict[str, Any] = field(default_factory=dict)
-
-    @property
-    def success(self) -> bool:
-        """Return True when the playbook completed successfully."""
-        return self.rc == 0
-
-
-@dataclass
-class RunExecutionSummary:
-    """Summary of a complete controller run."""
-
-    run_id: str
-    per_host_output: Dict[str, Path]
-    phases: Dict[str, ExecutionResult]
-    success: bool
-    output_root: Path
-    report_root: Path
-    data_export_root: Path
-
-
-class RemoteExecutor(Protocol):
-    """Protocol for remote execution engines."""
-
-    def run_playbook(
-        self,
-        playbook_path: Path,
-        inventory: InventorySpec,
-        extravars: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        limit_hosts: Optional[List[str]] = None,
-    ) -> ExecutionResult:
-        """Execute a playbook and return the result."""
-        raise NotImplementedError
-
-
-class AnsibleRunnerExecutor(RemoteExecutor):
-    """Remote executor implemented with ansible-runner."""
-
-    def __init__(
-        self,
-        private_data_dir: Optional[Path] = None,
-        runner_fn: Optional[Callable[..., Any]] = None,
-        stream_output: bool = False,
-        output_callback: Optional[Callable[[str, str], None]] = None,
-    ):
-        """
-        Initialize the executor.
-
-        Args:
-            private_data_dir: Directory used by ansible-runner.
-            runner_fn: Optional runner callable for testing. Defaults to
-                ansible_runner.run when not provided.
-            stream_output: When True, stream Ansible stdout events to the local
-                process (useful for visibility in long-running tasks).
-            output_callback: Optional callback to handle stdout stream.
-                             Signature: (text: str, end: str) -> None
-        """
-        self.private_data_dir = private_data_dir or Path(".ansible_runner")
-        self.private_data_dir.mkdir(parents=True, exist_ok=True)
-        self.event_log_path = self.private_data_dir / "lb_events.jsonl"
-        self._runner_fn = runner_fn
-        self.stream_output = stream_output
-        # Force Ansible temp into a writable location inside the runner dir to avoid host-level permission issues
-        self.local_tmp = self.private_data_dir / "tmp"
-        self.local_tmp.mkdir(parents=True, exist_ok=True)
-        if stream_output and output_callback is None:
-            # Default to streaming to stdout when caller requests streaming but
-            # doesn't provide a handler.
-            def _default_cb(text: str, end: str = "") -> None:
-                sys.stdout.write(text + end)
-                sys.stdout.flush()
-
-            self.output_callback = _default_cb
-        else:
-            self.output_callback = output_callback
-
-    def run_playbook(
-        self,
-        playbook_path: Path,
-        inventory: InventorySpec,
-        extravars: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        limit_hosts: Optional[List[str]] = None,
-    ) -> ExecutionResult:
-        """Execute a playbook using ansible-runner."""
-        if not playbook_path.exists():
-            raise FileNotFoundError(f"Playbook not found: {playbook_path}")
-
-        inventory_path = self._prepare_inventory(inventory)
-        runner_fn = self._runner_fn or self._import_runner()
-
-        # Ensure playbook path is absolute so runner can find it
-        # regardless of private_data_dir location
-        abs_playbook_path = playbook_path.resolve()
-
-        logger.info(
-            "Running playbook %s against %d host(s)",
-            abs_playbook_path,
-            len(inventory.hosts),
-        )
-
-        merged_extravars = extravars.copy() if extravars else {}
-        merged_extravars.setdefault("_lb_inventory_path", str(inventory_path))
-
-        repo_roles = (ANSIBLE_ROOT / "roles").resolve()
-        runner_roles = (self.private_data_dir / "roles").resolve()
-        callback_dir = (ANSIBLE_ROOT / "callback_plugins").resolve()
-        envvars = {
-            "ANSIBLE_ROLES_PATH": f"{runner_roles}:{repo_roles}",
-            "ANSIBLE_LOCAL_TEMP": str(self.local_tmp),
-            "ANSIBLE_REMOTE_TMP": "/tmp/.ansible",
-            "ANSIBLE_CONFIG": str((ANSIBLE_ROOT / "ansible.cfg").resolve()),
-            # Use default callback; debug tasks echo LB_EVENT markers.
-            "ANSIBLE_STDOUT_CALLBACK": "default",
-            "ANSIBLE_CALLBACK_PLUGINS": str(callback_dir),
-            "ANSIBLE_CALLBACKS_ENABLED": "lb_events",
-            "LB_EVENT_LOG_PATH": str(self.event_log_path),
-        }
-
-        if self._runner_fn:
-            result = runner_fn(
-                private_data_dir=str(self.private_data_dir),
-                playbook=str(abs_playbook_path),
-                inventory=str(inventory_path.resolve()),
-                extravars=merged_extravars,
-                tags=",".join(tags) if tags else None,
-                envvars=envvars,
-                limit=",".join(limit_hosts) if limit_hosts else None,
-            )
-        else:
-            result = self._run_subprocess_playbook(
-                abs_playbook_path=abs_playbook_path,
-                inventory_path=inventory_path,
-                extravars=merged_extravars,
-                tags=tags,
-                envvars=envvars,
-                limit_hosts=limit_hosts,
-            )
-
-        rc = getattr(result, "rc", 1)
-        status = getattr(result, "status", "failed")
-        stats = getattr(result, "stats", {}) or {}
-        logger.info(
-            "Playbook %s finished with rc=%s status=%s",
-            playbook_path,
-            rc,
-            status,
-        )
-        return ExecutionResult(rc=rc, status=status, stats=stats)
-
-    def _prepare_inventory(self, inventory: InventorySpec) -> Path:
-        """Write a transient inventory file or return the provided one."""
-        if inventory.inventory_path:
-            if not inventory.inventory_path.exists():
-                raise FileNotFoundError(
-                    f"Inventory file not found: {inventory.inventory_path}"
-                )
-            return inventory.inventory_path
-
-        inventory_dir = self.private_data_dir / "inventory"
-        inventory_dir.mkdir(parents=True, exist_ok=True)
-        inventory_file = inventory_dir / "hosts.ini"
-        inventory_file.write_text(self._render_inventory(inventory.hosts))
-        return inventory_file
-
-    @staticmethod
-    def _render_inventory(hosts: List[RemoteHostConfig]) -> str:
-        """Render an INI inventory from host configs."""
-        lines = ["[all]"]
-        for host in hosts:
-            lines.append(host.ansible_host_line())
-        lines.append("")
-        lines.append("[cluster]")
-        for host in hosts:
-            lines.append(host.ansible_host_line())
-        return "\n".join(lines) + "\n"
-
-    @staticmethod
-    def _import_runner() -> Callable[..., Any]:
-        """Import ansible_runner lazily to avoid hard dependency at import time."""
-        try:
-            import ansible_runner  # type: ignore
-        except ImportError as exc:  # pragma: no cover - guarded at runtime
-            raise RuntimeError(
-                "ansible-runner is required for remote execution. "
-                "Install it with `uv pip install ansible-runner`."
-            ) from exc
-        return ansible_runner.run
-
-    def _run_subprocess_playbook(
-        self,
-        abs_playbook_path: Path,
-        inventory_path: Path,
-        extravars: Dict[str, Any],
-        tags: Optional[List[str]],
-        envvars: Dict[str, str],
-        limit_hosts: Optional[List[str]] = None,
-    ) -> ExecutionResult:
-        """
-        Execute ansible-playbook via subprocess to avoid ansible-runner's awx_display callback.
-        """
-        cmd = [
-            "ansible-playbook",
-            "-i",
-            str(inventory_path.resolve()),
-            str(abs_playbook_path),
-        ]
-        if tags:
-            cmd.extend(["--tags", ",".join(tags)])
-        if limit_hosts:
-            cmd.extend(["--limit", ",".join(limit_hosts)])
-
-        # Write extravars to a transient JSON file.
-        env_dir = self.private_data_dir / "env"
-        env_dir.mkdir(parents=True, exist_ok=True)
-        extravars_file = env_dir / "extravars.json"
-        extravars_file.write_text(json.dumps(extravars))
-        cmd.extend(["-e", f"@{extravars_file.resolve()}"])
-
-        env = os.environ.copy()
-        env.update(envvars)
-
-        logger.debug("Executing Ansible command: %s", " ".join(cmd))
-        logger.debug("Ansible Env: %s", envvars)
-
-        if self.stream_output:
-            proc = subprocess.Popen(
-                cmd,
-                cwd=self.private_data_dir,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-            assert proc.stdout is not None
-            for line in proc.stdout:
-                if self.output_callback:
-                    self.output_callback(line.rstrip("\n"), "\n")
-                else:
-                    sys.stdout.write(line)
-            proc.wait()
-            rc = proc.returncode
-        else:
-            completed = subprocess.run(
-                cmd,
-                cwd=self.private_data_dir,
-                env=env,
-                capture_output=True,
-                text=True,
-            )
-            rc = completed.returncode
-            if rc != 0:
-                logger.error("ansible-playbook failed rc=%s", rc)
-                logger.error("stdout: %s", completed.stdout)
-                logger.error("stderr: %s", completed.stderr)
-
-        status = "successful" if rc == 0 else "failed"
-        return ExecutionResult(rc=rc, status=status, stats={})
 
 
 class BenchmarkController:
@@ -347,7 +78,7 @@ class BenchmarkController:
             raise ValueError("Resume requested without a journal instance.")
 
         resolved_run_id = (
-            journal.run_id if journal is not None else run_id or self._generate_run_id()
+            journal.run_id if journal is not None else run_id or generate_run_id()
         )
         inventory = InventorySpec(
             hosts=self.config.remote_hosts,
@@ -359,11 +90,11 @@ class BenchmarkController:
             or self.config.repetitions
         )
 
-        output_root, report_root, data_export_root = self._prepare_run_dirs(
-            resolved_run_id
+        output_root, report_root, data_export_root = prepare_run_dirs(
+            self.config, resolved_run_id
         )
-        per_host_output = self._prepare_per_host_dirs(
-            output_root=output_root, report_root=report_root
+        per_host_output = prepare_per_host_dirs(
+            self.config.remote_hosts, output_root=output_root, report_root=report_root
         )
 
         active_journal = journal or RunJournal.initialize(
@@ -371,7 +102,8 @@ class BenchmarkController:
         )
         journal_file = journal_path or output_root / "run_journal.json"
         active_journal.save(journal_file)
-        self._refresh_journal()
+        if self._journal_refresh:
+            self._journal_refresh()
 
         # Default remote output root to a temp dir with run_id
         # This avoids using local paths on remote hosts
@@ -484,13 +216,15 @@ class BenchmarkController:
             if self.output_formatter:
                 self.output_formatter.set_phase(f"Run: {test_name}")
             if not self._use_progress_stream:
-                self._update_all_reps(
+                update_all_reps(
+                    self.config.repetitions,
                     active_journal,
                     journal_file,
                     pending_hosts,
                     test_name,
                     RunStatus.RUNNING,
                     action="Running workload...",
+                    refresh=self._journal_refresh,
                 )
 
             loop_extravars = extravars.copy()
@@ -506,7 +240,8 @@ class BenchmarkController:
             status = RunStatus.COMPLETED if res_run.success else RunStatus.FAILED
 
             if not self._use_progress_stream:
-                self._update_all_reps(
+                update_all_reps(
+                    self.config.repetitions,
                     active_journal,
                     journal_file,
                     pending_hosts,
@@ -514,6 +249,7 @@ class BenchmarkController:
                     status,
                     action="Completed" if res_run.success else "Failed",
                     error=None if res_run.success else "ansible-playbook failed",
+                    refresh=self._journal_refresh,
                 )
 
             if not res_run.success:
@@ -526,13 +262,15 @@ class BenchmarkController:
                 if self.output_formatter:
                     self.output_formatter.set_phase(f"Collect: {test_name}")
                 if not self._use_progress_stream:
-                    self._update_all_reps(
+                    update_all_reps(
+                        self.config.repetitions,
                         active_journal,
                         journal_file,
                         pending_hosts,
                         test_name,
                         status,
                         action="Collecting results",
+                        refresh=self._journal_refresh,
                     )
                 res_col = self.executor.run_playbook(
                     self.config.remote_execution.collect_playbook,
@@ -540,31 +278,37 @@ class BenchmarkController:
                     extravars=extravars,
                 )
                 phases[f"collect_{test_name}"] = res_col
-                self._backfill_timings_from_results(
+                backfill_timings_from_results(
                     active_journal,
                     journal_file,
                     pending_hosts,
                     test_name,
                     per_host_output,
+                    refresh=self._journal_refresh,
                 )
             else:
                 # If collect is disabled, still try to backfill from any locally available results.
-                self._backfill_timings_from_results(
+                backfill_timings_from_results(
                     active_journal,
                     journal_file,
                     pending_hosts,
                     test_name,
                     per_host_output,
+                    refresh=self._journal_refresh,
                 )
-                phases["collect"] = res_col
+                phases[f"collect_{test_name}"] = ExecutionResult(
+                    rc=0, status="skipped", stats={}
+                )
                 if not self._use_progress_stream:
-                    self._update_all_reps(
+                    update_all_reps(
+                        self.config.repetitions,
                         active_journal,
                         journal_file,
                         pending_hosts,
                         test_name,
                         status,
                         action="Done",
+                        refresh=self._journal_refresh,
                     )
 
             # D. Plugin Teardown
@@ -637,161 +381,3 @@ class BenchmarkController:
             tags=tags,
             limit_hosts=limit_hosts,
         )
-
-    def _update_journal_tasks(
-        self,
-        journal: RunJournal,
-        journal_path: Path,
-        hosts: List[RemoteHostConfig],
-        workload: str,
-        repetition: int,
-        status: str,
-        action: Optional[str] = None,
-        error: Optional[str] = None,
-    ) -> None:
-        """Update journal entries for each host and persist."""
-        for host in hosts:
-            journal.update_task(
-                host.name,
-                workload,
-                repetition,
-                status,
-                action=action,
-                error=error,
-            )
-        journal.save(journal_path)
-        self._refresh_journal()
-
-    def _backfill_timings_from_results(
-        self,
-        journal: RunJournal,
-        journal_path: Path,
-        hosts: List[RemoteHostConfig],
-        workload: str,
-        per_host_output: Dict[str, Path],
-    ) -> None:
-        """Backfill per-repetition timing data from all *_results.json artifacts."""
-        updated = False
-        for host in hosts:
-            host_dir = per_host_output.get(host.name)
-            if not host_dir:
-                continue
-            # Consider all result files for this workload, not just the newest.
-            candidates = sorted(
-                host_dir.rglob(f"{workload}_results.json"),
-                key=lambda p: p.stat().st_mtime,
-                reverse=True,
-            )
-            if not candidates:
-                continue
-            for results_file in candidates:
-                try:
-                    entries = json.loads(results_file.read_text())
-                except Exception as exc:
-                    logger.debug("Failed to parse results for %s: %s", host.name, exc)
-                    continue
-                for entry in entries or []:
-                    rep = entry.get("repetition")
-                    if rep is None:
-                        continue
-                    task = journal.get_task(host.name, workload, rep)
-                    if not task:
-                        continue
-                    try:
-                        start_str = entry.get("start_time")
-                        end_str = entry.get("end_time")
-                        if start_str:
-                            task.started_at = datetime.fromisoformat(start_str).timestamp()
-                        if end_str:
-                            task.finished_at = datetime.fromisoformat(end_str).timestamp()
-                        duration = entry.get("duration_seconds")
-                        if duration is not None:
-                            task.duration_seconds = float(duration)
-                        elif task.started_at is not None and task.finished_at is not None:
-                            task.duration_seconds = max(0.0, task.finished_at - task.started_at)
-                        gen_result = entry.get("generator_result") or {}
-                        gen_error = gen_result.get("error")
-                        gen_rc = gen_result.get("returncode")
-                        if gen_error or (gen_rc not in (None, 0)):
-                            task.status = RunStatus.FAILED
-                            err_parts = []
-                            if gen_error:
-                                err_parts.append(str(gen_error))
-                            if gen_rc not in (None, 0):
-                                err_parts.append(f"returncode={gen_rc}")
-                            cmd = gen_result.get("command")
-                            if cmd:
-                                err_parts.append(f"cmd={cmd}")
-                            message = " | ".join(err_parts) if err_parts else "Workload reported an error"
-                            task.current_action = message
-                            task.error = message
-                        elif task.status not in (RunStatus.FAILED, RunStatus.SKIPPED):
-                            task.status = RunStatus.COMPLETED
-                        updated = True
-                    except Exception as exc:
-                        logger.debug("Failed to backfill timing for %s rep %s: %s", host.name, rep, exc)
-        if updated:
-            journal.save(journal_path)
-            self._refresh_journal()
-
-    def _update_all_reps(
-        self,
-        journal: RunJournal,
-        journal_path: Path,
-        hosts: List[RemoteHostConfig],
-        workload: str,
-        status: str,
-        action: Optional[str] = None,
-        error: Optional[str] = None,
-    ) -> None:
-        """Update journal for all repetitions of a workload."""
-        if not journal:
-            return
-        for rep in range(1, self.config.repetitions + 1):
-            self._update_journal_tasks(
-                journal,
-                journal_path,
-                hosts,
-                workload,
-                rep,
-                status,
-                action=action,
-                error=error,
-            )
-
-    def _refresh_journal(self) -> None:
-        """Trigger UI refresh when a journal update occurs."""
-        if self._journal_refresh:
-            self._journal_refresh()
-
-    @staticmethod
-    def _generate_run_id() -> str:
-        """Generate a monotonic timestamp-based run identifier."""
-        return datetime.utcnow().strftime("run-%Y%m%d-%H%M%S")
-
-    def _prepare_run_dirs(
-        self,
-        run_id: str,
-    ) -> tuple[Path, Path, Path]:
-        """Create base directories for a run."""
-        output_root = (self.config.output_dir / run_id).resolve()
-        report_root = (self.config.report_dir / run_id).resolve()
-        data_export_root = (self.config.data_export_dir / run_id).resolve()
-        for path in (output_root, report_root, data_export_root):
-            path.mkdir(parents=True, exist_ok=True)
-        return output_root, report_root, data_export_root
-
-    def _prepare_per_host_dirs(
-        self,
-        output_root: Path,
-        report_root: Path,
-    ) -> Dict[str, Path]:
-        """Prepare output/report directories per host."""
-        per_host: Dict[str, Path] = {}
-        for host in self.config.remote_hosts:
-            host_report_dir = report_root / host.name
-            host_dir = output_root / host.name
-            host_dir.mkdir(parents=True, exist_ok=True)
-            host_report_dir.mkdir(parents=True, exist_ok=True)
-            per_host[host.name] = host_dir
-        return per_host

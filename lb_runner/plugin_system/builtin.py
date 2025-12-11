@@ -31,12 +31,6 @@ PSUTIL_AGGREGATOR, _ = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.psutil_c
 CLICollector, CLI_IMPORT_ERROR = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.cli_collector", "CLICollector")
 CLI_AGGREGATOR, _ = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.cli_collector", "aggregate_cli")
 
-PerfCollector, PERF_IMPORT_ERROR = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.perf_collector", "PerfCollector")
-PERF_AGGREGATOR, _ = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.perf_collector", "aggregate_perf")
-
-EBPFCollector, EBPF_IMPORT_ERROR = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.ebpf_collector", "EBPFCollector")
-EBPF_AGGREGATOR, _ = _safe_import(f"{_PACKAGE_ROOT}.metric_collectors.ebpf_collector", "aggregate_ebpf")
-
 def _create_psutil(config: BenchmarkConfig) -> PSUtilCollector:
     if PSUtilCollector is None:
         raise RuntimeError(f"PSUtilCollector unavailable: {PSUTIL_IMPORT_ERROR}")
@@ -50,21 +44,6 @@ def _create_cli(config: BenchmarkConfig) -> CLICollector:
     return CLICollector(
         interval_seconds=config.metrics_interval_seconds,
         commands=config.collectors.cli_commands
-    )
-
-def _create_perf(config: BenchmarkConfig) -> PerfCollector:
-    if PerfCollector is None:
-        raise RuntimeError(f"PerfCollector unavailable: {PERF_IMPORT_ERROR}")
-    return PerfCollector(
-        interval_seconds=config.metrics_interval_seconds,
-        events=config.collectors.perf_config.events
-    )
-
-def _create_ebpf(config: BenchmarkConfig) -> EBPFCollector:
-    if EBPFCollector is None:
-        raise RuntimeError(f"EBPFCollector unavailable: {EBPF_IMPORT_ERROR}")
-    return EBPFCollector(
-        interval_seconds=config.metrics_interval_seconds
     )
 
 # --- Collector Plugins ---
@@ -85,22 +64,6 @@ CLI_COLLECTOR = CollectorPlugin(
     should_run=lambda cfg: bool(cfg.collectors.cli_commands),
 )
 
-PERF_COLLECTOR = CollectorPlugin(
-    name="PerfCollector",
-    description="Hardware events via perf",
-    factory=_create_perf,
-    aggregator=PERF_AGGREGATOR,
-    should_run=lambda cfg: bool(cfg.collectors.perf_config.events),
-)
-
-EBPF_COLLECTOR = CollectorPlugin(
-    name="EBPFCollector",
-    description="Kernel tracing via eBPF",
-    factory=_create_ebpf,
-    aggregator=EBPF_AGGREGATOR,
-    should_run=lambda cfg: cfg.collectors.enable_ebpf,
-)
-
 
 def builtin_plugins() -> List[Any]:
     """
@@ -110,8 +73,6 @@ def builtin_plugins() -> List[Any]:
     plugins = [
         PSUTIL_COLLECTOR,
         CLI_COLLECTOR,
-        PERF_COLLECTOR,
-        EBPF_COLLECTOR,
     ]
 
     # 1. Scan plugins/*/plugin.py

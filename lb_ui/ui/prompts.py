@@ -1,9 +1,4 @@
-"""
-Rich-based interactive helpers used by the CLI.
-
-These helpers avoid Textual entirely while still offering a small amount of
-structured input when a TTY is available.
-"""
+"""Interactive prompt helpers."""
 
 from __future__ import annotations
 
@@ -16,7 +11,6 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from lb_controller.ui_interfaces import UIAdapter
-
 
 console = Console()
 

@@ -45,15 +45,11 @@ class DataHandler:
             try:
                 from .metric_collectors.psutil_collector import aggregate_psutil
                 from .metric_collectors.cli_collector import aggregate_cli
-                from .metric_collectors.perf_collector import aggregate_perf
-                from .metric_collectors.ebpf_collector import aggregate_ebpf
 
                 self.collector_aggregators.update(
                     {
                         "PSUtilCollector": aggregate_psutil,
                         "CLICollector": aggregate_cli,
-                        "PerfCollector": aggregate_perf,
-                        "EBPFCollector": aggregate_ebpf,
                     }
                 )
             except Exception:
