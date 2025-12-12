@@ -11,14 +11,14 @@ from __future__ import annotations
 import logging
 import os
 import platform
+from pathlib import Path
 import shutil
 import subprocess
 import tarfile
 import tempfile
 from dataclasses import dataclass, field
-from pathlib import Path
 from urllib.parse import urlparse
-from typing import List, Optional, Type, Any, Tuple
+from typing import List, Optional, Type, Any, Tuple, Dict
 
 from ...plugin_system.interface import WorkloadPlugin, WorkloadIntensity
 from ...plugin_system.base_generator import BaseGenerator
@@ -45,6 +45,7 @@ class GeekbenchConfig:
 
     version: str = "6.3.0"
     download_url: Optional[str] = None
+    download_checksum: Optional[str] = None  # sha256 hex for archive validation
     workdir: Path = Path("/opt/geekbench")
     output_dir: Path = Path("/tmp")
     license_key: Optional[str] = None
@@ -52,7 +53,15 @@ class GeekbenchConfig:
     run_gpu: bool = False
     extra_args: List[str] = field(default_factory=list)
     arch_override: Optional[str] = None
+    expected_runtime_seconds: int = 1800
     debug: bool = False
+
+    def __post_init__(self) -> None:
+        # Normalize Path fields in case they were loaded from JSON as strings.
+        if isinstance(self.workdir, str):
+            self.workdir = Path(self.workdir)
+        if isinstance(self.output_dir, str):
+            self.output_dir = Path(self.output_dir)
 
 
 class GeekbenchGenerator(BaseGenerator):
@@ -66,7 +75,14 @@ class GeekbenchGenerator(BaseGenerator):
         self._download_error: Optional[str] = None
         self._export_supported: bool = True
         # Allow long-running benchmark; runner will extend duration based on this hint.
-        self.expected_runtime_seconds = int(os.environ.get("LB_GEEKBENCH_TIMEOUT", "1800"))
+        timeout_env = os.environ.get("LB_GEEKBENCH_TIMEOUT")
+        if timeout_env:
+            try:
+                self.expected_runtime_seconds = int(timeout_env)
+            except ValueError:
+                self.expected_runtime_seconds = int(config.expected_runtime_seconds)
+        else:
+            self.expected_runtime_seconds = int(config.expected_runtime_seconds)
 
     def _validate_environment(self) -> bool:
         """Ensure required tools and paths are available."""
@@ -133,8 +149,16 @@ class GeekbenchGenerator(BaseGenerator):
                 result_payload["export_json_supported"] = False
             self._result = result_payload
 
-            # Fallback: if export-json is unsupported (Pro-only) retry without it
-            if run.returncode != 0 and self._export_supported and "export-json" in (run.stderr or "").lower():
+            # Fallback: if export-json is unsupported (Pro-only) retry without it.
+            export_failed = self._export_supported and not export_path.exists()
+            stderr_lower = (run.stderr or "").lower()
+            export_flag_error = (
+                "export-json" in stderr_lower
+                or "unknown option" in stderr_lower
+                or "unrecognized option" in stderr_lower
+                or "invalid option" in stderr_lower
+            )
+            if self._export_supported and (run.returncode != 0 or export_failed or export_flag_error):
                 fallback_cmd = [str(executable)]
                 if self.config.run_gpu:
                     fallback_cmd.append("--compute")
@@ -153,6 +177,7 @@ class GeekbenchGenerator(BaseGenerator):
                     "command": " ".join(fallback_cmd),
                     "log_path": str(log_path),
                     "export_json_supported": False,
+                    "original_returncode": run.returncode,
                 }
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Geekbench execution error: %s", exc)
@@ -256,6 +281,22 @@ class GeekbenchGenerator(BaseGenerator):
                 )
             raise RuntimeError(f"Failed to download Geekbench: {msg}")
 
+        # Optional checksum validation
+        if self.config.download_checksum:
+            try:
+                import hashlib
+
+                digest = hashlib.sha256(tmp_path.read_bytes()).hexdigest()
+                if digest.lower() != self.config.download_checksum.lower():
+                    tmp_path.unlink(missing_ok=True)
+                    raise RuntimeError(
+                        f"Geekbench checksum mismatch for {archive_name}: expected "
+                        f"{self.config.download_checksum}, got {digest}"
+                    )
+            except Exception as exc:
+                tmp_path.unlink(missing_ok=True)
+                raise RuntimeError(f"Geekbench checksum validation failed: {exc}") from exc
+
         # Basic gzip magic check to fail fast on HTML/error responses
         try:
             with tmp_path.open("rb") as fh:
@@ -317,6 +358,10 @@ class GeekbenchPlugin(WorkloadPlugin):
 
     def create_generator(self, config: GeekbenchConfig | dict) -> GeekbenchGenerator:
         if isinstance(config, dict):
+            # JSON configs render Paths as strings; normalize here.
+            for key in ("workdir", "output_dir"):
+                if key in config and isinstance(config[key], str):
+                    config[key] = Path(config[key])
             config = GeekbenchConfig(**config)
         return GeekbenchGenerator(config)
 
@@ -343,6 +388,198 @@ class GeekbenchPlugin(WorkloadPlugin):
 
     def get_ansible_teardown_path(self) -> Optional[Path]:
         return None
+
+    def export_results_to_csv(
+        self,
+        results: List[Dict[str, Any]],
+        output_dir: Path,
+        run_id: str,
+        test_name: str,
+    ) -> List[Path]:
+        """
+        Export Geekbench summary scores to CSV.
+
+        When a Geekbench JSON export is available, extract overall single/multi-core
+        scores plus optional subtest scores. Falls back to a minimal flattened CSV
+        if parsing fails.
+        """
+        import pandas as pd
+
+        def _normalize_key(key: str) -> str:
+            return key.lower().replace("-", "_").replace(" ", "_")
+
+        def _coerce_number(value: Any) -> Optional[float]:
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str):
+                try:
+                    return float(value.strip())
+                except Exception:
+                    return None
+            return None
+
+        def _find_first_score(node: Any, keys: set[str]) -> Optional[float]:
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    nk = _normalize_key(str(k))
+                    if nk in keys:
+                        num = _coerce_number(v)
+                        if num is not None:
+                            return num
+                    found = _find_first_score(v, keys)
+                    if found is not None:
+                        return found
+            elif isinstance(node, list):
+                for item in node:
+                    found = _find_first_score(item, keys)
+                    if found is not None:
+                        return found
+            return None
+
+        def _find_first_value(node: Any, keys: set[str]) -> Any:
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    nk = _normalize_key(str(k))
+                    if nk in keys:
+                        return v
+                    found = _find_first_value(v, keys)
+                    if found is not None:
+                        return found
+            elif isinstance(node, list):
+                for item in node:
+                    found = _find_first_value(item, keys)
+                    if found is not None:
+                        return found
+            return None
+
+        def _collect_subtests(node: Any) -> list[dict[str, Any]]:
+            rows: list[dict[str, Any]] = []
+            if isinstance(node, list):
+                # Candidate list of subtests.
+                if all(isinstance(i, dict) for i in node):
+                    for item in node:
+                        name = item.get("name") or item.get("benchmark_name") or item.get("workload")
+                        score = item.get("score") or item.get("result") or item.get("value")
+                        num = _coerce_number(score)
+                        if name and num is not None:
+                            rows.append({"subtest": str(name), "score": num})
+                for item in node:
+                    rows.extend(_collect_subtests(item))
+            elif isinstance(node, dict):
+                for v in node.values():
+                    rows.extend(_collect_subtests(v))
+            return rows
+
+        summary_rows: list[dict[str, Any]] = []
+        subtest_rows: list[dict[str, Any]] = []
+
+        single_keys = {
+            "single_core_score",
+            "single_core",
+            "single_score",
+            "single",
+            "cpu_single_core_score",
+            "singlecore_score",
+        }
+        multi_keys = {
+            "multi_core_score",
+            "multi_core",
+            "multi_score",
+            "multi",
+            "cpu_multi_core_score",
+            "multicore_score",
+        }
+        version_keys = {"geekbench_version", "version"}
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        for entry in results:
+            rep = entry.get("repetition")
+            gen_result = entry.get("generator_result") or {}
+            json_path: Optional[Path] = None
+
+            # Prefer explicit json_result from generator.
+            raw_json = gen_result.get("json_result")
+            if isinstance(raw_json, str):
+                candidate = Path(raw_json)
+                if candidate.exists():
+                    json_path = candidate
+                else:
+                    local_candidate = output_dir / candidate.name
+                    if local_candidate.exists():
+                        json_path = local_candidate
+
+            # Fallback to any json in workload output dir.
+            if json_path is None:
+                candidates = list(output_dir.glob("geekbench*.json")) + list(output_dir.glob("*geekbench*.json"))
+                if candidates:
+                    json_path = candidates[0]
+
+            payload: dict[str, Any] | None = None
+            if json_path:
+                try:
+                    payload = pd.read_json(json_path, typ="series").to_dict()  # type: ignore[arg-type]
+                except Exception:
+                    try:
+                        import json as _json
+
+                        payload = _json.loads(json_path.read_text())
+                    except Exception:
+                        payload = None
+
+            single_score = _find_first_score(payload, single_keys) if payload else None
+            multi_score = _find_first_score(payload, multi_keys) if payload else None
+            gb_version_raw = _find_first_value(payload, version_keys) if payload else None
+            gb_version = (
+                str(gb_version_raw)
+                if gb_version_raw is not None and gb_version_raw != ""
+                else None
+            )
+
+            summary_rows.append(
+                {
+                    "run_id": run_id,
+                    "workload": test_name,
+                    "repetition": rep,
+                    "returncode": gen_result.get("returncode"),
+                    "success": entry.get("success"),
+                    "duration_seconds": entry.get("duration_seconds"),
+                    "single_core_score": single_score,
+                    "multi_core_score": multi_score,
+                    "geekbench_version": gb_version
+                    or gen_result.get("version")
+                    or self.config_cls().version,
+                    "export_json_supported": gen_result.get("export_json_supported", True),
+                }
+            )
+
+            if payload:
+                for row in _collect_subtests(payload):
+                    subtest_rows.append(
+                        {
+                            "run_id": run_id,
+                            "workload": test_name,
+                            "repetition": rep,
+                            **row,
+                        }
+                    )
+
+        if not summary_rows:
+            return []
+
+        summary_df = pd.DataFrame(summary_rows)
+        csv_paths: list[Path] = []
+        summary_path = output_dir / f"{test_name}_plugin.csv"
+        summary_df.to_csv(summary_path, index=False)
+        csv_paths.append(summary_path)
+
+        if subtest_rows:
+            sub_df = pd.DataFrame(subtest_rows)
+            sub_path = output_dir / f"{test_name}_subtests.csv"
+            sub_df.to_csv(sub_path, index=False)
+            csv_paths.append(sub_path)
+
+        return csv_paths
 
 
 PLUGIN = GeekbenchPlugin()

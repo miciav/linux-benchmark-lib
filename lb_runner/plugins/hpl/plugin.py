@@ -217,14 +217,29 @@ HPL.out      output file name (if any)
 
             # Surface common failure modes even when HPL exits 0
             if stdout:
-                if "Memory allocation failed" in stdout or "tests skipped" in stdout:
+                if "Memory allocation failed" in stdout:
                     msg = (
                         "HPL reported memory allocation failure; adjust N/P/Q or provide more RAM. "
                         f"N={self.config.n}, P={self.config.p}, Q={self.config.q}"
                     )
                     self._result["error"] = msg
                     logger.error(msg)
-                elif "HPL ERROR" in stdout and "error" not in self._result:
+                else:
+                    # Only treat tests skipped as fatal when >0
+                    import re as _re
+                    skipped = _re.search(r"([0-9]+)\\s+tests skipped", stdout, flags=_re.IGNORECASE)
+                    if skipped:
+                        try:
+                            if int(skipped.group(1)) > 0:
+                                msg = (
+                                    "HPL skipped tests due to illegal input; adjust N/P/Q or install deps."
+                                )
+                                self._result["error"] = msg
+                                logger.error(msg)
+                        except Exception:
+                            pass
+
+                if "HPL ERROR" in stdout and "error" not in self._result:
                     self._result["error"] = "HPL reported an internal error"
 
             if self._process.returncode != 0:
@@ -242,21 +257,64 @@ HPL.out      output file name (if any)
             self._is_running = False
 
     def _parse_output(self, output: str) -> dict[str, Any]:
-        """Parse Gflops from HPL output."""
+        """Parse summary metrics from HPL stdout."""
         metrics: dict[str, Any] = {}
+
+        # Typical summary line:
+        # WR00C2R4        N    NB     P     Q        Time       Gflops
         wr_pattern = re.compile(
-            r"^W[A-Z0-9]+\s+\d+\s+\d+\s+\d+\s+\d+\s+[\d\.Ee\+\-]+\s+([\d\.Ee\+\-]+)"
+            r"^(W[A-Z0-9]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d\.Ee\+\-]+)\s+([\d\.Ee\+\-]+)"
+        )
+        residual_pattern = re.compile(
+            r"\|\|Ax-b\|\|.*=\s*([\d\.Ee\+\-]+)", flags=re.IGNORECASE
         )
 
-        for line in output.splitlines():
-            line = line.strip()
+        last_wr: tuple[str, int, int, int, int, float, float] | None = None
+
+        for raw in output.splitlines():
+            line = raw.strip()
+            if not line:
+                continue
             match = wr_pattern.match(line)
             if match:
-                metrics["result_line"] = line
                 try:
-                    metrics["gflops"] = float(match.group(1))
+                    last_wr = (
+                        match.group(1),
+                        int(match.group(2)),
+                        int(match.group(3)),
+                        int(match.group(4)),
+                        int(match.group(5)),
+                        float(match.group(6)),
+                        float(match.group(7)),
+                    )
+                except Exception:
+                    continue
+                continue
+
+            res_match = residual_pattern.search(line)
+            if res_match and "residual" not in metrics:
+                try:
+                    metrics["residual"] = float(res_match.group(1))
                 except ValueError:
                     pass
+                continue
+
+            if line.upper().startswith(("PASSED", "FAILED")):
+                metrics["residual_passed"] = line.upper().startswith("PASSED")
+
+        if last_wr:
+            tag, n, nb, p, q, time_s, gflops = last_wr
+            metrics.update(
+                {
+                    "result_line": tag,
+                    "n": n,
+                    "nb": nb,
+                    "p": p,
+                    "q": q,
+                    "time_seconds": time_s,
+                    "gflops": gflops,
+                }
+            )
 
         if "gflops" not in metrics:
             fallbacks = re.findall(
@@ -351,6 +409,48 @@ class HPLPlugin(WorkloadPlugin):
 
     def get_ansible_setup_path(self) -> Optional[Path]:
         return Path(__file__).parent / "ansible" / "setup.yml"
+
+    def export_results_to_csv(
+        self,
+        results: List[dict[str, Any]],
+        output_dir: Path,
+        run_id: str,
+        test_name: str,
+    ) -> List[Path]:
+        """Export HPL summary metrics (per repetition) to a CSV file."""
+        import pandas as pd
+
+        rows: list[dict[str, Any]] = []
+        for entry in results:
+            rep = entry.get("repetition")
+            gen_result = entry.get("generator_result") or {}
+            rows.append(
+                {
+                    "run_id": run_id,
+                    "workload": test_name,
+                    "repetition": rep,
+                    "returncode": gen_result.get("returncode"),
+                    "success": entry.get("success"),
+                    "duration_seconds": entry.get("duration_seconds"),
+                    "n": gen_result.get("n"),
+                    "nb": gen_result.get("nb"),
+                    "p": gen_result.get("p"),
+                    "q": gen_result.get("q"),
+                    "time_seconds": gen_result.get("time_seconds"),
+                    "gflops": gen_result.get("gflops"),
+                    "residual": gen_result.get("residual"),
+                    "residual_passed": gen_result.get("residual_passed"),
+                    "result_line": gen_result.get("result_line"),
+                }
+            )
+
+        if not rows:
+            return []
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = output_dir / f"{test_name}_plugin.csv"
+        pd.DataFrame(rows).to_csv(csv_path, index=False)
+        return [csv_path]
 
 
 PLUGIN = HPLPlugin()

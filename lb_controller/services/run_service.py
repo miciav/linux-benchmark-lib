@@ -19,6 +19,7 @@ from lb_runner.events import RunEvent
 from lb_runner.local_runner import LocalRunner
 from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugin_system.interface import WorkloadIntensity
+from lb_runner.output_helpers import workload_output_dir
 from lb_controller.journal import RunJournal, RunStatus, LogSink
 from .container_service import ContainerRunner, ContainerRunSpec
 from .multipass_service import MultipassService
@@ -1155,8 +1156,13 @@ class RunService:
         journal = RunJournal.initialize(run_id, context.config, context.target_tests)
         output_root = context.config.output_dir / run_id
         for test_name in context.target_tests:
-            results_file = output_root / f"{test_name}_results.json"
-            if not results_file.exists():
+            workload_dir = workload_output_dir(output_root, test_name)
+            candidates = [
+                workload_dir / f"{test_name}_results.json",
+                output_root / f"{test_name}_results.json",
+            ]
+            results_file = next((path for path in candidates if path.exists()), None)
+            if results_file is None:
                 continue
             try:
                 entries = json.loads(results_file.read_text())

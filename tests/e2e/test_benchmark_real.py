@@ -94,6 +94,7 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         end_time = time.time()
         run_id = getattr(runner, "_current_run_id", None)
         output_root = config.output_dir / run_id if run_id else config.output_dir
+        workload_dir = output_root / "stress_ng"
         export_root = config.data_export_dir / run_id if run_id else config.data_export_dir
         
         # Verify execution time is reasonable
@@ -101,7 +102,7 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         self.assertLess(execution_time, 10)  # Should complete within 10 seconds
         
         # Verify output files were created
-        results_file = output_root / "stress_ng_results.json"
+        results_file = workload_dir / "stress_ng_results.json"
         self.assertTrue(results_file.exists(), f"Results file not found: {results_file}")
         
         # Load and verify results
@@ -132,13 +133,10 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             self.assertIn("cpu_percent", metric)
             self.assertIn("memory_usage", metric)
             
-        # Verify aggregated data file
-        aggregated_file = export_root / "stress_ng_aggregated.csv"
-        # Note: aggregated file might not exist if DataHandler is not implemented
-        # or returns None
+        # Aggregated CSVs are no longer produced by the runner; analytics runs via UI/CLI.
         
         # Verify collector raw data files
-        collector_files = list(output_root.glob("stress_ng_rep1_*.csv"))
+        collector_files = list(workload_dir.glob("stress_ng_rep1_*.csv"))
         self.assertGreater(len(collector_files), 0, "No collector CSV files found")
         
     def test_system_info_collection(self):
@@ -205,9 +203,10 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         runner.run_benchmark("stress_ng")
         run_id = getattr(runner, "_current_run_id", None)
         output_root = config.output_dir / run_id if run_id else config.output_dir
+        workload_dir = output_root / "stress_ng"
         
         # Load results
-        results_file = output_root / "stress_ng_results.json"
+        results_file = workload_dir / "stress_ng_results.json"
         with open(results_file, "r") as f:
             results = json.load(f)
             

@@ -5,7 +5,8 @@ from dataclasses import dataclass
 import importlib.metadata
 import pytest
 
-from lb_runner.plugin_system.registry import PluginRegistry
+from lb_runner.plugin_system import registry as registry_mod
+from lb_runner.plugin_system.registry import PluginRegistry, resolve_user_plugin_dir
 from lb_runner.plugin_system.interface import WorkloadPlugin
 from lb_runner.plugin_system.base_generator import BaseGenerator
 
@@ -84,3 +85,24 @@ def test_registry_logs_entrypoint_failures(monkeypatch, caplog):
     registry = PluginRegistry()
     registry.available(load_entrypoints=True)  # trigger loading
     assert any("Failed to load plugin entry point" in message for message in caplog.messages)
+
+
+def test_resolve_user_plugin_dir_env_override(monkeypatch, tmp_path):
+    """Env override should take precedence for user plugin directory."""
+    override = tmp_path / "custom_plugins"
+    monkeypatch.setenv("LB_USER_PLUGIN_DIR", str(override))
+    resolved = resolve_user_plugin_dir()
+    assert resolved == override.resolve()
+
+
+def test_resolve_user_plugin_dir_prefers_builtin_root(monkeypatch, tmp_path):
+    """When writable, user plugins live under package plugins/_user."""
+    builtin_root = tmp_path / "builtin_plugins"
+    legacy_root = tmp_path / "legacy_plugins"
+    monkeypatch.delenv("LB_USER_PLUGIN_DIR", raising=False)
+    monkeypatch.setattr(registry_mod, "BUILTIN_PLUGIN_ROOT", builtin_root)
+    monkeypatch.setattr(registry_mod, "LEGACY_USER_PLUGIN_DIR", legacy_root)
+
+    resolved = resolve_user_plugin_dir()
+    assert resolved == (builtin_root / "_user").resolve()
+    assert resolved.exists()

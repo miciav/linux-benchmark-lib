@@ -21,9 +21,6 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     """
     # --- Setup Mocks ---
     mock_cleanup = mocker.patch('lb_runner.local_runner.LocalRunner._pre_test_cleanup')
-    mock_data_handler_factory = mocker.patch('lb_runner.local_runner.make_data_handler')
-    mock_data_handler_instance = mock_data_handler_factory.return_value
-    mock_data_handler_instance.process_test_results.return_value = None
 
     mock_gen_instance = MagicMock()
     mock_gen_instance.get_result.return_value = {"status": "success"}
@@ -82,8 +79,7 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     mock_col_instance.stop.assert_called_once()
     mock_col_instance.save_data.assert_called_once()
 
-    # Verify DataHandler usage
-    mock_data_handler_instance.process_test_results.assert_called_once()
+    # LocalRunner no longer performs analytics aggregation inline.
     
     # Verify save path
     save_data_calls = mock_col_instance.save_data.call_args_list
@@ -92,4 +88,5 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     assert called_path.name == "stress_ng_rep1_PSUtilCollector.csv"
     run_id = getattr(runner, "_current_run_id", None)
     if run_id:
-        assert called_path.parent.name == run_id
+        # CSVs are stored under <run_id>/<workload>/filename.csv
+        assert called_path.parent.parent.name == run_id

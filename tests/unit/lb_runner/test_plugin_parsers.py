@@ -63,3 +63,24 @@ def test_hpl_parses_output_paths(tmp_path):
     flags = gen_ssh._launcher_flags()
     assert flags[:2] == ["--mca", "plm_rsh_agent"]
     assert "ssh" in flags
+
+
+def test_hpl_parses_stdout_metrics(tmp_path):
+    plugin = HPLPlugin()
+    gen = plugin.create_generator(HPLConfig(mpi_launcher="fork", workspace_dir=str(tmp_path)))
+    sample = """
+T/V                N    NB     P     Q               Time                 Gflops
+--------------------------------------------------------------------------------
+WR00C2R4        10000   256     1     1            12.34              54.321
+||Ax-b||_oo / ( eps * ( ||A||_oo * ||x||_oo + ||b||_oo ) * N ) = 0.1234
+PASSED
+"""
+    metrics = gen._parse_output(sample)  # type: ignore[attr-defined]
+    assert metrics["gflops"] == 54.321
+    assert metrics["time_seconds"] == 12.34
+    assert metrics["n"] == 10000
+    assert metrics["nb"] == 256
+    assert metrics["p"] == 1
+    assert metrics["q"] == 1
+    assert metrics["residual"] == 0.1234
+    assert metrics["residual_passed"] is True

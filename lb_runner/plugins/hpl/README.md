@@ -86,3 +86,11 @@ Script helper per buildare e pushare su Docker Hub le immagini ARM64/AMD64 e cre
 ## Note operative
 - Se la build HPL consuma troppa RAM, usa `HPL_MAKEFLAGS=-j1` (già impostato nei playbook e Dockerfile principali) o esegui la compilazione in una VM/Docker con più memoria.
 - I pacchetti generati installano `xhpl` in `/opt/hpl-2.3/bin/Linux/`; `HPL.dat` va posizionato nella stessa directory prima di lanciare `mpirun ./xhpl`.
+
+## Output CSV
+Dopo ogni run, il plugin esporta un file `hpl_plugin.csv` nella cartella del workload.
+Contiene una riga per ripetizione con le metriche principali:
+- `repetition`, `duration_seconds`, `success`, `returncode`
+- `n`, `nb`, `p`, `q`, `time_seconds`, `gflops`
+- `residual` e `residual_passed`
+- `result_line` (tag raw riga WR HPL)

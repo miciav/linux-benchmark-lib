@@ -17,7 +17,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install Graphviz
         run: sudo apt-get update && sudo apt-get install -y graphviz
@@ -25,17 +25,34 @@ jobs:
       - name: Install pyreverse dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pylint
+          # Pin pylint to keep pyreverse output stable across releases
+          python -m pip install "pylint==3.3.1"
 
       - name: Generate diagrams
         run: |
           mkdir -p docs/diagrams
           pyreverse -o png -p linux-benchmark lb_runner lb_controller lb_ui -S
-          mv classes.png docs/diagrams/classes.png
-          mv packages.png docs/diagrams/packages.png
+          # pyreverse naming differs across pylint versions; glob and normalize.
+          shopt -s nullglob
+          classes_png=(classes*.png)
+          packages_png=(packages*.png)
+          if [ ${#classes_png[@]} -eq 0 ] || [ ${#packages_png[@]} -eq 0 ]; then
+            echo "pyreverse did not generate expected PNGs. Found:"
+            ls -la
+            exit 1
+          fi
+          mv "${classes_png[0]}" docs/diagrams/classes.png
+          mv "${packages_png[0]}" docs/diagrams/packages.png
           pyreverse -o puml -p linux-benchmark lb_runner lb_controller lb_ui -S
-          mv classes.puml docs/diagrams/classes.puml
-          mv packages.puml docs/diagrams/packages.puml
+          classes_puml=(classes*.puml)
+          packages_puml=(packages*.puml)
+          if [ ${#classes_puml[@]} -eq 0 ] || [ ${#packages_puml[@]} -eq 0 ]; then
+            echo "pyreverse did not generate expected PUMLs. Found:"
+            ls -la
+            exit 1
+          fi
+          mv "${classes_puml[0]}" docs/diagrams/classes.puml
+          mv "${packages_puml[0]}" docs/diagrams/packages.puml
 
       - name: Upload diagrams artifact
         uses: actions/upload-artifact@v4

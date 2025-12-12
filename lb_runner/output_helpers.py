@@ -12,12 +12,40 @@ from lb_runner.benchmark_config import BenchmarkConfig
 def ensure_run_dirs(config: BenchmarkConfig, run_id: str) -> tuple[Path, Path, Path]:
     """Create required local output directories for a run."""
     config.ensure_output_dirs()
-    output_root = (config.output_dir / run_id).resolve()
-    report_root = (config.report_dir / run_id).resolve()
-    data_export_root = (config.data_export_dir / run_id).resolve()
+
+    def _scope_with_run_id(base: Path) -> Path:
+        """
+        Attach run_id unless the path is already scoped.
+
+        Remote runs pass in an output_dir that already contains run_id; avoid
+        nesting an extra level in that case so collectors and plugins write
+        where the controller expects to fetch from.
+        """
+        if run_id in base.parts:
+            return base.resolve()
+        return (base / run_id).resolve()
+
+    output_root = _scope_with_run_id(config.output_dir)
+    report_root = _scope_with_run_id(config.report_dir)
+    data_export_root = _scope_with_run_id(config.data_export_dir)
     for path in (output_root, report_root, data_export_root):
         path.mkdir(parents=True, exist_ok=True)
     return output_root, data_export_root, report_root
+
+
+def workload_output_dir(output_root: Path, workload: str, ensure: bool = False) -> Path:
+    """
+    Return the output directory dedicated to a workload inside a run.
+
+    Args:
+        output_root: Base output directory for the run (already scoped by run_id/host).
+        workload: Workload/plugin identifier.
+        ensure: When True, create the directory.
+    """
+    path = output_root / workload
+    if ensure:
+        path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def ensure_runner_log(output_dir: Path, logger: logging.Logger) -> bool:

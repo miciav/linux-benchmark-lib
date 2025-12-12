@@ -82,6 +82,7 @@ See `CLI.md` for the full command reference. Highlights:
 - Discovery and run: `lb plugin list`, `lb hosts`, `lb run [tests...]` (follows config for local/remote unless overridden).
 - Interactive toggle: `lb plugin select` to enable/disable plugins with arrows + space; `lb config select-workloads` to toggle configured workloads the same way.
 - Install plugins from a path or git repo: `lb plugin install /path/to/sysbench_plugin.tar.gz` or `lb plugin install https://github.com/miciav/unixbench-lb-plugin.git`.
+- Third-party plugins are installed under `lb_runner/plugins/_user` when that directory is writable (e.g., in a repo checkout or remote runner tree), so moving the runner also moves installed plugins. If not writable, the installer falls back to `~/.config/lb/plugins`. You can override the location with `LB_USER_PLUGIN_DIR`.
 - Example (UnixBench from git): 
   ```bash
   lb plugin install https://github.com/miciav/unixbench-lb-plugin.git
@@ -188,9 +189,25 @@ config = BenchmarkConfig.load(Path("my_config.json"))
 Results are written to three directories:
 
 - `benchmark_results/`: raw metric data
-- `reports/`: text reports and plots
-- `data_exports/`: aggregated CSV/JSON
+- `reports/`: text reports and plots (via analytics)
+- `data_exports/`: aggregated CSV/JSON (generated on demand via `lb analyze`)
 - In remote mode results are split by `run_id/host` (e.g., `benchmark_results/run-YYYYmmdd-HHMMSS/node1/...`).
+
+## Diagrams (UML)
+
+The repository ships an action that generates UML class/package diagrams on each release.  
+To regenerate them locally (requires Graphviz installed):
+
+```bash
+pip install "pylint==3.3.1"
+mkdir -p docs/diagrams
+pyreverse -o png -p linux-benchmark lb_runner lb_controller lb_ui -S
+mv classes*.png docs/diagrams/classes.png
+mv packages*.png docs/diagrams/packages.png
+pyreverse -o puml -p linux-benchmark lb_runner lb_controller lb_ui -S
+mv classes*.puml docs/diagrams/classes.puml
+mv packages*.puml docs/diagrams/packages.puml
+```
 
 ## Contributing
 

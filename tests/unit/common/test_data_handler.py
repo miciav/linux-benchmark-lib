@@ -2,7 +2,6 @@ import pandas as pd
 import pytest
 
 from lb_analytics import DataHandler
-from lb_runner.plugin_system.registry import CollectorPlugin
 
 pytestmark = pytest.mark.unit
 
@@ -15,14 +14,11 @@ def test_data_handler_uses_registered_aggregator():
         called["df_type"] = type(df)
         return {"total": df["value"].sum()}
 
-    collectors = {
-        "CustomCollector": CollectorPlugin(
-            name="CustomCollector",
-            description="test",
-            factory=lambda cfg: None,  # factory unused for aggregation
-            aggregator=_aggregator,
-        )
-    }
+    class _FakeCollector:
+        def __init__(self, aggregator):
+            self.aggregator = aggregator
+
+    collectors = {"CustomCollector": _FakeCollector(_aggregator)}
 
     handler = DataHandler(collectors=collectors)
     results = [
