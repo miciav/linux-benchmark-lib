@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import re
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import List, Optional, Type, Any
 
 from ...plugin_system.interface import WorkloadPlugin, WorkloadIntensity
@@ -29,13 +30,20 @@ YABS_URL = "https://raw.githubusercontent.com/masonr/yet-another-bench-script/ma
 class YabsConfig:
     """Configuration for the YABS workload."""
 
+    script_url: str = YABS_URL
+    script_checksum: Optional[str] = None  # sha256 hex for script validation
     skip_disk: bool = False
     skip_network: bool = False
     skip_geekbench: bool = True
     skip_cleanup: bool = True
     output_dir: Path = Path("/tmp")
     extra_args: List[str] = field(default_factory=list)
+    expected_runtime_seconds: int = 600
     debug: bool = False
+
+    def __post_init__(self) -> None:
+        if isinstance(self.output_dir, str):
+            self.output_dir = Path(self.output_dir)
 
 
 class YabsGenerator(BaseGenerator):
@@ -45,6 +53,7 @@ class YabsGenerator(BaseGenerator):
         super().__init__("YabsGenerator")
         self.config = config
         self._process: Optional[subprocess.CompletedProcess[str]] = None
+        self.expected_runtime_seconds = max(0, int(config.expected_runtime_seconds))
 
     def _validate_environment(self) -> bool:
         """Ensure required tools are present and output dir is writable."""
@@ -75,8 +84,16 @@ class YabsGenerator(BaseGenerator):
             fd, path_str = tempfile.mkstemp(prefix="yabs-", suffix=".sh")
             os.close(fd)
             script_path = Path(path_str)
-            dl_cmd = ["curl", "-sLo", str(script_path), YABS_URL]
+            dl_cmd = ["curl", "-sLo", str(script_path), self.config.script_url]
             self._run_checked(dl_cmd, "Failed to download yabs.sh")
+            if self.config.script_checksum:
+                import hashlib
+
+                digest = hashlib.sha256(script_path.read_bytes()).hexdigest()
+                if digest.lower() != self.config.script_checksum.lower():
+                    raise RuntimeError(
+                        f"YABS script checksum mismatch: expected {self.config.script_checksum}, got {digest}"
+                    )
             script_path.chmod(0o755)
 
             args: List[str] = [str(script_path)]
@@ -161,6 +178,10 @@ class YabsPlugin(WorkloadPlugin):
 
     def create_generator(self, config: YabsConfig | dict) -> YabsGenerator:
         if isinstance(config, dict):
+            # JSON configs render Paths as strings; normalize here.
+            for key in ("output_dir",):
+                if key in config and isinstance(config[key], str):
+                    config[key] = Path(config[key])
             config = YabsConfig(**config)
         return YabsGenerator(config)
 
@@ -208,6 +229,69 @@ class YabsPlugin(WorkloadPlugin):
 
     def get_ansible_teardown_path(self) -> Optional[Path]:
         return None
+
+    def export_results_to_csv(
+        self,
+        results: List[dict[str, Any]],
+        output_dir: Path,
+        run_id: str,
+        test_name: str,
+    ) -> List[Path]:
+        """Export YABS summary metrics parsed from stdout to CSV."""
+        import pandas as pd
+
+        def _last_float(pattern: str, text: str, flags: int = 0) -> Optional[float]:
+            matches = re.findall(pattern, text, flags=flags)
+            if not matches:
+                return None
+            try:
+                return float(matches[-1])
+            except Exception:
+                return None
+
+        def _last_str(pattern: str, text: str) -> Optional[str]:
+            matches = re.findall(pattern, text)
+            if not matches:
+                return None
+            val = matches[-1]
+            return val.strip() if isinstance(val, str) else str(val).strip()
+
+        import re
+
+        rows: list[dict[str, Any]] = []
+        for entry in results:
+            rep = entry.get("repetition")
+            gen_result = entry.get("generator_result") or {}
+            stdout = gen_result.get("stdout") or ""
+            if not isinstance(stdout, str):
+                stdout = ""
+
+            row: dict[str, Any] = {
+                "run_id": run_id,
+                "workload": test_name,
+                "repetition": rep,
+                "returncode": gen_result.get("returncode"),
+                "success": entry.get("success"),
+                "duration_seconds": entry.get("duration_seconds"),
+                "cpu_events_per_sec": _last_float(r"Events per second:\s*([0-9.]+)", stdout),
+                "cpu_total_time_sec": _last_float(r"total time:\s*([0-9.]+)\s*s", stdout, flags=re.IGNORECASE),
+                "disk_read_mb_s": _last_float(r"Read:\s*([0-9.]+)\s*MB/s", stdout, flags=re.IGNORECASE),
+                "disk_write_mb_s": _last_float(r"Write:\s*([0-9.]+)\s*MB/s", stdout, flags=re.IGNORECASE),
+                "net_download_mbits": _last_float(r"Download:\s*([0-9.]+)\s*Mbits/sec", stdout, flags=re.IGNORECASE),
+                "net_upload_mbits": _last_float(r"Upload:\s*([0-9.]+)\s*Mbits/sec", stdout, flags=re.IGNORECASE),
+                "cpu_model": _last_str(r"CPU Model:\s*(.+)", stdout),
+                "arch": _last_str(r"Architecture:\s*(.+)", stdout),
+                "virt": _last_str(r"Virtualization:\s*(.+)", stdout),
+            }
+            rows.append(row)
+
+        if not rows:
+            return []
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = output_dir / f"{test_name}_plugin.csv"
+        pd.DataFrame(rows).to_csv(csv_path, index=False)
+        return [csv_path]
 
 
 PLUGIN = YabsPlugin()

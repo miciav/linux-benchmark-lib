@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import pytest
+import shutil
 
 from lb_runner.benchmark_config import (
     BenchmarkConfig,
@@ -21,7 +22,10 @@ from lb_runner.benchmark_config import (
 )
 from lb_runner.plugins.dd.plugin import DDConfig
 from lb_runner.plugins.fio.plugin import FIOConfig
+from lb_runner.plugins.geekbench.plugin import GeekbenchConfig
+from lb_runner.plugins.hpl.plugin import HPLConfig
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
+from lb_runner.plugins.yabs.plugin import YabsConfig
 from lb_controller.controller import AnsibleRunnerExecutor, BenchmarkController
 from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401 - fixture import
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
@@ -80,6 +84,7 @@ def _run_single_workload(
     plugin_settings: Dict[str, object],
     multipass_vms,
     tmp_path: Path,
+    duration_override_seconds: int | None = None,
 ) -> None:
     intensity = get_intensity()
     ansible_dir = tmp_path / f"ansible_data_{workload}"
@@ -92,7 +97,7 @@ def _run_single_workload(
 
     config = BenchmarkConfig(
         repetitions=3,
-        test_duration_seconds=intensity["stress_duration"],
+        test_duration_seconds=duration_override_seconds or intensity["stress_duration"],
         warmup_seconds=0,
         cooldown_seconds=0,
         output_dir=output_dir,
@@ -162,3 +167,72 @@ def test_multipass_fio_three_reps(multipass_vm, tmp_path: Path) -> None:
     )
     workload_cfg = WorkloadConfig(plugin="fio", enabled=True, options=asdict(fio_cfg))
     _run_single_workload("fio", workload_cfg, {"fio": fio_cfg}, multipass_vm, tmp_path)
+
+
+def test_multipass_geekbench_three_reps(multipass_vm, tmp_path: Path) -> None:
+    """Run Geekbench with three repetitions and verify artifacts."""
+    intensity = get_intensity()
+    # Keep runtime bounded for e2e (Geekbench otherwise hints ~1800s).
+    geek_cfg = GeekbenchConfig(
+        output_dir=Path("/tmp"),
+        skip_cleanup=True,
+        run_gpu=False,
+        expected_runtime_seconds=max(300, int(intensity.get("stress_timeout", 120))),
+        download_checksum="01727999719cd515a7224075dcab4876deef2844c45e8c2e9f34197224039f3b",
+    )
+    workload_cfg = WorkloadConfig(plugin="geekbench", enabled=True, options=asdict(geek_cfg))
+    _run_single_workload(
+        "geekbench",
+        workload_cfg,
+        {"geekbench": geek_cfg},
+        multipass_vm,
+        tmp_path,
+        duration_override_seconds=geek_cfg.expected_runtime_seconds,
+    )
+
+
+def test_multipass_hpl_three_reps(multipass_vm, tmp_path: Path) -> None:
+    """Run HPL with three repetitions and verify artifacts."""
+    intensity = get_intensity()
+    # Use a small problem size for e2e stability.
+    hpl_cfg = HPLConfig(
+        n=2000,
+        nb=128,
+        p=1,
+        q=1,
+        mpi_ranks=1,
+        mpi_launcher="fork",
+        expected_runtime_seconds=max(300, int(intensity.get("stress_timeout", 120))),
+    )
+    workload_cfg = WorkloadConfig(plugin="hpl", enabled=True, options=asdict(hpl_cfg))
+    _run_single_workload(
+        "hpl",
+        workload_cfg,
+        {"hpl": hpl_cfg},
+        multipass_vm,
+        tmp_path,
+        duration_override_seconds=hpl_cfg.expected_runtime_seconds,
+    )
+
+
+def test_multipass_yabs_three_reps(multipass_vm, tmp_path: Path) -> None:
+    """Run YABS with three repetitions and verify artifacts."""
+    intensity = get_intensity()
+    yabs_cfg = YabsConfig(
+        script_url="https://raw.githubusercontent.com/masonr/yet-another-bench-script/8c0674518e1165fbf7c87ebe6f62d0e9a412dfef/yabs.sh",
+        script_checksum="a3dbd700b76cd7439b7aa00c83bea7c85c738c53bd9ff1420e2c2b83bf8786b9",
+        skip_disk=True,
+        skip_network=True,
+        skip_geekbench=True,
+        skip_cleanup=True,
+        expected_runtime_seconds=max(600, int(intensity.get("stress_timeout", 120))),
+    )
+    workload_cfg = WorkloadConfig(plugin="yabs", enabled=True, options=asdict(yabs_cfg))
+    _run_single_workload(
+        "yabs",
+        workload_cfg,
+        {"yabs": yabs_cfg},
+        multipass_vm,
+        tmp_path,
+        duration_override_seconds=yabs_cfg.expected_runtime_seconds,
+    )

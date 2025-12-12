@@ -20,11 +20,20 @@ import typer
 
 from lb_controller.journal import RunJournal
 from lb_controller.contracts import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig, PluginRegistry
-from lb_controller.services import ConfigService, RunService
+from lb_controller.services import ConfigService, RunCatalogService, RunService
+from lb_ui.services.analytics_service import AnalyticsRequest, AnalyticsService
 from lb_controller.services.plugin_service import build_plugin_table, create_registry, PluginInstaller
 from lb_controller.services.doctor_service import DoctorService
 from lb_controller.services.test_service import TestService
-from lb_ui.ui import ConsoleUIAdapter, prompt_multipass, prompt_plugins, prompt_remote_host
+from lb_ui.ui import (
+    ConsoleUIAdapter,
+    prompt_analytics_kind,
+    prompt_multi_select,
+    prompt_multipass,
+    prompt_plugins,
+    prompt_remote_host,
+    prompt_run_id,
+)
 from lb_controller.ui_interfaces import UIAdapter
 from lb_ui.ui import viewmodels
 
@@ -35,6 +44,7 @@ config_app = typer.Typer(help="Manage benchmark configuration files.", no_args_i
 doctor_app = typer.Typer(help="Check local prerequisites.", no_args_is_help=True)
 test_app = typer.Typer(help="Convenience helpers to run integration tests.", no_args_is_help=True)
 plugin_app = typer.Typer(help="Inspect and manage workload plugins.", no_args_is_help=False)
+runs_app = typer.Typer(help="Inspect past benchmark runs.", no_args_is_help=True)
 
 _CLI_ROOT = Path(__file__).resolve().parent.parent
 _DEV_MARKER = _CLI_ROOT / ".lb_dev_cli"
@@ -65,6 +75,7 @@ config_service = ConfigService()
 run_service = RunService(registry_factory=create_registry)
 doctor_service = DoctorService(ui_adapter=ui, config_service=config_service)
 test_service = TestService(ui_adapter=ui)
+analytics_service = AnalyticsService()
 
 
 @app.callback(invoke_without_command=True)
@@ -511,9 +522,178 @@ def doctor_multipass() -> None:
         raise typer.Exit(1)
 
 
+@runs_app.command("list")
+def runs_list(
+    root: Optional[Path] = typer.Option(
+        None,
+        "--root",
+        "-r",
+        help="Root directory containing benchmark_results run folders.",
+    ),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Config file to infer output/report/export roots.",
+    ),
+) -> None:
+    """List available benchmark runs."""
+    cfg, _, _ = config_service.load_for_read(config)
+    output_root = root or cfg.output_dir
+    catalog = RunCatalogService(
+        output_dir=output_root,
+        report_dir=cfg.report_dir,
+        data_export_dir=cfg.data_export_dir,
+    )
+    runs = catalog.list_runs()
+    if not runs:
+        ui.show_warning(f"No runs found under {output_root}")
+        return
+    rows: List[List[str]] = []
+    for run in runs:
+        created = run.created_at.isoformat() if run.created_at else "-"
+        hosts = ", ".join(run.hosts) if run.hosts else "-"
+        workloads = ", ".join(run.workloads) if run.workloads else "-"
+        rows.append([run.run_id, created, hosts, workloads])
+    ui.show_table("Benchmark Runs", ["Run ID", "Created", "Hosts", "Workloads"], rows)
+
+
+@runs_app.command("show")
+def runs_show(
+    run_id: str = typer.Argument(..., help="Run identifier (folder name)."),
+    root: Optional[Path] = typer.Option(
+        None,
+        "--root",
+        "-r",
+        help="Root directory containing benchmark_results run folders.",
+    ),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Config file to infer output/report/export roots.",
+    ),
+) -> None:
+    """Show details for a single run."""
+    cfg, _, _ = config_service.load_for_read(config)
+    output_root = root or cfg.output_dir
+    catalog = RunCatalogService(
+        output_dir=output_root,
+        report_dir=cfg.report_dir,
+        data_export_dir=cfg.data_export_dir,
+    )
+    run = catalog.get_run(run_id)
+    if not run:
+        ui.show_error(f"Run '{run_id}' not found under {output_root}")
+        raise typer.Exit(1)
+    rows = [
+        ["Run ID", run.run_id],
+        ["Output", str(run.output_root)],
+        ["Reports", str(run.report_root or "-")],
+        ["Exports", str(run.data_export_root or "-")],
+        ["Created", run.created_at.isoformat() if run.created_at else "-"],
+        ["Hosts", ", ".join(run.hosts) if run.hosts else "-"],
+        ["Workloads", ", ".join(run.workloads) if run.workloads else "-"],
+        ["Journal", str(run.journal_path or "-")],
+    ]
+    ui.show_table("Run Details", ["Field", "Value"], rows)
+
+
+@app.command("analyze")
+def analyze(
+    run_id: Optional[str] = typer.Argument(
+        None, help="Run identifier (folder name). If omitted, prompt to select."
+    ),
+    kind: Optional[str] = typer.Option(
+        None,
+        "--kind",
+        "-k",
+        help="Analytics kind to run (currently: aggregate).",
+    ),
+    root: Optional[Path] = typer.Option(
+        None,
+        "--root",
+        "-r",
+        help="Root directory containing benchmark_results run folders.",
+    ),
+    workload: Optional[List[str]] = typer.Option(
+        None,
+        "--workload",
+        "-w",
+        help="Workload(s) to analyze (repeatable). Default: all in run.",
+    ),
+    host: Optional[List[str]] = typer.Option(
+        None,
+        "--host",
+        "-H",
+        help="Host(s) to analyze (repeatable). Default: all in run.",
+    ),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Config file to infer output/report/export roots.",
+    ),
+) -> None:
+    """Run analytics on an existing benchmark run."""
+    cfg, _, _ = config_service.load_for_read(config)
+    output_root = root or cfg.output_dir
+    catalog = RunCatalogService(
+        output_dir=output_root,
+        report_dir=cfg.report_dir,
+        data_export_dir=cfg.data_export_dir,
+    )
+
+    selected_run_id = run_id
+    if selected_run_id is None:
+        runs = catalog.list_runs()
+        if not runs:
+            ui.show_error(f"No runs found under {output_root}")
+            raise typer.Exit(1)
+        selection = prompt_run_id(runs, ui)
+        selected_run_id = selection or runs[0].run_id
+        ui.show_info(f"Selected run: {selected_run_id}")
+
+    run = catalog.get_run(selected_run_id)
+    if not run:
+        ui.show_error(f"Run '{selected_run_id}' not found under {output_root}")
+        raise typer.Exit(1)
+
+    selected_kind = kind or prompt_analytics_kind(["aggregate"], ui) or "aggregate"
+    if selected_kind != "aggregate":
+        ui.show_error(f"Unsupported analytics kind: {selected_kind}")
+        raise typer.Exit(1)
+
+    selected_workloads = workload
+    if selected_workloads is None:
+        multi = prompt_multi_select("Select workloads to analyze", list(run.workloads))
+        selected_workloads = sorted(multi) if multi is not None else None
+
+    selected_hosts = host
+    if selected_hosts is None:
+        multi_hosts = prompt_multi_select("Select hosts to analyze", list(run.hosts))
+        selected_hosts = sorted(multi_hosts) if multi_hosts is not None else None
+
+    req = AnalyticsRequest(
+        run=run,
+        kind="aggregate",
+        hosts=selected_hosts,
+        workloads=selected_workloads,
+    )
+    with ui.status(f"Running analytics '{selected_kind}' on {run.run_id}"):
+        produced = analytics_service.run(req)
+    if not produced:
+        ui.show_warning("No analytics artifacts produced.")
+        return
+    rows = [[str(p)] for p in produced]
+    ui.show_table("Analytics Artifacts", ["Path"], rows)
+    ui.show_success("Analytics completed.")
+
+
 app.add_typer(config_app, name="config")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(plugin_app, name="plugin")
+app.add_typer(runs_app, name="runs")
 if TEST_CLI_ENABLED:
     app.add_typer(test_app, name="test")
 else:

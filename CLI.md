@@ -33,6 +33,10 @@ Top-level commands
   Run workloads locally or remotely (auto-follows config unless overridden). Use `--repetitions` to temporarily change how many times each workload runs.
 - `lb run ... --docker [--docker-image TAG] [--docker-engine docker|podman] [--docker-no-build] [--docker-no-cache]`  
   Build/use the container image and run the CLI inside it. Mounts the repo read-only and writes artifacts to the container’s `benchmark_results`.
+- `lb runs list [--root PATH] [-c FILE]` / `lb runs show RUN_ID [--root PATH] [-c FILE]`  
+  List past runs stored under `benchmark_results/` and inspect a single run (hosts, workloads, paths).
+- `lb analyze [RUN_ID] [--root PATH] [--kind aggregate] [--workload NAME] [--host NAME]`  
+  Run post-processing analytics on an existing run. If `RUN_ID` or selectors are omitted and you are in an interactive TTY, prompts will guide selection.
 
 Config management (`lb config ...`)
 -----------------------------------

@@ -11,6 +11,7 @@
       - sysstat
       - ca-certificates
     geekbench_version: "6.3.0"
+    geekbench_linux_sha256: "01727999719cd515a7224075dcab4876deef2844c45e8c2e9f34197224039f3b"
     geekbench_arm_url: "https://cdn.geekbench.com/Geekbench-6.5.0-LinuxARMPreview.tar.gz"
     geekbench_base_dir: /opt/geekbench
 
@@ -48,6 +49,12 @@
         dest: "{{ geekbench_archive }}"
         mode: "0644"
         force: false
+        checksum: >-
+          {{
+            ('sha256:' ~ geekbench_linux_sha256)
+            if (geekbench_url is defined and geekbench_url | basename == ('Geekbench-' ~ geekbench_version ~ '-Linux.tar.gz'))
+            else omit
+          }}
       register: geekbench_download
 
     - name: Extract Geekbench archive

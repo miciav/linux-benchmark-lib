@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, Optional, Sequence, Set, Tuple, TypeVar, Callable
 
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from lb_controller.ui_interfaces import UIAdapter
+from lb_controller.services.run_catalog_service import RunInfo
 
 console = Console()
+
+_T = TypeVar("_T")
 
 
 def _check_tty() -> bool:
@@ -150,3 +153,88 @@ def prompt_multipass(
         default=default_level,
     ).execute()
     return scenario, level
+
+
+def prompt_run_id(runs: Sequence[RunInfo], ui_adapter: UIAdapter) -> Optional[str]:
+    """Prompt the user to select a run_id from available runs."""
+    if not _check_tty():
+        return None
+    if not runs:
+        return None
+
+    rows = []
+    for run in runs:
+        created = run.created_at.isoformat() if run.created_at else "-"
+        rows.append([run.run_id, created, ", ".join(run.workloads) or "-"])
+    ui_adapter.show_table("Available Runs", ["Run ID", "Created", "Workloads"], rows)
+
+    inquirer = _load_inquirer()
+    if inquirer is None:
+        return runs[0].run_id
+
+    choices = [
+        {
+            "name": f"{run.run_id} — {run.created_at.isoformat() if run.created_at else ''}".strip(
+                " —"
+            ),
+            "value": run.run_id,
+        }
+        for run in runs
+    ]
+    selection = inquirer.select(
+        message="Select a benchmark run",
+        choices=choices,
+        default=runs[0].run_id,
+        cycle=True,
+    ).execute()
+    return str(selection) if selection else None
+
+
+def prompt_analytics_kind(
+    kinds: Sequence[str], ui_adapter: UIAdapter, default: str = "aggregate"
+) -> Optional[str]:
+    """Prompt the user to select an analytics kind."""
+    if not _check_tty():
+        return None
+    if not kinds:
+        return None
+    rows = [[kind, "-"] for kind in kinds]
+    ui_adapter.show_table("Analytics Types", ["Kind", "Description"], rows)
+
+    inquirer = _load_inquirer()
+    if inquirer is None:
+        return default if default in kinds else kinds[0]
+    selection = inquirer.select(
+        message="Select analytics type",
+        choices=[{"name": k, "value": k} for k in kinds],
+        default=default if default in kinds else kinds[0],
+        cycle=True,
+    ).execute()
+    return str(selection) if selection else None
+
+
+def prompt_multi_select(
+    label: str,
+    options: Sequence[_T],
+    render: Optional[Callable[[_T], str]] = None,
+    default_all: bool = True,
+) -> Optional[Set[_T]]:
+    """Prompt for multi-selection of values; returns None when cancelled."""
+    if not _check_tty():
+        return None
+    if not options:
+        return set()
+    inquirer = _load_inquirer()
+    if inquirer is None:
+        return set(options) if default_all else set()
+    choices = []
+    for opt in options:
+        name = render(opt) if render else str(opt)
+        choices.append({"name": name, "value": opt, "enabled": default_all})
+    result = inquirer.checkbox(
+        message=label,
+        choices=choices,
+        instruction="Space to toggle, Enter to confirm",
+        cycle=True,
+    ).execute()
+    return set(result) if result is not None else None

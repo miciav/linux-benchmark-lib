@@ -133,10 +133,7 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             self.assertIn("cpu_percent", metric)
             self.assertIn("memory_usage", metric)
             
-        # Verify aggregated data file
-        aggregated_file = export_root / "stress_ng_aggregated.csv"
-        # Note: aggregated file might not exist if DataHandler is not implemented
-        # or returns None
+        # Aggregated CSVs are no longer produced by the runner; analytics runs via UI/CLI.
         
         # Verify collector raw data files
         collector_files = list(workload_dir.glob("stress_ng_rep1_*.csv"))

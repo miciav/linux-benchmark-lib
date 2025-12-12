@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
-from lb_runner.data_handler_bridge import make_data_handler
 from lb_runner.events import RunEvent, StdoutEmitter
 from lb_runner.output_helpers import (
     ensure_run_dirs,
@@ -58,13 +57,6 @@ class LocalRunner:
             config: Benchmark configuration
         """
         self.config = config
-        collectors = {}
-        if hasattr(registry, "available_collectors"):
-            try:
-                collectors = registry.available_collectors()
-            except Exception:
-                collectors = {}
-        self.data_handler = make_data_handler(collectors)
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = registry
@@ -457,15 +449,6 @@ class LocalRunner:
         
         logger.info(f"Saved raw results to {results_file}")
         
-        # Process data using DataHandler
-        aggregated_df = self.data_handler.process_test_results(test_name, results)
-        
-        # Save aggregated results
-        if aggregated_df is not None:
-            csv_file = export_root / f"{test_name}_aggregated.csv"
-            aggregated_df.to_csv(csv_file)
-            logger.info(f"Saved aggregated results to {csv_file}")
-
         # Allow plugin-specific CSV exports for raw generator outputs
         if plugin:
             try:

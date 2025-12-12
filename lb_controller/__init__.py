@@ -12,7 +12,6 @@ from lb_controller.services.run_service import RunService
 from lb_controller.services.setup_service import SetupService
 from lb_controller.types import ExecutionResult, InventorySpec, RunExecutionSummary
 from lb_runner.events import RunEvent, StdoutEmitter
-from lb_analytics import DataHandler
 
 __all__ = [
     "AnsibleRunnerExecutor",
@@ -24,7 +23,6 @@ __all__ = [
     "RunService",
     "RunStatus",
     "SetupService",
-    "DataHandler",
     "RunEvent",
     "StdoutEmitter",
     "LogSink",

@@ -23,7 +23,35 @@ from .interface import WorkloadPlugin as IWorkloadPlugin
 logger = logging.getLogger(__name__)
 ENTRYPOINT_GROUP = "linux_benchmark.workloads"
 COLLECTOR_ENTRYPOINT_GROUP = "linux_benchmark.collectors"
-USER_PLUGIN_DIR = Path.home() / ".config" / "lb" / "plugins"
+BUILTIN_PLUGIN_ROOT = Path(__file__).resolve().parent.parent / "plugins"
+LEGACY_USER_PLUGIN_DIR = Path.home() / ".config" / "lb" / "plugins"
+
+
+def resolve_user_plugin_dir() -> Path:
+    """
+    Determine where third-party/user plugins should be installed and loaded from.
+
+    Preference order:
+    1) `LB_USER_PLUGIN_DIR` env override (if set).
+    2) `<package>/plugins/_user` when writable (portable with runner tree).
+    3) Legacy `~/.config/lb/plugins`.
+    """
+    override = os.environ.get("LB_USER_PLUGIN_DIR")
+    if override:
+        return Path(override).expanduser().resolve()
+
+    candidate = BUILTIN_PLUGIN_ROOT / "_user"
+    try:
+        candidate.mkdir(parents=True, exist_ok=True)
+        test_file = candidate / ".write_test"
+        test_file.touch(exist_ok=True)
+        test_file.unlink(missing_ok=True)
+        return candidate
+    except Exception:
+        return LEGACY_USER_PLUGIN_DIR
+
+
+USER_PLUGIN_DIR = resolve_user_plugin_dir()
 
 
 @dataclass
@@ -153,52 +181,63 @@ class PluginRegistry:
             logger.warning(f"Failed to load plugin entry point {entry_point.name}: {exc}")
 
     def _load_user_plugins(self) -> None:
-        """Load python plugins from the user config directory."""
-        if not USER_PLUGIN_DIR.exists():
-            return
+        """Load python plugins from user plugin directories."""
 
-        # 1. Load individual .py files (legacy/simple mode)
-        for path in USER_PLUGIN_DIR.glob("*.py"):
-            if path.name.startswith("_"):
-                continue
-            self._load_plugin_from_path(path)
+        def _load_from_dir(root: Path) -> None:
+            if not root.exists():
+                return
 
-        # 2. Load plugins from subdirectories (complex mode with assets)
-        for path in USER_PLUGIN_DIR.iterdir():
-            if path.is_dir() and not path.name.startswith("_"):
-                target = None
-                
-                # A. Try resolving via pyproject.toml
-                toml_file = path / "pyproject.toml"
-                if toml_file.exists():
-                    target = self._resolve_entry_point_from_toml(path, toml_file)
+            # 1. Load individual .py files (legacy/simple mode)
+            for path in root.glob("*.py"):
+                if path.name.startswith("_"):
+                    continue
+                self._load_plugin_from_path(path)
+
+            # 2. Load plugins from subdirectories (complex mode with assets)
+            for path in root.iterdir():
+                if path.is_dir() and not path.name.startswith("_"):
+                    target = None
+
+                    # A. Try resolving via pyproject.toml
+                    toml_file = path / "pyproject.toml"
+                    if toml_file.exists():
+                        target = self._resolve_entry_point_from_toml(path, toml_file)
+                        if target:
+                            logger.debug(f"Resolved plugin via pyproject.toml: {target}")
+
+                    # B. Fallback to heuristic scanning if TOML didn't yield a result
+                    if not target:
+                        candidates = [
+                            path / "__init__.py",
+                            path / "plugin.py",
+                            path / f"{path.name}.py",
+                        ]
+                        # Also check immediate subdirectories for package structures
+                        for sub in path.iterdir():
+                            if sub.is_dir() and not sub.name.startswith((".", "_", "tests")):
+                                candidates.append(sub / "plugin.py")
+                                candidates.append(sub / "__init__.py")
+
+                        for candidate in candidates:
+                            if candidate.exists():
+                                target = candidate
+                                break
+
                     if target:
-                        logger.debug(f"Resolved plugin via pyproject.toml: {target}")
+                        # Use the parent folder name as module name if inside a subdir
+                        module_name = path.name if target.parent == path else target.parent.name
+                        self._load_plugin_from_path(target, module_name=module_name)
+                    else:
+                        logger.debug(
+                            "Skipping user plugin dir %s: No suitable python entry point found.",
+                            path,
+                        )
 
-                # B. Fallback to heuristic scanning if TOML didn't yield a result
-                if not target:
-                    candidates = [
-                        path / "__init__.py",
-                        path / "plugin.py",
-                        path / f"{path.name}.py",
-                    ]
-                    # Also check immediate subdirectories for package structures
-                    for sub in path.iterdir():
-                        if sub.is_dir() and not sub.name.startswith((".", "_", "tests")):
-                            candidates.append(sub / "plugin.py")
-                            candidates.append(sub / "__init__.py")
-                    
-                    for candidate in candidates:
-                        if candidate.exists():
-                            target = candidate
-                            break
-
-                if target:
-                     # Use the parent folder name as module name if inside a subdir
-                    module_name = path.name if target.parent == path else target.parent.name
-                    self._load_plugin_from_path(target, module_name=module_name)
-                else:
-                    logger.debug(f"Skipping user plugin dir {path}: No suitable python entry point found.")
+        # Primary directory (portable with runner)
+        _load_from_dir(USER_PLUGIN_DIR)
+        # Backward-compatible load from legacy location if different.
+        if LEGACY_USER_PLUGIN_DIR != USER_PLUGIN_DIR:
+            _load_from_dir(LEGACY_USER_PLUGIN_DIR)
 
     def _resolve_entry_point_from_toml(self, root: Path, toml_path: Path) -> Optional[Path]:
         """Parse pyproject.toml to guess the package location."""
