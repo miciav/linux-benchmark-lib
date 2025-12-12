@@ -192,6 +192,22 @@ Results are written to three directories:
 - `data_exports/`: aggregated CSV/JSON
 - In remote mode results are split by `run_id/host` (e.g., `benchmark_results/run-YYYYmmdd-HHMMSS/node1/...`).
 
+## Diagrams (UML)
+
+The repository ships an action that generates UML class/package diagrams on each release.  
+To regenerate them locally (requires Graphviz installed):
+
+```bash
+pip install "pylint==3.3.1"
+mkdir -p docs/diagrams
+pyreverse -o png -p linux-benchmark lb_runner lb_controller lb_ui -S
+mv classes*.png docs/diagrams/classes.png
+mv packages*.png docs/diagrams/packages.png
+pyreverse -o puml -p linux-benchmark lb_runner lb_controller lb_ui -S
+mv classes*.puml docs/diagrams/classes.puml
+mv packages*.puml docs/diagrams/packages.puml
+```
+
 ## Contributing
 
 1. Fork the project

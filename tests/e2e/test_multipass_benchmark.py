@@ -25,6 +25,7 @@ ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 
 from lb_runner.benchmark_config import (
     BenchmarkConfig,
+    MetricCollectorConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
@@ -230,6 +231,11 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         "warmup_seconds": 0,
         "cooldown_seconds": 0,
     }
+    config_args["collectors"] = MetricCollectorConfig(
+        psutil_interval=1.0,
+        cli_commands=["uptime"],
+        enable_ebpf=False,
+    )
 
     plugin_settings: dict[str, Any] = {}
     workload_defs: dict[str, WorkloadConfig] = {}
@@ -309,6 +315,7 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         assert summary.phases[f"collect_{test_name}"].success
 
     # Verify artifacts for each VM
+    expected_reps = config.repetitions
     for vm in multipass_vms:
         host_output_dir = summary.per_host_output[vm["name"]]
         assert host_output_dir.exists()
@@ -317,3 +324,55 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         print(f"Downloaded files for {vm['name']}: {files}")
 
         assert files, f"No result files were collected for {vm['name']}."
+        run_root_candidates = [
+            host_output_dir / summary.run_id / summary.run_id,
+            host_output_dir / summary.run_id,
+            host_output_dir,
+        ]
+        run_root = next(
+            (path for path in run_root_candidates if path.exists()),
+            None,
+        )
+        assert run_root is not None, (
+            f"Run root missing for {vm['name']} "
+            f"(checked {run_root_candidates})"
+        )
+
+        system_info_candidates = [
+            run_root / "system_info.csv",
+            host_output_dir / "system_info.csv",
+        ]
+        assert any(
+            p.exists() and p.stat().st_size > 0 for p in system_info_candidates
+        ), (
+            f"system_info.csv missing or empty for {vm['name']} "
+            f"(checked {system_info_candidates})"
+        )
+
+        for workload in workloads:
+            workload_candidates = [
+                run_root / workload,
+                host_output_dir / workload,
+            ]
+            workload_dir = next(
+                (path for path in workload_candidates if path.exists()),
+                None,
+            )
+            assert workload_dir is not None, (
+                f"Workload directory not found for {workload} on {vm['name']} "
+                f"(checked {workload_candidates})"
+            )
+            for rep in range(1, expected_reps + 1):
+                cli_csv = workload_dir / f"{workload}_rep{rep}_CLICollector.csv"
+                psutil_csv = workload_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
+                for artifact in (cli_csv, psutil_csv):
+                    assert artifact.exists(), f"Missing collector CSV {artifact}"
+                    assert artifact.stat().st_size > 0, (
+                        f"Collector CSV is empty: {artifact}"
+                    )
+
+            plugin_csv = workload_dir / f"{workload}_plugin.csv"
+            assert plugin_csv.exists(), f"Missing plugin CSV {plugin_csv}"
+            assert plugin_csv.stat().st_size > 0, (
+                f"Plugin CSV is empty: {plugin_csv}"
+            )

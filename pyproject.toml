@@ -91,6 +91,7 @@ markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "docker: integration tests that build/run plugin Docker images",
     "multipass: integration tests that validate plugin multipass/ansible assets",
+    "multipass_single: multipass e2e per-workload runs with artifact checks",
     "unit: test isolati e veloci (senza I/O o side effects)",
     "e2e: test end-to-end completi (es. con VM reali)",
     "cli: test dell'interfaccia a riga di comando",

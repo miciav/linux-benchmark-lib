@@ -21,7 +21,12 @@ from typing import Any, Dict, List, Optional, Callable
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.data_handler_bridge import make_data_handler
 from lb_runner.events import RunEvent, StdoutEmitter
-from lb_runner.output_helpers import ensure_run_dirs, ensure_runner_log, write_system_info_artifacts
+from lb_runner.output_helpers import (
+    ensure_run_dirs,
+    ensure_runner_log,
+    workload_output_dir,
+    write_system_info_artifacts,
+)
 from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
 from lb_runner import system_info
@@ -88,6 +93,16 @@ class LocalRunner:
             write_system_info_artifacts(collected, self._output_root, logger)
 
         return self.system_info
+
+    def _workload_output_dir(self, workload: str) -> Path:
+        """
+        Return the workload-scoped output directory for the current run.
+
+        Ensures the directory exists so collectors and plugins can write into it.
+        """
+        base = self._output_root or self.config.output_dir
+        path = workload_output_dir(base, workload, ensure=True)
+        return path
     
     def _setup_collectors(self) -> List[Any]:
         """
@@ -117,6 +132,7 @@ class LocalRunner:
             Dictionary containing test results
         """
         logger.info(f"Running test '{test_name}' - Repetition {repetition}")
+        workload_dir = self._workload_output_dir(test_name)
         
         # Set up collectors
         collectors = self._setup_collectors()
@@ -262,8 +278,7 @@ class LocalRunner:
             result["metrics"][collector.name] = collector_data
 
             filename = f"{test_name}_rep{repetition}_{collector.name}.csv"
-            target_root = self._output_root or self.config.output_dir
-            filepath = target_root / filename
+            filepath = workload_dir / filename
             collector.save_data(filepath)
         
         return result
@@ -434,7 +449,7 @@ class LocalRunner:
             results: List of test results
         """
         # Save raw results
-        target_root = self._output_root or self.config.output_dir
+        target_root = self._workload_output_dir(test_name)
         export_root = self._data_export_root or self.config.data_export_dir
         results_file = target_root / f"{test_name}_results.json"
         with open(results_file, "w") as f:
