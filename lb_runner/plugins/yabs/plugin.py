@@ -79,6 +79,7 @@ class YabsGenerator(BaseGenerator):
             return
 
         script_path: Optional[Path] = None
+        timeout_s = self.config.expected_runtime_seconds + self.config.timeout_buffer
         try:
             # Download script to a temp location
             fd, path_str = tempfile.mkstemp(prefix="yabs-", suffix=".sh")
@@ -96,34 +97,50 @@ class YabsGenerator(BaseGenerator):
                     )
             script_path.chmod(0o755)
 
-            args: List[str] = [str(script_path)]
-            if self.config.skip_disk:
-                args.append("-f")  # skip fio
-            if self.config.skip_network:
-                args.append("-i")  # skip iperf
-            if self.config.skip_geekbench:
-                args.append("-g")  # skip geekbench
-            if self.config.skip_cleanup:
-                args.append("-c")  # skip cleanup
-            if self.config.extra_args:
-                args.extend(self.config.extra_args)
+            def _build_args(include_skip_cleanup: bool) -> list[str]:
+                args: list[str] = [str(script_path)]
+                if self.config.skip_disk:
+                    args.append("-f")  # skip fio
+                if self.config.skip_network:
+                    args.append("-i")  # skip iperf
+                if self.config.skip_geekbench:
+                    args.append("-g")  # skip geekbench
+                if include_skip_cleanup and self.config.skip_cleanup:
+                    args.append("-c")  # skip cleanup (not supported by all upstream revisions)
+                if self.config.extra_args:
+                    args.extend(self.config.extra_args)
+                return args
 
             env = os.environ.copy()
             # Prevent interactive prompts
             env.setdefault("YABS_NONINTERACTIVE", "1")
 
             if self.config.debug:
-                logger.info("Running YABS command: %s", " ".join(args))
+                logger.info("Running YABS command (configured): %s", " ".join(_build_args(True)))
 
-            timeout_s = self.config.expected_runtime_seconds + self.config.timeout_buffer
-            run = subprocess.run(
-                args,
-                check=False,
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=timeout_s # Added timeout
-            )
+            def _run_yabs(args: list[str]) -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    args,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=timeout_s,
+                )
+
+            args = _build_args(True)
+            run = _run_yabs(args)
+            stderr = (run.stderr or "").lower()
+            if (
+                run.returncode != 0
+                and self.config.skip_cleanup
+                and "-c" in args
+                and ("illegal option" in stderr and "-- c" in stderr)
+            ):
+                # Some pinned upstream revisions don't support -c; retry without it.
+                logger.info("YABS script does not support -c; retrying without skip_cleanup flag")
+                args = _build_args(False)
+                run = _run_yabs(args)
             self._process = run # Store the CompletedProcess object
 
             log_path = self.config.output_dir / "yabs.log"

@@ -12,7 +12,7 @@
       - ca-certificates
     geekbench_version: "6.3.0"
     geekbench_linux_sha256: "01727999719cd515a7224075dcab4876deef2844c45e8c2e9f34197224039f3b"
-    geekbench_arm_url: "https://cdn.geekbench.com/Geekbench-6.5.0-LinuxARMPreview.tar.gz"
+    geekbench_arm_url: "https://cdn.geekbench.com/Geekbench-{{ geekbench_version }}-LinuxARMPreview.tar.gz"
     geekbench_base_dir: /opt/geekbench
 
   tasks:
@@ -34,7 +34,7 @@
         geekbench_url: "{{ geekbench_arm_url }}"
         geekbench_archive: "{{ geekbench_base_dir }}/{{ geekbench_arm_url | basename }}"
         geekbench_extract_dir: "{{ geekbench_base_dir }}/{{ (geekbench_arm_url | basename) | regex_replace('\\.tar\\.gz$', '') }}"
-      when: ansible_architecture is defined and ansible_architecture | lower is search("arm")
+      when: (ansible_facts['architecture'] | default('') | lower) is search("arm|aarch64")
 
     - name: Select Geekbench download for x86
       ansible.builtin.set_fact:

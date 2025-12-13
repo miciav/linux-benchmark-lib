@@ -11,6 +11,7 @@ from typing import Dict, List
 
 import pytest
 import shutil
+import platform
 
 from lb_runner.benchmark_config import (
     BenchmarkConfig,
@@ -183,13 +184,22 @@ def test_multipass_fio_three_reps(multipass_vm, tmp_path: Path) -> None:
 def test_multipass_geekbench_three_reps(multipass_vm, tmp_path: Path) -> None:
     """Run Geekbench with three repetitions and verify artifacts."""
     intensity = get_intensity()
+    arch = platform.machine().lower()
+    is_arm = "arm" in arch or "aarch64" in arch
+    download_checksum = (
+        # Geekbench 6.3.0 Linux ARM preview tarball.
+        "7db7f4d6a6bdc31de4f63f0012abf7f1f00cdc5f6d64e727a47ff06bff6b6b04"
+        if is_arm
+        # Geekbench 6.3.0 Linux (x86_64) tarball.
+        else "01727999719cd515a7224075dcab4876deef2844c45e8c2e9f34197224039f3b"
+    )
     # Keep runtime bounded for e2e (Geekbench otherwise hints ~1800s).
     geek_cfg = GeekbenchConfig(
         output_dir=Path("/tmp"),
         skip_cleanup=True,
         run_gpu=False,
         expected_runtime_seconds=max(300, int(intensity.get("stress_timeout", 120))),
-        download_checksum="01727999719cd515a7224075dcab4876deef2844c45e8c2e9f34197224039f3b",
+        download_checksum=download_checksum,
     )
     workload_cfg = WorkloadConfig(
         plugin="geekbench",

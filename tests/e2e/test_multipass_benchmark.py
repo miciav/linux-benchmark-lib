@@ -43,6 +43,9 @@ VM_NAME_PREFIX = "benchmark-test-vm"
 MAX_VM_COUNT = 2
 SSH_KEY_PATH = Path("./temp_keys/test_key")
 SSH_PUB_KEY_PATH = Path("./temp_keys/test_key.pub")
+DEFAULT_VM_CPUS = 2
+DEFAULT_VM_MEMORY = "2G"
+DEFAULT_VM_DISK = "10G"
 
 def is_multipass_available():
     """Check if multipass is installed and available."""
@@ -60,6 +63,28 @@ def _vm_count():
             f"LB_MULTIPASS_VM_COUNT must be between 1 and {MAX_VM_COUNT}, got {count}"
         )
     return count
+
+def _vm_cpus() -> int:
+    raw = os.environ.get("LB_MULTIPASS_CPUS", str(DEFAULT_VM_CPUS))
+    try:
+        cpus = int(raw)
+    except ValueError:  # pragma: no cover - defensive for manual runs
+        pytest.fail(f"LB_MULTIPASS_CPUS must be an integer, got {raw!r}")
+    if cpus < 1:
+        pytest.fail(f"LB_MULTIPASS_CPUS must be >= 1, got {cpus}")
+    return cpus
+
+def _vm_memory() -> str:
+    raw = os.environ.get("LB_MULTIPASS_MEMORY", DEFAULT_VM_MEMORY).strip()
+    if not raw:
+        pytest.fail("LB_MULTIPASS_MEMORY must be a non-empty string")
+    return raw
+
+def _vm_disk() -> str:
+    raw = os.environ.get("LB_MULTIPASS_DISK", DEFAULT_VM_DISK).strip()
+    if not raw:
+        pytest.fail("LB_MULTIPASS_DISK must be a non-empty string")
+    return raw
 
 def _vm_name(index: int, total: int) -> str:
     if total == 1:
@@ -110,7 +135,22 @@ def _launch_vm(vm_name: str, pub_key: str) -> dict:
             continue
         tried.append(image)
         try:
-            subprocess.run(["multipass", "launch", "--name", vm_name, image], check=True)
+            subprocess.run(
+                [
+                    "multipass",
+                    "launch",
+                    "--name",
+                    vm_name,
+                    "--cpus",
+                    str(_vm_cpus()),
+                    "--memory",
+                    _vm_memory(),
+                    "--disk",
+                    _vm_disk(),
+                    image,
+                ],
+                check=True,
+            )
             break
         except subprocess.CalledProcessError:
             print(f"Image '{image}' failed to launch, trying next option...")

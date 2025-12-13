@@ -22,7 +22,6 @@
       - python3-venv
       - python3-pip
       - openmpi-bin
-      - libopenmpi3t64
       - libopenmpi-dev
       - libopenblas-dev
       - procps
@@ -30,6 +29,20 @@
     hpl_relax_openmpi_dep: false
 
   tasks:
+    - name: Detect OpenMPI runtime package on target
+      ansible.builtin.command: apt-cache show libopenmpi3t64
+      register: hpl_libopenmpi3t64_check
+      changed_when: false
+      failed_when: false
+
+    - name: Select OpenMPI runtime dependency for repack
+      ansible.builtin.set_fact:
+        hpl_openmpi_runtime_pkg: "{{ 'libopenmpi3t64' if hpl_libopenmpi3t64_check.rc == 0 else 'libopenmpi3' }}"
+
+    - name: Decide whether to repack HPL package
+      ansible.builtin.set_fact:
+        hpl_should_repack: "{{ (hpl_relax_openmpi_dep | bool) or (hpl_openmpi_runtime_pkg != 'libopenmpi3t64') }}"
+
     - name: Abort on unsupported OS family
       ansible.builtin.fail:
         msg: "HPL .deb install is supported on Debian/Ubuntu only."
@@ -66,22 +79,31 @@
       ansible.builtin.file:
         path: /tmp/hpl-deb-unpacked
         state: absent
-      when: hpl_relax_openmpi_dep | bool
+      when: hpl_should_repack | bool
 
     - name: Unpack HPL package for dependency relaxation
       ansible.builtin.command: dpkg-deb -R {{ hpl_deb_dest }} /tmp/hpl-deb-unpacked
-      when: hpl_relax_openmpi_dep | bool
+      when: hpl_should_repack | bool
 
     - name: Relax libopenmpi dependency constraint
       ansible.builtin.replace:
         path: /tmp/hpl-deb-unpacked/DEBIAN/control
         regexp: 'libopenmpi3t64 \\(>= [^)]+\\)'
-        replace: 'libopenmpi3t64'
-      when: hpl_relax_openmpi_dep | bool
+        replace: "{{ hpl_openmpi_runtime_pkg }}"
+      when: hpl_should_repack | bool
+
+    - name: Replace libopenmpi runtime dependency when needed
+      ansible.builtin.replace:
+        path: /tmp/hpl-deb-unpacked/DEBIAN/control
+        regexp: '\\blibopenmpi3t64\\b'
+        replace: "{{ hpl_openmpi_runtime_pkg }}"
+      when:
+        - hpl_should_repack | bool
+        - hpl_openmpi_runtime_pkg != 'libopenmpi3t64'
 
     - name: Repack HPL package after dependency relaxation
       ansible.builtin.command: dpkg-deb -b /tmp/hpl-deb-unpacked {{ hpl_deb_dest }}
-      when: hpl_relax_openmpi_dep | bool
+      when: hpl_should_repack | bool
 
     - name: Install HPL package
       ansible.builtin.apt:

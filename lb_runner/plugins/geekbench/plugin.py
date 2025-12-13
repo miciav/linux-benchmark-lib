@@ -241,7 +241,7 @@ class GeekbenchGenerator(BaseGenerator):
         if not self.config.download_url:
             if suffix == "LinuxARM64":
                 # Official ARM preview build
-                url = "https://cdn.geekbench.com/Geekbench-6.5.0-LinuxARMPreview.tar.gz"
+                url = f"https://cdn.geekbench.com/Geekbench-{version}-LinuxARMPreview.tar.gz"
             else:
                 url = f"https://cdn.geekbench.com/Geekbench-{version}-{suffix}.tar.gz"
 

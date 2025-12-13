@@ -28,6 +28,7 @@ class DDConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     count: Optional[int] = Field(default=None, ge=1, description="Number of blocks to copy (None means run until stopped by runner duration)")
     conv: Optional[str] = Field(default="fdatasync", description="Conversion options (e.g., fdatasync, noerror, sync)")
     oflag: Optional[str] = Field(default="direct", description="Output flags (e.g., direct, sync, dsync)")
+    timeout: int = Field(default=60, gt=0, description="Timeout in seconds for dd execution")
     debug: bool = Field(default=False, description="Enable debug logging")
 
 

@@ -53,6 +53,15 @@ class BenchmarkController:
         # Use event stream as the source of truth; avoid mass RUNNING/COMPLETED updates.
         self._use_progress_stream = True
 
+    def _refresh_journal(self) -> None:
+        """Trigger UI journal refresh callback when available."""
+        if not self._journal_refresh:
+            return
+        try:
+            self._journal_refresh()
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("Journal refresh callback failed: %s", exc)
+
     def run(
         self,
         test_types: List[str],

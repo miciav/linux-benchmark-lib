@@ -121,6 +121,8 @@
           }}
     - name: "{{ run_prefix }} Collect workload artifacts for failed repetition"
       ansible.builtin.include_tasks: collect_workload.yml
+      vars:
+        workload_runner_collect_ignore_errors: true
     - name: Fail workload repetition
       ansible.builtin.fail:
         msg: >-
