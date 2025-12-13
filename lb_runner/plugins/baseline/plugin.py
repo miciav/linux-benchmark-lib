@@ -6,19 +6,20 @@ This plugin performs no actual work, allowing the system to measure baseline per
 import logging
 import threading
 import time
-from dataclasses import dataclass
+# Removed from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional, Type
 
+from pydantic import Field # Added pydantic Field
+
 from ...plugin_system.base_generator import BaseGenerator
-from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin
+from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class BaselineConfig:
+class BaselineConfig(BasePluginConfig):
     """Configuration for baseline workload generator."""
-    duration: int = 60  # Duration to sleep in seconds
+    duration: float = Field(default=60.0, gt=0, description="Duration to sleep in seconds") # Using Pydantic Field, changed to float
 
 
 class BaselineGenerator(BaseGenerator):
@@ -43,7 +44,9 @@ class BaselineGenerator(BaseGenerator):
             "status": "completed" if not stopped_early else "stopped",
             "target_duration": self.config.duration,
             "actual_duration": actual_duration,
-            "workload": "idle"
+            "workload": "idle",
+            "max_retries": self.config.max_retries, # Example of using inherited field
+            "tags": self.config.tags # Example of using inherited field
         }
         
         logger.info(f"Baseline run finished. Actual duration: {actual_duration:.2f}s")

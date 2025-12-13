@@ -7,6 +7,7 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import ValidationError # Added ValidationError import
 from lb_runner.plugin_system.interface import WorkloadIntensity
 from lb_runner.plugins.baseline.plugin import (
     BaselineConfig,
@@ -20,10 +21,23 @@ class TestBaselineConfig:
     def test_defaults(self):
         config = BaselineConfig()
         assert config.duration == 60
+        assert config.max_retries == 0 # Inherited default
+        assert config.timeout_buffer == 10 # Inherited default
+        assert config.tags == [] # Inherited default
 
     def test_custom_values(self):
-        config = BaselineConfig(duration=10)
+        config = BaselineConfig(duration=10, max_retries=5, tags=["e2e", "dev"])
         assert config.duration == 10
+        assert config.max_retries == 5
+        assert config.tags == ["e2e", "dev"]
+
+    def test_validation_error(self):
+        with pytest.raises(ValidationError):
+            BaselineConfig(duration=0) # duration must be greater than 0
+        with pytest.raises(ValidationError):
+            BaselineConfig(duration=-1)
+        with pytest.raises(ValidationError):
+            BaselineConfig(max_retries=-1) # max_retries must be >= 0
 
 
 class TestBaselinePlugin:
@@ -37,10 +51,12 @@ class TestBaselinePlugin:
         generator = PLUGIN.create_generator(config)
         assert isinstance(generator, BaselineGenerator)
         assert generator.config.duration == 5
+        assert generator.config.max_retries == 0 # Ensure inherited fields are present
 
     def test_presets(self):
         low = PLUGIN.get_preset_config(WorkloadIntensity.LOW)
         assert low.duration == 30
+        assert low.max_retries == 0 # Inherited default still applies for presets
 
         medium = PLUGIN.get_preset_config(WorkloadIntensity.MEDIUM)
         assert medium.duration == 60
@@ -57,6 +73,77 @@ class TestBaselinePlugin:
         assert PLUGIN.get_dockerfile_path().name == "Dockerfile"
 
 
+class TestBaselineConfigLoading:
+    def test_load_config_from_file_empty(self, tmp_path):
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("")
+        loaded_config = PLUGIN.load_config_from_file(config_file)
+        assert isinstance(loaded_config, BaselineConfig)
+        assert loaded_config.duration == 60
+        assert loaded_config.max_retries == 0
+        assert loaded_config.tags == []
+
+    def test_load_config_from_file_common_only(self, tmp_path):
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+common:
+  max_retries: 5
+  tags: ["common-tag"]
+""")
+        loaded_config = PLUGIN.load_config_from_file(config_file)
+        assert isinstance(loaded_config, BaselineConfig)
+        assert loaded_config.duration == 60  # From BaselineConfig default
+        assert loaded_config.max_retries == 5  # From common
+        assert loaded_config.tags == ["common-tag"]
+
+    def test_load_config_from_file_plugin_specific_only(self, tmp_path):
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+plugins:
+  baseline:
+    duration: 120
+    timeout_buffer: 50
+""")
+        loaded_config = PLUGIN.load_config_from_file(config_file)
+        assert isinstance(loaded_config, BaselineConfig)
+        assert loaded_config.duration == 120  # From plugin specific
+        assert loaded_config.max_retries == 0  # From BasePluginConfig default
+        assert loaded_config.timeout_buffer == 50
+
+    def test_load_config_from_file_with_override(self, tmp_path):
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+common:
+  max_retries: 5
+  tags: ["common-tag"]
+plugins:
+  baseline:
+    duration: 120
+    max_retries: 10 # Plugin-specific overrides common
+    tags: ["baseline-tag"] # Plugin-specific overrides common
+""")
+        loaded_config = PLUGIN.load_config_from_file(config_file)
+        assert isinstance(loaded_config, BaselineConfig)
+        assert loaded_config.duration == 120
+        assert loaded_config.max_retries == 10
+        assert loaded_config.tags == ["baseline-tag"]
+
+    def test_load_config_from_file_invalid_data(self, tmp_path):
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+plugins:
+  baseline:
+    duration: 0 # Invalid duration (must be gt 0)
+""")
+        with pytest.raises(ValidationError):
+            PLUGIN.load_config_from_file(config_file)
+
+    def test_load_config_from_file_not_found(self, tmp_path):
+        non_existent_file = tmp_path / "non_existent_config.yaml"
+        with pytest.raises(FileNotFoundError):
+            PLUGIN.load_config_from_file(non_existent_file)
+
+
 class TestBaselineGenerator:
     def test_validate_environment(self):
         config = BaselineConfig()
@@ -65,9 +152,7 @@ class TestBaselineGenerator:
 
     def test_run_success(self):
         # Run a very short test
-        config = BaselineConfig(duration=0) # 0 or very small float
-        # Using a small float to ensure logic runs but finishes instantly
-        config.duration = 0.01 
+        config = BaselineConfig(duration=0.01) # duration must be > 0
         generator = BaselineGenerator(config)
         
         generator._run_command()
@@ -78,6 +163,9 @@ class TestBaselineGenerator:
         assert result["workload"] == "idle"
         assert "actual_duration" in result
         assert result["target_duration"] == 0.01
+        assert result["max_retries"] == 0 # Check inherited field in result
+        assert result["tags"] == [] # Check inherited field in result
+
 
     def test_stop_early(self):
         """Test that the generator can be stopped before duration expires."""
@@ -108,19 +196,19 @@ class TestBaselineGenerator:
     @patch("threading.Event.wait")
     def test_run_logic_mocked(self, mock_wait, mock_time):
         """Verify logic without actual sleeping using mocks."""
-        config = BaselineConfig(duration=100)
+        config = BaselineConfig(duration=100, max_retries=3, tags=["mocked"])
         generator = BaselineGenerator(config)
         
         # Setup mocks
-        mock_wait.return_value = False  # creating normal timeout expiration (wait returns False if timeout reached? No, wait returns True if flag set, False if timeout)
-        # threading.Event.wait returns True if the flag was set, False if timeout occurred.
-        # So if we want to simulate "completed duration" (timeout), it returns False.
+        mock_wait.return_value = False  # Simulate duration completion (timeout)
         
-        mock_time.side_effect = [1000.0, 1100.0] # start, end
+        mock_time.side_effect = [1000.0, 1100.0] # start, end (100s duration)
         
         generator._run_command()
         
-        mock_wait.assert_called_with(100)
+        mock_wait.assert_called_with(100) # Ensure duration is passed to wait
         result = generator.get_result()
         assert result["status"] == "completed"
         assert result["actual_duration"] == 100.0
+        assert result["max_retries"] == 3 # Check inherited field in result
+        assert result["tags"] == ["mocked"] # Check inherited field in result

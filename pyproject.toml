@@ -15,7 +15,8 @@ dependencies = [
     "rich>=13.7.0",
     "typer>=0.12.5",
     "PyYAML>=6.0",
-    "InquirerPy>=0.3.4"
+    "InquirerPy>=0.3.4",
+    "pydantic>=2.0.0", # Added pydantic
 ]
 
 [project.optional-dependencies]
