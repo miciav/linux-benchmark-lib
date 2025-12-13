@@ -15,10 +15,12 @@ import shutil
 import subprocess
 import tempfile
 import re
-from dataclasses import dataclass, field
+# Removed from dataclasses import dataclass, field
 from typing import List, Optional, Type, Any
 
-from ...plugin_system.interface import WorkloadPlugin, WorkloadIntensity
+from pydantic import Field, model_validator # Added pydantic Field, model_validator
+
+from ...plugin_system.interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig # Imported BasePluginConfig
 from ...plugin_system.base_generator import BaseGenerator
 
 logger = logging.getLogger(__name__)
@@ -26,24 +28,21 @@ logger = logging.getLogger(__name__)
 YABS_URL = "https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh"
 
 
-@dataclass
-class YabsConfig:
+class YabsConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     """Configuration for the YABS workload."""
 
-    script_url: str = YABS_URL
-    script_checksum: Optional[str] = None  # sha256 hex for script validation
-    skip_disk: bool = False
-    skip_network: bool = False
-    skip_geekbench: bool = True
-    skip_cleanup: bool = True
-    output_dir: Path = Path("/tmp")
-    extra_args: List[str] = field(default_factory=list)
-    expected_runtime_seconds: int = 600
-    debug: bool = False
+    script_url: str = Field(default=YABS_URL, description="URL to the YABS script")
+    script_checksum: Optional[str] = Field(default=None, description="SHA256 checksum for script validation")
+    skip_disk: bool = Field(default=False, description="Skip disk benchmarks (fio)")
+    skip_network: bool = Field(default=False, description="Skip network benchmarks (iperf)")
+    skip_geekbench: bool = Field(default=True, description="Skip Geekbench benchmark")
+    skip_cleanup: bool = Field(default=True, description="Skip temporary file cleanup")
+    output_dir: Path = Field(default=Path("/tmp"), description="Directory for YABS log files")
+    extra_args: List[str] = Field(default_factory=list, description="Additional arguments to pass to yabs.sh")
+    expected_runtime_seconds: int = Field(default=600, gt=0, description="Expected runtime of YABS in seconds (used for timeout hints)")
+    debug: bool = Field(default=False, description="Enable debug logging")
 
-    def __post_init__(self) -> None:
-        if isinstance(self.output_dir, str):
-            self.output_dir = Path(self.output_dir)
+    # Removed __post_init__ as Pydantic handles Path conversion
 
 
 class YabsGenerator(BaseGenerator):
@@ -53,7 +52,8 @@ class YabsGenerator(BaseGenerator):
         super().__init__("YabsGenerator")
         self.config = config
         self._process: Optional[subprocess.CompletedProcess[str]] = None
-        self.expected_runtime_seconds = max(0, int(config.expected_runtime_seconds))
+        # self.expected_runtime_seconds now comes directly from config.expected_runtime_seconds
+
 
     def _validate_environment(self) -> bool:
         """Ensure required tools are present and output dir is writable."""
@@ -115,14 +115,16 @@ class YabsGenerator(BaseGenerator):
             if self.config.debug:
                 logger.info("Running YABS command: %s", " ".join(args))
 
+            timeout_s = self.config.expected_runtime_seconds + self.config.timeout_buffer
             run = subprocess.run(
                 args,
                 check=False,
                 capture_output=True,
                 text=True,
                 env=env,
+                timeout=timeout_s # Added timeout
             )
-            self._process = run
+            self._process = run # Store the CompletedProcess object
 
             log_path = self.config.output_dir / "yabs.log"
             try:
@@ -136,10 +138,15 @@ class YabsGenerator(BaseGenerator):
                 "returncode": run.returncode,
                 "command": " ".join(args),
                 "log_path": str(log_path),
+                "max_retries": self.config.max_retries, # Add inherited field
+                "tags": self.config.tags # Add inherited field
             }
+        except subprocess.TimeoutExpired:
+            logger.error(f"YABS timed out after {timeout_s} seconds. Script might still be running or was forcefully killed.")
+            self._result = {"error": f"Timeout after {timeout_s}s", "returncode": -1}
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("YABS execution error: %s", exc)
-            self._result = {"error": str(exc)}
+            self._result = {"error": str(exc), "returncode": -2}
         finally:
             if script_path and script_path.exists():
                 try:
@@ -158,6 +165,9 @@ class YabsGenerator(BaseGenerator):
 
     def _stop_workload(self) -> None:
         """YABS runs to completion; nothing to stop mid-flight."""
+        # YABS is a shell script, hard to stop gracefully.
+        # It's intended to run to completion or timeout.
+        logger.info("YABS runs to completion; no specific stop logic implemented.")
         return
 
 
@@ -176,13 +186,7 @@ class YabsPlugin(WorkloadPlugin):
     def config_cls(self) -> Type[YabsConfig]:
         return YabsConfig
 
-    def create_generator(self, config: YabsConfig | dict) -> YabsGenerator:
-        if isinstance(config, dict):
-            # JSON configs render Paths as strings; normalize here.
-            for key in ("output_dir",):
-                if key in config and isinstance(config[key], str):
-                    config[key] = Path(config[key])
-            config = YabsConfig(**config)
+    def create_generator(self, config: YabsConfig) -> YabsGenerator: # Type hint updated
         return YabsGenerator(config)
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[YabsConfig]:
@@ -282,6 +286,8 @@ class YabsPlugin(WorkloadPlugin):
                 "cpu_model": _last_str(r"CPU Model:\s*(.+)", stdout),
                 "arch": _last_str(r"Architecture:\s*(.+)", stdout),
                 "virt": _last_str(r"Virtualization:\s*(.+)", stdout),
+                "max_retries": gen_result.get("max_retries"), # Add inherited field
+                "tags": gen_result.get("tags"), # Add inherited field
             }
             rows.append(row)
 

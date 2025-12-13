@@ -118,7 +118,7 @@ class BenchmarkController:
             "data_export_root": str(data_export_root),
             "lb_workdir": "/opt/lb",
             "per_host_output": {k: str(v) for k, v in per_host_output.items()},
-            "benchmark_config": self.config.to_dict(),
+            "benchmark_config": self.config.model_dump(mode="json"),
             "use_container_fallback": self.config.remote_execution.use_container_fallback,
             "collector_apt_packages": sorted(self._collector_apt_packages()),
             "workload_runner_install_deps": False,  # Dependencies are now handled by per-plugin setup

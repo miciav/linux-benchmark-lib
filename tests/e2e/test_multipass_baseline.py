@@ -4,7 +4,6 @@ Multipass e2e tests for the Baseline workload.
 
 import os
 import shutil
-from dataclasses import asdict
 from pathlib import Path
 from typing import Dict, List
 
@@ -132,7 +131,11 @@ def test_multipass_baseline_three_reps(multipass_vm, tmp_path: Path) -> None:
     """Run baseline with three repetitions and verify artifacts."""
     # Use a short duration for E2E
     baseline_cfg = BaselineConfig(duration=5)
-    workload_cfg = WorkloadConfig(plugin="baseline", enabled=True, options=asdict(baseline_cfg))
+    workload_cfg = WorkloadConfig(
+        plugin="baseline",
+        enabled=True,
+        options=baseline_cfg.model_dump(mode="json"),
+    )
     
     _run_single_workload(
         "baseline",

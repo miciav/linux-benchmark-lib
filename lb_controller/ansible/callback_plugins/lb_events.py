@@ -14,7 +14,16 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List
 
-from ansible.plugins.callback import CallbackBase
+try:
+    from ansible.plugins.callback import CallbackBase
+except ModuleNotFoundError:  # pragma: no cover
+    # Allow importing this module without the heavy `ansible` dependency installed.
+    # The callback plugin itself is only usable when Ansible is present.
+    class CallbackBase:  # type: ignore[no-redef]
+        """Fallback base class used when Ansible isn't installed."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            return None
 
 
 def _extract_lb_event(text: str) -> Dict[str, Any] | None:

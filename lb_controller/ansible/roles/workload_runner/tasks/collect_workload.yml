@@ -1,0 +1,49 @@
+- name: "{{ run_prefix }} Archive workload directory (workload-only collect)"
+  ansible.builtin.command: >
+    tar -czf /tmp/{{ inventory_hostname }}-{{ run_id }}-{{ workload_runner_current_workload }}-rep{{ workload_runner_current_rep }}.tar.gz
+    -C {{ workload_runner_output_dir }} {{ workload_runner_current_workload }}
+  register: workload_runner_archive
+  changed_when: true
+  failed_when: false
+
+- name: "{{ run_prefix }} Ensure local host output dir exists"
+  ansible.builtin.file:
+    path: "{{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  become: false
+  run_once: false
+
+- name: "{{ run_prefix }} Fetch workload archive"
+  ansible.builtin.fetch:
+    src: "/tmp/{{ inventory_hostname }}-{{ run_id }}-{{ workload_runner_current_workload }}-rep{{ workload_runner_current_rep }}.tar.gz"
+    dest: "{{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}/"
+    flat: true
+  register: workload_runner_fetch
+  failed_when: false
+
+- name: "{{ run_prefix }} Unarchive workload data locally"
+  ansible.builtin.unarchive:
+    src: "{{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}/{{ inventory_hostname }}-{{ run_id }}-{{ workload_runner_current_workload }}-rep{{ workload_runner_current_rep }}.tar.gz"
+    dest: "{{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}"
+    remote_src: false
+  delegate_to: localhost
+  become: false
+  run_once: false
+  failed_when: false
+
+- name: "{{ run_prefix }} Remove local workload archive"
+  ansible.builtin.file:
+    path: "{{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}/{{ inventory_hostname }}-{{ run_id }}-{{ workload_runner_current_workload }}-rep{{ workload_runner_current_rep }}.tar.gz"
+    state: absent
+  delegate_to: localhost
+  become: false
+  run_once: false
+  failed_when: false
+
+- name: "{{ run_prefix }} Remove remote workload archive"
+  ansible.builtin.file:
+    path: "/tmp/{{ inventory_hostname }}-{{ run_id }}-{{ workload_runner_current_workload }}-rep{{ workload_runner_current_rep }}.tar.gz"
+    state: absent
+  failed_when: false

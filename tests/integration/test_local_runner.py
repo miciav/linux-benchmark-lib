@@ -1,6 +1,5 @@
 from unittest.mock import MagicMock
 import pytest
-from dataclasses import asdict
 
 from lb_runner.benchmark_config import (
     BenchmarkConfig,
@@ -47,12 +46,12 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
             "stress_ng": WorkloadConfig(
                 plugin="stress_ng",
                 enabled=True,
-                options=asdict(stress_cfg),
+                options=stress_cfg.model_dump(mode="json"),
             )
         },
         collectors=MetricCollectorConfig(
-            cli_commands=None, 
-            perf_config=PerfConfig(events=None), 
+            cli_commands=[],
+            perf_config=PerfConfig(events=[]),
             enable_ebpf=False
         )
     )

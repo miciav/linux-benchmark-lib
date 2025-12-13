@@ -28,6 +28,7 @@ from lb_runner.output_helpers import (
 )
 from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
+from lb_runner.plugin_system.base_generator import BaseGenerator
 from lb_runner import system_info
 logger = logging.getLogger(__name__)
 
@@ -206,11 +207,6 @@ class LocalRunner:
                 generator.stop()
                 generator_started = False
             test_end_time = datetime.now()
-            
-            # Cooldown period
-            if self.config.cooldown_seconds > 0:
-                logger.info(f"Cooldown period: {self.config.cooldown_seconds} seconds")
-                time.sleep(self.config.cooldown_seconds)
 
         except Exception as e:
             logger.error(f"Test execution failed: {e}")
@@ -366,7 +362,6 @@ class LocalRunner:
         plugin: WorkloadPlugin = self.plugin_registry.get(plugin_name)
 
         # Run multiple repetitions
-        test_results = []
         total_reps = total_repetitions or self.config.repetitions
         reps = (
             [repetition_override]
@@ -375,7 +370,7 @@ class LocalRunner:
         )
 
         success_overall = True
-        for rep in reps:
+        for idx, rep in enumerate(reps):
             if rep is None or rep <= 0:
                 raise ValueError("Repetition index must be a positive integer")
 
@@ -383,7 +378,7 @@ class LocalRunner:
 
             try:
                 # Determine configuration: Preset or User Options
-                config_input = workload_cfg.options
+                config_input: Any = workload_cfg.options
                 
                 if workload_cfg.intensity and workload_cfg.intensity != "user_defined":
                     try:
@@ -413,9 +408,18 @@ class LocalRunner:
                     repetition=rep,
                     total_repetitions=total_reps,
                 )
-                test_results.append(result)
                 if not result.get("success", True):
                     success_overall = False
+
+                # Persist after each repetition to avoid losing partial results.
+                self._process_results(test_type, [result], plugin=plugin)
+
+                # Optional post-repetition cleanup (e.g., remove temp files).
+                if isinstance(generator, BaseGenerator):
+                    try:
+                        generator.cleanup()
+                    except Exception as exc:  # pragma: no cover - best effort cleanup
+                        logger.warning("Generator cleanup failed for %s rep %s: %s", test_type, rep, exc)
                 
             except Exception as e:
                 logger.error(
@@ -424,10 +428,11 @@ class LocalRunner:
                 success_overall = False
                 self._emit_progress(test_type, rep, total_reps, "failed")
                 break
-        
-        # Process and save results
-        if test_results:
-            self._process_results(test_type, test_results, plugin=plugin)
+
+            # Cooldown between repetitions (collectors are stopped already).
+            if idx < len(reps) - 1 and self.config.cooldown_seconds > 0:
+                logger.info("Cooldown period: %s seconds", self.config.cooldown_seconds)
+                time.sleep(self.config.cooldown_seconds)
         
         logger.info(f"Completed benchmark: {test_type}")
         return success_overall
@@ -440,20 +445,45 @@ class LocalRunner:
             test_name: Name of the test
             results: List of test results
         """
-        # Save raw results
+        # Merge with existing results for incremental persistence (remote runs invoke one repetition at a time).
         target_root = self._workload_output_dir(test_name)
-        export_root = self._data_export_root or self.config.data_export_dir
         results_file = target_root / f"{test_name}_results.json"
-        with open(results_file, "w") as f:
-            json.dump(results, f, indent=2, cls=DateTimeEncoder)
-        
-        logger.info(f"Saved raw results to {results_file}")
+
+        merged: list[dict[str, Any]] = []
+        if results_file.exists():
+            try:
+                existing_raw = json.loads(results_file.read_text())
+                if isinstance(existing_raw, list):
+                    merged = [r for r in existing_raw if isinstance(r, dict)]
+            except Exception:
+                merged = []
+
+        def _rep_key(entry: dict[str, Any]) -> int | None:
+            rep_val = entry.get("repetition")
+            return rep_val if isinstance(rep_val, int) and rep_val > 0 else None
+
+        merged_by_rep: dict[int, dict[str, Any]] = {
+            rep: entry for entry in merged if (rep := _rep_key(entry)) is not None
+        }
+        unkeyed: list[dict[str, Any]] = [e for e in merged if _rep_key(e) is None]
+        for entry in results:
+            rep = _rep_key(entry)
+            if rep is None:
+                unkeyed.append(entry)
+            else:
+                merged_by_rep[rep] = entry
+
+        merged_results = [merged_by_rep[rep] for rep in sorted(merged_by_rep)] + unkeyed
+        tmp_path = results_file.with_suffix(".json.tmp")
+        tmp_path.write_text(json.dumps(merged_results, indent=2, cls=DateTimeEncoder))
+        tmp_path.replace(results_file)
+        logger.info("Saved raw results to %s", results_file)
         
         # Allow plugin-specific CSV exports for raw generator outputs
         if plugin:
             try:
                 exported = plugin.export_results_to_csv(
-                    results=results,
+                    results=merged_results,
                     output_dir=target_root,
                     run_id=self._current_run_id or "",
                     test_name=test_name,

@@ -1,5 +1,4 @@
 import os
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -88,9 +87,21 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
             "fio": fio_cfg,
         },
         workloads={
-            "stress_ng": WorkloadConfig(plugin="stress_ng", enabled=True, options=asdict(stress_cfg)),
-            "dd": WorkloadConfig(plugin="dd", enabled=True, options=asdict(dd_cfg)),
-            "fio": WorkloadConfig(plugin="fio", enabled=True, options=asdict(fio_cfg)),
+            "stress_ng": WorkloadConfig(
+                plugin="stress_ng",
+                enabled=True,
+                options=stress_cfg.model_dump(mode="json"),
+            ),
+            "dd": WorkloadConfig(
+                plugin="dd",
+                enabled=True,
+                options=dd_cfg.model_dump(mode="json"),
+            ),
+            "fio": WorkloadConfig(
+                plugin="fio",
+                enabled=True,
+                options=fio_cfg.model_dump(mode="json"),
+            ),
         },
     )
 

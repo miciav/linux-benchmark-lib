@@ -233,11 +233,15 @@ class PluginRegistry:
                             path,
                         )
 
-        # Primary directory (portable with runner)
-        _load_from_dir(USER_PLUGIN_DIR)
-        # Backward-compatible load from legacy location if different.
-        if LEGACY_USER_PLUGIN_DIR != USER_PLUGIN_DIR:
+        # Backward-compatible load from legacy location.
+        #
+        # When `LB_USER_PLUGIN_DIR` is explicitly set, treat it as authoritative and
+        # do not also load the legacy directory (avoids duplicate/override surprises).
+        if not os.environ.get("LB_USER_PLUGIN_DIR") and LEGACY_USER_PLUGIN_DIR != USER_PLUGIN_DIR:
             _load_from_dir(LEGACY_USER_PLUGIN_DIR)
+
+        # Primary directory (portable with runner) or env override.
+        _load_from_dir(USER_PLUGIN_DIR)
 
     def _resolve_entry_point_from_toml(self, root: Path, toml_path: Path) -> Optional[Path]:
         """Parse pyproject.toml to guess the package location."""

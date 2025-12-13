@@ -16,8 +16,6 @@ import pytest
 # except RuntimeError:
 #     pass # Already set, or not supported on this platform/context
 
-from dataclasses import asdict
-
 pytestmark = [pytest.mark.e2e, pytest.mark.multipass, pytest.mark.slowest]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -249,7 +247,7 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         workload_defs["stress_ng"] = WorkloadConfig(
             plugin="stress_ng",
             enabled=True,
-            options=asdict(stress_cfg),
+            options=stress_cfg.model_dump(mode="json"),
         )
     
     if "dd" in workloads:
@@ -262,7 +260,7 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         workload_defs["dd"] = WorkloadConfig(
             plugin="dd",
             enabled=True,
-            options=asdict(dd_cfg),
+            options=dd_cfg.model_dump(mode="json"),
         )
 
     if "fio" in workloads:
@@ -281,7 +279,7 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         workload_defs["fio"] = WorkloadConfig(
             plugin="fio",
             enabled=True,
-            options=asdict(fio_cfg),
+            options=fio_cfg.model_dump(mode="json"),
         )
 
     config_args["plugin_settings"] = plugin_settings

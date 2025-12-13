@@ -9,12 +9,17 @@ import pytest
 from typer.testing import CliRunner
 
 from lb_ui.cli import app
+from lb_controller.services.config_service import ConfigService
 
 pytestmark = [pytest.mark.unit]
 
 
-def test_cli_runs_list_and_analyze(tmp_path: Path) -> None:
+def test_cli_runs_list_and_analyze(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     runner = CliRunner()
+    # Avoid reading user-level config defaults (non-hermetic).
+    import lb_ui.cli as cli
+
+    monkeypatch.setattr(cli, "config_service", ConfigService(config_home=tmp_path / "config"))
 
     output_root = tmp_path / "benchmark_results"
     run_root = output_root / "run-20240101-000000" / "host1" / "stress_ng"

@@ -7,32 +7,33 @@ This module uses fio (Flexible I/O Tester) to generate advanced disk I/O workloa
 import json
 import logging
 import subprocess
-from dataclasses import asdict, dataclass
+# Removed from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, List, Optional, Type, Dict
 
+from pydantic import Field # Added pydantic Field
+
 from ...plugin_system.base_generator import BaseGenerator
-from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin
+from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
 
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class FIOConfig:
+class FIOConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     """Configuration for fio I/O testing."""
 
-    job_file: Optional[Path] = None
-    runtime: int = 60
-    rw: str = "randrw"
-    bs: str = "4k"
-    iodepth: int = 16
-    numjobs: int = 1
-    size: str = "1G"
-    directory: str = "/tmp"
-    name: str = "benchmark"
-    output_format: str = "json"
-    debug: bool = False
+    job_file: Optional[Path] = Field(default=None, description="Path to a custom FIO job file")
+    runtime: int = Field(default=60, gt=0, description="Duration of the test in seconds")
+    rw: str = Field(default="randrw", description="Read/write pattern (e.g., randrw, read, write)")
+    bs: str = Field(default="4k", description="Block size for I/O operations (e.g., 4k, 1M)")
+    iodepth: int = Field(default=16, gt=0, description="Number of I/O units to keep in flight")
+    numjobs: int = Field(default=1, gt=0, description="Number of jobs to run concurrently")
+    size: str = Field(default="1G", description="Total size of the I/O for each job")
+    directory: str = Field(default="/tmp", description="Directory to store test files")
+    name: str = Field(default="benchmark", description="Name of the FIO job")
+    output_format: str = Field(default="json", description="Output format (e.g., json, normal)")
+    debug: bool = Field(default=False, description="Enable debug logging for fio")
 
 
 class FIOGenerator(BaseGenerator):
@@ -100,7 +101,7 @@ class FIOGenerator(BaseGenerator):
                 f"--output-format={self.config.output_format}"
             ])
 
-        logger.debug("Built fio command with config: %s", asdict(self.config))
+        logger.debug("Built fio command with config: %s", self.config.model_dump_json()) # Using model_dump_json for Pydantic config
         
         return cmd
     
@@ -189,8 +190,8 @@ class FIOGenerator(BaseGenerator):
                 text=True
             )
             
-            # Wait for process to complete
-            stdout, stderr = self._process.communicate()
+            # Wait for process to complete with a timeout
+            stdout, stderr = self._process.communicate(timeout=self.config.runtime + self.config.timeout_buffer)
             logger.debug(
                 "fio finished with rc=%s (stdout=%d chars, stderr=%d chars)",
                 self._process.returncode,
@@ -211,7 +212,9 @@ class FIOGenerator(BaseGenerator):
                 "stderr": stderr,
                 "returncode": self._process.returncode,
                 "command": " ".join(cmd),
-                "parsed": parsed_result
+                "parsed": parsed_result,
+                "max_retries": self.config.max_retries, # Add inherited field
+                "tags": self.config.tags # Add inherited field
             }
             
             if self._process.returncode != 0:
@@ -223,9 +226,14 @@ class FIOGenerator(BaseGenerator):
                     logger.error(f"fio failed with return code {self._process.returncode}")
                     logger.error(f"stderr: {stderr}")
                 
+        except subprocess.TimeoutExpired:
+            logger.error(f"fio timed out after {self.config.runtime + self.config.timeout_buffer} seconds. Terminating process.")
+            self._process.kill()
+            self._process.wait()
+            self._result = {"error": f"Timeout after {self.config.runtime + self.config.timeout_buffer}s", "returncode": -1}
         except Exception as e:
             logger.error(f"Error running fio: {e}")
-            self._result = {"error": str(e)}
+            self._result = {"error": str(e), "returncode": -2}
         finally:
             self._process = None
             self._is_running = False
@@ -320,6 +328,8 @@ class FIOPlugin(WorkloadPlugin):
                     "write_iops": parsed.get("write_iops"),
                     "write_bw_mb": parsed.get("write_bw_mb"),
                     "write_lat_ms": parsed.get("write_lat_ms"),
+                    "max_retries": gen_result.get("max_retries"), # Add inherited field
+                    "tags": gen_result.get("tags"), # Add inherited field
                 }
             )
 

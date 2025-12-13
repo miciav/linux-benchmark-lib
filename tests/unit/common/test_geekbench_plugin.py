@@ -1,5 +1,8 @@
 import subprocess
+from pathlib import Path
+
 import pytest
+from pydantic import ValidationError
 
 import lb_runner.plugins.geekbench.plugin as gb_mod
 
@@ -83,6 +86,59 @@ def test_geekbench_generator_builds_command(monkeypatch, tmp_path):
     assert result["returncode"] == 0
     assert not archive_path.exists()
     assert not exec_path.parent.exists()
+
+def test_geekbench_load_config_from_file_merges_common_and_plugin(tmp_path: Path) -> None:
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(
+        """
+common:
+  max_retries: 2
+  tags: ["common"]
+plugins:
+  geekbench:
+    run_gpu: true
+    version: "6.3.0"
+    output_dir: "./out"
+    extra_args: ["--foo"]
+""".lstrip()
+    )
+    cfg = gb_mod.PLUGIN.load_config_from_file(cfg_path)
+    assert isinstance(cfg, gb_mod.GeekbenchConfig)
+    assert cfg.max_retries == 2
+    assert cfg.tags == ["common"]
+    assert cfg.run_gpu is True
+    assert cfg.version == "6.3.0"
+    assert cfg.output_dir == Path("./out")
+    assert cfg.extra_args == ["--foo"]
+
+
+def test_geekbench_load_config_from_file_ignores_unknown_fields(tmp_path: Path) -> None:
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(
+        """
+common:
+  max_retries: 1
+  totally_unknown: 123
+plugins:
+  geekbench:
+    also_unknown: "x"
+""".lstrip()
+    )
+    cfg = gb_mod.PLUGIN.load_config_from_file(cfg_path)
+    assert cfg.max_retries == 1
+
+
+def test_geekbench_load_config_from_file_invalid_data_raises(tmp_path: Path) -> None:
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text(
+        """
+plugins:
+  geekbench:
+    expected_runtime_seconds: 0
+""".lstrip()
+    )
+    with pytest.raises(ValidationError):
+        gb_mod.PLUGIN.load_config_from_file(cfg_path)
 
 
 def test_geekbench_download_detects_bad_archive(monkeypatch, tmp_path):

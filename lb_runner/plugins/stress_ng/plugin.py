@@ -5,28 +5,29 @@ Modular plugin version.
 
 import logging
 import subprocess
-from dataclasses import dataclass, field
+# Removed from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional, Type
 
+from pydantic import Field # Added pydantic Field
+
 from ...plugin_system.base_generator import BaseGenerator
-from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin
+from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class StressNGConfig:
+class StressNGConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     """Configuration for stress-ng workload generator."""
     
-    cpu_workers: int = 0  # 0 means use all available CPUs
-    cpu_method: str = "all"  # CPU stress method
-    vm_workers: int = 1  # Virtual memory workers
-    vm_bytes: str = "1G"  # Memory per VM worker
-    io_workers: int = 1  # I/O workers
-    timeout: int = 60  # Timeout in seconds
-    metrics_brief: bool = True  # Use brief metrics output
-    extra_args: List[str] = field(default_factory=list)
-    debug: bool = False
+    cpu_workers: int = Field(default=0, ge=0, description="0 means use all available CPUs")
+    cpu_method: str = Field(default="all", description="CPU stress method")
+    vm_workers: int = Field(default=1, ge=0, description="Virtual memory workers")
+    vm_bytes: str = Field(default="1G", description="Memory per VM worker")
+    io_workers: int = Field(default=1, ge=0, description="I/O workers")
+    timeout: int = Field(default=60, gt=0, description="Timeout in seconds")
+    metrics_brief: bool = Field(default=True, description="Use brief metrics output")
+    extra_args: List[str] = Field(default_factory=list, description="Additional stress-ng arguments")
+    debug: bool = Field(default=False)
 
 
 class StressNGGenerator(BaseGenerator):
@@ -73,7 +74,7 @@ class StressNGGenerator(BaseGenerator):
             )
             
             output_lines = []
-            safety_timeout = self.config.timeout + 5
+            safety_timeout = self.config.timeout + self.config.timeout_buffer # Use inherited timeout_buffer
             
             # Simple streaming loop (timeout handling is tricky here without select, 
             # but stress-ng handles its own timeout usually)
@@ -82,24 +83,33 @@ class StressNGGenerator(BaseGenerator):
                 if not line and self._process.poll() is not None:
                     break
                 if line:
-                    print(line, end='', flush=True)
+                    # Using print to ensure output goes to stdout even from subprocess
+                    # This might be captured by the runner depending on its implementation
+                    print(line, end='', flush=True) 
                     output_lines.append(line)
             
-            self._process.wait()
+            # Wait for the process to complete, with an additional safety timeout
+            self._process.wait(timeout=safety_timeout)
             stdout = "".join(output_lines)
-            stderr = "" # Merged
+            stderr = "" # Merged, if stderr was redirected to stdout
 
             self._result = {
                 "stdout": stdout,
                 "stderr": stderr,
                 "returncode": self._process.returncode,
-                "command": " ".join(cmd)
+                "command": " ".join(cmd),
+                "max_retries": self.config.max_retries, # Example of using inherited field
+                "tags": self.config.tags # Example of using inherited field
             }
             if self._process.returncode != 0:
-                logger.error(f"stress-ng failed with return code {self._process.returncode}")
+                logger.error(f"stress-ng failed with return code {self._process.returncode}. Output: {stdout}")
+        except subprocess.TimeoutExpired:
+            logger.error(f"stress-ng timed out after {safety_timeout} seconds. Terminating process.")
+            self._result = {"error": f"Timeout after {safety_timeout}s", "returncode": -1}
+            self._stop_workload() # Ensure the process is killed
         except Exception as e:
             logger.error(f"Error running stress-ng: {e}")
-            self._result = {"error": str(e)}
+            self._result = {"error": str(e), "returncode": -2}
         finally:
             self._process = None
             self._is_running = False
@@ -107,10 +117,12 @@ class StressNGGenerator(BaseGenerator):
     def _stop_workload(self) -> None:
         proc = self._process
         if proc and proc.poll() is None:
+            logger.info(f"Terminating stress-ng process {proc.pid}")
             proc.terminate()
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
+                logger.warning(f"stress-ng process {proc.pid} did not terminate gracefully, killing.")
                 proc.kill()
 
 
