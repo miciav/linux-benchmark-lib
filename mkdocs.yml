@@ -3,8 +3,7 @@ repo_url: https://github.com/miciav/linux-benchmark-lib
 repo_name: miciav/linux-benchmark-lib
 theme:
   name: material
-  icon:
-    logo: LB_logo
+  logo: img/LB_logo.png
   features:
     - navigation.tabs
     - navigation.sections
