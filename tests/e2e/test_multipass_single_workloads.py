@@ -6,12 +6,12 @@ were produced and are non-empty inside the workload-specific directory.
 """
 
 import os
-from dataclasses import asdict
 from pathlib import Path
 from typing import Dict, List
 
 import pytest
 import shutil
+import platform
 
 from lb_runner.benchmark_config import (
     BenchmarkConfig,
@@ -139,7 +139,11 @@ def test_multipass_stress_ng_three_reps(multipass_vm, tmp_path: Path) -> None:
     """Run stress-ng with three repetitions and verify artifacts."""
     intensity = get_intensity()
     stress_cfg = StressNGConfig(cpu_workers=1, timeout=intensity["stress_timeout"])
-    workload_cfg = WorkloadConfig(plugin="stress_ng", enabled=True, options=asdict(stress_cfg))
+    workload_cfg = WorkloadConfig(
+        plugin="stress_ng",
+        enabled=True,
+        options=stress_cfg.model_dump(mode="json"),
+    )
     _run_single_workload("stress_ng", workload_cfg, {"stress_ng": stress_cfg}, multipass_vm, tmp_path)
 
 
@@ -147,7 +151,11 @@ def test_multipass_dd_three_reps(multipass_vm, tmp_path: Path) -> None:
     """Run dd with three repetitions and verify artifacts."""
     intensity = get_intensity()
     dd_cfg = DDConfig(bs="1M", count=intensity["dd_count"], of_path="/tmp/dd_test")
-    workload_cfg = WorkloadConfig(plugin="dd", enabled=True, options=asdict(dd_cfg))
+    workload_cfg = WorkloadConfig(
+        plugin="dd",
+        enabled=True,
+        options=dd_cfg.model_dump(mode="json"),
+    )
     _run_single_workload("dd", workload_cfg, {"dd": dd_cfg}, multipass_vm, tmp_path)
 
 
@@ -165,22 +173,39 @@ def test_multipass_fio_three_reps(multipass_vm, tmp_path: Path) -> None:
         bs="4k",
         output_format="json",
     )
-    workload_cfg = WorkloadConfig(plugin="fio", enabled=True, options=asdict(fio_cfg))
+    workload_cfg = WorkloadConfig(
+        plugin="fio",
+        enabled=True,
+        options=fio_cfg.model_dump(mode="json"),
+    )
     _run_single_workload("fio", workload_cfg, {"fio": fio_cfg}, multipass_vm, tmp_path)
 
 
 def test_multipass_geekbench_three_reps(multipass_vm, tmp_path: Path) -> None:
     """Run Geekbench with three repetitions and verify artifacts."""
     intensity = get_intensity()
+    arch = platform.machine().lower()
+    is_arm = "arm" in arch or "aarch64" in arch
+    download_checksum = (
+        # Geekbench 6.3.0 Linux ARM preview tarball.
+        "7db7f4d6a6bdc31de4f63f0012abf7f1f00cdc5f6d64e727a47ff06bff6b6b04"
+        if is_arm
+        # Geekbench 6.3.0 Linux (x86_64) tarball.
+        else "01727999719cd515a7224075dcab4876deef2844c45e8c2e9f34197224039f3b"
+    )
     # Keep runtime bounded for e2e (Geekbench otherwise hints ~1800s).
     geek_cfg = GeekbenchConfig(
         output_dir=Path("/tmp"),
         skip_cleanup=True,
         run_gpu=False,
         expected_runtime_seconds=max(300, int(intensity.get("stress_timeout", 120))),
-        download_checksum="01727999719cd515a7224075dcab4876deef2844c45e8c2e9f34197224039f3b",
+        download_checksum=download_checksum,
     )
-    workload_cfg = WorkloadConfig(plugin="geekbench", enabled=True, options=asdict(geek_cfg))
+    workload_cfg = WorkloadConfig(
+        plugin="geekbench",
+        enabled=True,
+        options=geek_cfg.model_dump(mode="json"),
+    )
     _run_single_workload(
         "geekbench",
         workload_cfg,
@@ -204,7 +229,11 @@ def test_multipass_hpl_three_reps(multipass_vm, tmp_path: Path) -> None:
         mpi_launcher="fork",
         expected_runtime_seconds=max(300, int(intensity.get("stress_timeout", 120))),
     )
-    workload_cfg = WorkloadConfig(plugin="hpl", enabled=True, options=asdict(hpl_cfg))
+    workload_cfg = WorkloadConfig(
+        plugin="hpl",
+        enabled=True,
+        options=hpl_cfg.model_dump(mode="json"),
+    )
     _run_single_workload(
         "hpl",
         workload_cfg,
@@ -227,7 +256,11 @@ def test_multipass_yabs_three_reps(multipass_vm, tmp_path: Path) -> None:
         skip_cleanup=True,
         expected_runtime_seconds=max(600, int(intensity.get("stress_timeout", 120))),
     )
-    workload_cfg = WorkloadConfig(plugin="yabs", enabled=True, options=asdict(yabs_cfg))
+    workload_cfg = WorkloadConfig(
+        plugin="yabs",
+        enabled=True,
+        options=yabs_cfg.model_dump(mode="json"),
+    )
     _run_single_workload(
         "yabs",
         workload_cfg,

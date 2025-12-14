@@ -10,8 +10,6 @@ import logging
 import os
 import subprocess
 import sys
-import re
-import inspect
 import tomllib
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -24,21 +22,21 @@ from lb_controller.services import ConfigService, RunCatalogService, RunService
 from lb_ui.services.analytics_service import AnalyticsRequest, AnalyticsService
 from lb_controller.services.plugin_service import build_plugin_table, create_registry, PluginInstaller
 from lb_controller.services.doctor_service import DoctorService
+from lb_controller.services.doctor_types import DoctorReport
 from lb_controller.services.test_service import TestService
-from lb_ui.ui import (
-    ConsoleUIAdapter,
-    prompt_analytics_kind,
-    prompt_multi_select,
-    prompt_multipass,
-    prompt_plugins,
-    prompt_remote_host,
-    prompt_run_id,
-)
 from lb_controller.ui_interfaces import UIAdapter
 from lb_ui.ui import viewmodels
 
+# New UI System Imports
+from lb_ui.ui.system.protocols import UI
+from lb_ui.ui.system.facade import TUI
+from lb_ui.ui.system.models import TableModel, PickItem
+from lb_ui.ui.adapters.tui_adapter import TUIAdapter
 
-ui: UIAdapter = ConsoleUIAdapter()
+# Initialize UI
+ui: UI = TUI()
+ui_adapter: UIAdapter = TUIAdapter(ui)
+
 app = typer.Typer(help="Run linux-benchmark workloads locally or against remote hosts.", no_args_is_help=True)
 config_app = typer.Typer(help="Manage benchmark configuration files.", no_args_is_help=True)
 doctor_app = typer.Typer(help="Check local prerequisites.", no_args_is_help=True)
@@ -73,8 +71,8 @@ TEST_CLI_ENABLED = bool(os.environ.get("LB_ENABLE_TEST_CLI")) or DEV_MODE
 
 config_service = ConfigService()
 run_service = RunService(registry_factory=create_registry)
-doctor_service = DoctorService(ui_adapter=ui, config_service=config_service)
-test_service = TestService(ui_adapter=ui)
+doctor_service = DoctorService(config_service=config_service)
+test_service = TestService()
 analytics_service = AnalyticsService()
 
 
@@ -94,14 +92,12 @@ def entry(
     ),
 ) -> None:
     """Global entry point handling interactive vs headless modes."""
-    global ui
+    global ui, ui_adapter
     if headless:
-        # Force non-interactive console
-        from rich.console import Console
-        if isinstance(ui, ConsoleUIAdapter):
-            ui.console = Console(force_terminal=False, force_interactive=False)
-        doctor_service.ui = ui
-        test_service.ui = ui
+        from lb_ui.ui.system.headless import HeadlessUI
+        ui = HeadlessUI()
+        ui_adapter = TUIAdapter(ui)
+        # Re-inject if necessary, but services now mostly return data or use ui_adapter passed in methods (RunService)
 
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
@@ -147,11 +143,11 @@ def _print_run_plan(
         ]
         for item in plan
     ]
-    ui.show_table(
-        "Run Plan",
-        ["Workload", "Plugin", "Intensity", "Configuration", "Repetitions", "Status"],
-        rows,
-    )
+    ui.tables.show(TableModel(
+        title="Run Plan",
+        columns=["Workload", "Plugin", "Intensity", "Configuration", "Repetitions", "Status"],
+        rows=rows,
+    ))
 
 
 def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[str]]]:
@@ -164,20 +160,20 @@ def _print_run_journal_summary(journal_path: Path, log_path: Path | None = None)
     try:
         journal = RunJournal.load(journal_path)
     except Exception as exc:
-        ui.show_warning(f"Could not read run journal at {journal_path}: {exc}")
+        ui.present.warning(f"Could not read run journal at {journal_path}: {exc}")
         if log_path:
-            ui.show_info(f"Ansible output log: {log_path}")
+            ui.present.info(f"Ansible output log: {log_path}")
         return
 
     columns, rows = _build_journal_summary(journal)
     if rows:
-        ui.show_table(f"Run Journal (ID: {journal.run_id})", columns, rows)
+        ui.tables.show(TableModel(title=f"Run Journal (ID: {journal.run_id})", columns=columns, rows=rows))
     else:
-        ui.show_warning("Run journal was created but contains no tasks.")
+        ui.present.warning("Run journal was created but contains no tasks.")
 
-    ui.show_info(f"Journal saved to {journal_path}")
+    ui.present.info(f"Journal saved to {journal_path}")
     if log_path:
-        ui.show_info(f"Ansible output log saved to {log_path}")
+        ui.present.info(f"Ansible output log saved to {log_path}")
 
 
 @config_app.command("edit")
@@ -193,7 +189,7 @@ def config_edit(
     try:
         config_service.open_editor(path)
     except Exception as exc:
-        ui.show_error(str(exc))
+        ui.present.error(str(exc))
         raise typer.Exit(1)
 
 
@@ -201,12 +197,12 @@ def _load_config(config_path: Optional[Path]) -> BenchmarkConfig:
     """Load a BenchmarkConfig from disk or fall back to defaults."""
     cfg, resolved, stale = config_service.load_for_read(config_path)
     if stale:
-        ui.show_warning(f"Saved default config not found: {stale}")
+        ui.present.warning(f"Saved default config not found: {stale}")
     if resolved is None:
-        ui.show_warning("No config file found; using built-in defaults.")
+        ui.present.warning("No config file found; using built-in defaults.")
         return cfg
 
-    ui.show_success(f"Loaded config: {resolved}")
+    ui.present.success(f"Loaded config: {resolved}")
     return cfg
 
 
@@ -241,43 +237,38 @@ def config_init(
     target.parent.mkdir(parents=True, exist_ok=True)
 
     if repetitions < 1:
-        ui.show_error("Repetitions must be at least 1.")
+        ui.present.error("Repetitions must be at least 1.")
         raise typer.Exit(1)
 
     cfg = config_service.create_default_config()
     cfg.repetitions = repetitions
     if interactive:
-        details = prompt_remote_host(
-            {
-                "name": "node1",
-                "address": "192.168.1.10",
-                "user": "ubuntu",
-                "key_path": str(Path("~/.ssh/id_rsa").expanduser()),
-                "become": "true",
-            }
-        )
-        if details:
-            cfg.remote_hosts = [
-                RemoteHostConfig(
-                    name=details.name,
-                    address=details.address,
-                    user=details.user,
-                    become=details.become,
-                    vars={
-                        "ansible_ssh_private_key_file": details.key_path,
-                        "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
-                    },
-                )
-            ]
-            cfg.remote_execution.enabled = True
-        else:
-            ui.show_warning("Skipping remote host setup.")
-
+        ui.present.info("Configure remote host")
+        name = ui.form.ask("Host name", default="node1")
+        address = ui.form.ask("Host address", default="192.168.1.10")
+        user = ui.form.ask("SSH user", default="ubuntu")
+        key_path = ui.form.ask("SSH private key path", default="~/.ssh/id_rsa")
+        become = ui.form.confirm("Use sudo (become)?", default=True)
+        
+        cfg.remote_hosts = [
+            RemoteHostConfig(
+                name=name,
+                address=address,
+                user=user,
+                become=become,
+                vars={
+                    "ansible_ssh_private_key_file": key_path,
+                    "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
+                },
+            )
+        ]
+        cfg.remote_execution.enabled = True
+        
     cfg.save(target)
-    ui.show_success(f"Config written to {target}")
+    ui.present.success(f"Config written to {target}")
     if set_default:
         config_service.write_saved_config_path(target)
-        ui.show_info(f"Default config set to {target}")
+        ui.present.info(f"Default config set to {target}")
 
 
 @config_app.command("set-repetitions")
@@ -293,7 +284,7 @@ def config_set_repetitions(
     """Persist the desired repetitions count to the configuration file."""
 
     if repetitions < 1:
-        ui.show_error("Repetitions must be at least 1.")
+        ui.present.error("Repetitions must be at least 1.")
         raise typer.Exit(1)
 
     cfg, target, stale, _ = config_service.load_for_write(config, allow_create=True)
@@ -304,8 +295,8 @@ def config_set_repetitions(
         config_service.write_saved_config_path(target)
 
     if stale:
-        ui.show_warning(f"Saved default config not found: {stale}")
-    ui.show_success(f"Repetitions set to {repetitions} in {target}")
+        ui.present.warning(f"Saved default config not found: {stale}")
+    ui.present.success(f"Repetitions set to {repetitions} in {target}")
 
 
 @config_app.command("set-default")
@@ -315,10 +306,10 @@ def config_set_default(
     """Remember a config path as the CLI default."""
     target = Path(path).expanduser()
     if not target.exists():
-        ui.show_error(f"Config file not found: {target}")
+        ui.present.error(f"Config file not found: {target}")
         raise typer.Exit(1)
     config_service.write_saved_config_path(target)
-    ui.show_success(f"Default config set to {target}")
+    ui.present.success(f"Default config set to {target}")
 
 
 @config_app.command("show-default")
@@ -326,16 +317,16 @@ def config_show_default() -> None:
     """Show the currently saved default config path."""
     saved, _ = config_service.read_saved_config_path()
     if not saved:
-        ui.show_warning("No default config is set.")
+        ui.present.warning("No default config is set.")
         return
-    ui.show_success(f"Default config: {saved}")
+    ui.present.success(f"Default config: {saved}")
 
 
 @config_app.command("unset-default")
 def config_unset_default() -> None:
     """Clear the saved default config path."""
     config_service.clear_saved_config_path()
-    ui.show_success("Default config cleared.")
+    ui.present.success("Default config cleared.")
 
 
 @config_app.command("workloads")
@@ -350,10 +341,9 @@ def config_list_workloads(
         [name, wl.plugin, "yes" if wl.enabled else "no"]
         for name, wl in sorted(cfg.workloads.items())
     ]
-    ui.show_table("Configured Workloads", ["Name", "Plugin", "Enabled"], rows)
-    header = "Name | Plugin | Enabled"
-    lines = [f"{name} | {wl.plugin} | {'yes' if wl.enabled else 'no'}" for name, wl in sorted(cfg.workloads.items())]
-    typer.echo("\n".join([header, *lines]))
+    ui.tables.show(TableModel(title="Configured Workloads", columns=["Name", "Plugin", "Enabled"], rows=rows))
+    # Plain text echo for pipe-ability if needed (optional, keeping consistent with old CLI if desired, but prompt said "No print... outside UI layer")
+    # I'll rely on TableModel mostly.
 
 
 @config_app.command("enable-workload")
@@ -370,10 +360,10 @@ def config_enable_workload(
     try:
         cfg, target, stale = config_service.update_workload_enabled(name, True, config, set_default)
         if stale:
-            ui.show_warning(f"Saved default config not found: {stale}")
-        ui.show_success(f"Workload '{name}' enabled in {target}")
+            ui.present.warning(f"Saved default config not found: {stale}")
+        ui.present.success(f"Workload '{name}' enabled in {target}")
     except ValueError as e:
-        ui.show_error(str(e))
+        ui.present.error(str(e))
         raise typer.Exit(1)
 
 
@@ -390,8 +380,8 @@ def config_disable_workload(
     """Disable a workload in the configuration (creates it if missing)."""
     cfg, target, stale = config_service.update_workload_enabled(name, False, config, set_default)
     if stale:
-        ui.show_warning(f"Saved default config not found: {stale}")
-    ui.show_success(f"Workload '{name}' disabled in {target}")
+        ui.present.warning(f"Saved default config not found: {stale}")
+    ui.present.success(f"Workload '{name}' disabled in {target}")
 
 
 def _select_workloads_interactively(
@@ -402,57 +392,73 @@ def _select_workloads_interactively(
 ) -> None:
     """Interactively toggle configured workloads using arrows + space."""
     if not sys.stdin.isatty() or not sys.stdout.isatty():
-        ui.show_error("Interactive selection requires a TTY.")
+        ui.present.error("Interactive selection requires a TTY.")
         raise typer.Exit(1)
 
     available_plugins = registry.available()
-    enabled_map = {name: wl.enabled for name, wl in cfg.workloads.items()}
-    descriptions: Dict[str, str] = {}
-    rows = []
+    items = []
+
+    intensities_catalog = [
+        PickItem(id="user_defined", title="user_defined", description="Custom intensity"),
+        PickItem(id="low", title="low", description="Light load"),
+        PickItem(id="medium", title="medium", description="Balanced load"),
+        PickItem(id="high", title="high", description="Aggressive load"),
+    ]
+
+    # Prepare items for picker with variants as intensities
     for name, wl in sorted(cfg.workloads.items()):
         plugin_obj = available_plugins.get(wl.plugin)
         description = getattr(plugin_obj, "description", "") if plugin_obj else ""
-        descriptions[name] = description or ""
-        rows.append([name, wl.plugin, "✓" if wl.enabled else "✗", wl.intensity, description or "-"])
-
-    ui.show_table("Configured Workloads", ["Workload", "Plugin", "Enabled", "Intensity", "Description"], rows)
-
-    selection = prompt_plugins(descriptions, enabled_map, force=False, show_table=False)
-    if selection is None:
-        ui.show_warning("Selection cancelled.")
-        raise typer.Exit(1)
-
-    def _prompt_intensities(selected: Set[str]) -> Dict[str, str]:
-        try:
-            from InquirerPy import inquirer
-        except ModuleNotFoundError:
-            ui.show_warning(
-                "InquirerPy not installed; keeping existing intensities for selection."
+        current_intensity = wl.intensity if wl.intensity else "user_defined"
+        variant_list = []
+        for variant in intensities_catalog:
+            label = variant.title
+            desc = variant.description
+            if variant.id == current_intensity:
+                desc = f"(current) {desc}"
+            variant_list.append(
+                PickItem(
+                    id=variant.id,
+                    title=label,
+                    description=desc,
+                    payload=variant.payload,
+                    tags=variant.tags,
+                    search_blob=variant.search_blob or label,
+                    preview=variant.preview,
+                )
             )
-            return {
-                name: cfg.workloads.get(name, WorkloadConfig(plugin=name)).intensity
-                or "medium"
-                for name in selected
-            }
 
-        intensities: Dict[str, str] = {}
-        choices = ["user_defined", "low", "medium", "high"]
-        for name in sorted(selected):
-            current = cfg.workloads.get(name, WorkloadConfig(plugin=name)).intensity
-            default_choice = current if current in choices else "user_defined"
-            intensity = inquirer.select(
-                message=f"Intensity for {name}",
-                choices=choices,
-                default=default_choice,
-            ).execute()
-            intensities[name] = intensity or default_choice
-        return intensities
+        item = PickItem(
+            id=name,
+            title=name,
+            description=f"Plugin: {wl.plugin} | Intensity: {current_intensity} | {description}",
+            payload=wl,
+            variants=variant_list,
+            search_blob=f"{name} {wl.plugin} {description}",
+        )
+        items.append(item)
 
-    intensities = _prompt_intensities(selection)
+    selection = ui.picker.pick_many(items, title="Select Configured Workloads")
+    selected_names = set()
+    intensities: Dict[str, str] = {}
+
+    for picked in selection:
+        # Variants come back as "<workload>:<intensity>"
+        if ":" in picked.id:
+            base, level = picked.id.split(":", 1)
+            selected_names.add(base)
+            intensities[base] = level
+        else:
+            selected_names.add(picked.id)
+
+    if not selection:
+        ui.present.warning("Selection cancelled or empty.")
+        if not ui.form.confirm("Do you want to proceed with NO workloads enabled?", default=False):
+            raise typer.Exit(1)
 
     cfg_write, target, stale, _ = config_service.load_for_write(config, allow_create=True)
     for name, wl in cfg_write.workloads.items():
-        wl.enabled = name in selection
+        wl.enabled = name in selected_names
         if wl.enabled and name in intensities:
             wl.intensity = intensities[name]
         cfg_write.workloads[name] = wl
@@ -460,8 +466,8 @@ def _select_workloads_interactively(
     if set_default:
         config_service.write_saved_config_path(target)
     if stale:
-        ui.show_warning(f"Saved default config not found: {stale}")
-    ui.show_success(f"Workload selection saved to {target}")
+        ui.present.warning(f"Saved default config not found: {stale}")
+    ui.present.success(f"Workload selection saved to {target}")
 
 
 @config_app.command("select-workloads")
@@ -478,47 +484,70 @@ def config_select_workloads(
     """Interactively enable/disable workloads using arrows + space."""
     cfg = _load_config(config)
     if not cfg.workloads:
-        ui.show_warning("No workloads configured yet. Enable plugins first with `lb plugin list --enable NAME`.")
+        ui.present.warning("No workloads configured yet. Enable plugins first with `lb plugin list --enable NAME`.")
         return
 
     registry = create_registry()
     _select_workloads_interactively(cfg, registry, config, set_default)
 
 
+def _render_doctor_report(report: DoctorReport) -> None:
+    for group in report.groups:
+        rows = [[item.label, "✓" if item.ok else "✗"] for item in group.items]
+        ui.tables.show(TableModel(title=group.title, columns=["Item", "Status"], rows=rows))
+    
+    for msg in report.info_messages:
+        ui.present.info(msg)
+        
+    if report.total_failures > 0:
+        ui.present.error(f"Found {report.total_failures} failures.")
+    else:
+        ui.present.success("All checks passed.")
+
+
 @doctor_app.callback(invoke_without_command=True)
 def doctor_root(ctx: typer.Context) -> None:
     """Check environment health and prerequisites."""
     if ctx.invoked_subcommand is None:
-        failures = doctor_service.check_all()
-        if failures > 0:
+        report = doctor_service.check_all()
+        _render_doctor_report(report)
+        if report.total_failures > 0:
             raise typer.Exit(1)
 
 
 @doctor_app.command("all")
 def doctor_all() -> None:
     """Run all checks."""
-    if doctor_service.check_all() > 0:
+    report = doctor_service.check_all()
+    _render_doctor_report(report)
+    if report.total_failures > 0:
         raise typer.Exit(1)
 
 
 @doctor_app.command("controller")
 def doctor_controller() -> None:
     """Check controller prerequisites (Ansible, Python deps)."""
-    if doctor_service.check_controller() > 0:
+    report = doctor_service.check_controller()
+    _render_doctor_report(report)
+    if report.total_failures > 0:
         raise typer.Exit(1)
 
 
 @doctor_app.command("local")
 def doctor_local() -> None:
     """Check local workload tools (stress-ng, fio, etc)."""
-    if doctor_service.check_local_tools() > 0:
+    report = doctor_service.check_local_tools()
+    _render_doctor_report(report)
+    if report.total_failures > 0:
         raise typer.Exit(1)
 
 
 @doctor_app.command("multipass")
 def doctor_multipass() -> None:
     """Check Multipass installation."""
-    if doctor_service.check_multipass() > 0:
+    report = doctor_service.check_multipass()
+    _render_doctor_report(report)
+    if report.total_failures > 0:
         raise typer.Exit(1)
 
 
@@ -547,7 +576,7 @@ def runs_list(
     )
     runs = catalog.list_runs()
     if not runs:
-        ui.show_warning(f"No runs found under {output_root}")
+        ui.present.warning(f"No runs found under {output_root}")
         return
     rows: List[List[str]] = []
     for run in runs:
@@ -555,7 +584,7 @@ def runs_list(
         hosts = ", ".join(run.hosts) if run.hosts else "-"
         workloads = ", ".join(run.workloads) if run.workloads else "-"
         rows.append([run.run_id, created, hosts, workloads])
-    ui.show_table("Benchmark Runs", ["Run ID", "Created", "Hosts", "Workloads"], rows)
+    ui.tables.show(TableModel(title="Benchmark Runs", columns=["Run ID", "Created", "Hosts", "Workloads"], rows=rows))
 
 
 @runs_app.command("show")
@@ -584,7 +613,7 @@ def runs_show(
     )
     run = catalog.get_run(run_id)
     if not run:
-        ui.show_error(f"Run '{run_id}' not found under {output_root}")
+        ui.present.error(f"Run '{run_id}' not found under {output_root}")
         raise typer.Exit(1)
     rows = [
         ["Run ID", run.run_id],
@@ -596,7 +625,7 @@ def runs_show(
         ["Workloads", ", ".join(run.workloads) if run.workloads else "-"],
         ["Journal", str(run.journal_path or "-")],
     ]
-    ui.show_table("Run Details", ["Field", "Value"], rows)
+    ui.tables.show(TableModel(title="Run Details", columns=["Field", "Value"], rows=rows))
 
 
 @app.command("analyze")
@@ -648,31 +677,41 @@ def analyze(
     if selected_run_id is None:
         runs = catalog.list_runs()
         if not runs:
-            ui.show_error(f"No runs found under {output_root}")
+            ui.present.error(f"No runs found under {output_root}")
             raise typer.Exit(1)
-        selection = prompt_run_id(runs, ui)
-        selected_run_id = selection or runs[0].run_id
-        ui.show_info(f"Selected run: {selected_run_id}")
+            
+        items = [PickItem(id=r.run_id, title=f"{r.run_id} ({r.created_at})") for r in runs]
+        selection = ui.picker.pick_one(items, title="Select a benchmark run")
+        selected_run_id = selection.id if selection else runs[0].run_id
+        ui.present.info(f"Selected run: {selected_run_id}")
 
     run = catalog.get_run(selected_run_id)
     if not run:
-        ui.show_error(f"Run '{selected_run_id}' not found under {output_root}")
+        ui.present.error(f"Run '{selected_run_id}' not found under {output_root}")
         raise typer.Exit(1)
 
-    selected_kind = kind or prompt_analytics_kind(["aggregate"], ui) or "aggregate"
+    selected_kind = kind
+    if not selected_kind:
+        k_items = [PickItem(id="aggregate", title="aggregate")]
+        k_sel = ui.picker.pick_one(k_items, title="Select analytics type", query_hint="aggregate")
+        selected_kind = k_sel.id if k_sel else "aggregate"
+        
     if selected_kind != "aggregate":
-        ui.show_error(f"Unsupported analytics kind: {selected_kind}")
+        ui.present.error(f"Unsupported analytics kind: {selected_kind}")
         raise typer.Exit(1)
 
     selected_workloads = workload
     if selected_workloads is None:
-        multi = prompt_multi_select("Select workloads to analyze", list(run.workloads))
-        selected_workloads = sorted(multi) if multi is not None else None
+        # Multi select workloads
+        w_items = [PickItem(id=w, title=w) for w in list(run.workloads)]
+        w_sel = ui.picker.pick_many(w_items, title="Select workloads to analyze")
+        selected_workloads = sorted([s.id for s in w_sel]) if w_sel else None
 
     selected_hosts = host
     if selected_hosts is None:
-        multi_hosts = prompt_multi_select("Select hosts to analyze", list(run.hosts))
-        selected_hosts = sorted(multi_hosts) if multi_hosts is not None else None
+        h_items = [PickItem(id=h, title=h) for h in list(run.hosts)]
+        h_sel = ui.picker.pick_many(h_items, title="Select hosts to analyze")
+        selected_hosts = sorted([s.id for s in h_sel]) if h_sel else None
 
     req = AnalyticsRequest(
         run=run,
@@ -680,14 +719,14 @@ def analyze(
         hosts=selected_hosts,
         workloads=selected_workloads,
     )
-    with ui.status(f"Running analytics '{selected_kind}' on {run.run_id}"):
+    with ui.progress.status(f"Running analytics '{selected_kind}' on {run.run_id}"):
         produced = analytics_service.run(req)
     if not produced:
-        ui.show_warning("No analytics artifacts produced.")
+        ui.present.warning("No analytics artifacts produced.")
         return
     rows = [[str(p)] for p in produced]
-    ui.show_table("Analytics Artifacts", ["Path"], rows)
-    ui.show_success("Analytics completed.")
+    ui.tables.show(TableModel(title="Analytics Artifacts", columns=["Path"], rows=rows))
+    ui.present.success("Analytics completed.")
 
 
 app.add_typer(config_app, name="config")
@@ -701,7 +740,7 @@ else:
     @app.command("test")
     def _test_disabled() -> None:
         """Hide test helpers when not installed in dev mode."""
-        ui.show_error(
+        ui.present.error(
             "`lb test` is available only in dev installs. "
             "Run `LB_ENABLE_TEST_CLI=1 lb test ...` or create .lb_dev_cli to override."
         )
@@ -736,19 +775,51 @@ def test_multipass(
 ) -> None:
     """Run the Multipass integration test helper."""
     if not _check_command("multipass"):
-        ui.show_error("multipass not found in PATH.")
+        ui.present.error("multipass not found in PATH.")
         raise typer.Exit(1)
     if not _check_import("pytest"):
-        ui.show_error("pytest is not installed.")
+        ui.present.error("pytest is not installed.")
         raise typer.Exit(1)
 
     output = output.expanduser()
     output.mkdir(parents=True, exist_ok=True)
 
-    scenario_choice, level = test_service.select_multipass(
-        multi_workloads=multi_workloads,
-        default_level="medium",
-    )
+    # Multipass selection logic moved here
+    default_level = "medium"
+    scenario_choice = "stress_ng"
+    level = default_level
+
+    if multi_workloads:
+        scenario_choice = "multi"
+    else:
+        # Use TUI
+        cfg_preview = ConfigService().create_default_config().workloads
+        names = sorted(cfg_preview.keys())
+        options = list(dict.fromkeys(names + ["multi"]).keys())
+        
+        # Hierarchical construction for Master-Detail selection
+        items = []
+        for opt in options:
+            variants = []
+            for l in ["low", "medium", "high"]:
+                variants.append(PickItem(id=f"{opt}:{l}", title=l))
+            
+            items.append(PickItem(id=opt, title=opt, variants=variants, description=f"Run {opt} scenario"))
+
+        selection = ui.picker.pick_one(items, title="Select Multipass Scenario & Intensity")
+        if selection:
+            # If a variant was selected, its ID is combined "scenario:intensity"
+            if ":" in selection.id:
+                scenario_choice, level = selection.id.split(":")
+            else:
+                # Fallback if parent selected without variant (shouldn't happen with new logic, but robust)
+                scenario_choice = selection.id
+                level = default_level
+                
+            ui.present.success(f"Selected: {scenario_choice} @ {level}")
+        else:
+            ui.present.info(f"Using default: {scenario_choice} @ {level}")
+
     intensity = test_service.get_multipass_intensity()
     scenario = test_service.build_multipass_scenario(intensity, scenario_choice)
 
@@ -765,19 +836,18 @@ def test_multipass(
         cmd.extend(extra_args)
 
     label = "multi-VM" if vm_count > 1 else "single-VM"
-    typer.echo(f"VM count: {vm_count} ({label})")
-    ui.show_info(f"VM count: {vm_count} ({label})")
-    ui.show_info(f"Scenario: {scenario.workload_label} -> {scenario.target_label}")
-    ui.show_info(f"Artifacts: {output}")
+    ui.present.info(f"VM count: {vm_count} ({label})")
+    ui.present.info(f"Scenario: {scenario.workload_label} -> {scenario.target_label}")
+    ui.present.info(f"Artifacts: {output}")
 
     try:
         result = subprocess.run(cmd, check=False, env=env)
     except Exception as exc:
-        ui.show_error(f"Failed to launch Multipass test: {exc}")
+        ui.present.error(f"Failed to launch Multipass test: {exc}")
         raise typer.Exit(1)
 
     if result.returncode != 0:
-        ui.show_error(f"`pytest` exited with {result.returncode}")
+        ui.present.error(f"`pytest` exited with {result.returncode}")
         raise typer.Exit(result.returncode)
 
 
@@ -869,7 +939,7 @@ def run(
 ) -> None:
     """Run workloads locally, remotely, or inside the container image."""
     if not DEV_MODE and (docker or multipass):
-        ui.show_error("--docker and --multipass are available only in dev mode.")
+        ui.present.error("--docker and --multipass are available only in dev mode.")
         raise typer.Exit(1)
 
     if debug:
@@ -878,14 +948,14 @@ def run(
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
             force=True,
         )
-        ui.show_info("Debug logging enabled")
+        ui.present.info("Debug logging enabled")
 
     if multipass and multipass_vm_count < 1:
-        ui.show_error("When using --multipass, --multipass-vm-count must be at least 1.")
+        ui.present.error("When using --multipass, --multipass-vm-count must be at least 1.")
         raise typer.Exit(1)
 
     if repetitions is not None and repetitions < 1:
-        ui.show_error("Repetitions must be at least 1.")
+        ui.present.error("Repetitions must be at least 1.")
         raise typer.Exit(1)
 
     try:
@@ -906,7 +976,7 @@ def run(
             multipass_vm_count=multipass_vm_count,
             debug=debug,
             intensity=intensity,
-            ui_adapter=ui,
+            ui_adapter=ui_adapter,
             setup=setup,
         )
 
@@ -919,19 +989,19 @@ def run(
             remote_mode=context.use_remote,
         )
 
-        result = run_service.execute(context, run_id, ui_adapter=ui)
+        result = run_service.execute(context, run_id, ui_adapter=ui_adapter)
 
     except ValueError as e:
-        ui.show_warning(str(e))
+        ui.present.warning(str(e))
         raise typer.Exit(1)
     except Exception as exc:
-        ui.show_error(f"Run failed: {exc}")
+        ui.present.error(f"Run failed: {exc}")
         raise typer.Exit(1)
 
     if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):
         _print_run_journal_summary(result.journal_path, log_path=result.log_path)
 
-    ui.show_success("Run completed.")
+    ui.present.success("Run completed.")
 
 
 def _select_plugins_interactively(
@@ -939,15 +1009,24 @@ def _select_plugins_interactively(
 ) -> Optional[Set[str]]:
     """Prompt the user to enable/disable plugins using arrows and space."""
     if not sys.stdin.isatty() or not sys.stdout.isatty():
-        ui.show_error("Interactive selection requires a TTY.")
+        ui.present.error("Interactive selection requires a TTY.")
         return None
+        
     headers, rows = build_plugin_table(registry, enabled=enabled_map)
-    ui.show_table("Available Workload Plugins", headers, rows)
-    plugins = {name: getattr(plugin, "description", "") or "" for name, plugin in registry.available().items()}
-    selection = prompt_plugins(plugins, enabled_map, force=False, show_table=False)
-    if selection is None:
-        ui.show_warning("Selection cancelled.")
-    return selection
+    ui.tables.show(TableModel(title="Available Workload Plugins", columns=headers, rows=rows))
+    
+    items = []
+    for name, plugin in registry.available().items():
+        desc = getattr(plugin, "description", "") or ""
+        items.append(PickItem(id=name, title=name, description=desc))
+    
+    selection = ui.picker.pick_many(items, title="Select Workload Plugins")
+    
+    if not selection:
+        ui.present.warning("Selection cancelled.")
+        return None
+        
+    return {s.id for s in selection}
 
 
 def _apply_plugin_selection(
@@ -968,8 +1047,8 @@ def _apply_plugin_selection(
     if set_default:
         config_service.write_saved_config_path(target)
     if stale:
-        ui.show_warning(f"Saved default config not found: {stale}")
-    ui.show_success(f"Plugin selection saved to {target}")
+        ui.present.warning(f"Saved default config not found: {stale}")
+    ui.present.success(f"Plugin selection saved to {target}")
     return {
         name: cfg.workloads.get(name, WorkloadConfig(plugin=name)).enabled
         for name in registry.available()
@@ -999,18 +1078,19 @@ def _list_plugins_command(
     ),
 ) -> None:
     """Show available workload plugins (built-ins and entry points)."""
-    typer.echo("Available Workload Plugins")
-    typer.echo("Enabled")
+    # Using echo here for non-UI/header output or remove?
+    # ui.present.info? 
+    # Just skip, show table.
     registry = create_registry()
     if not registry.available():
-        ui.show_warning("No workload plugins registered.")
+        ui.present.warning("No workload plugins registered.")
         return
 
     if enable and disable:
-        ui.show_error("Choose either --enable or --disable, not both.")
+        ui.present.error("Choose either --enable or --disable, not both.")
         raise typer.Exit(1)
     if select and (enable or disable):
-        ui.show_error("Use --select alone, not with --enable/--disable.")
+        ui.present.error("Use --select alone, not with --enable/--disable.")
         raise typer.Exit(1)
 
     cfg_for_table: Optional[BenchmarkConfig] = None
@@ -1020,7 +1100,7 @@ def _list_plugins_command(
         if disable:
             cfg_for_table, _, _ = config_service.update_workload_enabled(disable, False, config, set_default)
     except ValueError as e:
-        ui.show_error(str(e))
+        ui.present.error(str(e))
         raise typer.Exit(1)
 
     if cfg_for_table is None:
@@ -1034,7 +1114,7 @@ def _list_plugins_command(
         enabled_map = _apply_plugin_selection(registry, selection, config, set_default)
 
     headers, rows = build_plugin_table(registry, enabled=enabled_map)
-    ui.show_table("Available Workload Plugins", headers, rows)
+    ui.tables.show(TableModel(title="Available Workload Plugins", columns=headers, rows=rows))
 
 
 @plugin_app.callback(invoke_without_command=True)
@@ -1052,7 +1132,7 @@ def plugin_root(
     set_default: bool = typer.Option(
         False,
         "--set-default/--no-set-default",
-        help="Remember the config after enabling/disabling.",
+        help="Remember the config after enabling/disabling."
     ),
     select: bool = typer.Option(
         False,
@@ -1158,10 +1238,10 @@ def plugin_install(
     installer = PluginInstaller()
     try:
         name = installer.install(path, manifest, force)
-        ui.show_success(f"Plugin installed: {name}")
-        ui.show_info("Run `lb plugin list` to verify.")
+        ui.present.success(f"Plugin installed: {name}")
+        ui.present.info("Run `lb plugin list` to verify.")
     except Exception as e:
-        ui.show_error(f"Installation failed: {e}")
+        ui.present.error(f"Installation failed: {e}")
         raise typer.Exit(1)
 
 
@@ -1183,8 +1263,8 @@ def plugin_uninstall(
     """Uninstall a user plugin."""
     requested_name = name
     if name.startswith(("http://", "https://", "git@")) or name.endswith(".git"):
-         ui.show_warning(f"'{name}' looks like a URL/path. `uninstall` expects the plugin name (e.g. 'unixbench').")
-         ui.show_info("Run `lb plugin list` to see installed plugins.")
+         ui.present.warning(f"'{name}' looks like a URL/path. `uninstall` expects the plugin name (e.g. 'unixbench').")
+         ui.present.info("Run `lb plugin list` to see installed plugins.")
          raise typer.Exit(1)
 
     installer = PluginInstaller()
@@ -1215,22 +1295,22 @@ def plugin_uninstall(
                 _, config_path, config_stale, removed_config = config_service.remove_plugin(requested_name, config)
             except FileNotFoundError:
                 if config is not None:
-                    ui.show_warning(f"Config file not found: {config}")
+                    ui.present.warning(f"Config file not found: {config}")
             except Exception as exc:
-                ui.show_warning(f"Config cleanup failed: {exc}")
+                ui.present.warning(f"Config cleanup failed: {exc}")
 
         if removed_files:
-            ui.show_success(f"Plugin '{name}' uninstalled.")
+            ui.present.success(f"Plugin '{name}' uninstalled.")
         else:
-            ui.show_warning(f"Plugin '{name}' not found or not a user plugin.")
+            ui.present.warning(f"Plugin '{name}' not found or not a user plugin.")
 
         if removed_config and config_path:
-            ui.show_info(f"Removed '{requested_name}' from config {config_path}")
+            ui.present.info(f"Removed '{requested_name}' from config {config_path}")
         if config_stale:
-            ui.show_warning(f"Saved default config not found: {config_stale}")
+            ui.present.warning(f"Saved default config not found: {config_stale}")
 
     except Exception as e:
-        ui.show_error(f"Uninstall failed: {e}")
+        ui.present.error(f"Uninstall failed: {e}")
         raise typer.Exit(1)
 
 

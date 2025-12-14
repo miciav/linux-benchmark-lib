@@ -16,11 +16,13 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
-from dataclasses import dataclass, field
+import time
 from urllib.parse import urlparse
 from typing import List, Optional, Type, Any, Tuple, Dict
 
-from ...plugin_system.interface import WorkloadPlugin, WorkloadIntensity
+from pydantic import Field
+
+from ...plugin_system.interface import BasePluginConfig, WorkloadPlugin, WorkloadIntensity
 from ...plugin_system.base_generator import BaseGenerator
 
 logger = logging.getLogger(__name__)
@@ -39,29 +41,23 @@ def _arch_suffix() -> str:
     return "Linux"
 
 
-@dataclass
-class GeekbenchConfig:
+class GeekbenchConfig(BasePluginConfig):
     """Configuration for Geekbench."""
 
-    version: str = "6.3.0"
-    download_url: Optional[str] = None
-    download_checksum: Optional[str] = None  # sha256 hex for archive validation
-    workdir: Path = Path("/opt/geekbench")
-    output_dir: Path = Path("/tmp")
-    license_key: Optional[str] = None
-    skip_cleanup: bool = True
-    run_gpu: bool = False
-    extra_args: List[str] = field(default_factory=list)
-    arch_override: Optional[str] = None
-    expected_runtime_seconds: int = 1800
-    debug: bool = False
-
-    def __post_init__(self) -> None:
-        # Normalize Path fields in case they were loaded from JSON as strings.
-        if isinstance(self.workdir, str):
-            self.workdir = Path(self.workdir)
-        if isinstance(self.output_dir, str):
-            self.output_dir = Path(self.output_dir)
+    version: str = Field(default="6.3.0", min_length=1)
+    download_url: str | None = Field(default=None, description="Override Geekbench tarball URL.")
+    download_checksum: str | None = Field(
+        default=None, description="Optional sha256 hex for archive validation."
+    )
+    workdir: Path = Field(default=Path("/opt/geekbench"))
+    output_dir: Path = Field(default=Path("/tmp"))
+    license_key: str | None = Field(default=None)
+    skip_cleanup: bool = Field(default=True)
+    run_gpu: bool = Field(default=False)
+    extra_args: list[str] = Field(default_factory=list)
+    arch_override: str | None = Field(default=None)
+    expected_runtime_seconds: int = Field(default=1800, gt=0)
+    debug: bool = Field(default=False)
 
 
 class GeekbenchGenerator(BaseGenerator):
@@ -110,7 +106,7 @@ class GeekbenchGenerator(BaseGenerator):
         extract_dir: Path | None = None
         try:
             executable, archive_path, extract_dir = self._prepare_geekbench()
-            export_path = self.config.output_dir / "geekbench_result.json"
+            export_path = self.config.output_dir / f"geekbench_result_{time.time_ns()}.json"
 
             cmd: List[str] = [str(executable)]
             if self.config.license_key:
@@ -245,7 +241,7 @@ class GeekbenchGenerator(BaseGenerator):
         if not self.config.download_url:
             if suffix == "LinuxARM64":
                 # Official ARM preview build
-                url = "https://cdn.geekbench.com/Geekbench-6.5.0-LinuxARMPreview.tar.gz"
+                url = f"https://cdn.geekbench.com/Geekbench-{version}-LinuxARMPreview.tar.gz"
             else:
                 url = f"https://cdn.geekbench.com/Geekbench-{version}-{suffix}.tar.gz"
 
@@ -358,10 +354,6 @@ class GeekbenchPlugin(WorkloadPlugin):
 
     def create_generator(self, config: GeekbenchConfig | dict) -> GeekbenchGenerator:
         if isinstance(config, dict):
-            # JSON configs render Paths as strings; normalize here.
-            for key in ("workdir", "output_dir"):
-                if key in config and isinstance(config[key], str):
-                    config[key] = Path(config[key])
             config = GeekbenchConfig(**config)
         return GeekbenchGenerator(config)
 

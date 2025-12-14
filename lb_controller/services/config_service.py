@@ -6,7 +6,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Optional, Tuple, Any
-from dataclasses import asdict
+from dataclasses import asdict, is_dataclass
 
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
@@ -114,10 +114,16 @@ class ConfigService:
                 try:
                     default_settings = plugin.config_cls()
                     cfg.plugin_settings[name] = default_settings
+                    if hasattr(default_settings, "model_dump"):
+                        options = default_settings.model_dump(mode="json")
+                    elif is_dataclass(default_settings):
+                        options = asdict(default_settings)
+                    else:
+                        options = {}
                     cfg.workloads[name] = WorkloadConfig(
                         plugin=name,
                         enabled=False,
-                        options=asdict(default_settings)
+                        options=options,
                     )
                 except Exception:
                     # Fallback if config_cls cannot be instantiated without args

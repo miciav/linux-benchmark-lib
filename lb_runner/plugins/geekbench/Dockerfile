@@ -16,6 +16,6 @@ COPY . /app
 
 # Upgrade pip and install runtime dependencies needed when host code is mounted
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir psutil pandas numpy jc rich typer PyYAML
+    pip install --no-cache-dir psutil pandas numpy jc rich typer PyYAML pydantic rapidfuzz prompt_toolkit InquirerPy
 
 CMD ["bash"]

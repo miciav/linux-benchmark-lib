@@ -126,8 +126,11 @@ def test_config_enable_workload_uses_service(tmp_path, monkeypatch):
     assert loaded.workloads["stress_ng"].enabled is True
 
 
-def test_plugins_command_lists_registry(monkeypatch):
+def test_plugins_command_lists_registry(tmp_path, monkeypatch):
     """Plugins command should succeed even with empty registry."""
+    # Avoid reading user-level config defaults (non-hermetic).
+    config_service = ConfigService(config_home=tmp_path / "config")
+    monkeypatch.setattr(cli, "config_service", config_service)
     monkeypatch.setattr(cli, "create_registry", lambda: DummyRegistry())
     monkeypatch.setattr(cli, "build_plugin_table", lambda *args, **kwargs: ([], []))
     monkeypatch.setattr(cli.ui, "show_table", lambda *args, **kwargs: None)

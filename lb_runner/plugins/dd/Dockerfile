@@ -10,9 +10,19 @@ RUN apt-get update && apt-get install -y \
 
 ENV PATH="/usr/sbin:$PATH"
 
-# Install core library dependencies
-# This allows the container to run 'lb internal-run'
-RUN pip install --no-cache-dir psutil typer rich pyyaml InquirerPy pandas numpy jc
+# Install core library dependencies needed by the CLI and runner when host code is mounted
+RUN pip install --no-cache-dir \
+    psutil \
+    pandas \
+    numpy \
+    jc \
+    rich \
+    typer \
+    PyYAML \
+    pydantic \
+    rapidfuzz \
+    prompt_toolkit \
+    InquirerPy
 
 WORKDIR /app
 

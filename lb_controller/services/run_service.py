@@ -7,7 +7,7 @@ from collections import deque
 import os
 import time
 import re
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, is_dataclass
 from contextlib import ExitStack
 from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING, IO
 from pathlib import Path
@@ -368,7 +368,20 @@ class RunService:
             if config_obj:
                 try:
                     # Convert to dict, filter None values
-                    data = asdict(config_obj)
+                    if isinstance(config_obj, dict):
+                        data = config_obj
+                    else:
+                        try:
+                            from pydantic import BaseModel
+
+                            if isinstance(config_obj, BaseModel):
+                                data = config_obj.model_dump()
+                            elif is_dataclass(config_obj):
+                                data = asdict(config_obj)
+                            else:
+                                data = {}
+                        except Exception:
+                            data = asdict(config_obj) if is_dataclass(config_obj) else {}
                     # Prioritize common fields for brevity
                     parts = []
                     

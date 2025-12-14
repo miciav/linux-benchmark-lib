@@ -3,13 +3,12 @@ Service for managing and configuring test scenarios, specifically for Multipass 
 """
 
 import os
-import sys
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from lb_runner.benchmark_config import BenchmarkConfig
 from .config_service import ConfigService
 from lb_controller.ui_interfaces import UIAdapter, NoOpUIAdapter
+from lb_ui.ui import prompts as tui_prompts
 
 
 @dataclass
@@ -28,8 +27,13 @@ class TestService:
 
     __test__ = False  # Prevent pytest from collecting this production service as a test
 
-    def __init__(self, ui_adapter: Optional[UIAdapter] = None):
-        self.ui = ui_adapter or NoOpUIAdapter()
+    def __init__(
+        self,
+        ui: UIAdapter | None = None,
+        config_service: ConfigService | None = None,
+    ) -> None:
+        self.ui: UIAdapter = ui or NoOpUIAdapter()
+        self.config_service: ConfigService = config_service or ConfigService()
 
     def get_multipass_intensity(self, force_env: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -76,30 +80,24 @@ class TestService:
         }
 
     def select_multipass(
-        self, 
-        multi_workloads: bool, 
-        default_level: str = "medium"
-    ) -> Tuple[str, str]:
-        """
-        Return (scenario, intensity_level) using the Textual prompt when possible.
-        """
-        if multi_workloads:
-            return "multi", default_level
+        self, force_interactive: bool = False, default_level: str = "medium"
+    ) -> tuple[str, str]:
+        """Select a Multipass scenario; fall back to defaults when non-interactive."""
+        cfg = self.config_service.create_default_config()
+        workload_names = list(cfg.workloads.keys())
+        if not workload_names:
+            return "stress_ng", default_level
 
-        cfg_preview = ConfigService().create_default_config().workloads
-        names = sorted(cfg_preview.keys())
-        options = list(dict.fromkeys(names + ["multi"]).keys())
+        options = list(dict.fromkeys(workload_names + ["multi"]))
 
-       
-        result = self.ui.prompt_multipass_scenario(options, default_level)
-        if result:
-            scenario, level = result
-            self.ui.show_success(f"Selected: {scenario} @ {level}")
-            return scenario, level
+        if force_interactive or tui_prompts._check_tty():
+            choice = self.ui.prompt_multipass_scenario(options, default_level)
+            if choice is None:
+                choice = tui_prompts.prompt_multipass(options, ui_adapter=self.ui, default_level=default_level)
+            if choice is not None:
+                return choice
 
-        # Fallback for non-interactive contexts
-        self.ui.show_info(f"Non-interactive mode, defaulting to stress_ng ({default_level}).")
-        return "stress_ng", default_level
+        return options[0], default_level
 
     def build_multipass_scenario(
         self, intensity: Dict[str, Any], selection: str

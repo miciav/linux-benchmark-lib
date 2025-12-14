@@ -56,6 +56,15 @@ class BaseGenerator(ABC):
         so collectors do not capture that time. Default is a no-op.
         """
         return None
+
+    def cleanup(self) -> None:
+        """
+        Optional post-run hook executed after collectors stop and results are persisted.
+
+        Generators can override to remove temporary artifacts created during a single
+        repetition without affecting shared setup/provisioning.
+        """
+        return None
     
     @abstractmethod
     def _stop_workload(self) -> None:

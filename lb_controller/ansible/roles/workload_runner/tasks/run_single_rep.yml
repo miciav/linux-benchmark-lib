@@ -78,6 +78,9 @@
       register: workload_runner_rep_result
       changed_when: true
 
+    - name: "{{ run_prefix }} Collect workload artifacts for repetition"
+      ansible.builtin.include_tasks: collect_workload.yml
+
     - name: Emit completion event for repetition
       ansible.builtin.debug:
         msg: >-
@@ -92,6 +95,14 @@
             } | to_json
           }}
       when: workload_runner_rep_result.rc == 0
+
+    - name: "{{ run_prefix }} Cooldown between repetitions (pure, collectors stopped)"
+      ansible.builtin.pause:
+        seconds: "{{ workload_runner_config_rendered.cooldown_seconds | default(0) | int }}"
+      when:
+        - (workload_runner_config_rendered.cooldown_seconds | default(0) | int) > 0
+        - workload_runner_reps is defined
+        - workload_runner_current_rep != (workload_runner_reps | last)
 
   rescue:
     - name: "{{ run_prefix }} Emit failure event for repetition"
@@ -108,6 +119,10 @@
               "message": (workload_runner_rep_result.stderr | default(workload_runner_rep_result.stdout | default(''))) | string
             } | to_json
           }}
+    - name: "{{ run_prefix }} Collect workload artifacts for failed repetition"
+      ansible.builtin.include_tasks: collect_workload.yml
+      vars:
+        workload_runner_collect_ignore_errors: true
     - name: Fail workload repetition
       ansible.builtin.fail:
         msg: >-

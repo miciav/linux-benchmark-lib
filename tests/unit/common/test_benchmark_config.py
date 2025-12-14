@@ -7,6 +7,7 @@ from pathlib import Path
 import tempfile
 
 import pytest
+from pydantic import ValidationError # Added ValidationError import
 
 from lb_runner.benchmark_config import (
     BenchmarkConfig,
@@ -15,7 +16,15 @@ from lb_runner.benchmark_config import (
     RemoteHostConfig,
     WorkloadConfig,
 )
+# We need to import all plugin configs that BenchmarkConfig might try to load by default
+# This ensures they are registered with the PluginRegistry before BenchmarkConfig() is called
+from lb_runner.plugins.baseline.plugin import BaselineConfig
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
+from lb_runner.plugins.dd.plugin import DDConfig
+from lb_runner.plugins.fio.plugin import FIOConfig
+from lb_runner.plugins.geekbench.plugin import GeekbenchConfig
+from lb_runner.plugins.hpl.plugin import HPLConfig
+from lb_runner.plugins.yabs.plugin import YabsConfig
 
 
 class TestBenchmarkConfig:
@@ -28,10 +37,12 @@ class TestBenchmarkConfig:
         assert config.repetitions == 3
         assert config.test_duration_seconds == 3600
         assert config.metrics_interval_seconds == 1.0
+        # Assert specific default plugins are present and are Pydantic models
         assert isinstance(config.plugin_settings["stress_ng"], StressNGConfig)
+        assert isinstance(config.plugin_settings["baseline"], BaselineConfig)
         assert "stress_ng" in config.workloads
         assert config.workloads["stress_ng"].plugin == "stress_ng"
-        assert config.workloads["stress_ng"].enabled is False
+        assert config.workloads["stress_ng"].enabled is False # Default is False for auto-populated workloads
         
     def test_custom_config_creation(self):
         """Test creating a config with custom values."""
@@ -44,7 +55,7 @@ class TestBenchmarkConfig:
         assert config.repetitions == 5
         assert config.test_duration_seconds == 120
         assert config.plugin_settings["stress_ng"].cpu_workers == 4
-        assert config.workloads["stress_ng"].options["cpu_workers"] == 4
+        assert config.workloads["stress_ng"].options["cpu_workers"] == 4 # Options are raw dict
         
     def test_config_directories_creation(self):
         """Test that output directories are created."""
@@ -64,7 +75,7 @@ class TestBenchmarkConfig:
     def test_config_to_json(self):
         """Test converting config to JSON."""
         config = BenchmarkConfig(repetitions=7)
-        json_str = config.to_json()
+        json_str = config.model_dump_json(indent=2) # Use Pydantic's method
         
         data = json.loads(json_str)
         assert data["repetitions"] == 7
@@ -91,7 +102,10 @@ class TestBenchmarkConfig:
             
             assert loaded_config.repetitions == 10
             assert loaded_config.test_duration_seconds == 90
+            # Loaded plugin_settings should be Pydantic models
+            assert isinstance(loaded_config.plugin_settings["stress_ng"], StressNGConfig)
             assert loaded_config.plugin_settings["stress_ng"].cpu_workers == 8
+            # Workload options should also reflect this
             assert loaded_config.workloads["stress_ng"].options["cpu_workers"] == 8
             
         finally:
@@ -99,7 +113,7 @@ class TestBenchmarkConfig:
 
     def test_remote_hosts_require_name(self):
         """Remote hosts must have a non-empty name."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError): # Changed to ValidationError
             BenchmarkConfig(
                 remote_hosts=[
                     RemoteHostConfig(name="   ", address="192.168.0.1"),
@@ -110,7 +124,7 @@ class TestBenchmarkConfig:
         """Remote host names must be unique."""
         host_a = RemoteHostConfig(name="node1", address="10.0.0.1")
         host_b = RemoteHostConfig(name="node1", address="10.0.0.2")
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError): # This validation is in BenchmarkConfig's model_validator
             BenchmarkConfig(remote_hosts=[host_a, host_b])
 
     def test_module_does_not_create_default_instance(self):
@@ -124,7 +138,7 @@ class TestBenchmarkConfig:
         config = BenchmarkConfig()
         assert all(isinstance(wl, WorkloadConfig) for wl in config.workloads.values())
 
-        round_trip = BenchmarkConfig.from_dict(config.to_dict())
+        round_trip = BenchmarkConfig.model_validate(config.model_dump()) # Use Pydantic's methods
         assert all(isinstance(wl, WorkloadConfig) for wl in round_trip.workloads.values())
 
 

@@ -7,27 +7,29 @@ import logging
 import os
 import platform
 import subprocess
-from dataclasses import dataclass
+# Removed from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Type, Any
 
-from ...plugin_system.interface import WorkloadPlugin, WorkloadIntensity
+from pydantic import Field # Added pydantic Field
+
+from ...plugin_system.interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig # Imported BasePluginConfig
 from ...plugin_system.base_generator import BaseGenerator
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class DDConfig:
+class DDConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     """Configuration for dd workload."""
 
-    if_path: str = "/dev/zero"
-    of_path: str = "/tmp/lb_dd_test"
-    bs: str = "1M"
-    count: Optional[int] = None  # None -> run until stopped by the runner duration
-    conv: Optional[str] = "fdatasync"
-    oflag: Optional[str] = "direct"
-    debug: bool = False
+    if_path: str = Field(default="/dev/zero", description="Input file path")
+    of_path: str = Field(default="/tmp/lb_dd_test", description="Output file path")
+    bs: str = Field(default="1M", description="Block size for reads/writes (e.g., 1M, 4k)")
+    count: Optional[int] = Field(default=None, ge=1, description="Number of blocks to copy (None means run until stopped by runner duration)")
+    conv: Optional[str] = Field(default="fdatasync", description="Conversion options (e.g., fdatasync, noerror, sync)")
+    oflag: Optional[str] = Field(default="direct", description="Output flags (e.g., direct, sync, dsync)")
+    timeout: int = Field(default=60, gt=0, description="Timeout in seconds for dd execution")
+    debug: bool = Field(default=False, description="Enable debug logging")
 
 
 class DDGenerator(BaseGenerator):
@@ -140,13 +142,15 @@ class DDGenerator(BaseGenerator):
                 text=True,
             )
 
-            stdout, stderr = self._process.communicate()
+            stdout, stderr = self._process.communicate(timeout=self.config.timeout + self.config.timeout_buffer) # Add safety timeout
 
             self._result = {
                 "stdout": stdout or "",
                 "stderr": stderr or "",
                 "returncode": self._process.returncode,
                 "command": " ".join(cmd),
+                "max_retries": self.config.max_retries, # Add inherited field
+                "tags": self.config.tags # Add inherited field
             }
 
             if self.config.debug and stderr:
@@ -165,9 +169,14 @@ class DDGenerator(BaseGenerator):
                 except OSError as exc:
                     logger.warning("Failed to clean up test file: %s", exc)
 
+        except subprocess.TimeoutExpired:
+            logger.error(f"dd timed out after {self.config.timeout + self.config.timeout_buffer} seconds. Terminating process.")
+            self._process.kill()
+            self._process.wait()
+            self._result = {"error": f"Timeout after {self.config.timeout + self.config.timeout_buffer}s", "returncode": -1}
         except Exception as exc:
             logger.error("Error running dd: %s", exc)
-            self._result = {"error": str(exc)}
+            self._result = {"error": str(exc), "returncode": -2}
         finally:
             self._process = None
             self._is_running = False
@@ -201,9 +210,7 @@ class DDPlugin(WorkloadPlugin):
     def config_cls(self) -> Type[DDConfig]:
         return DDConfig
 
-    def create_generator(self, config: DDConfig | dict) -> DDGenerator:
-        if isinstance(config, dict):
-            config = DDConfig(**config)
+    def create_generator(self, config: DDConfig) -> DDGenerator: # Type hint updated
         return DDGenerator(config)
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[DDConfig]:

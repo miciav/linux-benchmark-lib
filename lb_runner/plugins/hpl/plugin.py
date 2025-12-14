@@ -9,39 +9,49 @@ import os
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional, Type
 import os
 import re
 import shutil
 
+from pydantic import Field, model_validator, ValidationError # Added pydantic imports
+
 from ...plugin_system.base_generator import BaseGenerator
-from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin
+from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
 
 logger = logging.getLogger(__name__)
 
 HPL_VERSION = "2.3"
 
 
-@dataclass
-class HPLConfig:
+class HPLConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     """Configuration for HPL benchmark."""
 
     # HPL.dat parameters
-    n: int = 10000  # Problem size (N)
-    nb: int = 256  # Block size (NB)
-    p: int = 1  # Process grid rows
-    q: int = 1  # Process grid cols
+    n: int = Field(default=10000, gt=0, description="Problem size (N)")
+    nb: int = Field(default=256, gt=0, description="Block size (NB)")
+    p: int = Field(default=1, gt=0, description="Process grid rows")
+    q: int = Field(default=1, gt=0, description="Process grid cols")
 
     # Execution parameters
-    mpi_ranks: int = 1
-    mpi_launcher: str = "fork"  # 'fork' for local, 'ssh' for distributed
+    mpi_ranks: int = Field(default=1, gt=0, description="Number of MPI ranks")
+    mpi_launcher: str = Field(default="fork", description="'fork' for local, 'ssh' for distributed MPI")
 
     # Paths (optional override)
-    workspace_dir: Optional[str] = None
-    debug: bool = False
-    expected_runtime_seconds: int = 3600
+    workspace_dir: Optional[str] = Field(default=None, description="Custom workspace directory for HPL files")
+    debug: bool = Field(default=False, description="Enable debug logging")
+    expected_runtime_seconds: int = Field(default=3600, gt=0, description="Expected runtime of HPL in seconds (used for timeout hints)")
+
+    @model_validator(mode="after")
+    def validate_mpi_ranks(self) -> 'HPLConfig':
+        if self.mpi_ranks != (self.p * self.q):
+            logger.warning(
+                "HPLConfig: mpi_ranks (%d) does not match process grid p*q (%d*%d=%d). "
+                "Ensure this is intentional. Adjusting mpi_ranks to match p*q for consistency if not set by user.",
+                self.mpi_ranks, self.p, self.q, self.p * self.q
+            )
+        return self
 
 
 class HPLGenerator(BaseGenerator):
@@ -51,7 +61,8 @@ class HPLGenerator(BaseGenerator):
         super().__init__(name)
         self.config = config
         self._process: Optional[subprocess.Popen[str]] = None
-        self.expected_runtime_seconds = max(0, int(config.expected_runtime_seconds))
+        # self.expected_runtime_seconds now comes directly from config.expected_runtime_seconds
+        # No need for env var parsing here.
 
         # Determine workspace
         if self.config.workspace_dir:
@@ -204,7 +215,9 @@ HPL.out      output file name (if any)
                 env=os.environ.copy(),
             )
 
-            stdout, stderr = self._process.communicate()
+            # Use expected_runtime_seconds + timeout_buffer for communicate timeout
+            timeout_s = self.config.expected_runtime_seconds + self.config.timeout_buffer
+            stdout, stderr = self._process.communicate(timeout=timeout_s)
             result_metrics = self._parse_output(stdout or "")
 
             self._result = {
@@ -212,6 +225,8 @@ HPL.out      output file name (if any)
                 "stdout": stdout or "",
                 "stderr": stderr or "",
                 "command": " ".join(cmd),
+                "max_retries": self.config.max_retries, # Add inherited field
+                "tags": self.config.tags, # Add inherited field
                 **result_metrics,
             }
 
@@ -249,9 +264,14 @@ HPL.out      output file name (if any)
                 if "error" not in self._result:
                     self._result["error"] = f"HPL exited with return code {self._process.returncode}"
 
+        except subprocess.TimeoutExpired:
+            logger.error(f"HPL timed out after {timeout_s} seconds. Terminating process.")
+            self._process.kill()
+            self._process.wait()
+            self._result = {"error": f"Timeout after {timeout_s}s", "returncode": -1}
         except Exception as exc:
             logger.error("Execution error: %s", exc)
-            self._result = {"error": str(exc)}
+            self._result = {"error": str(exc), "returncode": -2}
         finally:
             self._process = None
             self._is_running = False
@@ -441,6 +461,8 @@ class HPLPlugin(WorkloadPlugin):
                     "residual": gen_result.get("residual"),
                     "residual_passed": gen_result.get("residual_passed"),
                     "result_line": gen_result.get("result_line"),
+                    "max_retries": gen_result.get("max_retries"), # Add inherited field
+                    "tags": gen_result.get("tags"), # Add inherited field
                 }
             )
 

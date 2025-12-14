@@ -11,7 +11,6 @@ import shutil
 from pathlib import Path
 import json
 import time
-from dataclasses import asdict
 
 import pytest
 
@@ -69,7 +68,7 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
                 "stress_ng": WorkloadConfig(
                     plugin="stress_ng",
                     enabled=True,
-                    options=asdict(stress_cfg),
+                    options=stress_cfg.model_dump(mode="json"),
                 )
             },
             collectors=MetricCollectorConfig(
@@ -189,7 +188,7 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
                 "stress_ng": WorkloadConfig(
                     plugin="stress_ng",
                     enabled=True,
-                    options=asdict(stress_cfg),
+                    options=stress_cfg.model_dump(mode="json"),
                 )
             },
             collectors=MetricCollectorConfig(

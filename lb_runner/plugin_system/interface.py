@@ -1,16 +1,29 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
+import yaml # Added yaml import
 
 import pandas as pd
+from pydantic import BaseModel, Field # Added Pydantic imports
+
 
 class WorkloadIntensity(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     USER_DEFINED = "user_defined"
+
+
+class BasePluginConfig(BaseModel):
+    """Base model for common plugin configuration fields."""
+    max_retries: int = Field(default=0, ge=0, description="Maximum number of retries for the workload")
+    timeout_buffer: int = Field(default=10, description="Safety buffer in seconds added to expected runtime")
+    tags: List[str] = Field(default_factory=list, description="Tags associated with the workload")
+
+    model_config = {
+        "extra": "ignore" # Ignore extra fields in YAML not defined in the model
+    }
 
 class WorkloadPlugin(ABC):
     """
@@ -37,15 +50,15 @@ class WorkloadPlugin(ABC):
 
     @property
     @abstractmethod
-    def config_cls(self) -> Type[Any]:
+    def config_cls(self) -> Type[BasePluginConfig]: # Changed return type hint
         """
-        The DataClass or Pydantic model used for configuration.
+        The Pydantic model used for configuration.
         The ConfigService will use this to deserialize raw JSON.
         """
         pass
 
     @abstractmethod
-    def create_generator(self, config: Any) -> Any:
+    def create_generator(self, config: BasePluginConfig) -> Any: # Changed type hint
         """
         Create a new instance of the workload generator.
         
@@ -54,7 +67,44 @@ class WorkloadPlugin(ABC):
         """
         pass
     
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[Any]:
+    def load_config_from_file(self, config_file_path: Path) -> BasePluginConfig:
+        """
+        Loads and validates plugin configuration from a YAML file.
+
+        The method merges common configuration (from the 'common' section)
+        with plugin-specific configuration (from the 'plugins.<plugin_name>' section).
+        Plugin-specific settings override common settings.
+        Finally, the merged configuration is validated against `self.config_cls`.
+
+        Args:
+            config_file_path: The path to the YAML configuration file.
+
+        Returns:
+            An instance of `self.config_cls` with the loaded and validated configuration.
+
+        Raises:
+            FileNotFoundError: If the config_file_path does not exist.
+            yaml.YAMLError: If the file content is not valid YAML.
+            ValidationError: If the merged configuration does not conform to `self.config_cls` schema.
+        """
+        if not config_file_path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {config_file_path}")
+
+        with open(config_file_path, 'r') as f:
+            full_data = yaml.safe_load(f) or {}
+
+        # Extract common and plugin-specific data
+        common_data = full_data.get("common", {})
+        plugin_data = full_data.get("plugins", {}).get(self.name, {})
+
+        # Merge data: plugin-specific overrides common
+        merged_data = {**common_data, **plugin_data}
+
+        # Validate and instantiate the config class using Pydantic
+        # Pydantic will handle default values for missing fields
+        return self.config_cls(**merged_data)
+    
+    def get_preset_config(self, level: WorkloadIntensity) -> Optional[BasePluginConfig]: # Changed type hint
         """
         Return a configuration object for the specified intensity level.
         If USER_DEFINED or not implemented, return None.
