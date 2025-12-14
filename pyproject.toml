@@ -95,14 +95,14 @@ markers = [
     "docker: integration tests that build/run plugin Docker images",
     "multipass: integration tests that validate plugin multipass/ansible assets",
     "multipass_single: multipass e2e per-workload runs with artifact checks",
-    "unit: test isolati e veloci (senza I/O o side effects)",
-    "e2e: test end-to-end completi (es. con VM reali)",
-    "cli: test dell'interfaccia a riga di comando",
-    "tui: test della terminal user interface, inclusi elementi interattivi e output formattato.",
-    "plugins: test specifici per i plugin di workload",
+    "unit: fast isolated tests (no I/O or side effects)",
+    "e2e: full end-to-end tests (e.g., with real VMs)",
+    "cli: command-line interface tests",
+    "tui: terminal UI tests, including interactive elements and formatted output",
+    "plugins: tests specific to workload plugins",
     "baseline: tests for the baseline workload plugin",
-    "slow: test che richiedono > 1 secondo",
-    "slowest: test molto lenti (minuti) come provisioning VM",
+    "slow: tests that require > 1 second",
+    "slowest: very slow tests (minutes) such as VM provisioning",
 ]
 python_files = "test_*.py"
 python_classes = "Test*"

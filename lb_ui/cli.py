@@ -397,46 +397,64 @@ def _select_workloads_interactively(
 
     available_plugins = registry.available()
     items = []
-    
-    # Prepare items for picker
+
+    intensities_catalog = [
+        PickItem(id="user_defined", title="user_defined", description="Custom intensity"),
+        PickItem(id="low", title="low", description="Light load"),
+        PickItem(id="medium", title="medium", description="Balanced load"),
+        PickItem(id="high", title="high", description="Aggressive load"),
+    ]
+
+    # Prepare items for picker with variants as intensities
     for name, wl in sorted(cfg.workloads.items()):
         plugin_obj = available_plugins.get(wl.plugin)
         description = getattr(plugin_obj, "description", "") if plugin_obj else ""
+        current_intensity = wl.intensity if wl.intensity else "user_defined"
+        variant_list = []
+        for variant in intensities_catalog:
+            label = variant.title
+            desc = variant.description
+            if variant.id == current_intensity:
+                desc = f"(current) {desc}"
+            variant_list.append(
+                PickItem(
+                    id=variant.id,
+                    title=label,
+                    description=desc,
+                    payload=variant.payload,
+                    tags=variant.tags,
+                    search_blob=variant.search_blob or label,
+                    preview=variant.preview,
+                )
+            )
+
         item = PickItem(
             id=name,
             title=name,
-            description=f"Plugin: {wl.plugin} | Intensity: {wl.intensity} | {description}",
-            payload=wl
+            description=f"Plugin: {wl.plugin} | Intensity: {current_intensity} | {description}",
+            payload=wl,
+            variants=variant_list,
+            search_blob=f"{name} {wl.plugin} {description}",
         )
         items.append(item)
-    
-    # Pre-select enabled workloads (this feature requires Picker to support pre-selection, 
-    # but the protocol doesn't explicitly expose it in pick_many(items). 
-    # However, existing workloads are just items. 
-    # If the picker implementation supports state, we'd pass it.
-    # The reference PowerPicker uses internal state.
-    # We will just show them and let user pick.
-    # Or better, we show status in description.
-    
+
     selection = ui.picker.pick_many(items, title="Select Configured Workloads")
-    selected_names = {s.id for s in selection}
+    selected_names = set()
+    intensities: Dict[str, str] = {}
+
+    for picked in selection:
+        # Variants come back as "<workload>:<intensity>"
+        if ":" in picked.id:
+            base, level = picked.id.split(":", 1)
+            selected_names.add(base)
+            intensities[base] = level
+        else:
+            selected_names.add(picked.id)
 
     if not selection:
         ui.present.warning("Selection cancelled or empty.")
         if not ui.form.confirm("Do you want to proceed with NO workloads enabled?", default=False):
-             raise typer.Exit(1)
-
-    # Prompt for intensities for selected
-    intensities: Dict[str, str] = {}
-    choices = [PickItem(id=c, title=c) for c in ["user_defined", "low", "medium", "high"]]
-    
-    for name in sorted(selected_names):
-        current = cfg.workloads.get(name, WorkloadConfig(plugin=name)).intensity
-        default_choice = current if current in ["user_defined", "low", "medium", "high"] else "user_defined"
-        
-        # We use pick_one for intensity
-        i_sel = ui.picker.pick_one(choices, title=f"Intensity for {name}", query_hint=default_choice)
-        intensities[name] = i_sel.id if i_sel else default_choice
+            raise typer.Exit(1)
 
     cfg_write, target, stale, _ = config_service.load_for_write(config, allow_create=True)
     for name, wl in cfg_write.workloads.items():
