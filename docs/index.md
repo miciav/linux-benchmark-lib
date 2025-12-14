@@ -1,4 +1,4 @@
-# Linux Benchmark Library
+# Home
 
 A robust, configurable Python library for benchmarking Linux compute nodes.
 
@@ -208,10 +208,6 @@ pyreverse -o puml -p linux-benchmark lb_runner lb_controller lb_ui -S
 mv classes*.puml docs/diagrams/classes.puml
 mv packages*.puml docs/diagrams/packages.puml
 ```
-
-## Documentation
-
-The full documentation for Linux Benchmark Library is available on GitHub Pages: [https://miciav.github.io/linux-benchmark-lib/](https://miciav.github.io/linux-benchmark-lib/)
 
 ## Contributing
 
