@@ -2,11 +2,19 @@ import importlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from dataclasses import dataclass, field
+from unittest.mock import Mock
 
 import pytest
 from typer.testing import CliRunner
 
 from lb_runner.benchmark_config import BenchmarkConfig
+
+@dataclass
+class MockDoctorReport:
+    groups: list = field(default_factory=list)
+    info_messages: list = field(default_factory=list)
+    total_failures: int = 0
 
 
 def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -44,6 +52,7 @@ def test_plugins_enable_disable_persists_config(monkeypatch: pytest.MonkeyPatch,
     assert cfg.workloads["stress_ng"].enabled is False
 
 
+@pytest.mark.tui
 def test_plugins_shows_enabled_column(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
@@ -56,21 +65,23 @@ def test_plugins_shows_enabled_column(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert "stress_ng" in output
 
 
+@pytest.mark.tui
 def test_doctor_controller_uses_checks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
 
-    monkeypatch.setattr(cli.doctor_service, "check_controller", lambda: 0)
+    monkeypatch.setattr(cli.doctor_service, "check_controller", lambda: MockDoctorReport(total_failures=0))
 
     result = runner.invoke(cli.app, ["doctor", "controller"])
     assert result.exit_code == 0, result.output
 
 
+@pytest.mark.tui
 def test_doctor_local_tools_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
-    monkeypatch.setattr(cli.doctor_service, "check_local_tools", lambda: 1)
-    result = runner.invoke(cli.app, ["doctor", "local-tools"])
+    monkeypatch.setattr(cli.doctor_service, "check_local_tools", lambda: MockDoctorReport(total_failures=1))
+    result = runner.invoke(cli.app, ["doctor", "local"])
     assert result.exit_code != 0
 
 
@@ -81,6 +92,7 @@ def test_plugins_conflicting_flags_fail(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert result.exit_code != 0
 
 
+@pytest.mark.tui
 def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
@@ -101,6 +113,7 @@ def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, 
     assert cfg.workloads["fio"].enabled is False
 
 
+@pytest.mark.tui
 def test_plugin_select_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
@@ -120,6 +133,7 @@ def test_plugin_select_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     assert cfg.workloads["stress_ng"].enabled is False
 
 
+@pytest.mark.tui
 def test_plugin_root_defaults_to_list(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
@@ -229,6 +243,7 @@ def test_run_command_allows_repetition_override(monkeypatch: pytest.MonkeyPatch,
     assert called["context"].config.repetitions == 5
 
 
+@pytest.mark.tui
 def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
@@ -291,6 +306,7 @@ def test_multipass_helper_sets_artifacts_env(monkeypatch: pytest.MonkeyPatch, tm
     assert "tests/e2e/test_multipass_benchmark.py" in cmd
 
 
+@pytest.mark.tui
 def test_multipass_helper_allows_vm_count_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cli = _load_cli(monkeypatch, tmp_path)
     runner = CliRunner()
@@ -306,6 +322,11 @@ def test_multipass_helper_allows_vm_count_override(monkeypatch: pytest.MonkeyPat
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    # Mock the UI picker to avoid interactive blocking
+    # Single call: Scenario+Intensity selection (returns stress_ng:medium)
+    cli.ui.picker = Mock()
+    cli.ui.picker.pick_one.return_value = SimpleNamespace(id="stress_ng:medium")
 
     result = runner.invoke(cli.app, ["test", "multipass", "--vm-count", "2"])
     assert result.exit_code == 0, result.output

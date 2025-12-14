@@ -28,9 +28,6 @@ class TestService:
 
     __test__ = False  # Prevent pytest from collecting this production service as a test
 
-    def __init__(self, ui_adapter: Optional[UIAdapter] = None):
-        self.ui = ui_adapter or NoOpUIAdapter()
-
     def get_multipass_intensity(self, force_env: Optional[str] = None) -> Dict[str, Any]:
         """
         Return intensity parameters based on LB_MULTIPASS_FORCE env var or argument.
@@ -74,32 +71,6 @@ class TestService:
             "stress_duration": 5,
             "stress_timeout": 5,
         }
-
-    def select_multipass(
-        self, 
-        multi_workloads: bool, 
-        default_level: str = "medium"
-    ) -> Tuple[str, str]:
-        """
-        Return (scenario, intensity_level) using the Textual prompt when possible.
-        """
-        if multi_workloads:
-            return "multi", default_level
-
-        cfg_preview = ConfigService().create_default_config().workloads
-        names = sorted(cfg_preview.keys())
-        options = list(dict.fromkeys(names + ["multi"]).keys())
-
-       
-        result = self.ui.prompt_multipass_scenario(options, default_level)
-        if result:
-            scenario, level = result
-            self.ui.show_success(f"Selected: {scenario} @ {level}")
-            return scenario, level
-
-        # Fallback for non-interactive contexts
-        self.ui.show_info(f"Non-interactive mode, defaulting to stress_ng ({default_level}).")
-        return "stress_ng", default_level
 
     def build_multipass_scenario(
         self, intensity: Dict[str, Any], selection: str

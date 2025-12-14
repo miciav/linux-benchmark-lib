@@ -17,6 +17,8 @@ dependencies = [
     "PyYAML>=6.0",
     "InquirerPy>=0.3.4",
     "pydantic>=2.0.0", # Added pydantic
+    "rapidfuzz>=3.0.0",
+    "prompt_toolkit>=3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -96,6 +98,7 @@ markers = [
     "unit: test isolati e veloci (senza I/O o side effects)",
     "e2e: test end-to-end completi (es. con VM reali)",
     "cli: test dell'interfaccia a riga di comando",
+    "tui: test della terminal user interface, inclusi elementi interattivi e output formattato.",
     "plugins: test specifici per i plugin di workload",
     "baseline: tests for the baseline workload plugin",
     "slow: test che richiedono > 1 secondo",

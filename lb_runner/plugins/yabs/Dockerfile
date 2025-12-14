@@ -19,6 +19,6 @@ COPY . /app
 
 # Install runtime Python deps needed by the library when mounting host code
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir psutil pandas numpy jc rich typer PyYAML
+    pip install --no-cache-dir psutil pandas numpy jc rich typer PyYAML pydantic rapidfuzz prompt_toolkit InquirerPy
 
 CMD ["bash"]

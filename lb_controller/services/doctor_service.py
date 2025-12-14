@@ -11,15 +11,26 @@ from .config_service import ConfigService
 from .plugin_service import create_registry
 from lb_controller.ui_interfaces import UIAdapter, NoOpUIAdapter
 
+"""
+Service for performing environment health checks (doctor).
+"""
+
+import importlib
+import platform
+import shutil
+from typing import List, Tuple, Optional
+
+from .config_service import ConfigService
+from .plugin_service import create_registry
+from .doctor_types import DoctorReport, DoctorCheckGroup, DoctorCheckItem
+
 class DoctorService:
     """Service to check local prerequisites and environment health."""
 
     def __init__(
         self,
-        ui_adapter: Optional[UIAdapter] = None,
         config_service: Optional[ConfigService] = None,
     ):
-        self.ui = ui_adapter or NoOpUIAdapter()
         self.config_service = config_service or ConfigService()
 
     def _check_import(self, name: str) -> bool:
@@ -32,18 +43,17 @@ class DoctorService:
     def _check_command(self, name: str) -> bool:
         return shutil.which(name) is not None
 
-    def _render_check_table(self, title: str, items: List[Tuple[str, bool, bool]]) -> int:
+    def _build_check_group(self, title: str, items: List[Tuple[str, bool, bool]]) -> DoctorCheckGroup:
         failures = 0
-        rows = []
+        check_items = []
         for label, ok, required in items:
-            rows.append([label, "✓" if ok else "✗"])
+            check_items.append(DoctorCheckItem(label, ok, required))
             failures += 0 if ok or not required else 1
-        self.ui.show_table(title, ["Item", "Status"], rows)
-        return failures
+        return DoctorCheckGroup(title, check_items, failures)
 
-    def check_controller(self) -> int:
+    def check_controller(self) -> DoctorReport:
         """Check controller-side requirements (Python deps, ansible-runner)."""
-        failures = 0
+        groups = []
         py_deps = [
             ("psutil", self._check_import("psutil"), True),
             ("pandas", self._check_import("pandas"), True),
@@ -53,27 +63,30 @@ class DoctorService:
             ("jc", self._check_import("jc"), True),
             ("influxdb-client (optional)", self._check_import("influxdb_client"), False),
         ]
-        failures += self._render_check_table("Python Dependencies", py_deps)
+        groups.append(self._build_check_group("Python Dependencies", py_deps))
 
         controller_tools = [
             ("ansible-runner (python)", self._check_import("ansible_runner"), True),
             ("ansible-playbook", self._check_command("ansible-playbook"), True),
         ]
-        failures += self._render_check_table("Controller Tools", controller_tools)
+        groups.append(self._build_check_group("Controller Tools", controller_tools))
 
         resolved, stale = self.config_service.resolve_config_path(None)
         cfg_items = [
             ("Active config", resolved is not None, False),
             ("Stale default path", stale is None, False),
         ]
-        failures += self._render_check_table("Config Resolution", cfg_items)
+        groups.append(self._build_check_group("Config Resolution", cfg_items))
 
-        self.ui.show_info(
-            f"Python: {platform.python_version()} ({platform.python_implementation()}) on {platform.system()} {platform.release()}"
+        info = f"Python: {platform.python_version()} ({platform.python_implementation()}) on {platform.system()} {platform.release()}"
+        
+        return DoctorReport(
+            groups=groups, 
+            info_messages=[info], 
+            total_failures=sum(g.failures for g in groups)
         )
-        return failures
 
-    def check_local_tools(self) -> int:
+    def check_local_tools(self) -> DoctorReport:
         """Check local workload tools required by installed plugins."""
         registry = create_registry()
         items: List[Tuple[str, bool, bool]] = []
@@ -91,24 +104,32 @@ class DoctorService:
                 for tool in required_tools:
                     label = f"{tool} ({plugin.name})"
                     items.append((label, self._check_command(tool), True))
-
+        
+        messages = []
         if not items:
-            self.ui.show_info("No plugins with local tool requirements found.")
-            return 0
+            messages.append("No plugins with local tool requirements found.")
+            return DoctorReport(groups=[], info_messages=messages, total_failures=0)
 
         # Sort by label
         items.sort(key=lambda x: x[0])
-        return self._render_check_table("Local Workload Tools", items)
+        group = self._build_check_group("Local Workload Tools", items)
+        return DoctorReport(groups=[group], info_messages=messages, total_failures=group.failures)
 
-    def check_multipass(self) -> int:
+    def check_multipass(self) -> DoctorReport:
         """Check if Multipass is installed (used by integration test)."""
         items = [("multipass", self._check_command("multipass"), True)]
-        return self._render_check_table("Multipass", items)
+        group = self._build_check_group("Multipass", items)
+        return DoctorReport(groups=[group], info_messages=[], total_failures=group.failures)
 
-    def check_all(self) -> int:
+    def check_all(self) -> DoctorReport:
         """Run all checks."""
-        failures = 0
-        failures += self.check_controller()
-        failures += self.check_local_tools()
-        failures += self.check_multipass()
-        return failures
+        r1 = self.check_controller()
+        r2 = self.check_local_tools()
+        r3 = self.check_multipass()
+        
+        return DoctorReport(
+            groups=r1.groups + r2.groups + r3.groups,
+            info_messages=r1.info_messages + r2.info_messages + r3.info_messages,
+            total_failures=r1.total_failures + r2.total_failures + r3.total_failures
+        )
+
