@@ -20,6 +20,8 @@ class RunEvent:
     status: str  # running | done | failed | skipped
     message: str = ""
     timestamp: float = 0.0
+    type: str = "status"
+    level: str = "INFO"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

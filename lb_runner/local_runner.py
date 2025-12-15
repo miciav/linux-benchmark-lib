@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Callable
 
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.events import RunEvent, StdoutEmitter
+from lb_runner.log_handler import LBEventLogHandler
 from lb_runner.output_helpers import (
     ensure_run_dirs,
     ensure_runner_log,
@@ -153,6 +154,19 @@ class LocalRunner:
 
         last_progress_log = 0
 
+        # Attach structured log handler for this repetition
+        log_handler = None
+        if os.environ.get("LB_ENABLE_EVENT_LOGGING") == "1":
+            log_handler = LBEventLogHandler(
+                run_id=self._current_run_id or "",
+                host=self._host_name,
+                workload=test_name,
+                repetition=repetition,
+                total_repetitions=total_repetitions,
+            )
+            log_handler.setFormatter(logging.Formatter('%(message)s'))
+            logging.getLogger().addHandler(log_handler)
+
         try:
             # Run generator setup before metrics collection to avoid skew
             try:
@@ -213,6 +227,9 @@ class LocalRunner:
             raise
 
         finally:
+            if log_handler:
+                logging.getLogger().removeHandler(log_handler)
+
             # Ensure generator is stopped if an error occurred while it was running
             if generator_started:
                 try:

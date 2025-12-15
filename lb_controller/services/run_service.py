@@ -249,6 +249,14 @@ class AnsibleOutputFormatter:
         rep = data.get("repetition", "?")
         total = data.get("total_repetitions") or data.get("total") or "?"
         status = (data.get("status") or "").lower()
+        evt_type = data.get("type", "status")
+        
+        if evt_type == "log":
+            level = data.get("level", "INFO")
+            msg = data.get("message", "")
+            phase = f"run {host} {workload}"
+            return phase, f"[{level}] {msg}"
+
         message = f"{rep}/{total} {status}"
         if data.get("message"):
             message = f"{message} ({data['message']})"
@@ -965,12 +973,13 @@ class RunService:
         downstream = output_cb
 
         sink = LogSink(journal, journal_path, log_path)
-        recent_events: deque[tuple[str, str, int, str]] = deque()
+        recent_events: deque[tuple[str, str, int, str, str, str]] = deque()
         dedupe_limit = 200
-        recent_set: set[tuple[str, str, int, str]] = set()
+        recent_set: set[tuple[str, str, int, str, str, str]] = set()
 
         def _ingest_event(event: RunEvent, source: str = "unknown") -> None:
-            key = (event.host, event.workload, event.repetition, event.status)
+            # Include type and message in key to avoid deduping distinct log lines
+            key = (event.host, event.workload, event.repetition, event.status, event.type, event.message)
             if key in recent_set:
                 return
             recent_events.append(key)
@@ -1006,6 +1015,8 @@ class RunService:
                 status=str(data.get("status", "")),
                 message=str(data.get("message") or ""),
                 timestamp=time.time(),
+                type=str(data.get("type", "status")),
+                level=str(data.get("level", "INFO")),
             )
 
         def _handle_progress(line: str) -> None:
@@ -1258,6 +1269,8 @@ class RunService:
             "status": data["status"],
             "total": data.get("total_repetitions", 0),
             "message": data.get("message"),
+            "type": data.get("type", "status"),
+            "level": data.get("level", "INFO"),
         }
 
     # --- System info helpers ---
