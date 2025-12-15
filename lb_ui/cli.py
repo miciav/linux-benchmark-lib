@@ -925,6 +925,11 @@ def run(
         "--debug",
         help="Enable verbose debug logging (sets fio.debug=True when applicable).",
     ),
+    stop_file: Optional[Path] = typer.Option(
+        None,
+        "--stop-file",
+        help="Path to a stop sentinel file; when created, the run will stop gracefully.",
+    ),
     intensity: str = typer.Option(
         None,
         "--intensity",
@@ -958,6 +963,8 @@ def run(
         ui.present.error("Repetitions must be at least 1.")
         raise typer.Exit(1)
 
+    stop_file = stop_file or (Path(os.environ["LB_STOP_FILE"]) if os.environ.get("LB_STOP_FILE") else None)
+
     try:
         context = run_service.create_session(
             config_service=config_service,
@@ -978,6 +985,7 @@ def run(
             intensity=intensity,
             ui_adapter=ui_adapter,
             setup=setup,
+            stop_file=stop_file,
         )
 
         _print_run_plan(

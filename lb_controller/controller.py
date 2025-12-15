@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig
+from lb_runner.stop_token import StopToken
 
 from lb_controller.ansible_executor import AnsibleRunnerExecutor
 from lb_controller.journal import RunJournal, RunStatus
@@ -39,14 +40,17 @@ class BenchmarkController:
         output_callback: Optional[Callable[[str, str], None]] = None,
         output_formatter: Optional[Any] = None,  # Inject the formatter instance
         journal_refresh: Optional[Callable[[], None]] = None,
+        stop_token: StopToken | None = None,
     ):
         self.config = config
         self.output_formatter = output_formatter
+        self.stop_token = stop_token
         # Enable streaming if a callback is provided
         stream = output_callback is not None
         self.executor = executor or AnsibleRunnerExecutor(
             output_callback=output_callback,
-            stream_output=stream
+            stream_output=stream,
+            stop_token=stop_token,
         )
         self.plugin_registry = create_registry()
         self._journal_refresh = journal_refresh
@@ -156,30 +160,37 @@ class BenchmarkController:
 
         # 1. Global Setup
         if self.config.remote_execution.run_setup:
-            ui_log("Phase: Global Setup")
-            if self.output_formatter:
-                self.output_formatter.set_phase("Global Setup")
-            phases["setup_global"] = self.executor.run_playbook(
-                self.config.remote_execution.setup_playbook,
-                inventory=inventory,
-                extravars=extravars,
-            )
-            if not phases["setup_global"].success:
-                ui_log("Global setup failed. Aborting run.")
-                self._refresh_journal()
-                return RunExecutionSummary(
-                    run_id=resolved_run_id,
-                    per_host_output=per_host_output,
-                    phases=phases,
-                    success=False,
-                    output_root=output_root,
-                    report_root=report_root,
-                    data_export_root=data_export_root,
+            if self.stop_token and self.stop_token.should_stop():
+                ui_log("Stop requested before setup; aborting run after teardown.")
+                # Defer to teardown section for cleanup.
+            else:
+                ui_log("Phase: Global Setup")
+                if self.output_formatter:
+                    self.output_formatter.set_phase("Global Setup")
+                phases["setup_global"] = self.executor.run_playbook(
+                    self.config.remote_execution.setup_playbook,
+                    inventory=inventory,
+                    extravars=extravars,
                 )
-
+                if not phases["setup_global"].success:
+                    ui_log("Global setup failed. Aborting run.")
+                    self._refresh_journal()
+                    return RunExecutionSummary(
+                        run_id=resolved_run_id,
+                        per_host_output=per_host_output,
+                        phases=phases,
+                        success=False,
+                        output_root=output_root,
+                        report_root=report_root,
+                        data_export_root=data_export_root,
+                    )
         # 2. Per-Test Loop (single Ansible run per workload; LocalRunner handles repetitions)
         all_tests_success = True
         for test_name in test_types:
+            if self.stop_token and self.stop_token.should_stop():
+                ui_log("Stop requested; draining teardown...")
+                all_tests_success = False
+                break
             workload_cfg = self.config.workloads.get(test_name)
             if not workload_cfg:
                 ui_log(f"Skipping unknown workload: {test_name}")
@@ -191,6 +202,9 @@ class BenchmarkController:
                 ui_log(f"Failed to load plugin for {test_name}: {e}")
                 all_tests_success = False
                 continue
+            if self.stop_token and self.stop_token.should_stop():
+                all_tests_success = False
+                break
             pending_hosts = _pending_hosts_for(test_name)
             if not pending_hosts:
                 ui_log(f"All repetitions already completed for {test_name}, skipping.")
@@ -266,7 +280,9 @@ class BenchmarkController:
                 all_tests_success = False
 
             # C. Intermediate Collect (single sync)
-            if self.config.remote_execution.run_collect:
+            if self.stop_token and self.stop_token.should_stop():
+                all_tests_success = False
+            elif self.config.remote_execution.run_collect:
                 ui_log(f"Collect: {test_name}")
                 if self.output_formatter:
                     self.output_formatter.set_phase(f"Collect: {test_name}")
@@ -330,6 +346,9 @@ class BenchmarkController:
                 phases[f"teardown_{test_name}"] = res_td
                 if not res_td.success:
                     ui_log(f"Teardown failed for {test_name}")
+            if self.stop_token and self.stop_token.should_stop():
+                all_tests_success = False
+                break
 
         # 3. Global Teardown (Clean up remote artifacts)
         if self.config.remote_execution.run_teardown:

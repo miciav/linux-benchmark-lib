@@ -1,4 +1,5 @@
 import json
+import hashlib
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional, Dict, Any, Iterable
 from datetime import datetime
@@ -6,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from lb_runner.events import RunEvent
+from lb_runner.benchmark_config import BenchmarkConfig
 
 class RunStatus:
     PENDING = "PENDING"
@@ -47,11 +49,14 @@ class RunJournal:
     def initialize(cls, run_id: str, config: Any, test_types: List[str]) -> 'RunJournal':
         """Factory to create a new journal based on configuration."""
         journal = cls(run_id=run_id)
+        cfg_dump = _config_dump(config)
         journal.metadata = {
             "created_at": datetime.now().isoformat(),
             "config_summary": str(config),  # Simple representation
             "repetitions": getattr(config, "repetitions", None),
             "system_info": {},  # host -> summary string/path mapping
+            "config_dump": cfg_dump,
+            "config_hash": _config_hash(cfg_dump),
         }
         
         # Pre-populate tasks based on config
@@ -141,17 +146,40 @@ class RunJournal:
         with open(path, 'r') as f:
             data = json.load(f)
 
+        metadata = data.get("metadata", {}) or {}
+        cfg_dump = metadata.get("config_dump")
+        cfg_hash = metadata.get("config_hash")
+
         if config is not None:
-            expected_reps = data.get("metadata", {}).get("repetitions")
+            expected_reps = metadata.get("repetitions")
             if expected_reps and getattr(config, "repetitions", None) != expected_reps:
                 raise ValueError("Config does not match journal repetitions; aborting resume.")
+            if cfg_hash and cfg_dump:
+                current_dump = _config_dump(config)
+                current_hash = _config_hash(current_dump)
+                if current_hash != cfg_hash:
+                    raise ValueError("Config hash mismatch for resume; supply matching config or rely on journal config_dump.")
         tasks_data = data.pop('tasks', [])
         journal = cls(**data)
         journal.tasks = {}
         for t in tasks_data:
             task = TaskState(**t)
             journal.tasks[task.key] = task
+        if not getattr(journal, "metadata", None):
+            journal.metadata = metadata
         return journal
+
+    def rehydrate_config(self) -> BenchmarkConfig | None:
+        """
+        Return a BenchmarkConfig reconstructed from the stored config_dump.
+        """
+        cfg_dump = (self.metadata or {}).get("config_dump")
+        if not cfg_dump:
+            return None
+        try:
+            return BenchmarkConfig.model_validate(cfg_dump)
+        except Exception:
+            return None
 
 
 class LogSink:
@@ -202,7 +230,7 @@ class LogSink:
         )
         self.journal.save(self.journal_path)
 
-    def _write_log(self, event: RunEvent) -> None:
+def _write_log(self, event: RunEvent) -> None:
         if not self._log_handle:
             return
         ts = datetime.fromtimestamp(event.timestamp or datetime.now().timestamp()).isoformat()
@@ -214,3 +242,25 @@ class LogSink:
             self._log_handle.flush()
         except Exception:
             pass
+
+
+def _config_dump(config: Any) -> Dict[str, Any]:
+    """Return a JSON-friendly dump of the config."""
+    try:
+        if hasattr(config, "model_dump"):
+            return config.model_dump(mode="json")
+    except Exception:
+        pass
+    try:
+        return json.loads(json.dumps(config, default=str))
+    except Exception:
+        return {}
+
+
+def _config_hash(cfg_dump: Dict[str, Any]) -> str:
+    """Stable hash for config dumps."""
+    try:
+        payload = json.dumps(cfg_dump, sort_keys=True, default=str).encode("utf-8")
+    except Exception:
+        payload = str(cfg_dump).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
