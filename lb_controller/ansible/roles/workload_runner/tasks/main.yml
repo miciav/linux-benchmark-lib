@@ -9,8 +9,8 @@
 - name: Define workload runner workdir (use globally installed lb_workdir)
   set_fact:
     workload_runner_workdir: "{{ lb_workdir | default('/opt/lb') }}"
-    setup_prefix: "[setup:{{ inventory_hostname }}]"
-    run_prefix: "[run:{{ inventory_hostname }}]"
+    setup_prefix: "[setup]"
+    run_prefix: "[run]"
 
 - name: "{{ setup_prefix }} Ensure workload output directory exists"
   ansible.builtin.file:
