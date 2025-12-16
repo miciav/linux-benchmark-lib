@@ -360,6 +360,14 @@ class RunService:
         self._setup_service = SetupService()
         self._progress_token = "LB_EVENT"
 
+    @staticmethod
+    def _controller_stop_hint(message: str) -> tuple[str, str]:
+        """Return colored dashboard text and plain log text for controller stop notices."""
+        tag_plain = "[Controller]"
+        tag_styled = "[bold bright_magenta][Controller][/bold bright_magenta]"
+        base = message.lstrip()
+        return f"{tag_styled} {base}", f"{tag_plain} {base}"
+
     def _enable_dashboard_log(
         self,
         dashboard: DashboardHandle,
@@ -751,19 +759,21 @@ class RunService:
             )
             stop_token = StopToken(stop_file=context.stop_file)
             stop_announced = False
-            def _announce_stop(msg: str = "Stop requested; draining teardown...") -> None:
+            def _announce_stop(msg: str = "Stop requested; press Ctrl+C again to exit once teardown completes and watch the log stream.") -> None:
                 nonlocal stop_announced
                 if stop_announced:
                     return
                 stop_announced = True
+                display_msg, log_msg = self._controller_stop_hint(msg)
                 if ui_adapter:
-                    ui_adapter.show_warning(msg)
+                    ui_adapter.show_warning(log_msg)
                 elif dashboard:
-                    dashboard.add_log(msg)
+                    dashboard.add_log(display_msg)
+                    dashboard.refresh()
                 else:
-                    print(msg)
+                    print(log_msg)
                 try:
-                    log_file.write(msg + "\n")
+                    log_file.write(log_msg + "\n")
                     log_file.flush()
                 except Exception:
                     pass
@@ -962,19 +972,21 @@ class RunService:
         )
         stop_token = StopToken(stop_file=context.stop_file)
         stop_announced = False
-        def _announce_stop(msg: str = "Stop requested; draining teardown...") -> None:
+        def _announce_stop(msg: str = "Stop requested; press Ctrl+C again to exit once teardown completes and watch the log stream.") -> None:
             nonlocal stop_announced
             if stop_announced:
                 return
             stop_announced = True
+            display_msg, log_msg = self._controller_stop_hint(msg)
             if ui_adapter:
-                ui_adapter.show_warning(msg)
+                ui_adapter.show_warning(log_msg)
             elif dashboard:
-                dashboard.add_log(msg)
+                dashboard.add_log(display_msg)
+                dashboard.refresh()
             else:
-                print(msg)
+                print(log_msg)
             try:
-                log_file.write(msg + "\n")
+                log_file.write(log_msg + "\n")
                 log_file.flush()
             except Exception:
                 pass
@@ -1204,19 +1216,21 @@ class RunService:
 
         downstream = output_cb
         stop_announced = False
-        def _announce_stop(msg: str = "Stop requested; draining teardown...") -> None:
+        def _announce_stop(msg: str = "Stop requested; press Ctrl+C again to exit once teardown completes and watch the log stream.") -> None:
             nonlocal stop_announced
             if stop_announced:
                 return
             stop_announced = True
+            display_msg, log_msg = self._controller_stop_hint(msg)
             if ui_adapter:
-                ui_adapter.show_warning(msg)
+                ui_adapter.show_warning(log_msg)
             elif dashboard:
-                dashboard.add_log(msg)
+                dashboard.add_log(display_msg)
+                dashboard.refresh()
             else:
-                print(msg)
+                print(log_msg)
             try:
-                log_file.write(msg + "\n")
+                log_file.write(log_msg + "\n")
                 log_file.flush()
             except Exception:
                 pass
@@ -1370,6 +1384,7 @@ class RunService:
             if formatter:
                 formatter.suppress_progress = True
             event_tailer.start()
+        summary: RunExecutionSummary | None = None
         elapsed: float | None = None
         try:
             with dashboard.live():
@@ -1386,15 +1401,26 @@ class RunService:
                 try:
                     log_file.write(msg + "\n")
                     log_file.flush()
+                    ui_stream_log_file.write(msg + "\n")
+                    ui_stream_log_file.flush()
                 except Exception:
                     pass
                 if ui_adapter:
                     ui_adapter.show_info(msg)
                 elif dashboard:
                     dashboard.add_log(msg)
-                    dashboard.refresh()
                 else:
                     print(msg)
+                if stop_token.should_stop():
+                    _announce_stop()
+                    self._fail_running_tasks(journal, reason="stopped")
+                    journal.save(journal_path)
+                output_root = journal_path.parent
+                hosts = [h.name for h in context.config.remote_hosts] if context.config.remote_hosts else ["localhost"]
+                if self._attach_system_info(journal, output_root, hosts, dashboard, ui_adapter, log_file):
+                    journal.save(journal_path)
+                if dashboard:
+                    dashboard.refresh()
         finally:
             if event_tailer:
                 event_tailer.stop()
@@ -1402,18 +1428,7 @@ class RunService:
             if ui_stream_log_file:
                 ui_stream_log_file.close()
 
-        if dashboard:
-            dashboard.refresh()
-
         sink.close()
-        output_root = journal_path.parent
-        hosts = [h.name for h in context.config.remote_hosts] if context.config.remote_hosts else ["localhost"]
-        if stop_token.should_stop():
-            _announce_stop()
-            self._fail_running_tasks(journal, reason="stopped")
-            journal.save(journal_path)
-        if self._attach_system_info(journal, output_root, hosts, dashboard, ui_adapter, log_file):
-            journal.save(journal_path)
         stop_token.restore()
         return RunResult(
             context=context,

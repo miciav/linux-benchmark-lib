@@ -40,6 +40,19 @@ class StopToken:
                 continue
 
     def _handle_signal(self, signum: int, frame) -> None:  # type: ignore[override]
+        if self._stop_requested:
+            prev_handler = self._prev_handlers.get(signum)
+            if prev_handler in (signal.SIG_IGN, None):
+                return
+            if prev_handler == signal.SIG_DFL:
+                signal.default_int_handler(signum, frame)
+            else:
+                try:
+                    prev_handler(signum, frame)
+                except Exception:
+                    # Fall back to default if the previous handler misbehaves.
+                    signal.default_int_handler(signum, frame)
+            return
         self.request_stop()
 
     def request_stop(self) -> None:
