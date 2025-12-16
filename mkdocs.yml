@@ -8,12 +8,14 @@ theme:
     - navigation.tabs
     - navigation.sections
     - content.code.copy
+extra_css:
+  - css/extra.css
 nav:
   - Home: index.md
-  - Installazione: installation.md
+  - Installation: installation.md
   - Quickstart: quickstart.md
-  - Configurazione: configuration.md
-  - Workloads & Plugin: plugins.md
+  - Configuration: configuration.md
+  - Workloads & Plugins: plugins.md
   - Remote Execution: remote_execution.md
   - CLI: cli.md
   - Contributing: contributing.md

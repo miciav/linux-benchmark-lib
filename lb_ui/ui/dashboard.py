@@ -24,6 +24,7 @@ class RunDashboard(DashboardHandle):
         console: Console,
         plan_rows: List[Dict[str, str]],
         journal: RunJournal,
+        ui_log_file: IO[str] | None = None,
     ) -> None:
         self.console = console
         self.plan_rows = plan_rows
@@ -39,6 +40,7 @@ class RunDashboard(DashboardHandle):
         self.event_source: str = "waiting"
         self.last_event_ts: float | None = None
         self._intensity = {row.get("name"): row.get("intensity", "-") for row in plan_rows}
+        self.ui_log_file = ui_log_file
 
     @contextmanager
     def live(self):
@@ -138,6 +140,12 @@ class RunDashboard(DashboardHandle):
         if not message or not message.strip():
             return
         self.log_buffer.append(message.strip())
+        if self.ui_log_file:
+            try:
+                self.ui_log_file.write(message.strip() + "\n")
+                self.ui_log_file.flush()
+            except Exception:
+                pass
         # Trim occasionally to avoid unbounded growth
         trim_target = getattr(self, "_visible_log_lines", self.max_log_lines) * 5
         if len(self.log_buffer) > trim_target:
@@ -258,11 +266,20 @@ class RunDashboard(DashboardHandle):
 class StreamDashboard(DashboardHandle):
     """Simple dashboard that streams logs to stdout for non-interactive use."""
 
+    def __init__(self, ui_log_file: IO[str] | None = None) -> None:
+        self.ui_log_file = ui_log_file
+
     def live(self):
         return nullcontext()
 
     def add_log(self, line: str) -> None:
         print(line)
+        if self.ui_log_file:
+            try:
+                self.ui_log_file.write(line + "\n")
+                self.ui_log_file.flush()
+            except Exception:
+                pass
 
     def refresh(self) -> None:
         pass

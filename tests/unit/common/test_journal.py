@@ -65,3 +65,17 @@ def test_journal_initializes_local_host_when_none():
     journal = RunJournal.initialize("run-local", cfg, ["stress_ng"])
     assert any(task.host == "localhost" for task in journal.tasks.values())
     assert len(journal.tasks) == cfg.repetitions
+
+
+def test_journal_rehydrate_config_from_dump(tmp_path: Path):
+    """Journal should carry enough config to resume without external config files."""
+    cfg = _base_config()
+    journal = RunJournal.initialize("run-456", cfg, ["stress_ng"])
+    journal_path = tmp_path / "run_journal.json"
+    journal.save(journal_path)
+
+    loaded = RunJournal.load(journal_path)
+    recovered = loaded.rehydrate_config()
+    assert recovered is not None
+    assert recovered.remote_hosts[0].name == cfg.remote_hosts[0].name
+    assert "stress_ng" in recovered.workloads

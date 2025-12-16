@@ -13,6 +13,7 @@ from lb_runner.benchmark_config import BenchmarkConfig
 from .plugin_service import create_registry
 from lb_runner.plugin_system.interface import WorkloadPlugin
 from lb_controller.ui_interfaces import UIAdapter
+from lb_runner.stop_token import StopToken
 
 
 @dataclass
@@ -32,6 +33,8 @@ class ContainerRunSpec:
     no_cache: bool = False
     debug: bool = False
     repetitions: int | None = None
+    stop_file: Path | None = None
+    resume: bool = False
 
 
 class ContainerRunner:
@@ -116,6 +119,7 @@ class ContainerRunner:
         plugin: WorkloadPlugin,
         ui_adapter: UIAdapter | None = None,
         output_callback: Callable[[str], None] | None = None,
+        stop_token: StopToken | None = None,
     ) -> str | None:
         """Run a single workload in its specific container."""
         self.ensure_engine(spec.engine)
@@ -137,7 +141,10 @@ class ContainerRunner:
             "--no-setup",  # Avoid ansible-runner in container images built for workload-only execution
         ]
         run_id = spec.run_id or workload_name
+        container_name = f"lb-{workload_name}-{run_id}"
         inner_cmd.extend(["--run-id", run_id])
+        if spec.resume:
+            inner_cmd.extend(["--resume", run_id])
         if spec.debug:
             inner_cmd.append("--debug")
         if spec.repetitions and spec.repetitions > 0:
@@ -153,7 +160,19 @@ class ContainerRunner:
             "-v", f"{spec.artifacts_dir}:/app/benchmark_results",
         ]
 
-        env_args: List[str] = ["-e", "PYTHONPATH=/app", "-e", "LB_CONTAINER_MODE=1", "-e", "PYTHONUNBUFFERED=1"]
+        env_args: List[str] = [
+            "-e", "PYTHONPATH=/app",
+            "-e", "LB_CONTAINER_MODE=1",
+            "-e", "PYTHONUNBUFFERED=1",
+            "-e", "LB_ENABLE_EVENT_LOGGING=1",
+        ]
+        if spec.stop_file:
+            try:
+                rel_stop = spec.stop_file.relative_to(spec.artifacts_dir)
+            except Exception:
+                rel_stop = Path(spec.stop_file.name)
+            in_container_stop = Path("/app/benchmark_results") / rel_stop
+            env_args.extend(["-e", f"LB_STOP_FILE={in_container_stop}"])
         if spec.config_path:
             cfg_host = spec.config_path.resolve()
             cfg_in_container = "/tmp/host_config.json"
@@ -169,7 +188,7 @@ class ContainerRunner:
             "run",
             "--rm",
             "--name",
-            f"lb-{workload_name}-{run_id}",
+            container_name,
             "-w",
             "/app",
             *volume_args,
@@ -192,6 +211,13 @@ class ContainerRunner:
         captured_stdout: list[str] = []
         if process.stdout:
             for line in process.stdout:
+                if stop_token and stop_token.should_stop():
+                    process.terminate()
+                    try:
+                        self._stop_container(spec.engine, container_name)
+                    except Exception:
+                        pass
+                    break
                 # Invoke callback if provided (e.g. for UI updates)
                 if output_callback:
                     output_callback(line)
@@ -201,6 +227,9 @@ class ContainerRunner:
 
         process.wait()
         full_output = "".join(captured_stdout)
+
+        if stop_token and stop_token.should_stop():
+            raise RuntimeError("Container run stopped by user")
 
         if process.returncode != 0:
             raise RuntimeError(f"Container run failed (rc={process.returncode})")
@@ -234,6 +263,12 @@ class ContainerRunner:
                 except Exception:
                     continue
         return latest
+
+    @staticmethod
+    def _stop_container(engine: str, name: str) -> None:
+        """Best-effort stop/kill of a running container."""
+        subprocess.run([engine, "stop", name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run([engine, "rm", "-f", name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def resolve_config_path_for_container(cfg: BenchmarkConfig, explicit: Optional[Path]) -> Optional[Path]:

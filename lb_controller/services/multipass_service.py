@@ -33,7 +33,7 @@ class MultipassService:
     - Robustness: Retries operations that depend on network/boot timing.
     """
 
-    def __init__(self, temp_dir: Path):
+    def __init__(self, temp_dir: Path, notifier: Optional[callable] = None):
         """
         Initialize the service.
         
@@ -45,6 +45,7 @@ class MultipassService:
         self.vm_name = f"lb-worker-{uuid.uuid4().hex[:8]}"
         self.ssh_key_path = self.temp_dir / f"{self.vm_name}_id_rsa"
         self.ssh_pub_path = self.temp_dir / f"{self.vm_name}_id_rsa.pub"
+        self._notifier = notifier
         self._ensure_multipass_available()
 
     def _ensure_multipass_available(self) -> None:
@@ -162,7 +163,7 @@ class MultipassService:
         Destroys the VM and removes local key files.
         This method is designed to be exception-safe (best effort).
         """
-        logger.info(f"Tearing down Multipass VM '{self.vm_name}'...")
+        self._notify(f"Tearing down Multipass VM '{self.vm_name}'...")
         
         # 1. Destroy VM
         if shutil.which("multipass"):
@@ -184,6 +185,7 @@ class MultipassService:
                 self.ssh_pub_path.unlink()
         except Exception as e:
             logger.warning(f"Error cleaning up local SSH keys: {e}")
+        self._notify(f"Multipass VM '{self.vm_name}' destroyed.")
 
     @contextmanager
     def provision(self) -> Generator[RemoteHostConfig, None, None]:
@@ -221,3 +223,12 @@ class MultipassService:
             raise
         finally:
             self.teardown()
+
+    def _notify(self, message: str) -> None:
+        """Emit a best-effort notification and log."""
+        if self._notifier:
+            try:
+                self._notifier(message)
+            except Exception:
+                pass
+        logger.info(message)

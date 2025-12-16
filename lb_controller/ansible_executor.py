@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from lb_controller.types import ExecutionResult, InventorySpec, RemoteExecutor
+from lb_runner.stop_token import StopToken
 
 logger = logging.getLogger(__name__)
 ANSIBLE_ROOT = Path(__file__).resolve().parent / "ansible"
@@ -25,6 +26,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         runner_fn: Optional[Callable[..., Any]] = None,
         stream_output: bool = False,
         output_callback: Optional[Callable[[str, str], None]] = None,
+        stop_token: StopToken | None = None,
     ):
         """
         Initialize the executor.
@@ -43,6 +45,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         self.event_log_path = self.private_data_dir / "lb_events.jsonl"
         self._runner_fn = runner_fn
         self.stream_output = stream_output
+        self.stop_token = stop_token
         # Force Ansible temp into a writable location inside the runner dir to avoid host-level permission issues
         self.local_tmp = self.private_data_dir / "tmp"
         self.local_tmp.mkdir(parents=True, exist_ok=True)
@@ -66,6 +69,8 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         limit_hosts: Optional[List[str]] = None,
     ) -> ExecutionResult:
         """Execute a playbook using ansible-runner."""
+        if self.stop_token and self.stop_token.should_stop():
+            return ExecutionResult(rc=1, status="stopped", stats={})
         if not playbook_path.exists():
             raise FileNotFoundError(f"Playbook not found: {playbook_path}")
 
@@ -204,13 +209,20 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                 text=True,
             )
             assert proc.stdout is not None
+            stop_requested = False
             for line in proc.stdout:
+                if self.stop_token and self.stop_token.should_stop():
+                    stop_requested = True
+                    proc.terminate()
+                    break
                 if self.output_callback:
                     self.output_callback(line.rstrip("\n"), "\n")
                 else:
                     sys.stdout.write(line)
             proc.wait()
             rc = proc.returncode
+            if stop_requested or (self.stop_token and self.stop_token.should_stop()):
+                return ExecutionResult(rc=rc or 1, status="stopped", stats={})
         else:
             completed = subprocess.run(
                 cmd,

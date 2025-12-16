@@ -1,4 +1,4 @@
-from typing import Sequence, Any, Protocol
+from typing import Any, IO, Sequence
 from contextlib import contextmanager, AbstractContextManager
 
 from lb_controller.ui_interfaces import UIAdapter, DashboardHandle, ProgressHandle
@@ -42,11 +42,11 @@ class TUIAdapter(UIAdapter):
         # The prompt didn't specify Progress component in detail beyond 'status'.
         return _NoOpProgressHandle()
 
-    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any) -> DashboardHandle:
+    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any, ui_log_file: IO[str] | None = None) -> DashboardHandle:
         # Use the TUI's dashboard factory
         # We assume the Dashboard protocol from UI system matches or is compatible with DashboardHandle
         # They both have live(), add_log(), refresh(), mark_event()
-        return self.tui.dashboard.create(plan, journal)
+        return self.tui.dashboard.create(plan, journal, ui_log_file)
 
     def prompt_multipass_scenario(self, options: list[str], default_level: str) -> tuple[str, str] | None:
         # Use TUI picker!

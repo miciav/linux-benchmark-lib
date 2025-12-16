@@ -52,6 +52,7 @@ def test_repetition_start_times_follow_execution_order(tmp_path: Path, monkeypat
             repetition_override=None,
             total_repetitions=None,
             run_id=None,
+            pending_reps=None,
         ):
             for rep in range(1, self.config.repetitions + 1):
                 if self.progress_callback:

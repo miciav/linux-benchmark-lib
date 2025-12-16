@@ -155,7 +155,11 @@ def _build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[st
     return viewmodels.journal_rows(journal)
 
 
-def _print_run_journal_summary(journal_path: Path, log_path: Path | None = None) -> None:
+def _print_run_journal_summary(
+    journal_path: Path,
+    log_path: Path | None = None,
+    ui_log_path: Path | None = None,
+) -> None:
     """Load and render a completed run journal, with log hints."""
     try:
         journal = RunJournal.load(journal_path)
@@ -174,6 +178,8 @@ def _print_run_journal_summary(journal_path: Path, log_path: Path | None = None)
     ui.present.info(f"Journal saved to {journal_path}")
     if log_path:
         ui.present.info(f"Ansible output log saved to {log_path}")
+    if ui_log_path:
+        ui.present.info(f"Dashboard log stream saved to {ui_log_path}")
 
 
 @config_app.command("edit")
@@ -925,6 +931,11 @@ def run(
         "--debug",
         help="Enable verbose debug logging (sets fio.debug=True when applicable).",
     ),
+    stop_file: Optional[Path] = typer.Option(
+        None,
+        "--stop-file",
+        help="Path to a stop sentinel file; when created, the run will stop gracefully.",
+    ),
     intensity: str = typer.Option(
         None,
         "--intensity",
@@ -958,6 +969,8 @@ def run(
         ui.present.error("Repetitions must be at least 1.")
         raise typer.Exit(1)
 
+    stop_file = stop_file or (Path(os.environ["LB_STOP_FILE"]) if os.environ.get("LB_STOP_FILE") else None)
+
     try:
         context = run_service.create_session(
             config_service=config_service,
@@ -978,6 +991,7 @@ def run(
             intensity=intensity,
             ui_adapter=ui_adapter,
             setup=setup,
+            stop_file=stop_file,
         )
 
         _print_run_plan(
@@ -999,7 +1013,7 @@ def run(
         raise typer.Exit(1)
 
     if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):
-        _print_run_journal_summary(result.journal_path, log_path=result.log_path)
+        _print_run_journal_summary(result.journal_path, log_path=result.log_path, ui_log_path=result.ui_log_path)
 
     ui.present.success("Run completed.")
 

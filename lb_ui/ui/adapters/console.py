@@ -115,11 +115,11 @@ class ConsoleUIAdapter(UIAdapter):
             task_id=task_id,
         )
 
-    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any) -> DashboardHandle:
+    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any, ui_log_file: IO[str] | None = None) -> DashboardHandle:
         """Create a run dashboard."""
         if self.console.is_interactive:
-            return RunDashboard(self.console, plan, journal)  # type: ignore
-        return StreamDashboard()
+            return RunDashboard(self.console, plan, journal, ui_log_file)  # type: ignore
+        return StreamDashboard(ui_log_file)
 
     def prompt_multipass_scenario(self, options: list[str], default_level: str) -> tuple[str, str] | None:
         """Prompt user for multipass scenario selection."""

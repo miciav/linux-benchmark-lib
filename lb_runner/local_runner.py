@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Callable
 
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.events import RunEvent, StdoutEmitter
+from lb_runner.log_handler import LBEventLogHandler
 from lb_runner.output_helpers import (
     ensure_run_dirs,
     ensure_runner_log,
@@ -29,6 +30,7 @@ from lb_runner.output_helpers import (
 from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
 from lb_runner.plugin_system.base_generator import BaseGenerator
+from lb_runner.stop_token import StopToken
 from lb_runner import system_info
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,7 @@ class LocalRunner:
         registry: PluginRegistry,
         progress_callback: Optional[Callable[[RunEvent], None]] = None,
         host_name: str | None = None,
+        stop_token: StopToken | None = None,
     ):
         """
         Initialize the local runner.
@@ -68,6 +71,7 @@ class LocalRunner:
         self._progress_callback = progress_callback
         self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
         self._progress_emitter = StdoutEmitter()
+        self._stop_token = stop_token
         
     def collect_system_info(self) -> Dict[str, Any]:
         """
@@ -112,6 +116,7 @@ class LocalRunner:
         generator: Any,
         repetition: int,
         total_repetitions: int,
+        stop_token: StopToken | None = None,
     ) -> Dict[str, Any]:
         """
         Run a single test with the specified generator.
@@ -153,13 +158,32 @@ class LocalRunner:
 
         last_progress_log = 0
 
+        # Attach structured log handler for this repetition
+        log_handler = None
+        if os.environ.get("LB_ENABLE_EVENT_LOGGING") == "1":
+            log_handler = LBEventLogHandler(
+                run_id=self._current_run_id or "",
+                host=self._host_name,
+                workload=test_name,
+                repetition=repetition,
+                total_repetitions=total_repetitions,
+            )
+            log_handler.setFormatter(logging.Formatter('%(message)s'))
+            logging.getLogger().addHandler(log_handler)
+
         try:
+            if stop_token and stop_token.should_stop():
+                raise RuntimeError("Stopped by user")
+
             # Run generator setup before metrics collection to avoid skew
             try:
                 generator.prepare()
             except Exception as e:
                 logger.error(f"Generator setup failed: {e}")
                 raise
+
+            if stop_token and stop_token.should_stop():
+                raise RuntimeError("Stopped by user")
 
             # Warmup period
             if self.config.warmup_seconds > 0:
@@ -187,6 +211,8 @@ class LocalRunner:
             elapsed = 0
 
             while elapsed < max_wait:
+                if stop_token and stop_token.should_stop():
+                    raise RuntimeError("Stopped by user")
                 if not self._generator_running(generator):
                     break
 
@@ -213,6 +239,9 @@ class LocalRunner:
             raise
 
         finally:
+            if log_handler:
+                logging.getLogger().removeHandler(log_handler)
+
             # Ensure generator is stopped if an error occurred while it was running
             if generator_started:
                 try:
@@ -335,6 +364,7 @@ class LocalRunner:
         repetition_override: int | None = None,
         total_repetitions: int | None = None,
         run_id: str | None = None,
+        pending_reps: List[int] | None = None,
     ) -> bool:
         """
         Run a complete benchmark test.
@@ -364,15 +394,23 @@ class LocalRunner:
         # Run multiple repetitions
         total_reps = total_repetitions or self.config.repetitions
         reps = (
-            [repetition_override]
-            if repetition_override is not None
-            else list(range(1, self.config.repetitions + 1))
+            pending_reps
+            if pending_reps is not None and len(pending_reps) > 0
+            else (
+                [repetition_override]
+                if repetition_override is not None
+                else list(range(1, self.config.repetitions + 1))
+            )
         )
 
         success_overall = True
         for idx, rep in enumerate(reps):
             if rep is None or rep <= 0:
                 raise ValueError("Repetition index must be a positive integer")
+            if self._stop_token and self._stop_token.should_stop():
+                logger.info("Stop requested; aborting remaining repetitions.")
+                success_overall = False
+                break
 
             logger.info(f"Starting repetition {rep}/{total_reps}")
 
@@ -407,6 +445,7 @@ class LocalRunner:
                     generator=generator,
                     repetition=rep,
                     total_repetitions=total_reps,
+                    stop_token=self._stop_token,
                 )
                 if not result.get("success", True):
                     success_overall = False

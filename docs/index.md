@@ -34,45 +34,7 @@ It supports two operation modes:
 - **perf**: Linux profiling
 - **bcc/eBPF tools**: optional kernel-level metrics
 
-## Installation
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd linux-benchmark-lib
-```
-
-### Mode 1: Agent (Lightweight)
-Installs only the core dependencies for running benchmarks on a target node.
-
-```bash
-uv sync
-# Or install as a tool
-uv tool install .
-```
-
-### Mode 2: Controller (Full)
-Installs the core plus orchestration tools (Ansible) and reporting libraries (Matplotlib, Seaborn).
-
-```bash
-uv sync --extra controller
-# Or install as a tool
-uv tool install ".[controller]"
-```
-
-### Development
-Installs all dependencies including test and linting tools.
-
-```bash
-uv sync --all-extras --dev
-```
-
-Switch between modes quickly with the helper script:
-
-```bash
-bash tools/switch_mode.sh base        # core only
-bash tools/switch_mode.sh controller  # adds controller extra
-bash tools/switch_mode.sh dev         # dev + all extras
 ```
 
 ## CLI (lb)
@@ -111,40 +73,9 @@ See `CLI.md` for the full command reference. Highlights:
   This updates the generated apt/pip install block in `Dockerfile` and rewrites `lb_controller/ansible/roles/workload_runner/tasks/plugins.generated.yml`.
 - Commit both the manifest and generated files so remote setup and the container stay in sync with available plugins.
 - See `docs/PLUGIN_DEVELOPMENT.md` for a full plugin authoring guide (WorkloadPlugin interface, manifests, packaging, git installs).
-- HPL plugin: vedi `lb_runner/plugins/hpl/README.md` per note su packaging `.deb`, build VM/Docker e test `xhpl`.
+- HPL plugin: see `lb_runner/plugins/hpl/README.md` for notes on `.deb` packaging, build VM/Docker and `xhpl` testing.
 
-## Quick Start
 
-```python
-from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig
-from lb_controller.controller import BenchmarkController
-from lb_runner.local_runner import LocalRunner
-from lb_runner.plugin_system.builtin import builtin_plugins
-from lb_runner.plugin_system.registry import PluginRegistry
-
-# Create a configuration
-config = BenchmarkConfig(
-    repetitions=3,
-    test_duration_seconds=3600,
-    metrics_interval_seconds=1.0
-)
-
-# Local execution (Agent Mode)
-registry = PluginRegistry(builtin_plugins())
-runner = LocalRunner(config, registry=registry)
-runner.run_benchmark("stress_ng")
-
-# Remote execution (Controller Mode)
-# Requires 'controller' extra installed
-remote_config = BenchmarkConfig(
-    remote_hosts=[RemoteHostConfig(name="node1", address="192.168.1.10", user="ubuntu")],
-    remote_execution=RemoteExecutionConfig(enabled=True),
-)
-# Use distinct, non-empty `name` values per host; they become per-host output dirs.
-controller = BenchmarkController(remote_config)
-summary = controller.run(["stress_ng"], run_id="demo-run")
-print(summary.per_host_output)
-```
 
 ## Project Layout
 
@@ -158,31 +89,7 @@ linux-benchmark-lib/
 └── pyproject.toml       # Project configuration (Core + Extras)
 ```
 
-## Configuration
 
-All knobs are defined in `BenchmarkConfig`:
-
-```python
-from pathlib import Path
-from lb_runner.benchmark_config import BenchmarkConfig
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
-
-config = BenchmarkConfig(
-    repetitions=5,
-    test_duration_seconds=120,
-    metrics_interval_seconds=0.5,
-    plugin_settings={
-        "stress_ng": StressNGConfig(
-            cpu_workers=4,
-            vm_workers=2,
-            vm_bytes="2G",
-        )
-    },
-)
-
-config.save(Path("my_config.json"))
-config = BenchmarkConfig.load(Path("my_config.json"))
-```
 
 ## Output
 
@@ -209,14 +116,8 @@ mv classes*.puml docs/diagrams/classes.puml
 mv packages*.puml docs/diagrams/packages.puml
 ```
 
-## Contributing
 
-1. Fork the project
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
-## Licenza
+## License
 
-Distribuito sotto licenza MIT. Vedi `LICENSE` per maggiori informazioni.
+Distributed under the MIT License. See `LICENSE` for more information.

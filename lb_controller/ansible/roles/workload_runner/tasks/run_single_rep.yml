@@ -8,7 +8,7 @@
         if workload_runner_reps is defined and (workload_runner_reps | length) > 0
         else (workload_runner_repetitions_total | default(1) | int)
       }}
-    run_prefix: "[run:{{ inventory_hostname }}:{{ workload_item[0] }}]"
+    run_prefix: "[run:{{ workload_item[0] }}]"
 
 - name: "{{ run_prefix }} Emit start event for repetition"
   ansible.builtin.debug:
@@ -75,6 +75,7 @@
         chdir: "{{ workload_runner_workdir }}"
       environment:
         LB_RUN_HOST: "{{ inventory_hostname }}"
+        LB_ENABLE_EVENT_LOGGING: "1"
       register: workload_runner_rep_result
       changed_when: true
 

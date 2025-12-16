@@ -25,7 +25,8 @@ def _seed_journal(tmp_path: Path) -> tuple[RunJournal, Path]:
 
 def test_execute_resume_skips_completed(monkeypatch, tmp_path):
     journal, journal_path = _seed_journal(tmp_path)
-    cfg = journal.metadata.get("config") or BenchmarkConfig()
+    cfg = BenchmarkConfig()
+    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng", enabled=True)}
     cfg.output_dir = tmp_path / "out"
     cfg.report_dir = tmp_path / "rep"
     cfg.data_export_dir = tmp_path / "exp"
@@ -36,13 +37,14 @@ def test_execute_resume_skips_completed(monkeypatch, tmp_path):
         def __init__(self, *args, **kwargs):
             self.calls = []
 
-        def run_benchmark(self, test_name, run_id=None):
-            self.calls.append(test_name)
+        def run_benchmark(self, test_name, run_id=None, pending_reps=None, **kwargs):
+            self.calls.append((test_name, pending_reps))
             return True
 
     dummy = DummyRunner()
     monkeypatch.setattr("lb_controller.services.run_service.LocalRunner", lambda *a, **k: dummy)
-    svc = RunService(registry_factory=lambda: None)
+    registry = type("R", (), {"get": lambda self, name: object()})()
+    svc = RunService(registry_factory=lambda: registry)
     ctx = svc.build_context(cfg, tests=["stress_ng"], remote_override=False)
     ctx.resume_from = "run-1"
     ctx.resume_latest = False
@@ -60,3 +62,4 @@ def test_execute_resume_skips_completed(monkeypatch, tmp_path):
     rep2 = saved.get_task("localhost", "stress_ng", 2)
     assert rep1 and rep1.status == RunStatus.COMPLETED
     assert rep2 is not None
+    assert dummy.calls == [("stress_ng", [2, 3])]
