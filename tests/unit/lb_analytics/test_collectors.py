@@ -2,6 +2,9 @@ import pandas as pd
 
 from lb_analytics.aggregators.collectors import aggregate_cli, aggregate_psutil
 
+import pytest
+
+pytestmark = pytest.mark.unit
 
 def test_aggregate_psutil_empty_df_returns_empty():
     df = pd.DataFrame()

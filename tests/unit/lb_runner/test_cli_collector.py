@@ -4,6 +4,9 @@ import pytest
 import pandas as pd
 from lb_runner.metric_collectors.cli_collector import aggregate_cli
 
+import pytest
+
+pytestmark = pytest.mark.unit
 
 def test_aggregate_cli_handles_numeric_columns():
     df = pd.DataFrame(

@@ -4,7 +4,9 @@ from pathlib import Path
 
 from lb_controller.services.run_service import RunService
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
+import pytest
 
+pytestmark = pytest.mark.unit
 
 class DummyRegistry:
     pass

@@ -3,6 +3,9 @@ from pathlib import Path
 
 from lb_analytics import DataHandler
 
+import pytest
+
+pytestmark = pytest.mark.unit
 
 def test_data_handler_fallback_psutil_aggregator():
     handler = DataHandler()

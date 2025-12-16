@@ -5,6 +5,9 @@ from types import SimpleNamespace
 from typer.testing import CliRunner
 
 from lb_ui import cli
+import pytest
+
+pytestmark = pytest.mark.cli
 
 runner = CliRunner()
 
