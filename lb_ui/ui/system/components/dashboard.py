@@ -36,6 +36,7 @@ class RichDashboard(Dashboard):
         console: Console,
         plan_rows: List[Dict[str, str]],
         journal: RunJournal,
+        ui_log_file: IO[str] | None = None,
     ) -> None:
         self.console = console
         self.plan_rows = plan_rows
@@ -51,6 +52,7 @@ class RichDashboard(Dashboard):
         self.event_source: str = "waiting"
         self.last_event_ts: float | None = None
         self._intensity = {row.get("name"): row.get("intensity", "-") for row in plan_rows}
+        self.ui_log_file = ui_log_file
 
     @contextmanager
     def live(self):
@@ -154,6 +156,12 @@ class RichDashboard(Dashboard):
         if not message or not message.strip():
             return
         self.log_buffer.append(message.strip())
+        if self.ui_log_file:
+            try:
+                self.ui_log_file.write(message.strip() + "\n")
+                self.ui_log_file.flush()
+            except Exception:
+                pass
         # Trim occasionally to avoid unbounded growth
         trim_target = getattr(self, "_visible_log_lines", self.max_log_lines) * 5
         if len(self.log_buffer) > trim_target:
@@ -263,5 +271,5 @@ class RichDashboardFactory(DashboardFactory):
     def __init__(self, console: Console):
         self._console = console
         
-    def create(self, plan: list[Dict[str, Any]], journal: Any) -> Dashboard:
-        return RichDashboard(self._console, plan, journal)
+    def create(self, plan: list[Dict[str, Any]], journal: Any, ui_log_file: IO[str] | None = None) -> Dashboard:
+        return RichDashboard(self._console, plan, journal, ui_log_file)

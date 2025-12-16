@@ -8,7 +8,7 @@ import os
 import time
 import re
 from dataclasses import dataclass, asdict, is_dataclass
-from contextlib import ExitStack
+from contextlib import ExitStack, AbstractContextManager
 from typing import Callable, List, Optional, Dict, Any, TYPE_CHECKING, IO
 from pathlib import Path
 import json
@@ -320,6 +320,35 @@ class RunResult:
     summary: Optional[RunExecutionSummary]
     journal_path: Path | None = None
     log_path: Path | None = None
+    ui_log_path: Path | None = None
+
+
+class _DashboardLogProxy(DashboardHandle):
+    """Dashboard wrapper that also writes log lines to a file."""
+
+    def __init__(self, inner: DashboardHandle, log_file: IO[str]):
+        self._inner = inner
+        self._log_file = log_file
+
+    def live(self) -> AbstractContextManager[None]:
+        return self._inner.live()
+
+    def add_log(self, line: str) -> None:
+        if not line or not str(line).strip():
+            return
+        message = str(line).strip()
+        self._inner.add_log(message)
+        try:
+            self._log_file.write(message + "\n")
+            self._log_file.flush()
+        except Exception:
+            pass
+
+    def refresh(self) -> None:
+        self._inner.refresh()
+
+    def mark_event(self, source: str) -> None:
+        self._inner.mark_event(source)
 
 
 class RunService:
@@ -330,6 +359,22 @@ class RunService:
         self._container_runner = ContainerRunner()
         self._setup_service = SetupService()
         self._progress_token = "LB_EVENT"
+
+    def _enable_dashboard_log(
+        self,
+        dashboard: DashboardHandle,
+        journal_path: Path,
+    ) -> tuple[DashboardHandle, Path | None, IO[str] | None]:
+        """Attach a ui_stream.log file to the dashboard when available."""
+        if isinstance(dashboard, NoOpDashboardHandle):
+            return dashboard, None, None
+        ui_stream_log_path = journal_path.parent / "ui_stream.log"
+        try:
+            ui_stream_log_file = ui_stream_log_path.open("a", encoding="utf-8")
+        except Exception:
+            return dashboard, None, None
+        wrapped = _DashboardLogProxy(dashboard, ui_stream_log_file)
+        return wrapped, ui_stream_log_path, ui_stream_log_file
 
     def get_run_plan(
         self,
@@ -635,6 +680,7 @@ class RunService:
         log_path: Path | None = None
         run_identifier = run_id
         dashboard: DashboardHandle | None = None
+        ui_stream_log_file: IO[str] | None = None
         
         # Ensure we always stream output for remote/multipass to show progress
         formatter: AnsibleOutputFormatter | None = None
@@ -694,12 +740,15 @@ class RunService:
 
         if context.use_container:
             journal, journal_path, dashboard, run_identifier = self._prepare_journal_and_dashboard(
-                context, run_id, ui_adapter
+                context, run_id, ui_adapter, ui_stream_log_file
             )
             log_path = journal_path.parent / "run.log"
             # Ensure directory exists
             journal_path.parent.mkdir(parents=True, exist_ok=True)
             log_file = log_path.open("a", encoding="utf-8")
+            dashboard, ui_stream_log_path, ui_stream_log_file = self._enable_dashboard_log(
+                dashboard, journal_path
+            )
             stop_token = StopToken(stop_file=context.stop_file)
             stop_announced = False
             def _announce_stop(msg: str = "Stop requested; draining teardown...") -> None:
@@ -738,10 +787,12 @@ class RunService:
                 log_file.write(msg + "\n")
                 log_file.flush()
                 log_file.close()
+                if ui_stream_log_file:
+                    ui_stream_log_file.close()
                 if dashboard:
                     dashboard.refresh()
                 stop_token.restore()
-                return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
+                return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path, ui_log_path=ui_stream_log_path)
 
             root = context.docker_workdir or context.config.output_dir.parent.resolve()
             spec = ContainerRunSpec(
@@ -885,8 +936,10 @@ class RunService:
             if self._attach_system_info(journal, output_root, hosts, dashboard, ui_adapter, log_file):
                 journal.save(journal_path)
             log_file.close()
+            if ui_stream_log_file:
+                ui_stream_log_file.close()
             stop_token.restore()
-            return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
+            return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path, ui_log_path=ui_stream_log_path)
 
         if context.use_remote:
             return self._run_remote(
@@ -900,10 +953,13 @@ class RunService:
 
         # --- LOCAL EXECUTION WITH 2-LEVEL SETUP ---
         journal, journal_path, dashboard, run_identifier = self._prepare_journal_and_dashboard(
-            context, run_id, ui_adapter
+            context, run_id, ui_adapter, ui_stream_log_file
         )
         log_path = journal_path.parent / "run.log"
         log_file = log_path.open("a", encoding="utf-8")
+        dashboard, ui_stream_log_path, ui_stream_log_file = self._enable_dashboard_log(
+            dashboard, journal_path
+        )
         stop_token = StopToken(stop_file=context.stop_file)
         stop_announced = False
         def _announce_stop(msg: str = "Stop requested; draining teardown...") -> None:
@@ -943,9 +999,11 @@ class RunService:
                 log_file.write(msg + "\n")
                 log_file.flush()
                 log_file.close()
+                if ui_stream_log_file:
+                    ui_stream_log_file.close()
                 if dashboard:
                     dashboard.refresh()
-                return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
+                return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path, ui_log_path=ui_stream_log_path)
 
             def _progress_cb(event: RunEvent) -> None:
                 status_map = {
@@ -957,6 +1015,10 @@ class RunService:
                 journal.update_task(event.host, event.workload, event.repetition, mapped, action="local_run")
                 journal.save(journal_path)
                 if dashboard:
+                    text = f"[{event.host}] {event.workload}: {event.repetition}/{event.total_repetitions} {event.status}"
+                    if getattr(event, "message", ""):
+                        text = f"{text} ({event.message})"
+                    dashboard.add_log(text)
                     dashboard.refresh()
 
             runner = LocalRunner(
@@ -977,11 +1039,14 @@ class RunService:
                         ui_adapter.show_error(msg)
                     print(f"[local] {msg}")
                     log_file.write(msg + "\n")
+                    log_file.flush()
                     log_file.close()
+                    if ui_stream_log_file:
+                        ui_stream_log_file.close()
                     journal.save(journal_path)
                     if dashboard:
                         dashboard.refresh()
-                    return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
+                    return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path, ui_log_path=ui_stream_log_path)
 
             try:
                 for test_name in context.target_tests:
@@ -1036,9 +1101,15 @@ class RunService:
                         )
                         if success:
                             log_file.write(f"{test_name} completed locally\n")
+                            if dashboard:
+                                dashboard.add_log(f"{test_name} completed locally")
                         else:
                             log_file.write(f"{test_name} failed locally\n")
+                            if dashboard:
+                                dashboard.add_log(f"{test_name} failed locally")
                         log_file.flush()
+                        if dashboard:
+                            dashboard.refresh()
                         journal.save(journal_path)
                     except Exception as e:
                         for rep in pending_reps or range(1, context.config.repetitions + 1):
@@ -1053,6 +1124,9 @@ class RunService:
                         journal.save(journal_path)
                         log_file.write(f"{test_name} failed locally: {e}\n")
                         log_file.flush()
+                        if dashboard:
+                            dashboard.add_log(f"{test_name} failed locally: {e}")
+                            dashboard.refresh()
                         if ui_adapter:
                             ui_adapter.show_error(f"[local] {test_name} failed locally: {e}")
                     finally:
@@ -1070,6 +1144,8 @@ class RunService:
                     self._setup_service.teardown_global()
 
             log_file.close()
+            if ui_stream_log_file:
+                ui_stream_log_file.close()
             if dashboard:
                 dashboard.refresh()
             output_root = journal_path.parent
@@ -1080,7 +1156,7 @@ class RunService:
                 journal.save(journal_path)
             if self._attach_system_info(journal, output_root, hosts, dashboard, ui_adapter, log_file):
                 journal.save(journal_path)
-            return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path)
+            return RunResult(context=context, summary=None, journal_path=journal_path, log_path=log_path, ui_log_path=ui_stream_log_path)
         finally:
             stop_token.restore()
 
@@ -1096,12 +1172,17 @@ class RunService:
         """Execute a remote run using the controller with journal integration."""
         from ..controller import BenchmarkController  # Runtime import to break circular dependency
 
+        ui_stream_log_file: IO[str] | None = None
         stop_token = stop_token or StopToken(stop_file=context.stop_file)
         resume_requested = context.resume_from is not None or context.resume_latest
         journal, journal_path, dashboard, effective_run_id = (
-            self._prepare_journal_and_dashboard(context, run_id, ui_adapter)
+            self._prepare_journal_and_dashboard(context, run_id, ui_adapter, ui_stream_log_file)
         )
         log_path = journal_path.parent / "run.log"
+        log_file = log_path.open("a", encoding="utf-8")
+        dashboard, ui_stream_log_path, ui_stream_log_file = self._enable_dashboard_log(
+            dashboard, journal_path
+        )
 
         # Fan-out Ansible output to both formatter and dashboard log stream.
         output_cb = output_callback
@@ -1119,10 +1200,8 @@ class RunService:
                 if now - last_refresh > 0.25:
                     dashboard.refresh()
                     last_refresh = now
-            output_cb = _dashboard_callback
+        output_cb = _dashboard_callback
 
-        # Tee streamed output to a log file to aid troubleshooting after the run.
-        log_file = log_path.open("a", encoding="utf-8")
         downstream = output_cb
         stop_announced = False
         def _announce_stop(msg: str = "Stop requested; draining teardown...") -> None:
@@ -1176,6 +1255,11 @@ class RunService:
                 log_file.close()
             except Exception:
                 pass
+            if ui_stream_log_file:
+                try:
+                    ui_stream_log_file.close()
+                except Exception:
+                    pass
             if ui_adapter:
                 ui_adapter.show_info(msg)
             stop_token.restore()
@@ -1184,6 +1268,7 @@ class RunService:
                 summary=None,
                 journal_path=journal_path,
                 log_path=log_path,
+                ui_log_path=ui_stream_log_path,
             )
 
         def _ingest_event(event: RunEvent, source: str = "unknown") -> None:
@@ -1204,6 +1289,8 @@ class RunService:
                 dashboard.mark_event(source)
                 label = f"run-{event.host}".replace(":", "-").replace(" ", "-") + f"-{event.workload}".replace(":", "-").replace(" ", "-")
                 text = f"• [{label}] {event.repetition}/{event.total_repetitions} {event.status}"
+                if event.message:
+                    text = f"{text} ({event.message})"
                 dashboard.add_log(escape(text))
                 dashboard.refresh()
 
@@ -1303,12 +1390,17 @@ class RunService:
                     pass
                 if ui_adapter:
                     ui_adapter.show_info(msg)
+                elif dashboard:
+                    dashboard.add_log(msg)
+                    dashboard.refresh()
                 else:
                     print(msg)
         finally:
             if event_tailer:
                 event_tailer.stop()
             log_file.close()
+            if ui_stream_log_file:
+                ui_stream_log_file.close()
 
         if dashboard:
             dashboard.refresh()
@@ -1328,6 +1420,7 @@ class RunService:
             summary=summary,
             journal_path=journal_path,
             log_path=log_path,
+            ui_log_path=ui_stream_log_path,
         )
 
     def _prepare_journal_and_dashboard(
@@ -1335,6 +1428,7 @@ class RunService:
         context: RunContext,
         run_id: Optional[str],
         ui_adapter: UIAdapter | None,
+        ui_stream_log_file: IO[str] | None = None,
     ) -> tuple[RunJournal, Path, DashboardHandle, str]:
         """Load or create the run journal and optional dashboard."""
         resume_requested = context.resume_from is not None or context.resume_latest
@@ -1407,7 +1501,7 @@ class RunService:
                 remote_mode=context.use_remote,
                 registry=context.registry,
             )
-            dashboard = ui_adapter.create_dashboard(plan, journal)
+            dashboard = ui_adapter.create_dashboard(plan, journal, ui_stream_log_file)
         else:
             dashboard = NoOpDashboardHandle()
 
@@ -1612,7 +1706,7 @@ class RunService:
         for host, summary in summaries.items():
             line = f"{host}: {summary}"
             if dashboard:
-                dashboard.add_log(f"[system] {line}")
+                dashboard.add_log(f"[system] System info: {line}")
                 dashboard.mark_event("system_info")
                 dashboard.refresh()
             elif ui_adapter:
@@ -1621,7 +1715,7 @@ class RunService:
                 print(f"[system] {line}")
             if log_file:
                 try:
-                    log_file.write(f"[system] {line}\n")
+                    log_file.write(f"[system] System info: {line}\n")
                     log_file.flush()
                 except Exception:
                     pass

@@ -66,7 +66,7 @@ class UIAdapter(Protocol):
     def create_progress(self, description: str, total: int) -> ProgressHandle:
         """Create a progress task."""
 
-    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any) -> DashboardHandle:
+    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any, ui_log_file: IO[str] | None = None) -> DashboardHandle:
         """Create a run dashboard."""
 
     def prompt_multipass_scenario(self, options: list[str], default_level: str) -> tuple[str, str] | None:
@@ -129,7 +129,7 @@ class NoOpUIAdapter(UIAdapter):
     def create_progress(self, description: str, total: int) -> ProgressHandle:
         return NoOpProgressHandle()
 
-    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any) -> DashboardHandle:
+    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any, ui_log_file: IO[str] | None = None) -> DashboardHandle:
         return NoOpDashboardHandle()
 
     def prompt_multipass_scenario(self, options: list[str], default_level: str) -> tuple[str, str] | None:  # pragma: no cover - trivial
