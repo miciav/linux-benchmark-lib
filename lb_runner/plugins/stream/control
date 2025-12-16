@@ -1,0 +1,14 @@
+Source: stream-benchmark
+Section: science
+Priority: optional
+Maintainer: STREAM Builder <builder@example.com>
+Build-Depends: debhelper-compat (= 13), gcc, make
+Standards-Version: 4.6.2
+Homepage: https://www.cs.virginia.edu/stream/
+
+Package: stream-benchmark
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libgomp1
+Description: STREAM memory bandwidth benchmark (prebuilt stream)
+ STREAM 5.10 built with GCC OpenMP support.
+

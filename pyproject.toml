@@ -69,6 +69,7 @@ stress_ng = "lb_runner.plugins.stress_ng.plugin:PLUGIN"
 fio = "lb_runner.plugins.fio.plugin:PLUGIN"
 dd = "lb_runner.plugins.dd.plugin:PLUGIN"
 hpl = "lb_runner.plugins.hpl.plugin:PLUGIN"
+stream = "lb_runner.plugins.stream.plugin:PLUGIN"
 
 [tool.uv]
 package = true

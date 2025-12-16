@@ -10,6 +10,7 @@ import pytest
 
 from lb_runner.plugins.geekbench.plugin import GeekbenchPlugin
 from lb_runner.plugins.hpl.plugin import HPLPlugin
+from lb_runner.plugins.stream.plugin import StreamPlugin
 from lb_runner.plugins.yabs.plugin import YabsPlugin
 
 pytestmark = [pytest.mark.unit, pytest.mark.plugins]
@@ -102,3 +103,29 @@ Upload: 800.2 Mbits/sec
     assert df.loc[0, "cpu_events_per_sec"] == 1234.56
     assert df.loc[0, "disk_read_mb_s"] == 789.0
     assert df.loc[0, "net_download_mbits"] == 900.1
+
+
+def test_stream_export_results_to_csv_writes_triad(tmp_path: Path) -> None:
+    plugin = StreamPlugin()
+    output_dir = tmp_path / "stream"
+
+    results = [
+        {
+            "repetition": 1,
+            "duration_seconds": 3.0,
+            "success": True,
+            "generator_result": {
+                "returncode": 0,
+                "stream_array_size": 10_000_000,
+                "ntimes": 10,
+                "threads": 4,
+                "triad_best_rate_mb_s": 9999.9,
+                "validated": True,
+            },
+        }
+    ]
+
+    paths = plugin.export_results_to_csv(results, output_dir, "run-1", "stream")
+    assert (output_dir / "stream_plugin.csv") in paths
+    df = pd.read_csv(output_dir / "stream_plugin.csv")
+    assert df.loc[0, "triad_best_rate_mb_s"] == 9999.9

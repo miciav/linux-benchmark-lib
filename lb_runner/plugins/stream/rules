@@ -1,0 +1,27 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+export MAKEFLAGS=-j1
+
+STREAM_VERSION ?= 5.10
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# no configure step
+
+override_dh_auto_build:
+	gcc -O3 -fopenmp stream.c -o stream
+
+override_dh_auto_install:
+	mkdir -p debian/stream-benchmark/opt/stream-$(STREAM_VERSION)/bin
+	mkdir -p debian/stream-benchmark/opt/stream-$(STREAM_VERSION)/src
+	mkdir -p debian/stream-benchmark/opt/stream-$(STREAM_VERSION)/licenses
+	cp stream debian/stream-benchmark/opt/stream-$(STREAM_VERSION)/bin/stream
+	cp stream.c debian/stream-benchmark/opt/stream-$(STREAM_VERSION)/src/stream.c
+	cp LICENSE.txt debian/stream-benchmark/opt/stream-$(STREAM_VERSION)/licenses/LICENSE.txt
+
+override_dh_auto_clean:
+	rm -f stream
+

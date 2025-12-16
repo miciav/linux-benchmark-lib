@@ -24,6 +24,7 @@ from lb_runner.plugins.dd.plugin import DDConfig
 from lb_runner.plugins.fio.plugin import FIOConfig
 from lb_runner.plugins.geekbench.plugin import GeekbenchConfig
 from lb_runner.plugins.hpl.plugin import HPLConfig
+from lb_runner.plugins.stream.plugin import StreamConfig
 from lb_runner.plugins.yabs.plugin import YabsConfig
 
 
