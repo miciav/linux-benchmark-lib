@@ -1,0 +1,17 @@
+---
+- hosts: all
+  gather_facts: false
+  tasks:
+    - name: Emit start marker
+      ansible.builtin.file:
+        path: "{{ output_root }}/run_start"
+        state: touch
+
+    - name: Simulate workload duration
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Emit completion marker
+      ansible.builtin.file:
+        path: "{{ output_root }}/run_done"
+        state: touch

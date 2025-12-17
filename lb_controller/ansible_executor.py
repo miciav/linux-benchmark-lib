@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import selectors
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -46,6 +48,9 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         self._runner_fn = runner_fn
         self.stream_output = stream_output
         self.stop_token = stop_token
+        self._interrupt_flag = threading.Event()
+        self._active_process: subprocess.Popen[str] | None = None
+        self._lock = threading.Lock()
         # Force Ansible temp into a writable location inside the runner dir to avoid host-level permission issues
         self.local_tmp = self.private_data_dir / "tmp"
         self.local_tmp.mkdir(parents=True, exist_ok=True)
@@ -67,9 +72,15 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         extravars: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
         limit_hosts: Optional[List[str]] = None,
+        *,
+        cancellable: bool = True,
     ) -> ExecutionResult:
         """Execute a playbook using ansible-runner."""
-        if self.stop_token and self.stop_token.should_stop():
+        self._interrupt_flag.clear()
+        if cancellable and (
+            self._interrupt_flag.is_set()
+            or (self.stop_token and self.stop_token.should_stop())
+        ):
             return ExecutionResult(rc=1, status="stopped", stats={})
         if not playbook_path.exists():
             raise FileNotFoundError(f"Playbook not found: {playbook_path}")
@@ -123,6 +134,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                 tags=tags,
                 envvars=envvars,
                 limit_hosts=limit_hosts,
+                cancellable=cancellable,
             )
 
         rc = getattr(result, "rc", 1)
@@ -171,6 +183,8 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         tags: Optional[List[str]],
         envvars: Dict[str, str],
         limit_hosts: Optional[List[str]] = None,
+        *,
+        cancellable: bool = True,
     ) -> ExecutionResult:
         """
         Execute ansible-playbook via subprocess to avoid ansible-runner's awx_display callback.
@@ -208,20 +222,56 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                 stderr=subprocess.STDOUT,
                 text=True,
             )
+            with self._lock:
+                self._active_process = proc
             assert proc.stdout is not None
             stop_requested = False
-            for line in proc.stdout:
-                if self.stop_token and self.stop_token.should_stop():
-                    stop_requested = True
-                    proc.terminate()
-                    break
-                if self.output_callback:
-                    self.output_callback(line.rstrip("\n"), "\n")
-                else:
-                    sys.stdout.write(line)
-            proc.wait()
+            selector = selectors.DefaultSelector()
+            selector.register(proc.stdout, selectors.EVENT_READ)
+            try:
+                while True:
+                    if cancellable and (
+                        self._interrupt_flag.is_set()
+                        or (self.stop_token and self.stop_token.should_stop())
+                    ):
+                        stop_requested = True
+                        proc.terminate()
+                        break
+
+                    if proc.poll() is not None:
+                        break
+
+                    events = selector.select(timeout=0.1)
+                    if not events:
+                        continue
+
+                    for key, _mask in events:
+                        line = key.fileobj.readline()
+                        if not line:
+                            break
+                        if self.output_callback:
+                            self.output_callback(line.rstrip("\n"), "\n")
+                        else:
+                            sys.stdout.write(line)
+                            sys.stdout.flush()
+            finally:
+                selector.close()
+                with self._lock:
+                    self._active_process = None
+
+            try:
+                proc.wait(timeout=5 if stop_requested else None)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
             rc = proc.returncode
-            if stop_requested or (self.stop_token and self.stop_token.should_stop()):
+            if stop_requested or (
+                cancellable
+                and (
+                    self._interrupt_flag.is_set()
+                    or (self.stop_token and self.stop_token.should_stop())
+                )
+            ):
                 return ExecutionResult(rc=rc or 1, status="stopped", stats={})
         else:
             completed = subprocess.run(
@@ -239,6 +289,20 @@ class AnsibleRunnerExecutor(RemoteExecutor):
 
         status = "successful" if rc == 0 else "failed"
         return ExecutionResult(rc=rc, status=status, stats={})
+
+    def interrupt(self) -> None:
+        """Request interruption of the current playbook execution."""
+        self._interrupt_flag.set()
+        with self._lock:
+            proc = self._active_process
+        if proc and proc.poll() is None:
+            try:
+                proc.terminate()
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
 
 
 def _render_inventory(hosts: List[Any]) -> str:

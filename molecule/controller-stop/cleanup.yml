@@ -1,0 +1,7 @@
+---
+- hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Cleanup placeholder
+      ansible.builtin.debug:
+        msg: "controller-stop cleanup"

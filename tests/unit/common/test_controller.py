@@ -16,6 +16,7 @@ from lb_controller.controller import (
     InventorySpec,
     RemoteExecutor,
 )
+from lb_runner.stop_token import StopToken
 
 
 class DummyExecutor(RemoteExecutor):
@@ -31,6 +32,8 @@ class DummyExecutor(RemoteExecutor):
         extravars=None,
         tags=None,
         limit_hosts=None,
+        *,
+        cancellable: bool = True,
     ) -> ExecutionResult:
         self.calls.append(
             {
@@ -39,6 +42,7 @@ class DummyExecutor(RemoteExecutor):
                 "extravars": extravars or {},
                 "tags": tags or [],
                 "limit_hosts": limit_hosts or [],
+                "cancellable": cancellable,
             }
         )
         return ExecutionResult(rc=0, status="successful")
@@ -142,7 +146,9 @@ def test_controller_merges_plugin_extravars_into_setup(tmp_path: Path) -> None:
     assert summary.success
 
     setup_calls = [
-        call for call in executor.calls if str(call["playbook"]).endswith("/phoronix_test_suite/ansible/setup.yml")
+        call
+        for call in executor.calls
+        if str(call["playbook"]).endswith("/phoronix_test_suite/ansible/setup.yml")
     ]
     assert setup_calls, "Expected PTS setup playbook call"
     assert setup_calls[0]["extravars"]["pts_profile"] == "build-linux-kernel"
@@ -156,3 +162,113 @@ def test_controller_merges_plugin_extravars_into_setup(tmp_path: Path) -> None:
     ]
     assert teardown_calls, "Expected PTS teardown playbook call"
     assert teardown_calls[0]["extravars"]["pts_profile"] == "build-linux-kernel"
+
+
+def test_controller_runs_teardown_even_after_stop_requested(tmp_path: Path) -> None:
+    """Stop requests should still allow plugin/global teardown to execute exactly once."""
+    config = BenchmarkConfig(
+        output_dir=tmp_path / "out",
+        report_dir=tmp_path / "rep",
+        data_export_dir=tmp_path / "exp",
+        remote_hosts=[RemoteHostConfig(name="node1", address="127.0.0.1")],
+    )
+    config.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
+    config.repetitions = 1
+    config.remote_execution.run_setup = False
+    config.remote_execution.run_collect = False
+    config.remote_execution.run_teardown = True
+
+    stop_token = StopToken(enable_signals=False)
+    run_playbook_path = config.remote_execution.run_playbook
+
+    class StopAfterRunExecutor(RemoteExecutor):
+        def __init__(self) -> None:
+            self.calls: list[dict[str, object]] = []
+            self._stopped = False
+
+        def run_playbook(
+            self,
+            playbook_path: Path,
+            inventory: InventorySpec,
+            extravars=None,
+            tags=None,
+            limit_hosts=None,
+            *,
+            cancellable: bool = True,
+        ) -> ExecutionResult:
+            self.calls.append(
+                {
+                    "playbook": playbook_path,
+                    "cancellable": cancellable,
+                }
+            )
+            if not self._stopped and playbook_path == run_playbook_path:
+                self._stopped = True
+                stop_token.request_stop()
+                return ExecutionResult(rc=1, status="stopped")
+            return ExecutionResult(rc=0, status="successful")
+
+    executor = StopAfterRunExecutor()
+    controller = BenchmarkController(
+        config, executor=executor, stop_token=stop_token, stop_timeout_s=0.0
+    )
+    controller.run(test_types=["stress_ng"], run_id="run-test")
+
+    td_calls = [c for c in executor.calls if "teardown" in str(c["playbook"])]
+    assert td_calls, "Expected at least one teardown call"
+    assert all(c["cancellable"] is False for c in td_calls)
+    global_td_calls = [
+        c
+        for c in executor.calls
+        if "/ansible/playbooks/teardown.yml" in str(c["playbook"])
+    ]
+    assert len(global_td_calls) == 1
+
+
+def test_controller_interrupt_setup_triggers_teardown(tmp_path: Path) -> None:
+    """When stop is requested during setup, controller should still run global teardown."""
+    config = BenchmarkConfig(
+        output_dir=tmp_path / "out",
+        report_dir=tmp_path / "rep",
+        data_export_dir=tmp_path / "exp",
+        remote_hosts=[RemoteHostConfig(name="node1", address="127.0.0.1")],
+    )
+    config.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
+    config.repetitions = 1
+    config.remote_execution.run_setup = True
+    config.remote_execution.run_collect = False
+    config.remote_execution.run_teardown = True
+
+    stop_token = StopToken(enable_signals=False)
+
+    setup_pb = config.remote_execution.setup_playbook
+    teardown_pb = config.remote_execution.teardown_playbook
+
+    class InterruptSetupExecutor(RemoteExecutor):
+        def __init__(self) -> None:
+            self.calls = []
+
+        def run_playbook(
+            self,
+            playbook_path: Path,
+            inventory: InventorySpec,
+            extravars=None,
+            tags=None,
+            limit_hosts=None,
+            *,
+            cancellable: bool = True,
+        ) -> ExecutionResult:
+            self.calls.append({"playbook": playbook_path, "cancellable": cancellable})
+            if playbook_path == setup_pb:
+                stop_token.request_stop()
+                return ExecutionResult(rc=1, status="stopped")
+            return ExecutionResult(rc=0, status="successful")
+
+    executor = InterruptSetupExecutor()
+    controller = BenchmarkController(
+        config, executor=executor, stop_token=stop_token, stop_timeout_s=0.0
+    )
+    summary = controller.run(test_types=["stress_ng"], run_id="run-test")
+    assert summary.success is False
+    teardown_calls = [c for c in executor.calls if c["playbook"] == teardown_pb]
+    assert teardown_calls, "Expected global teardown to run after setup interruption"

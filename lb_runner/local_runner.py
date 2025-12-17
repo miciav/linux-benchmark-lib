@@ -44,6 +44,11 @@ class DateTimeEncoder(JSONEncoder):
         return super().default(obj)
 
 
+class StopRequested(Exception):
+    """Raised when execution is stopped by user request."""
+    pass
+
+
 class LocalRunner:
     """Local agent for executing benchmarks on a single node."""
     
@@ -176,7 +181,7 @@ class LocalRunner:
 
         try:
             if stop_token and stop_token.should_stop():
-                raise RuntimeError("Stopped by user")
+                raise StopRequested("Stopped by user")
 
             # Run generator setup before metrics collection to avoid skew
             try:
@@ -186,7 +191,7 @@ class LocalRunner:
                 raise
 
             if stop_token and stop_token.should_stop():
-                raise RuntimeError("Stopped by user")
+                raise StopRequested("Stopped by user")
 
             # Warmup period
             if self.config.warmup_seconds > 0:
@@ -215,7 +220,7 @@ class LocalRunner:
 
             while elapsed < max_wait:
                 if stop_token and stop_token.should_stop():
-                    raise RuntimeError("Stopped by user")
+                    raise StopRequested("Stopped by user")
                 if not self._generator_running(generator):
                     break
 
@@ -236,6 +241,10 @@ class LocalRunner:
                 generator.stop()
                 generator_started = False
             test_end_time = datetime.now()
+
+        except StopRequested:
+            logger.info("Execution stopped by request.")
+            raise
 
         except Exception as e:
             logger.error(f"Test execution failed: {e}")
@@ -479,7 +488,13 @@ class LocalRunner:
                         generator.cleanup()
                     except Exception as exc:  # pragma: no cover - best effort cleanup
                         logger.warning("Generator cleanup failed for %s rep %s: %s", test_type, rep, exc)
-                
+            
+            except StopRequested:
+                logger.info("Benchmark interrupted.")
+                success_overall = False
+                self._emit_progress(test_type, rep, total_reps, "stopped")
+                break
+            
             except Exception as e:
                 logger.error(
                     f"Skipping workload '{test_type}' on repetition {rep}: {e}"

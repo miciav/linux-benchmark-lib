@@ -5,6 +5,7 @@ import shutil
 from rich import box
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from lb_ui.ui.system.models import TableModel
 
@@ -42,8 +43,17 @@ def build_rich_table(
     max_table_width = max(60, (term_width - 2) if term_width else 100)
     min_col_width = 4
 
+    title_text = Text.from_markup(str(model.title))
+    title_text.no_wrap = True
+    title_text.overflow = "ellipsis"
+    # Avoid the title forcing the table to expand beyond the terminal width.
+    # Rich accounts for borders/padding; leave a small margin.
+    title_max = max(10, max_table_width - 6)
+    if len(title_text) > title_max:
+        title_text.truncate(title_max, overflow="ellipsis")
+
     rich_table = Table(
-        title=model.title,
+        title=title_text,
         show_lines=show_lines,
         expand=True,
         width=max_table_width,

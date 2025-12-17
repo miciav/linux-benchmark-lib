@@ -4,7 +4,10 @@ This module keeps orchestration logic inside Python while delegating remote
 execution to Ansible Runner.
 """
 
+from __future__ import annotations
+
 import logging
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
@@ -20,12 +23,15 @@ from lb_controller.journal_sync import (
 )
 from lb_controller.paths import generate_run_id, prepare_per_host_dirs, prepare_run_dirs
 from lb_controller.services.plugin_service import create_registry
+from lb_controller.stop_coordinator import StopCoordinator, StopState
+from lb_controller.lifecycle import RunLifecycle, RunPhase, StopStage
 from lb_controller.types import (
     ExecutionResult,
     InventorySpec,
     RemoteExecutor,
     RunExecutionSummary,
 )
+from lb_runner.events import RunEvent
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +47,13 @@ class BenchmarkController:
         output_formatter: Optional[Any] = None,  # Inject the formatter instance
         journal_refresh: Optional[Callable[[], None]] = None,
         stop_token: StopToken | None = None,
+        stop_timeout_s: float = 30.0,
     ):
         self.config = config
         self.output_formatter = output_formatter
         self.stop_token = stop_token
+        self._stop_timeout_s = stop_timeout_s
+        self.lifecycle = RunLifecycle()
         # Enable streaming if a callback is provided
         stream = output_callback is not None
         self.executor = executor or AnsibleRunnerExecutor(
@@ -56,6 +65,12 @@ class BenchmarkController:
         self._journal_refresh = journal_refresh
         # Use event stream as the source of truth; avoid mass RUNNING/COMPLETED updates.
         self._use_progress_stream = True
+        self.coordinator: Optional[StopCoordinator] = None
+
+    def on_event(self, event: RunEvent) -> None:
+        """Process an event for stop coordination."""
+        if self.coordinator:
+            self.coordinator.process_event(event)
 
     def _refresh_journal(self) -> None:
         """Trigger UI journal refresh callback when available."""
@@ -98,10 +113,16 @@ class BenchmarkController:
             inventory_path=self.config.remote_execution.inventory_path,
         )
 
-        target_reps = (
-            (journal.metadata.get("repetitions") if journal else None)
-            or self.config.repetitions
+        # Initialize StopCoordinator
+        active_hosts = {h.name for h in self.config.remote_hosts}
+        self.coordinator = StopCoordinator(
+            expected_runners=active_hosts, stop_timeout=self._stop_timeout_s
         )
+        self.lifecycle.start_phase(RunPhase.GLOBAL_SETUP)
+
+        target_reps = (
+            journal.metadata.get("repetitions") if journal else None
+        ) or self.config.repetitions
 
         output_root, report_root, data_export_root = prepare_run_dirs(
             self.config, resolved_run_id
@@ -158,11 +179,28 @@ class BenchmarkController:
 
         ui_log(f"Starting Run {resolved_run_id}")
 
+        stop_successful = True  # Assume success until proven otherwise
+        all_tests_success = True
+        stop_protocol_attempted = False
+
         # 1. Global Setup
         if self.config.remote_execution.run_setup:
             if self.stop_token and self.stop_token.should_stop():
-                ui_log("Stop requested before setup; aborting run after teardown.")
-                # Defer to teardown section for cleanup.
+                ui_log("Stop requested before setup; aborting run.")
+                self.lifecycle.arm_stop()
+                self.lifecycle.mark_interrupting_setup()
+                # We haven't started anything, so we can just return.
+                # But we should respect the protocol if we think something *might* be running (unlikely here).
+                # Safe to just return/skip.
+                return RunExecutionSummary(
+                    run_id=resolved_run_id,
+                    per_host_output=per_host_output,
+                    phases=phases,
+                    success=False,
+                    output_root=output_root,
+                    report_root=report_root,
+                    data_export_root=data_export_root,
+                )
             else:
                 ui_log("Phase: Global Setup")
                 if self.output_formatter:
@@ -172,7 +210,21 @@ class BenchmarkController:
                     inventory=inventory,
                     extravars=extravars,
                 )
-                if not phases["setup_global"].success:
+                if self.stop_token and self.stop_token.should_stop():
+                    self.lifecycle.arm_stop()
+                    self.lifecycle.mark_interrupting_setup()
+                    stop_successful = True
+                    all_tests_success = False
+                    # Continue to teardown path
+                    try:
+                        phases["setup_global"].status = "stopped"
+                    except Exception:
+                        pass
+                    # skip workloads
+                    test_types = []
+                if not phases["setup_global"].success and not (
+                    self.stop_token and self.stop_token.should_stop()
+                ):
                     ui_log("Global setup failed. Aborting run.")
                     self._refresh_journal()
                     return RunExecutionSummary(
@@ -185,10 +237,15 @@ class BenchmarkController:
                         data_export_root=data_export_root,
                     )
         # 2. Per-Test Loop (single Ansible run per workload; LocalRunner handles repetitions)
-        all_tests_success = True
+        self.lifecycle.start_phase(RunPhase.WORKLOADS)
         for test_name in test_types:
             if self.stop_token and self.stop_token.should_stop():
-                ui_log("Stop requested; draining teardown...")
+                self.lifecycle.arm_stop()
+                self.lifecycle.mark_waiting_runners()
+                stop_protocol_attempted = True
+                stop_successful = self._handle_stop_protocol(
+                    inventory, extravars, ui_log
+                )
                 all_tests_success = False
                 break
             workload_cfg = self.config.workloads.get(test_name)
@@ -203,6 +260,12 @@ class BenchmarkController:
                 all_tests_success = False
                 continue
             if self.stop_token and self.stop_token.should_stop():
+                self.lifecycle.arm_stop()
+                self.lifecycle.mark_waiting_runners()
+                stop_protocol_attempted = True
+                stop_successful = self._handle_stop_protocol(
+                    inventory, extravars, ui_log
+                )
                 all_tests_success = False
                 break
             pending_hosts = _pending_hosts_for(test_name)
@@ -228,7 +291,9 @@ class BenchmarkController:
                 try:
                     setup_extravars.update(plugin.get_ansible_setup_extravars())
                 except Exception as exc:  # pragma: no cover - defensive
-                    logger.debug("Failed to compute setup extravars for %s: %s", plugin.name, exc)
+                    logger.debug(
+                        "Failed to compute setup extravars for %s: %s", plugin.name, exc
+                    )
                 res = self.executor.run_playbook(
                     setup_pb,
                     inventory=inventory,
@@ -244,8 +309,17 @@ class BenchmarkController:
                         try:
                             td_extravars.update(plugin.get_ansible_teardown_extravars())
                         except Exception as exc:  # pragma: no cover - defensive
-                            logger.debug("Failed to compute teardown extravars for %s: %s", plugin.name, exc)
-                        self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=td_extravars)
+                            logger.debug(
+                                "Failed to compute teardown extravars for %s: %s",
+                                plugin.name,
+                                exc,
+                            )
+                        self.executor.run_playbook(
+                            teardown_pb,
+                            inventory=inventory,
+                            extravars=td_extravars,
+                            cancellable=False,
+                        )
                     continue
 
             # B. Run Workload (single call covers all repetitions)
@@ -295,6 +369,10 @@ class BenchmarkController:
 
             # C. Intermediate Collect (single sync)
             if self.stop_token and self.stop_token.should_stop():
+                stop_protocol_attempted = True
+                stop_successful = self._handle_stop_protocol(
+                    inventory, extravars, ui_log
+                )
                 all_tests_success = False
             elif self.config.remote_execution.run_collect:
                 ui_log(f"Collect: {test_name}")
@@ -360,26 +438,49 @@ class BenchmarkController:
                 try:
                     td_extravars.update(plugin.get_ansible_teardown_extravars())
                 except Exception as exc:  # pragma: no cover - defensive
-                    logger.debug("Failed to compute teardown extravars for %s: %s", plugin.name, exc)
-                res_td = self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=td_extravars)
+                    logger.debug(
+                        "Failed to compute teardown extravars for %s: %s",
+                        plugin.name,
+                        exc,
+                    )
+                res_td = self.executor.run_playbook(
+                    teardown_pb,
+                    inventory=inventory,
+                    extravars=td_extravars,
+                    cancellable=False,
+                )
                 phases[f"teardown_{test_name}"] = res_td
                 if not res_td.success:
                     ui_log(f"Teardown failed for {test_name}")
+
             if self.stop_token and self.stop_token.should_stop():
                 all_tests_success = False
                 break
 
         # 3. Global Teardown (Clean up remote artifacts)
         if self.config.remote_execution.run_teardown:
+            self.lifecycle.start_phase(RunPhase.GLOBAL_TEARDOWN)
+            if stop_protocol_attempted and not stop_successful:
+                ui_log(
+                    "Stop protocol failed/timed out; proceeding with best-effort teardown."
+                )
+                phases["stop_protocol"] = ExecutionResult(
+                    rc=1, status="failed", stats={}
+                )
             ui_log("Phase: Global Teardown")
             if self.output_formatter:
                 self.output_formatter.set_phase("Global Teardown")
 
             if self.config.remote_execution.teardown_playbook:
+                if self.stop_token and self.stop_token.should_stop():
+                    self.lifecycle.arm_stop()
+                    self.lifecycle.mark_interrupting_teardown()
+                    self._interrupt_executor()
                 phases["teardown_global"] = self.executor.run_playbook(
                     self.config.remote_execution.teardown_playbook,
                     inventory=inventory,
                     extravars=extravars,
+                    cancellable=False,
                 )
                 if not phases["teardown_global"].success:
                     ui_log("Global teardown failed to clean up perfectly.")
@@ -389,15 +490,101 @@ class BenchmarkController:
         ui_log("Run Finished.")
         time.sleep(1)
 
+        self.lifecycle.finish()
         return RunExecutionSummary(
             run_id=resolved_run_id,
             per_host_output=per_host_output,
             phases=phases,
-            success=all_tests_success,
+            success=all_tests_success and stop_successful,
             output_root=output_root,
             report_root=report_root,
             data_export_root=data_export_root,
         )
+
+    def _handle_stop_protocol(
+        self,
+        inventory: InventorySpec,
+        extravars: Dict[str, Any],
+        log_fn: Callable[[str], None],
+    ) -> bool:
+        """
+        Execute the distributed stop protocol.
+
+        Returns:
+            True if stop was confirmed by all runners (safe to teardown).
+            False if stop timed out or failed (unsafe to teardown).
+        """
+        if not self.coordinator:
+            return False  # Should not happen
+
+        log_fn("Stop confirmed; initiating distributed stop protocol...")
+        self.coordinator.initiate_stop()
+        self.lifecycle.mark_waiting_runners()
+
+        # Create the STOP file on remote hosts
+        # We construct a temporary playbook
+        stop_pb_content = f"""
+- hosts: all
+  gather_facts: false
+  tasks:
+    - name: Create STOP file
+      ansible.builtin.file:
+        path: "{{{{ lb_workdir | default('/opt/lb') }}}}/STOP"
+        state: touch
+        mode: '0644'
+"""
+
+        # Execute stop playbook (non-cancellable, short timeout)
+        # We can reuse executor but need to avoid re-triggering stop logic
+        # since we are already stopping.
+        # But run_playbook checks stop_token at start.
+        # However, we are the controller, we want to run THIS specific task.
+        # StopToken is triggered, so run_playbook will return immediately!
+        # Fix: We need to bypass StopToken check or temporarily disable it?
+        # AnsibleRunnerExecutor checks stop_token.
+        # We can pass `cancellable=False` to `run_playbook`!
+
+        log_fn("Sending stop signal to remote runners...")
+        with tempfile.TemporaryDirectory(prefix="lb-stop-protocol-") as tmp_dir:
+            stop_pb_path = Path(tmp_dir) / "stop_workload.yml"
+            stop_pb_path.write_text(stop_pb_content, encoding="utf-8")
+            res = self.executor.run_playbook(
+                stop_pb_path,
+                inventory=inventory,
+                extravars=extravars,
+                cancellable=False,
+            )
+
+        if not res.success:
+            log_fn("Failed to send stop signal (playbook failure).")
+            # We still wait, maybe some runners stopped anyway?
+            # But likely we can't reach them.
+
+        log_fn("Waiting for runners to confirm stop...")
+
+        # Loop waiting for confirmation
+        # The event loop is driven by the fact that `on_event` is called from
+        # the background event tailer thread. We just poll the coordinator state.
+        while True:
+            self.coordinator.check_timeout()
+            if self.coordinator.state == StopState.TEARDOWN_READY:
+                log_fn("All runners confirmed stop.")
+                self.lifecycle.mark_stopped()
+                return True
+            if self.coordinator.state == StopState.STOP_FAILED:
+                log_fn("Stop protocol timed out or failed.")
+                self.lifecycle.mark_failed()
+                return False
+
+            time.sleep(0.5)
+
+    def _interrupt_executor(self) -> None:
+        exec_obj = self.executor
+        if hasattr(exec_obj, "interrupt"):
+            try:
+                exec_obj.interrupt()  # type: ignore[attr-defined]
+            except Exception:
+                pass
 
     def _collector_apt_packages(self) -> Set[str]:
         """Return apt packages needed for enabled collectors."""

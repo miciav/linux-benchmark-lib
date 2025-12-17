@@ -196,6 +196,7 @@ class MultipassService:
             RemoteHostConfig: Configuration object ready for Ansible.
         """
         self._generate_ephemeral_keys()
+        self.keep_vm = False
         try:
             self._launch_vm()
             ip = self._get_ip_address()
@@ -222,7 +223,10 @@ class MultipassService:
             logger.error(f"Multipass provisioning failed: {e}")
             raise
         finally:
-            self.teardown()
+            if not self.keep_vm:
+                self.teardown()
+            else:
+                self._notify(f"Skipping teardown for Multipass VM '{self.vm_name}' (keep_vm=True).")
 
     def _notify(self, message: str) -> None:
         """Emit a best-effort notification and log."""

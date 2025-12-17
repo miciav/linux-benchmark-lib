@@ -1,0 +1,24 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: default
+lint: |
+  echo "Lint skipped for controller-stop scenario"
+platforms:
+  - name: simulated
+    groups:
+      - controller
+provisioner:
+  name: ansible
+  inventory:
+    hosts:
+      all:
+        hosts:
+          simulated:
+            ansible_connection: local
+            ansible_python_interpreter: "{{ lookup('env', 'PYTHON') | default('python3') }}"
+scenario:
+  name: controller-stop
+verifier:
+  name: ansible

@@ -54,6 +54,8 @@ class RemoteExecutor(Protocol):
         extravars: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
         limit_hosts: Optional[List[str]] = None,
+        *,
+        cancellable: bool = True,
     ) -> ExecutionResult:
         """Execute a playbook and return the result."""
         raise NotImplementedError
