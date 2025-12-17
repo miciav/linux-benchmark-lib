@@ -224,14 +224,28 @@ class BenchmarkController:
                 ui_log(f"Setup: {test_name} ({plugin.name})")
                 if self.output_formatter:
                     self.output_formatter.set_phase(f"Setup: {test_name}")
-                res = self.executor.run_playbook(setup_pb, inventory=inventory, extravars=extravars)
+                setup_extravars = extravars.copy()
+                try:
+                    setup_extravars.update(plugin.get_ansible_setup_extravars())
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.debug("Failed to compute setup extravars for %s: %s", plugin.name, exc)
+                res = self.executor.run_playbook(
+                    setup_pb,
+                    inventory=inventory,
+                    extravars=setup_extravars,
+                )
                 phases[f"setup_{test_name}"] = res
                 if not res.success:
                     ui_log(f"Setup failed for {test_name}")
                     all_tests_success = False
                     teardown_pb = plugin.get_ansible_teardown_path()
                     if teardown_pb:
-                        self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=extravars)
+                        td_extravars = extravars.copy()
+                        try:
+                            td_extravars.update(plugin.get_ansible_teardown_extravars())
+                        except Exception as exc:  # pragma: no cover - defensive
+                            logger.debug("Failed to compute teardown extravars for %s: %s", plugin.name, exc)
+                        self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=td_extravars)
                     continue
 
             # B. Run Workload (single call covers all repetitions)
@@ -342,7 +356,12 @@ class BenchmarkController:
                 ui_log(f"Teardown: {test_name}")
                 if self.output_formatter:
                     self.output_formatter.set_phase(f"Teardown: {test_name}")
-                res_td = self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=extravars)
+                td_extravars = extravars.copy()
+                try:
+                    td_extravars.update(plugin.get_ansible_teardown_extravars())
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.debug("Failed to compute teardown extravars for %s: %s", plugin.name, exc)
+                res_td = self.executor.run_playbook(teardown_pb, inventory=inventory, extravars=td_extravars)
                 phases[f"teardown_{test_name}"] = res_td
                 if not res_td.success:
                     ui_log(f"Teardown failed for {test_name}")

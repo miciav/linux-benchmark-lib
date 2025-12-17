@@ -820,7 +820,10 @@ class RunService:
                 debug=context.debug,
                 repetitions=context.config.repetitions,
                 stop_file=context.stop_file,
-                resume=resume_requested,
+                # In container mode we execute one workload per container image, but
+                # all runs share the same `run_journal.json` volume. Always resume
+                # so subsequent workloads don't overwrite prior journal entries.
+                resume=True,
             )
             
             def _container_output_handler(line: str) -> None:
@@ -995,6 +998,36 @@ class RunService:
             host_name = (context.config.remote_hosts[0].name
                          if context.config.remote_hosts else "localhost")
 
+            def _ansible_output_cb(text: str, end: str = "\n") -> None:
+                fragment = text + (end or "")
+                try:
+                    log_file.write(fragment)
+                    log_file.flush()
+                except Exception:
+                    pass
+                if ui_stream_log_file:
+                    try:
+                        ui_stream_log_file.write(fragment)
+                        ui_stream_log_file.flush()
+                    except Exception:
+                        pass
+                if dashboard:
+                    for line in fragment.splitlines():
+                        dashboard.add_log(escape(line))
+                    dashboard.refresh()
+                try:
+                    output_callback(text, end=end)
+                except Exception:
+                    pass
+
+            setup_service = self._setup_service
+            try:
+                setup_service.executor.stream_output = True
+                setup_service.executor.output_callback = _ansible_output_cb
+                setup_service.executor.stop_token = stop_token
+            except Exception:
+                pass
+
             def _pending_reps_for(workload: str) -> list[int]:
                 return [
                     rep for rep in range(1, context.config.repetitions + 1)
@@ -1045,7 +1078,7 @@ class RunService:
             if context.config.remote_execution.run_setup:
                 if ui_adapter:
                         ui_adapter.show_info("[local] Running global setup (local)...")
-                if not self._setup_service.provision_global():
+                if not setup_service.provision_global():
                     msg = "Global setup failed (local)."
                     if ui_adapter:
                         ui_adapter.show_error(msg)
@@ -1087,7 +1120,7 @@ class RunService:
                         if ui_adapter:
                             ui_adapter.show_info(f"[local] Running setup for {test_name} (local)...")
                         
-                        if not self._setup_service.provision_workload(plugin):
+                        if not setup_service.provision_workload(plugin):
                             msg = f"Setup failed for {test_name} (local). Skipping."
                             if ui_adapter:
                                 ui_adapter.show_error(msg)
@@ -1098,7 +1131,7 @@ class RunService:
                             # Cleanup attempt if setup failed? Usually setup is idempotent or fail-fast.
                             # We try teardown just in case.
                             if context.config.remote_execution.run_teardown:
-                                self._setup_service.teardown_workload(plugin)
+                                setup_service.teardown_workload(plugin)
                             continue
 
                     host_name = (context.config.remote_hosts[0].name
@@ -1146,14 +1179,14 @@ class RunService:
                         if context.config.remote_execution.run_teardown:
                             if ui_adapter:
                                 ui_adapter.show_info(f"[local] Running teardown for {test_name} (local)...")
-                            self._setup_service.teardown_workload(plugin)
+                            setup_service.teardown_workload(plugin)
             
             finally:
                 # Level 1: Global Teardown
                 if context.config.remote_execution.run_teardown:
                     if ui_adapter:
                         ui_adapter.show_info("[local] Running global teardown (local)...")
-                    self._setup_service.teardown_global()
+                    setup_service.teardown_global()
 
             log_file.close()
             if ui_stream_log_file:

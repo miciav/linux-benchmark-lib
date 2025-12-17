@@ -183,6 +183,8 @@ def test_parse_progress_line():
         "status": "running",
         "total": 3,
         "message": None,
+        "type": "status",
+        "level": "INFO",
     }
 
 def test_parse_progress_line_escaped():
@@ -196,4 +198,6 @@ def test_parse_progress_line_escaped():
         "status": "running",
         "total": 3,
         "message": None,
+        "type": "status",
+        "level": "INFO",
     }

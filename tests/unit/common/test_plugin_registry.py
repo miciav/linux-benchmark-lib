@@ -106,3 +106,92 @@ def test_resolve_user_plugin_dir_prefers_builtin_root(monkeypatch, tmp_path):
     resolved = resolve_user_plugin_dir()
     assert resolved == (builtin_root / "_user").resolve()
     assert resolved.exists()
+
+
+def test_registry_loads_user_module_get_plugins(monkeypatch, tmp_path):
+    """Registry should load multiple plugins from a user module get_plugins()."""
+    monkeypatch.setenv("LB_USER_PLUGIN_DIR", str(tmp_path))
+
+    plugin_file = tmp_path / "multi.py"
+    plugin_file.write_text(
+        """
+from lb_runner.plugin_system.interface import WorkloadPlugin, BasePluginConfig
+
+
+class P1(WorkloadPlugin):
+    @property
+    def name(self) -> str:
+        return "p1"
+
+    @property
+    def description(self) -> str:
+        return "plugin 1"
+
+    @property
+    def config_cls(self):
+        return BasePluginConfig
+
+    def create_generator(self, config):
+        return object()
+
+
+class P2(P1):
+    @property
+    def name(self) -> str:
+        return "p2"
+
+    @property
+    def description(self) -> str:
+        return "plugin 2"
+
+
+def get_plugins():
+    return [P1(), P2()]
+""".lstrip()
+    )
+
+    registry = PluginRegistry()
+    assert "p1" in registry.available()
+    assert "p2" in registry.available()
+
+
+def test_registry_loads_user_module_plugins_list(monkeypatch, tmp_path):
+    """Registry should load multiple plugins from a user module PLUGINS list."""
+    monkeypatch.setenv("LB_USER_PLUGIN_DIR", str(tmp_path))
+
+    plugin_file = tmp_path / "multi_list.py"
+    plugin_file.write_text(
+        """
+from lb_runner.plugin_system.interface import WorkloadPlugin, BasePluginConfig
+
+
+class P1(WorkloadPlugin):
+    @property
+    def name(self) -> str:
+        return "p1_list"
+
+    @property
+    def description(self) -> str:
+        return "plugin 1"
+
+    @property
+    def config_cls(self):
+        return BasePluginConfig
+
+    def create_generator(self, config):
+        return object()
+
+
+class P2(P1):
+    @property
+    def name(self) -> str:
+        return "p2_list"
+
+
+PLUGINS = [P1(), P2()]
+""".lstrip()
+    )
+
+    registry = PluginRegistry()
+    assert "p1_list" in registry.available()
+    assert "p2_list" in registry.available()

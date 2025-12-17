@@ -15,7 +15,15 @@ class DummyContainerRunner:
     def __init__(self):
         self.calls = []
 
-    def run_workload(self, spec, test_name, plugin, ui_adapter=None, output_callback=None):
+    def run_workload(
+        self,
+        spec,
+        test_name,
+        plugin,
+        ui_adapter=None,
+        output_callback=None,
+        stop_token=None,
+    ):
         self.calls.append((spec, test_name, plugin))
         if output_callback:
             output_callback("LB_EVENT {\"run_id\":\"run-1\",\"host\":\"localhost\",\"workload\":\"stress_ng\",\"repetition\":1,\"total_repetitions\":1,\"status\":\"done\"}", end="\n")

@@ -13,6 +13,7 @@ import logging
 import platform
 import subprocess
 import time
+import shutil
 from datetime import UTC, datetime
 from json import JSONEncoder
 from pathlib import Path
@@ -131,6 +132,8 @@ class LocalRunner:
         """
         logger.info(f"Running test '{test_name}' - Repetition {repetition}")
         workload_dir = self._workload_output_dir(test_name)
+        rep_dir = workload_dir / f"rep{repetition}"
+        rep_dir.mkdir(parents=True, exist_ok=True)
         
         # Set up collectors
         collectors = self._setup_collectors()
@@ -275,6 +278,7 @@ class LocalRunner:
             "generator_result": generator.get_result(),
             "metrics": {}
         }
+        result["artifacts_dir"] = str(rep_dir)
         gen_result = result["generator_result"]
         failed = False
         if isinstance(gen_result, dict):
@@ -297,6 +301,22 @@ class LocalRunner:
             filename = f"{test_name}_rep{repetition}_{collector.name}.csv"
             filepath = workload_dir / filename
             collector.save_data(filepath)
+
+            # Also store collector output under a per-repetition directory.
+            rep_filepath = rep_dir / filename
+            try:
+                if rep_filepath != filepath:
+                    shutil.copyfile(filepath, rep_filepath)
+            except Exception:
+                # Best-effort: collector output is already persisted at workload scope.
+                pass
+
+        # Persist a per-repetition snapshot for easier navigation.
+        try:
+            rep_result_path = rep_dir / "result.json"
+            rep_result_path.write_text(json.dumps(result, indent=2, cls=DateTimeEncoder))
+        except Exception:
+            pass
         
         return result
     

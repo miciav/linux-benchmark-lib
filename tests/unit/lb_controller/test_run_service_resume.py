@@ -42,7 +42,8 @@ def test_execute_resume_skips_completed(monkeypatch, tmp_path):
             return True
 
     dummy = DummyRunner()
-    monkeypatch.setattr("lb_controller.services.run_service.LocalRunner", lambda *a, **k: dummy)
+    # Patch the exact global used by RunService.execute (avoids module reload/alias surprises).
+    monkeypatch.setitem(RunService.execute.__globals__, "LocalRunner", lambda *a, **k: dummy)
     registry = type("R", (), {"get": lambda self, name: object()})()
     svc = RunService(registry_factory=lambda: registry)
     ctx = svc.build_context(cfg, tests=["stress_ng"], remote_override=False)

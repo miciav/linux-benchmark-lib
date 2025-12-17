@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional, Any, Union, List, Dict
 
 from lb_runner.plugin_system.builtin import builtin_plugins
-from lb_runner.plugin_system.registry import PluginRegistry, USER_PLUGIN_DIR
+from lb_runner.plugin_system.registry import PluginRegistry, resolve_user_plugin_dir
 # Alias to preserve compatibility with test monkeypatches expecting a `registry` module
 from lb_runner.plugin_system import registry as registry  # noqa: F401
 
@@ -34,7 +34,7 @@ class PluginInstaller:
     """Helper to install and uninstall user plugins."""
 
     def __init__(self):
-        self.plugin_dir = USER_PLUGIN_DIR
+        self.plugin_dir = resolve_user_plugin_dir()
         self.plugin_dir.mkdir(parents=True, exist_ok=True)
 
     def install(self, source_path: Union[Path, str], manifest_path: Optional[Path] = None, force: bool = False) -> str:

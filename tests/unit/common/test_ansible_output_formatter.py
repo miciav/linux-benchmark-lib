@@ -78,6 +78,8 @@ def test_progress_parse_helper_used_by_run_service():
         "status": "running",
         "total": 3,
         "message": None,
+        "type": "status",
+        "level": "INFO",
     }
 
 

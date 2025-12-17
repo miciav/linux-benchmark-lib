@@ -147,6 +147,14 @@ class WorkloadPlugin(ABC):
         """
         return None
 
+    def get_ansible_setup_extravars(self) -> Dict[str, Any]:
+        """Return extra vars merged into the plugin setup playbook run."""
+        return {}
+
+    def get_ansible_teardown_extravars(self) -> Dict[str, Any]:
+        """Return extra vars merged into the plugin teardown playbook run."""
+        return {}
+
     # Optional: allow plugins to normalize their own results into CSV before collection
     def export_results_to_csv(
         self,

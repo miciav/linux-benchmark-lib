@@ -118,3 +118,41 @@ def test_ansible_runner_renders_inventory(tmp_path: Path):
     assert called_kwargs["tags"] == "smoke"
     assert called_kwargs["extravars"]["foo"] == "bar"
     assert result.success
+
+
+def test_controller_merges_plugin_extravars_into_setup(tmp_path: Path) -> None:
+    """Controller should merge plugin-provided extravars into setup/teardown runs."""
+    config = BenchmarkConfig(
+        output_dir=tmp_path / "out",
+        report_dir=tmp_path / "rep",
+        data_export_dir=tmp_path / "exp",
+        remote_hosts=[RemoteHostConfig(name="node1", address="127.0.0.1")],
+    )
+    config.workloads = {
+        "pts_build_linux_kernel": WorkloadConfig(plugin="pts_build_linux_kernel")
+    }
+    config.repetitions = 1
+    config.remote_execution.run_setup = False
+    config.remote_execution.run_collect = False
+    config.remote_execution.run_teardown = False
+
+    executor = DummyExecutor()
+    controller = BenchmarkController(config, executor=executor)
+    summary = controller.run(test_types=["pts_build_linux_kernel"], run_id="run-test")
+    assert summary.success
+
+    setup_calls = [
+        call for call in executor.calls if str(call["playbook"]).endswith("/phoronix_test_suite/ansible/setup.yml")
+    ]
+    assert setup_calls, "Expected PTS setup playbook call"
+    assert setup_calls[0]["extravars"]["pts_profile"] == "build-linux-kernel"
+    assert "pts_deb_relpath" in setup_calls[0]["extravars"]
+    assert "pts_home_root" in setup_calls[0]["extravars"]
+
+    teardown_calls = [
+        call
+        for call in executor.calls
+        if str(call["playbook"]).endswith("/phoronix_test_suite/ansible/teardown.yml")
+    ]
+    assert teardown_calls, "Expected PTS teardown playbook call"
+    assert teardown_calls[0]["extravars"]["pts_profile"] == "build-linux-kernel"

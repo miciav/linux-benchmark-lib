@@ -230,11 +230,21 @@ class LogSink:
         )
         self.journal.save(self.journal_path)
 
-def _write_log(self, event: RunEvent) -> None:
+    def _write_log(self, event: RunEvent) -> None:
+        """Append a single-line representation to the optional log file."""
         if not self._log_handle:
             return
-        ts = datetime.fromtimestamp(event.timestamp or datetime.now().timestamp()).isoformat()
-        line = f"[{ts}] {event.host} {event.workload} rep {event.repetition}/{event.total_repetitions} status={event.status}"
+        ts = datetime.fromtimestamp(
+            event.timestamp or datetime.now().timestamp()
+        ).isoformat()
+        line = (
+            f"[{ts}] {event.host} {event.workload} rep "
+            f"{event.repetition}/{event.total_repetitions} status={event.status}"
+        )
+        if event.type and event.type != "status":
+            line += f" type={event.type}"
+        if event.level and event.level != "INFO":
+            line += f" level={event.level}"
         if event.message:
             line += f" msg={event.message}"
         try:

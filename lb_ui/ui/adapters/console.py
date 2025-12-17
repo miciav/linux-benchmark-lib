@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -11,16 +10,16 @@ from typing import IO, Sequence, Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import TaskID
-from rich.table import Table
 from rich.theme import Theme
 
 from lb_controller.ui_interfaces import DashboardHandle
 from lb_ui.ui.dashboard import RunDashboard, StreamDashboard
 from lb_ui.ui.progress import RichProgressHandle, rich_progress
 from lb_ui.ui.prompts import prompt_multipass
-from lb_ui.ui.utils import format_table
 from lb_ui.ui.viewmodels import plan_rows
 from lb_controller.ui_interfaces import UIAdapter
+from lb_ui.ui.system.components.table_layout import build_rich_table
+from lb_ui.ui.system.models import TableModel
 
 THEME = Theme(
     {
@@ -64,33 +63,19 @@ class ConsoleUIAdapter(UIAdapter):
         self.console.rule(f"[b]{title}[/b]", style="accent")
 
     def show_table(self, title: str, columns: Sequence[str], rows: list[Sequence[str]]) -> None:
-        # Keep tables within the visible console width and fold long cells.
-        term_width = 0
-        try:
-            term_width = self.console.size.width
-        except Exception:
-            pass
-
-        if not term_width:
-            try:
-                term_width = shutil.get_terminal_size(fallback=(100, 24)).columns
-            except Exception:
-                pass
-
-        table_width = max(60, term_width - 2) if term_width and term_width > 0 else None
-
-        table = Table(
+        model = TableModel(
             title=f"[b]{title}[/b]",
+            columns=list(columns),
+            rows=[[str(cell) for cell in row] for row in rows],
+        )
+        table = build_rich_table(
+            model,
+            console=self.console,
+            show_lines=True,
             border_style="accent",
             header_style="bold white",
-            row_styles=("", "dim"),
-            expand=table_width is None,
-            width=table_width,
+            title_style="bold white",
         )
-        for column in columns:
-            table.add_column(column, overflow="fold")
-        for row in rows:
-            table.add_row(*[str(cell) for cell in row])
         self.console.print(table)
 
     @contextmanager

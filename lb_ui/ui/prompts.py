@@ -8,10 +8,11 @@ from typing import Any, Dict, Iterable, Optional, Sequence, Set, Tuple, TypeVar,
 
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
-from rich.table import Table
 
 from lb_controller.ui_interfaces import UIAdapter
 from lb_controller.services.run_catalog_service import RunInfo
+from lb_ui.ui.system.components.table_layout import build_rich_table
+from lb_ui.ui.system.models import TableModel
 
 console = Console()
 
@@ -54,15 +55,16 @@ def prompt_plugins(
         return {name for name, active in enabled.items() if active}
 
     if show_table:
-        table = Table(title="Workload plugins", show_lines=False)
-        table.add_column("Enabled")
-        table.add_column("Plugin")
-        table.add_column("Description")
+        rows = []
         for name, description in sorted(plugins.items()):
             marker = "[green]✓[/green]" if enabled.get(name, False) else "[dim]·[/dim]"
-            table.add_row(marker, name, description or "-")
-
-        console.print(table)
+            rows.append([marker, name, description or "-"])
+        model = TableModel(
+            title="Workload plugins",
+            columns=["Enabled", "Plugin", "Description"],
+            rows=rows,
+        )
+        console.print(build_rich_table(model, console=console, show_lines=False))
 
     choices = []
     for name, description in sorted(plugins.items()):

@@ -83,7 +83,19 @@ def builtin_plugins() -> List[Any]:
                 module_name = f"{_PLUGIN_PACKAGE}.{item.name}.plugin"
                 try:
                     mod = importlib.import_module(module_name)
-                    if hasattr(mod, "PLUGIN"):
+                    if hasattr(mod, "get_plugins") and callable(getattr(mod, "get_plugins")):
+                        discovered = mod.get_plugins()
+                        if isinstance(discovered, list):
+                            plugins.extend(discovered)
+                        else:
+                            plugins.append(discovered)
+                    elif hasattr(mod, "PLUGINS"):
+                        discovered = getattr(mod, "PLUGINS")
+                        if isinstance(discovered, list):
+                            plugins.extend(discovered)
+                        else:
+                            plugins.append(discovered)
+                    elif hasattr(mod, "PLUGIN"):
                         plugins.append(mod.PLUGIN)
                 except ImportError as e:
                     logger.debug(f"Skipping plugin {module_name}: {e}")

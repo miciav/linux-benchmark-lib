@@ -41,6 +41,7 @@ def test_repetition_start_times_follow_execution_order(tmp_path: Path, monkeypat
             ui_adapter=None,
             progress_callback=None,
             host_name=None,
+            stop_token=None,
         ):
             self.config = config
             self.progress_callback = progress_callback

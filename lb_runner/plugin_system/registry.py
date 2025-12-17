@@ -38,7 +38,13 @@ def resolve_user_plugin_dir() -> Path:
     """
     override = os.environ.get("LB_USER_PLUGIN_DIR")
     if override:
-        return Path(override).expanduser().resolve()
+        path = Path(override).expanduser().resolve()
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            # Directory creation may fail for read-only locations; caller handles.
+            pass
+        return path
 
     candidate = BUILTIN_PLUGIN_ROOT / "_user"
     try:
@@ -233,15 +239,17 @@ class PluginRegistry:
                             path,
                         )
 
+        primary_dir = resolve_user_plugin_dir()
+
         # Backward-compatible load from legacy location.
         #
         # When `LB_USER_PLUGIN_DIR` is explicitly set, treat it as authoritative and
         # do not also load the legacy directory (avoids duplicate/override surprises).
-        if not os.environ.get("LB_USER_PLUGIN_DIR") and LEGACY_USER_PLUGIN_DIR != USER_PLUGIN_DIR:
+        if not os.environ.get("LB_USER_PLUGIN_DIR") and LEGACY_USER_PLUGIN_DIR != primary_dir:
             _load_from_dir(LEGACY_USER_PLUGIN_DIR)
 
         # Primary directory (portable with runner) or env override.
-        _load_from_dir(USER_PLUGIN_DIR)
+        _load_from_dir(primary_dir)
 
     def _resolve_entry_point_from_toml(self, root: Path, toml_path: Path) -> Optional[Path]:
         """Parse pyproject.toml to guess the package location."""
@@ -282,11 +290,34 @@ class PluginRegistry:
                      logger.error(f"Error executing module {path}: {e}")
                      return
 
-                # Look for 'PLUGIN' variable
-                if hasattr(module, "PLUGIN"):
-                    self.register(module.PLUGIN)
-                    logger.info(f"Loaded user plugin from {path}")
-                else:
-                    logger.debug(f"Skipping {path}: No PLUGIN variable found")
+                self._register_from_module(module, source=str(path))
         except Exception as e:
             logger.warning(f"Failed to load user plugin {path}: {e}")
+
+    def _register_from_module(self, module: Any, source: str) -> None:
+        """Register PLUGIN / PLUGINS / get_plugins() exports from a python module."""
+        try:
+            if hasattr(module, "get_plugins") and callable(getattr(module, "get_plugins")):
+                discovered = module.get_plugins()
+                candidates = discovered if isinstance(discovered, list) else [discovered]
+            elif hasattr(module, "PLUGINS"):
+                discovered = getattr(module, "PLUGINS")
+                candidates = discovered if isinstance(discovered, list) else [discovered]
+            elif hasattr(module, "PLUGIN"):
+                candidates = [getattr(module, "PLUGIN")]
+            else:
+                logger.debug("Skipping %s: no PLUGIN/PLUGINS/get_plugins exports found", source)
+                return
+
+            registered = 0
+            for plugin in candidates:
+                if plugin is None:
+                    continue
+                self.register(plugin)
+                registered += 1
+            if registered:
+                logger.info("Loaded %s plugin(s) from %s", registered, source)
+            else:
+                logger.debug("Skipping %s: exported plugin list was empty", source)
+        except Exception as exc:
+            logger.warning("Failed to register plugins from %s: %s", source, exc)
