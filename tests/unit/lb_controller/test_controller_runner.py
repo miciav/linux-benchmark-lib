@@ -22,8 +22,7 @@ def test_runner_completes_and_emits_states():
     result = runner.wait(timeout=2.0)
 
     assert result == "ok"
-    assert states[0] == ControllerState.RUNNING
-    assert states[-1] == ControllerState.COMPLETED
+    assert states[-1] == ControllerState.FINISHED
 
 
 def test_runner_propagates_exceptions_as_failed():
@@ -42,7 +41,7 @@ def test_runner_aborts_when_stop_requested():
         stop_token.request_stop()
         raise RuntimeError("stopped")
 
-    runner = ControllerRunner(run_callable=_run, stop_token=stop_token)
+    runner = ControllerRunner(run_callable=_run, stop_token=stop_token, on_state_change=lambda *_: None)
     runner.start()
     with pytest.raises(RuntimeError):
         runner.wait(timeout=2.0)

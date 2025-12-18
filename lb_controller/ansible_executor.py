@@ -51,6 +51,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         self.stop_token = stop_token
         self._interrupt_flag = threading.Event()
         self._active_process: subprocess.Popen[str] | None = None
+        self._active_label: str | None = None
         self._lock = threading.Lock()
         # Force Ansible temp into a writable location inside the runner dir to avoid host-level permission issues
         self.local_tmp = self.private_data_dir / "tmp"
@@ -93,11 +94,9 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         # regardless of private_data_dir location
         abs_playbook_path = playbook_path.resolve()
 
-        logger.info(
-            "Running playbook %s against %d host(s)",
-            abs_playbook_path,
-            len(inventory.hosts),
-        )
+        label = abs_playbook_path.name
+        logger.info("Running playbook %s against %d host(s)", label, len(inventory.hosts))
+        self._active_label = label
 
         merged_extravars = extravars.copy() if extravars else {}
         merged_extravars.setdefault("_lb_inventory_path", str(inventory_path))
@@ -126,26 +125,29 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             "LB_EVENT_LOG_PATH": str(self.event_log_path),
         }
 
-        if self._runner_fn:
-            result = runner_fn(
-                private_data_dir=str(self.private_data_dir),
-                playbook=str(abs_playbook_path),
-                inventory=str(inventory_path.resolve()),
-                extravars=merged_extravars,
-                tags=",".join(tags) if tags else None,
-                envvars=envvars,
-                limit=",".join(limit_hosts) if limit_hosts else None,
-            )
-        else:
-            result = self._run_subprocess_playbook(
-                abs_playbook_path=abs_playbook_path,
-                inventory_path=inventory_path,
-                extravars=merged_extravars,
-                tags=tags,
-                envvars=envvars,
-                limit_hosts=limit_hosts,
-                cancellable=cancellable,
-            )
+        try:
+            if self._runner_fn:
+                result = runner_fn(
+                    private_data_dir=str(self.private_data_dir),
+                    playbook=str(abs_playbook_path),
+                    inventory=str(inventory_path.resolve()),
+                    extravars=merged_extravars,
+                    tags=",".join(tags) if tags else None,
+                    envvars=envvars,
+                    limit=",".join(limit_hosts) if limit_hosts else None,
+                )
+            else:
+                result = self._run_subprocess_playbook(
+                    abs_playbook_path=abs_playbook_path,
+                    inventory_path=inventory_path,
+                    extravars=merged_extravars,
+                    tags=tags,
+                    envvars=envvars,
+                    limit_hosts=limit_hosts,
+                    cancellable=cancellable,
+                )
+        finally:
+            self._active_label = None
 
         rc = getattr(result, "rc", 1)
         status = getattr(result, "status", "failed")
@@ -231,6 +233,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                start_new_session=True,
             )
             with self._lock:
                 self._active_process = proc
@@ -290,6 +293,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                 env=env,
                 capture_output=True,
                 text=True,
+                start_new_session=True,
             )
             rc = completed.returncode
             if rc != 0:
@@ -313,6 +317,17 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                     proc.kill()
                 except Exception:
                     pass
+        with self._lock:
+            self._active_process = None
+            self._active_label = None
+
+    @property
+    def is_running(self) -> bool:
+        """Return True when a playbook is in-flight."""
+        with self._lock:
+            if self._active_process and self._active_process.poll() is None:
+                return True
+        return self._active_label is not None
 
 
 def _render_inventory(hosts: List[Any]) -> str:

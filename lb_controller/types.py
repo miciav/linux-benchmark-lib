@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol
 
+from lb_controller.controller_state import ControllerState
+
 from lb_runner.benchmark_config import RemoteHostConfig
 
 
@@ -42,6 +44,8 @@ class RunExecutionSummary:
     output_root: Path
     report_root: Path
     data_export_root: Path
+    controller_state: ControllerState | None = None
+    cleanup_allowed: bool = False
 
 
 class RemoteExecutor(Protocol):

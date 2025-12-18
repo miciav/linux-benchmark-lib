@@ -36,3 +36,12 @@ def test_double_ctrl_c_delegates_after_finished() -> None:
     decision = sm.on_sigint(run_active=True)
     assert decision == SigintDecision.DELEGATE
     assert sm.state == RunInterruptState.FINISHED
+
+
+def test_ctrl_c_is_ignored_while_stopping() -> None:
+    sm = DoubleCtrlCStateMachine()
+    sm.on_sigint(run_active=True)
+    sm.on_sigint(run_active=True)
+    decision = sm.on_sigint(run_active=True)
+    assert decision == SigintDecision.IGNORE
+    assert sm.state == RunInterruptState.STOPPING

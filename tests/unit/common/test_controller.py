@@ -16,6 +16,7 @@ from lb_controller.controller import (
     InventorySpec,
     RemoteExecutor,
 )
+from lb_controller.controller_state import ControllerState
 from lb_runner.stop_token import StopToken
 
 
@@ -122,6 +123,47 @@ def test_ansible_runner_renders_inventory(tmp_path: Path):
     assert called_kwargs["tags"] == "smoke"
     assert called_kwargs["extravars"]["foo"] == "bar"
     assert result.success
+
+
+def test_ansible_runner_short_circuits_when_stopped(tmp_path: Path):
+    stop_token = StopToken(enable_signals=False)
+    stop_token.request_stop()
+    executor = AnsibleRunnerExecutor(
+        private_data_dir=tmp_path / "ansible",
+        stop_token=stop_token,
+        runner_fn=lambda **_kwargs: SimpleNamespace(rc=0, status="ok", stats={}),
+    )
+    playbook = tmp_path / "play.yml"
+    playbook.write_text("- hosts: all\n  tasks: []\n")
+    inventory = InventorySpec(
+        hosts=[RemoteHostConfig(name="node1", address="127.0.0.1", user="root")]
+    )
+
+    result = executor.run_playbook(playbook, inventory)
+    assert result.status == "stopped"
+
+
+def test_ansible_runner_interrupt_is_idempotent(tmp_path: Path):
+    executor = AnsibleRunnerExecutor(
+        private_data_dir=tmp_path / "ansible",
+        runner_fn=lambda **_kwargs: SimpleNamespace(rc=0, status="ok", stats={}),
+    )
+
+    class DummyProc:
+        def __init__(self) -> None:
+            self.terminated = False
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            self.terminated = True
+
+    dummy = DummyProc()
+    executor._active_process = dummy  # type: ignore[attr-defined]
+    executor.interrupt()
+    assert dummy.terminated
+    assert executor.is_running is False
 
 
 def test_controller_merges_plugin_extravars_into_setup(tmp_path: Path) -> None:
@@ -272,3 +314,39 @@ def test_controller_interrupt_setup_triggers_teardown(tmp_path: Path) -> None:
     assert summary.success is False
     teardown_calls = [c for c in executor.calls if c["playbook"] == teardown_pb]
     assert teardown_calls, "Expected global teardown to run after setup interruption"
+
+
+def test_controller_sets_aborted_state_on_setup_stop(tmp_path: Path) -> None:
+    """Stop during setup should mark controller aborted and allow cleanup."""
+    config = BenchmarkConfig(
+        output_dir=tmp_path / "out",
+        report_dir=tmp_path / "rep",
+        data_export_dir=tmp_path / "exp",
+        remote_hosts=[RemoteHostConfig(name="node1", address="127.0.0.1")],
+    )
+    config.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
+    config.repetitions = 1
+    config.remote_execution.run_teardown = False
+
+    stop_token = StopToken(enable_signals=False)
+
+    class StopDuringSetupExecutor(DummyExecutor):
+        def run_playbook(
+            self,
+            playbook_path: Path,
+            inventory: InventorySpec,
+            extravars=None,
+            tags=None,
+            limit_hosts=None,
+            *,
+            cancellable: bool = True,
+        ) -> ExecutionResult:
+            stop_token.request_stop()
+            return ExecutionResult(rc=1, status="stopped")
+
+    executor = StopDuringSetupExecutor()
+    controller = BenchmarkController(config, executor=executor, stop_token=stop_token)
+    summary = controller.run(test_types=["stress_ng"], run_id="run-test")
+
+    assert summary.controller_state == ControllerState.ABORTED
+    assert summary.cleanup_allowed is True

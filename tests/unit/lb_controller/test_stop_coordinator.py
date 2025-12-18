@@ -84,3 +84,19 @@ def test_duplicate_events_handled_gracefully(coordinator):
     coordinator.process_event(make_event(host="node1"))
     coordinator.process_event(make_event(host="node1"))
     assert len(coordinator.confirmed_runners) == 1
+
+
+def test_run_id_mismatch_is_ignored():
+    coord = StopCoordinator(expected_runners={"node1"}, stop_timeout=1.0, run_id="expected")
+    coord.initiate_stop()
+    coord.process_event(
+        RunEvent(
+            run_id="other",
+            host="node1",
+            workload="stress",
+            repetition=1,
+            total_repetitions=1,
+            status="stopped",
+        )
+    )
+    assert len(coord.confirmed_runners) == 0

@@ -29,17 +29,20 @@ class StopCoordinator:
         self,
         expected_runners: Set[str],
         stop_timeout: float = 30.0,
+        run_id: str | None = None,
     ):
         """
         Args:
             expected_runners: Set of hostnames expected to confirm stop.
             stop_timeout: Seconds to wait for confirmations.
+            run_id: Run identifier used to correlate stop events.
         """
         self.expected_runners = expected_runners
         self.confirmed_runners: Set[str] = set()
         self.state = StopState.IDLE
         self.stop_timeout = stop_timeout
         self.start_time: float | None = None
+        self.run_id = run_id
         
     def initiate_stop(self) -> None:
         """Transition to STOPPING_WORKLOADS."""
@@ -59,6 +62,9 @@ class StopCoordinator:
         the runner has ceased execution for the current workload.
         """
         if self.state != StopState.STOPPING_WORKLOADS:
+            return
+
+        if self.run_id and getattr(event, "run_id", None) and event.run_id != self.run_id:
             return
 
         if event.host not in self.expected_runners:

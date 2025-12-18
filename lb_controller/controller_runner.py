@@ -21,6 +21,7 @@ class ControllerRunner:
         run_callable: Callable[[], Any],
         stop_token: StopToken | None = None,
         on_state_change: Optional[StateCallback] = None,
+        state_machine: ControllerStateMachine | None = None,
     ) -> None:
         """
         Args:
@@ -30,10 +31,9 @@ class ControllerRunner:
         """
         self._run_callable = run_callable
         self._stop_token = stop_token
-        self._machine = ControllerStateMachine()
-        self._callbacks: list[StateCallback] = []
+        self._machine = state_machine or ControllerStateMachine()
         if on_state_change:
-            self._callbacks.append(on_state_change)
+            self._machine.register_callback(on_state_change)
         self._thread: threading.Thread | None = None
         self._result: Any = None
         self._exception: BaseException | None = None
@@ -67,10 +67,13 @@ class ControllerRunner:
             raise self._exception
         return self._result
 
-    def request_stop(self, reason: str | None = None) -> None:
+    def arm_stop(self, reason: str | None = None) -> None:
         """Signal the controller to stop gracefully."""
-        self._machine.transition(ControllerState.ABORTED, reason=reason)
-        self._notify()
+        try:
+            self._machine.transition(ControllerState.STOP_ARMED, reason=reason)
+        except Exception:
+            # Ignore invalid transition; best-effort arming
+            pass
         if self._stop_token:
             try:
                 self._stop_token.request_stop()
@@ -79,30 +82,29 @@ class ControllerRunner:
 
     def _run(self) -> None:
         try:
-            self._machine.transition(ControllerState.RUNNING)
-            self._notify()
             self._result = self._run_callable()
-            final_state = (
-                ControllerState.ABORTED
-                if self._stop_token and self._stop_token.should_stop()
-                else ControllerState.COMPLETED
-            )
-            self._machine.transition(final_state)
+            if not self._machine.is_terminal():
+                final_state = (
+                    ControllerState.ABORTED
+                    if self._stop_token and self._stop_token.should_stop()
+                    else ControllerState.FINISHED
+                )
+                self._machine.transition(final_state)
         except BaseException as exc:  # pragma: no cover - worker safety
             self._exception = exc
             # If stop was requested, mark as aborted; otherwise failed.
-            final_state = ControllerState.ABORTED if self._stop_token and self._stop_token.should_stop() else ControllerState.FAILED
+            final_state = (
+                ControllerState.ABORTED
+                if self._stop_token and self._stop_token.should_stop()
+                else ControllerState.FAILED
+            )
             try:
-                self._machine.transition(final_state, reason=str(exc))
+                if not self._machine.is_terminal():
+                    self._machine.transition(final_state, reason=str(exc))
             except Exception:
-                self._machine.transition(ControllerState.FAILED, reason=str(exc))
+                try:
+                    self._machine.transition(ControllerState.FAILED, reason=str(exc))
+                except Exception:
+                    pass
         finally:
-            self._notify()
             self._done.set()
-
-    def _notify(self) -> None:
-        for cb in self._callbacks:
-            try:
-                cb(self._machine.state, self._machine.reason)
-            except Exception:
-                continue

@@ -25,6 +25,7 @@ class SigintDecision(str, Enum):
 
     WARN_ARM = "warn_arm"
     REQUEST_STOP = "request_stop"
+    IGNORE = "ignore"
     DELEGATE = "delegate"
 
 
@@ -51,8 +52,9 @@ class DoubleCtrlCStateMachine:
             self.state = RunInterruptState.STOPPING
             return SigintDecision.REQUEST_STOP
 
-        # In STOPPING we allow users to force-exit with an additional Ctrl+C.
-        return SigintDecision.DELEGATE
+        # In STOPPING we swallow further Ctrl+C while the run is active to avoid
+        # tearing down the process; the caller can still expose an explicit exit.
+        return SigintDecision.IGNORE
 
     def mark_finished(self) -> None:
         """Transition to FINISHED and disable further confirmation handling."""
@@ -103,5 +105,7 @@ class SigintDoublePressHandler(AbstractContextManager["SigintDoublePressHandler"
             return
         if decision == SigintDecision.REQUEST_STOP:
             self._on_confirmed()
+            return
+        if decision == SigintDecision.IGNORE:
             return
         self._delegate(signum, frame)

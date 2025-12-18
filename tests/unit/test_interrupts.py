@@ -44,9 +44,9 @@ class TestDoubleCtrlCStateMachine:
         sm = DoubleCtrlCStateMachine()
         sm.on_sigint(run_active=True)  # Arm
         sm.on_sigint(run_active=True)  # Stop
-        # Third press should let the signal bubble up (force exit)
+        # Third press while stopping should be ignored while run is active
         decision = sm.on_sigint(run_active=True)
-        assert decision == SigintDecision.DELEGATE
+        assert decision == SigintDecision.IGNORE
         assert sm.state == RunInterruptState.STOPPING
 
     def test_finished_run_ignores_signals(self):

@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass, is_dataclass
 import threading
 import hashlib
 import json
+import queue
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Callable, Dict, List, Optional
 from types import SimpleNamespace
@@ -25,7 +26,8 @@ from lb_runner.plugin_system.interface import WorkloadIntensity
 from lb_runner.output_helpers import workload_output_dir
 from lb_runner.stop_token import StopToken
 from lb_controller.controller_runner import ControllerRunner
-from lb_controller.controller_state import ControllerState
+from lb_controller.controller_state import ControllerState, ControllerStateMachine
+from lb_controller.interrupts import DoubleCtrlCStateMachine, SigintDoublePressHandler
 from lb_controller.journal import RunJournal, RunStatus, LogSink, TaskState
 from lb_controller.ui_interfaces import UIAdapter, DashboardHandle, NoOpDashboardHandle
 from rich.markup import escape
@@ -750,6 +752,7 @@ class RunService:
 
         downstream = output_cb
         stop_announced = False
+        controller_state = ControllerStateMachine()
 
         def _announce_stop(
             msg: str = "Stop confirmed; initiating teardown and aborting the run.",
@@ -758,6 +761,10 @@ class RunService:
             if stop_announced:
                 return
             stop_announced = True
+            try:
+                controller_state.transition(ControllerState.STOP_ARMED, reason=msg)
+            except Exception:
+                pass
             display_msg, log_msg = self._controller_stop_hint(msg)
             if ui_adapter:
                 ui_adapter.show_warning(log_msg)
@@ -922,6 +929,7 @@ class RunService:
             output_formatter=formatter if not context.debug else None,
             journal_refresh=dashboard.refresh if dashboard else None,
             stop_token=stop_token,
+            state_machine=controller_state,
         )
         if formatter:
             formatter.host_label = ",".join(h.name for h in context.config.remote_hosts)
@@ -983,13 +991,63 @@ class RunService:
             ),
             stop_token=stop_token,
             on_state_change=_on_state_change,
+            state_machine=controller_state,
         )
+        ctrlc_events: queue.SimpleQueue[tuple[str, str | None]] = queue.SimpleQueue()
+        sigint_state = DoubleCtrlCStateMachine()
+
+        def _log_arm_warning() -> None:
+            msg = "Press Ctrl+C again to stop the execution"
+            display = f"[yellow]{msg}[/yellow]"
+            if ui_adapter:
+                ui_adapter.show_warning(msg)
+            elif dashboard:
+                dashboard.add_log(display)
+                dashboard.refresh()
+            else:
+                print(msg)
+            try:
+                log_file.write(msg + "\n")
+                log_file.flush()
+                if ui_stream_log_file:
+                    ui_stream_log_file.write(msg + "\n")
+                    ui_stream_log_file.flush()
+            except Exception:
+                pass
+
+        def _drain_ctrlc_queue() -> None:
+            while True:
+                try:
+                    kind, reason = ctrlc_events.get_nowait()
+                except queue.Empty:
+                    return
+                if kind == "warn":
+                    _log_arm_warning()
+                elif kind == "stop":
+                    runner.arm_stop(reason or "User requested stop")
+                    _announce_stop()
+
+        def _run_active() -> bool:
+            return not controller_state.is_terminal()
+
         try:
-            with dashboard.live():
+            with dashboard.live(), SigintDoublePressHandler(
+                state_machine=sigint_state,
+                run_active=_run_active,
+                on_first_sigint=lambda: ctrlc_events.put(("warn", None)),
+                on_confirmed_sigint=lambda: ctrlc_events.put(
+                    ("stop", "User requested stop")
+                ),
+            ):
                 start_ts = time.monotonic()
                 runner.start()
-                summary = runner.wait()
-                elapsed = time.monotonic() - start_ts
+                while True:
+                    _drain_ctrlc_queue()
+                    candidate = runner.wait(timeout=0.2)
+                    if candidate is not None:
+                        summary = candidate
+                        elapsed = time.monotonic() - start_ts
+                        break
                 msg = f"Run {effective_run_id} completed in {elapsed:.1f}s"
                 try:
                     log_file.write(msg + "\n")

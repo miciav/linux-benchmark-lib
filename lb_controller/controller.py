@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig
 from lb_runner.stop_token import StopToken
 
+from lb_controller.controller_state import ControllerState, ControllerStateMachine
 from lb_controller.ansible_executor import AnsibleRunnerExecutor
 from lb_controller.journal import RunJournal, RunStatus
 from lb_controller.journal_sync import (
@@ -48,12 +49,14 @@ class BenchmarkController:
         journal_refresh: Optional[Callable[[], None]] = None,
         stop_token: StopToken | None = None,
         stop_timeout_s: float = 30.0,
+        state_machine: ControllerStateMachine | None = None,
     ):
         self.config = config
         self.output_formatter = output_formatter
         self.stop_token = stop_token
         self._stop_timeout_s = stop_timeout_s
         self.lifecycle = RunLifecycle()
+        self.state_machine = state_machine or ControllerStateMachine()
         # Enable streaming if a callback is provided
         stream = output_callback is not None
         self.executor = executor or AnsibleRunnerExecutor(
@@ -71,6 +74,27 @@ class BenchmarkController:
         """Process an event for stop coordination."""
         if self.coordinator:
             self.coordinator.process_event(event)
+
+    def _transition(self, state: ControllerState, reason: str | None = None) -> None:
+        """Transition controller state and ignore invalid jumps silently."""
+        try:
+            self.state_machine.transition(state, reason=reason)
+        except ValueError:
+            logger.debug("Invalid transition ignored: %s -> %s", self.state_machine.state, state)
+
+    def _arm_stop(self, reason: str | None = None) -> None:
+        """Arm a coordinated stop (idempotent)."""
+        try:
+            self.state_machine.transition(ControllerState.STOP_ARMED, reason=reason)
+        except Exception:
+            pass
+
+    def _stop_requested(self) -> bool:
+        """Return True when a stop was requested and arm the stop state."""
+        if self.stop_token and self.stop_token.should_stop():
+            self._arm_stop("stop requested")
+            return True
+        return False
 
     def _refresh_journal(self) -> None:
         """Trigger UI journal refresh callback when available."""
@@ -116,9 +140,21 @@ class BenchmarkController:
         # Initialize StopCoordinator
         active_hosts = {h.name for h in self.config.remote_hosts}
         self.coordinator = StopCoordinator(
-            expected_runners=active_hosts, stop_timeout=self._stop_timeout_s
+            expected_runners=active_hosts,
+            stop_timeout=self._stop_timeout_s,
+            run_id=resolved_run_id,
         )
-        self.lifecycle.start_phase(RunPhase.GLOBAL_SETUP)
+        initial_state = (
+            ControllerState.RUNNING_GLOBAL_SETUP
+            if self.config.remote_execution.run_setup
+            else ControllerState.RUNNING_WORKLOADS
+        )
+        self._transition(initial_state)
+        self.lifecycle.start_phase(
+            RunPhase.GLOBAL_SETUP
+            if self.config.remote_execution.run_setup
+            else RunPhase.WORKLOADS
+        )
 
         target_reps = (
             journal.metadata.get("repetitions") if journal else None
@@ -185,22 +221,15 @@ class BenchmarkController:
 
         # 1. Global Setup
         if self.config.remote_execution.run_setup:
-            if self.stop_token and self.stop_token.should_stop():
-                ui_log("Stop requested before setup; aborting run.")
+            if self._stop_requested():
+                ui_log("Stop requested before setup; arming stop and skipping workloads.")
                 self.lifecycle.arm_stop()
                 self.lifecycle.mark_interrupting_setup()
-                # We haven't started anything, so we can just return.
-                # But we should respect the protocol if we think something *might* be running (unlikely here).
-                # Safe to just return/skip.
-                return RunExecutionSummary(
-                    run_id=resolved_run_id,
-                    per_host_output=per_host_output,
-                    phases=phases,
-                    success=False,
-                    output_root=output_root,
-                    report_root=report_root,
-                    data_export_root=data_export_root,
+                self._transition(
+                    ControllerState.STOPPING_INTERRUPT_SETUP,
+                    reason="stop before setup",
                 )
+                test_types = []
             else:
                 ui_log("Phase: Global Setup")
                 if self.output_formatter:
@@ -210,9 +239,14 @@ class BenchmarkController:
                     inventory=inventory,
                     extravars=extravars,
                 )
-                if self.stop_token and self.stop_token.should_stop():
+                if self._stop_requested():
                     self.lifecycle.arm_stop()
                     self.lifecycle.mark_interrupting_setup()
+                    self._transition(
+                        ControllerState.STOPPING_INTERRUPT_SETUP,
+                        reason="stop during setup",
+                    )
+                    self._interrupt_executor()
                     stop_successful = True
                     all_tests_success = False
                     # Continue to teardown path
@@ -222,10 +256,11 @@ class BenchmarkController:
                         pass
                     # skip workloads
                     test_types = []
-                if not phases["setup_global"].success and not (
-                    self.stop_token and self.stop_token.should_stop()
-                ):
+                if not phases["setup_global"].success and not self._stop_requested():
                     ui_log("Global setup failed. Aborting run.")
+                    self._transition(
+                        ControllerState.FAILED, reason="global setup failed"
+                    )
                     self._refresh_journal()
                     return RunExecutionSummary(
                         run_id=resolved_run_id,
@@ -236,12 +271,21 @@ class BenchmarkController:
                         report_root=report_root,
                         data_export_root=data_export_root,
                     )
+        if (
+            not self._stop_requested()
+            and self.state_machine.state != ControllerState.RUNNING_WORKLOADS
+        ):
+            self._transition(ControllerState.RUNNING_WORKLOADS)
         # 2. Per-Test Loop (single Ansible run per workload; LocalRunner handles repetitions)
         self.lifecycle.start_phase(RunPhase.WORKLOADS)
         for test_name in test_types:
-            if self.stop_token and self.stop_token.should_stop():
+            if self._stop_requested():
                 self.lifecycle.arm_stop()
                 self.lifecycle.mark_waiting_runners()
+                self._transition(
+                    ControllerState.STOPPING_WAIT_RUNNERS,
+                    reason="stop during workloads",
+                )
                 stop_protocol_attempted = True
                 stop_successful = self._handle_stop_protocol(
                     inventory, extravars, ui_log
@@ -262,6 +306,10 @@ class BenchmarkController:
             if self.stop_token and self.stop_token.should_stop():
                 self.lifecycle.arm_stop()
                 self.lifecycle.mark_waiting_runners()
+                self._transition(
+                    ControllerState.STOPPING_WAIT_RUNNERS,
+                    reason="stop during workloads",
+                )
                 stop_protocol_attempted = True
                 stop_successful = self._handle_stop_protocol(
                     inventory, extravars, ui_log
@@ -453,12 +501,35 @@ class BenchmarkController:
                 if not res_td.success:
                     ui_log(f"Teardown failed for {test_name}")
 
-            if self.stop_token and self.stop_token.should_stop():
+            if self._stop_requested():
+                self.lifecycle.arm_stop()
+                self.lifecycle.mark_waiting_runners()
+                self._transition(
+                    ControllerState.STOPPING_WAIT_RUNNERS,
+                    reason="stop after workload",
+                )
+                stop_protocol_attempted = True
+                stop_successful = self._handle_stop_protocol(
+                    inventory, extravars, ui_log
+                )
                 all_tests_success = False
                 break
 
         # 3. Global Teardown (Clean up remote artifacts)
         if self.config.remote_execution.run_teardown:
+            stopping_now = self._stop_requested()
+            if stopping_now and self.state_machine.state not in {
+                ControllerState.STOPPING_TEARDOWN,
+                ControllerState.STOPPING_INTERRUPT_TEARDOWN,
+            }:
+                self._transition(
+                    ControllerState.STOPPING_TEARDOWN, reason="teardown after stop"
+                )
+            elif not stopping_now and self.state_machine.state not in {
+                ControllerState.STOPPING_TEARDOWN,
+                ControllerState.STOPPING_INTERRUPT_TEARDOWN,
+            }:
+                self._transition(ControllerState.RUNNING_GLOBAL_TEARDOWN)
             self.lifecycle.start_phase(RunPhase.GLOBAL_TEARDOWN)
             if stop_protocol_attempted and not stop_successful:
                 ui_log(
@@ -472,9 +543,13 @@ class BenchmarkController:
                 self.output_formatter.set_phase("Global Teardown")
 
             if self.config.remote_execution.teardown_playbook:
-                if self.stop_token and self.stop_token.should_stop():
+                if self._stop_requested():
                     self.lifecycle.arm_stop()
                     self.lifecycle.mark_interrupting_teardown()
+                    self._transition(
+                        ControllerState.STOPPING_INTERRUPT_TEARDOWN,
+                        reason="stop during teardown",
+                    )
                     self._interrupt_executor()
                 phases["teardown_global"] = self.executor.run_playbook(
                     self.config.remote_execution.teardown_playbook,
@@ -491,6 +566,17 @@ class BenchmarkController:
         time.sleep(1)
 
         self.lifecycle.finish()
+        if self._stop_requested():
+            final_state = (
+                ControllerState.STOP_FAILED
+                if not stop_successful
+                else ControllerState.ABORTED
+            )
+        elif not all_tests_success:
+            final_state = ControllerState.FAILED
+        else:
+            final_state = ControllerState.FINISHED
+        self._transition(final_state)
         return RunExecutionSummary(
             run_id=resolved_run_id,
             per_host_output=per_host_output,
@@ -499,6 +585,8 @@ class BenchmarkController:
             output_root=output_root,
             report_root=report_root,
             data_export_root=data_export_root,
+            controller_state=self.state_machine.state,
+            cleanup_allowed=self.state_machine.allows_cleanup(),
         )
 
     def _handle_stop_protocol(
@@ -518,6 +606,7 @@ class BenchmarkController:
             return False  # Should not happen
 
         log_fn("Stop confirmed; initiating distributed stop protocol...")
+        self._transition(ControllerState.STOPPING_WAIT_RUNNERS)
         self.coordinator.initiate_stop()
         self.lifecycle.mark_waiting_runners()
 
@@ -570,10 +659,16 @@ class BenchmarkController:
             if self.coordinator.state == StopState.TEARDOWN_READY:
                 log_fn("All runners confirmed stop.")
                 self.lifecycle.mark_stopped()
+                self._transition(
+                    ControllerState.STOPPING_TEARDOWN, reason="runners stopped"
+                )
                 return True
             if self.coordinator.state == StopState.STOP_FAILED:
                 log_fn("Stop protocol timed out or failed.")
                 self.lifecycle.mark_failed()
+                self._transition(
+                    ControllerState.STOP_FAILED, reason="stop confirmations timed out"
+                )
                 return False
 
             time.sleep(0.5)

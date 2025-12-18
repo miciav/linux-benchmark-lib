@@ -185,6 +185,22 @@ def _print_run_journal_summary(
         ui.present.info(f"Dashboard log stream saved to {ui_log_path}")
 
 
+def _cleanup_provisioned_nodes(provisioning_result, result, presenter) -> None:
+    """Apply cleanup policy using controller authorization."""
+    if not provisioning_result:
+        return
+    allow_cleanup = bool(
+        result and result.summary and result.summary.cleanup_allowed
+    )
+    if result and result.summary and not result.summary.success:
+        presenter.warning("Run failed; preserving provisioned nodes for inspection.")
+        provisioning_result.keep_nodes = True
+    if not allow_cleanup:
+        presenter.warning("Controller did not authorize cleanup; provisioned nodes preserved.")
+        provisioning_result.keep_nodes = True
+    provisioning_result.destroy_all()
+
+
 @config_app.command("edit")
 def config_edit(
     path: Optional[Path] = typer.Option(
@@ -1071,11 +1087,7 @@ def run(
         ui.present.error(f"Run failed: {exc}")
         raise typer.Exit(1)
     finally:
-        if provisioning_result:
-            if result and result.summary and not result.summary.success:
-                 ui.present.warning("Run failed; preserving provisioned nodes for inspection.")
-                 provisioning_result.keep_nodes = True
-            provisioning_result.destroy_all()
+        _cleanup_provisioned_nodes(provisioning_result, result, ui.present)
 
     if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):
         _print_run_journal_summary(result.journal_path, log_path=result.log_path, ui_log_path=result.ui_log_path)
