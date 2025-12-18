@@ -1,7 +1,7 @@
 """
 Command-line interface for linux-benchmark-lib.
 
-Exposes quick commands to inspect plugins/hosts and run benchmarks locally or remotely.
+Exposes quick commands to inspect plugins/hosts and run benchmarks via provisioned environments (remote, Docker, Multipass).
 """
 
 from __future__ import annotations
@@ -16,6 +16,13 @@ from typing import Dict, List, Optional, Set
 
 import typer
 
+from lb_provisioner import (
+    MAX_NODES,
+    ProvisioningError,
+    ProvisioningMode,
+    ProvisioningRequest,
+    ProvisioningService,
+)
 from lb_controller.journal import RunJournal
 from lb_controller.contracts import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig, PluginRegistry
 from lb_controller.services import ConfigService, RunCatalogService, RunService
@@ -37,7 +44,7 @@ from lb_ui.ui.adapters.tui_adapter import TUIAdapter
 ui: UI = TUI()
 ui_adapter: UIAdapter = TUIAdapter(ui)
 
-app = typer.Typer(help="Run linux-benchmark workloads locally or against remote hosts.", no_args_is_help=True)
+app = typer.Typer(help="Run linux-benchmark workloads on provisioned hosts (remote, Docker, Multipass).", no_args_is_help=True)
 config_app = typer.Typer(help="Manage benchmark configuration files.", no_args_is_help=True)
 doctor_app = typer.Typer(help="Check local prerequisites.", no_args_is_help=True)
 test_app = typer.Typer(help="Convenience helpers to run integration tests.", no_args_is_help=True)
@@ -118,17 +125,13 @@ def _print_run_plan(
     cfg: BenchmarkConfig,
     tests: List[str],
     registry: Optional[PluginRegistry] = None,
-    docker_mode: bool = False,
-    multipass_mode: bool = False,
-    remote_mode: bool = False,
+    execution_mode: str = "remote",
 ) -> None:
     """Render a compact table of the workloads about to run with availability hints."""
     plan = run_service.get_run_plan(
         cfg,
         tests,
-        docker_mode,
-        multipass_mode,
-        remote_mode,
+        execution_mode=execution_mode,
         registry=registry or create_registry(),
     )
 
@@ -883,32 +886,17 @@ def run(
     remote: Optional[bool] = typer.Option(
         None,
         "--remote/--no-remote",
-        help="Override remote execution from the config.",
+        help="Override remote execution from the config (local mode is not supported).",
     ),
     docker: bool = typer.Option(
         False,
         "--docker",
-        help="Run inside the container image (build if needed).",
-    ),
-    docker_image: str = typer.Option(
-        "linux-benchmark-lib:dev",
-        "--docker-image",
-        help="Docker image tag to use when --docker is set.",
+        help="Provision containers (Ubuntu 24.04) and run via Ansible.",
     ),
     docker_engine: str = typer.Option(
         "docker",
         "--docker-engine",
         help="Container engine to use with --docker (docker or podman).",
-    ),
-    docker_no_build: bool = typer.Option(
-        False,
-        "--docker-no-build",
-        help="Skip building the image when using --docker.",
-    ),
-    docker_no_cache: bool = typer.Option(
-        False,
-        "--docker-no-cache",
-        help="Disable cache when building the image with --docker.",
     ),
     repetitions: Optional[int] = typer.Option(
         None,
@@ -919,12 +907,13 @@ def run(
     multipass: bool = typer.Option(
         False,
         "--multipass",
-        help="Provision an ephemeral Multipass VM and run benchmarks on it.",
+        help="Provision Multipass VMs (Ubuntu 24.04) and run benchmarks on them.",
     ),
-    multipass_vm_count: int = typer.Option(
+    node_count: int = typer.Option(
         1,
+        "--nodes",
         "--multipass-vm-count",
-        help="Number of Multipass VMs to provision when using --multipass.",
+        help="Number of containers/VMs to provision (max 2).",
     ),
     debug: bool = typer.Option(
         False,
@@ -948,9 +937,19 @@ def run(
         help="Run environment setup (Global + Workload) before execution.",
     ),
 ) -> None:
-    """Run workloads locally, remotely, or inside the container image."""
+    """Run workloads using Ansible on remote, Docker, or Multipass targets."""
     if not DEV_MODE and (docker or multipass):
         ui.present.error("--docker and --multipass are available only in dev mode.")
+        raise typer.Exit(1)
+
+    if docker and multipass:
+        ui.present.error("Choose either --docker or --multipass, not both.")
+        raise typer.Exit(1)
+
+    if remote is False and not docker and not multipass:
+        ui.present.error(
+            "Local execution has been removed; enable --remote, --docker, or --multipass."
+        )
         raise typer.Exit(1)
 
     if debug:
@@ -961,46 +960,106 @@ def run(
         )
         ui.present.info("Debug logging enabled")
 
-    if multipass and multipass_vm_count < 1:
-        ui.present.error("When using --multipass, --multipass-vm-count must be at least 1.")
+    if node_count < 1:
+        ui.present.error("Node count must be at least 1.")
+        raise typer.Exit(1)
+    if node_count > MAX_NODES:
+        ui.present.error(f"Maximum supported nodes is {MAX_NODES}.")
         raise typer.Exit(1)
 
     if repetitions is not None and repetitions < 1:
         ui.present.error("Repetitions must be at least 1.")
         raise typer.Exit(1)
 
-    stop_file = stop_file or (Path(os.environ["LB_STOP_FILE"]) if os.environ.get("LB_STOP_FILE") else None)
+    stop_file = stop_file or (
+        Path(os.environ["LB_STOP_FILE"])
+        if os.environ.get("LB_STOP_FILE")
+        else None
+    )
 
+    cfg, resolved, stale = config_service.load_for_read(config)
+    if stale:
+        ui.present.warning(f"Saved default config not found: {stale}")
+    if resolved:
+        ui.present.success(f"Loaded config: {resolved}")
+    else:
+        ui.present.warning("No config file found; using built-in defaults.")
+
+    cfg.ensure_output_dirs()
+
+    execution_mode = (
+        ProvisioningMode.DOCKER
+        if docker
+        else ProvisioningMode.MULTIPASS
+        if multipass
+        else ProvisioningMode.REMOTE
+    )
+
+    provisioner = ProvisioningService()
+    provisioning_result = None
+
+    try:
+        if execution_mode is ProvisioningMode.REMOTE:
+            if remote is False:
+                raise ValueError(
+                    "Remote execution is required; use --docker or --multipass instead."
+                )
+            if not cfg.remote_hosts:
+                raise ValueError(
+                    "Configure at least one remote host or use --docker/--multipass."
+                )
+            request = ProvisioningRequest(
+                mode=ProvisioningMode.REMOTE,
+                count=len(cfg.remote_hosts),
+                remote_hosts=cfg.remote_hosts,
+            )
+        elif execution_mode is ProvisioningMode.DOCKER:
+            request = ProvisioningRequest(
+                mode=ProvisioningMode.DOCKER,
+                count=node_count,
+                docker_engine=docker_engine,
+            )
+        else:
+            temp_dir = cfg.output_dir.parent / "temp_keys"
+            request = ProvisioningRequest(
+                mode=ProvisioningMode.MULTIPASS,
+                count=node_count,
+                state_dir=temp_dir,
+            )
+        provisioning_result = provisioner.provision(request)
+    except ProvisioningError as exc:
+        ui.present.error(f"Provisioning failed: {exc}")
+        raise typer.Exit(1)
+    except ValueError as exc:
+        ui.present.error(str(exc))
+        raise typer.Exit(1)
+
+    cfg.remote_hosts = [node.host for node in provisioning_result.nodes]
+    cfg.remote_execution.enabled = True
+
+    result = None
     try:
         context = run_service.create_session(
             config_service=config_service,
             tests=tests,
-            config_path=config,
+            config_path=resolved,
             run_id=run_id,
             resume=resume,
-            remote=remote,
-            docker=docker,
-            docker_image=docker_image,
-            docker_engine=docker_engine,
-            docker_no_build=docker_no_build,
-            docker_no_cache=docker_no_cache,
             repetitions=repetitions,
-            multipass=multipass,
-            multipass_vm_count=multipass_vm_count,
             debug=debug,
             intensity=intensity,
             ui_adapter=ui_adapter,
             setup=setup,
             stop_file=stop_file,
+            execution_mode=execution_mode.value,
+            preloaded_config=cfg,
         )
 
         _print_run_plan(
             context.config,
             context.target_tests,
             registry=context.registry,
-            docker_mode=context.use_container,
-            multipass_mode=context.use_multipass,
-            remote_mode=context.use_remote,
+            execution_mode=execution_mode.value,
         )
 
         result = run_service.execute(context, run_id, ui_adapter=ui_adapter)
@@ -1011,11 +1070,15 @@ def run(
     except Exception as exc:
         ui.present.error(f"Run failed: {exc}")
         raise typer.Exit(1)
+    finally:
+        if provisioning_result:
+            provisioning_result.destroy_all()
 
     if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):
         _print_run_journal_summary(result.journal_path, log_path=result.log_path, ui_log_path=result.ui_log_path)
 
     ui.present.success("Run completed.")
+
 
 
 def _select_plugins_interactively(

@@ -92,8 +92,5 @@ class BaselinePlugin(WorkloadPlugin):
     def get_required_local_tools(self) -> List[str]:
         return []
 
-    def get_dockerfile_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "Dockerfile"
-
 # Exposed Plugin Instance
 PLUGIN = BaselinePlugin()

@@ -343,9 +343,6 @@ class FIOPlugin(WorkloadPlugin):
         pd.DataFrame(rows).to_csv(csv_path, index=False)
         return [csv_path]
 
-    def get_dockerfile_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "Dockerfile"
-
     def get_ansible_setup_path(self) -> Optional[Path]:
         return Path(__file__).parent / "ansible" / "setup.yml"
 

@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import selectors
+import shutil
 import subprocess
 import sys
 import threading
@@ -104,8 +105,17 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         repo_roles = (ANSIBLE_ROOT / "roles").resolve()
         runner_roles = (self.private_data_dir / "roles").resolve()
         callback_dir = (ANSIBLE_ROOT / "callback_plugins").resolve()
+        repo_collections = (ANSIBLE_ROOT / "collections").resolve()
+        runner_collections = (self.private_data_dir / "collections").resolve()
+        if repo_collections.exists():
+            shutil.copytree(
+                repo_collections,
+                runner_collections,
+                dirs_exist_ok=True,
+            )
         envvars = {
             "ANSIBLE_ROLES_PATH": f"{runner_roles}:{repo_roles}",
+            "ANSIBLE_COLLECTIONS_PATHS": f"{runner_collections}:{repo_collections}",
             "ANSIBLE_LOCAL_TEMP": str(self.local_tmp),
             "ANSIBLE_REMOTE_TMP": "/tmp/.ansible",
             "ANSIBLE_CONFIG": str((ANSIBLE_ROOT / "ansible.cfg").resolve()),

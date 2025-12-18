@@ -71,7 +71,6 @@ class TestBaselinePlugin:
     def test_requirements(self):
         assert PLUGIN.get_required_apt_packages() == []
         assert PLUGIN.get_required_local_tools() == []
-        assert PLUGIN.get_dockerfile_path().name == "Dockerfile"
 
 
 class TestBaselineConfigLoading:

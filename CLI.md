@@ -29,10 +29,8 @@ Top-level commands
   Remove a user plugin and optionally delete its config entries.
 - `lb hosts [-c FILE]`  
   Show remote hosts from the resolved config.
-- `lb run [TEST ...] [-c FILE] [--run-id ID] [--remote/--no-remote] [--repetitions N]`
-  Run workloads locally or remotely (auto-follows config unless overridden). Use `--repetitions` to temporarily change how many times each workload runs.
-- `lb run ... --docker [--docker-image TAG] [--docker-engine docker|podman] [--docker-no-build] [--docker-no-cache]`  
-  Build/use the container image and run the CLI inside it. Mounts the repo read-only and writes artifacts to the container’s `benchmark_results`.
+- `lb run [TEST ...] [-c FILE] [--run-id ID] [--remote/--no-remote] [--docker] [--multipass] [--nodes N] [--repetitions N]`
+  Run workloads via Ansible on configured remote hosts or provisioned Docker/Multipass nodes (local execution removed). `--nodes` controls how many containers/VMs to provision (max 2) when using `--docker` or `--multipass`.
 - `lb runs list [--root PATH] [-c FILE]` / `lb runs show RUN_ID [--root PATH] [-c FILE]`  
   List past runs stored under `benchmark_results/` and inspect a single run (hosts, workloads, paths).
 - `lb analyze [RUN_ID] [--root PATH] [--kind aggregate] [--workload NAME] [--host NAME]`  

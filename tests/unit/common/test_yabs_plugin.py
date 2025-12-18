@@ -34,9 +34,7 @@ def test_yabs_required_packages():
 def test_yabs_paths_exist():
     plugin = yabs_mod.PLUGIN
     setup = plugin.get_ansible_setup_path()
-    dockerfile = plugin.get_dockerfile_path()
     assert setup and setup.exists()
-    assert dockerfile and dockerfile.exists()
 
 
 def test_yabs_generator_builds_command(monkeypatch, tmp_path):

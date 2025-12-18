@@ -474,9 +474,6 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
     def get_ansible_teardown_extravars(self) -> Dict[str, Any]:
         return self.get_ansible_setup_extravars()
 
-    def get_dockerfile_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "Dockerfile"
-
     def export_results_to_csv(
         self,
         results: List[Dict[str, Any]],

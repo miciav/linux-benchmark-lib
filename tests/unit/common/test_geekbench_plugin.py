@@ -30,7 +30,6 @@ def test_geekbench_required_packages_and_paths():
         assert pkg in pkgs
     tools = plugin.get_required_local_tools()
     assert "curl" in tools and "tar" in tools
-    assert plugin.get_dockerfile_path() and plugin.get_dockerfile_path().exists()
     assert plugin.get_ansible_setup_path() and plugin.get_ansible_setup_path().exists()
 
 

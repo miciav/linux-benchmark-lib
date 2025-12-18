@@ -7,7 +7,7 @@ This document describes the robust double-Ctrl+C handling and distributed shutdo
 *   **Ctrl+C Handling**: `lb_controller.interrupts.SigintDoublePressHandler` (UI Layer/Service).
 *   **Stop Coordination**: `lb_controller.stop_coordinator.StopCoordinator` (Controller Layer).
 *   **Teardown Execution**: `BenchmarkController` (Controller Layer).
-*   **Multipass Lifecycle**: `MultipassService` (Infrastructure), managed by `RunService`.
+*   **Multipass Lifecycle**: handled via `lb_provisioner` (Multipass backend), managed by `RunService`.
 
 ## State Machine (Stop Coordinator)
 *   `IDLE`: Normal execution.
@@ -26,7 +26,7 @@ This document describes the robust double-Ctrl+C handling and distributed shutdo
 ## Multipass Invariants
 *   **Preservation**: VM is preserved if the stop protocol fails or times out (debugging mode).
 *   **Destruction**: VM is destroyed only if the run completes normally OR the stop protocol succeeds (graceful teardown).
-*   **Implementation**: `MultipassService.provision` yields a config but checks `self.keep_vm` on exit. `RunService` sets `keep_vm=True` if `stop_protocol` fails.
+*   **Implementation**: Provisioning backends yield `RemoteHostConfig` objects with destroy hooks; `RunService` tears them down unless the run fails stop protocol.
 
 ## Key Files
 *   `lb_controller/stop_coordinator.py`: New coordinator logic.

@@ -33,7 +33,7 @@ class WorkloadPlugin(ABC):
     1. Configuration (schema)
     2. Execution (Generator creation)
     3. Metadata (Name, description)
-    4. Assets (Dockerfile, Ansible playbooks)
+    4. Assets (Ansible playbooks)
     """
 
     @property
@@ -125,13 +125,6 @@ class WorkloadPlugin(ABC):
         Used by `lb doctor` to verify the local environment.
         """
         return []
-
-    def get_dockerfile_path(self) -> Optional[Path]:
-        """
-        Return the path to the Dockerfile for this plugin.
-        The platform will build a dedicated image from this file.
-        """
-        return None
 
     def get_ansible_setup_path(self) -> Optional[Path]:
         """

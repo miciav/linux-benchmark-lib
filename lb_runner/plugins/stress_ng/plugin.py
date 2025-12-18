@@ -179,9 +179,6 @@ class StressNGPlugin(WorkloadPlugin):
     def get_required_local_tools(self) -> List[str]:
         return ["stress-ng"]
 
-    def get_dockerfile_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "Dockerfile"
-
     def get_ansible_setup_path(self) -> Optional[Path]:
         path = Path(__file__).parent / "ansible" / "setup.yml"
         return path if path.exists() else None

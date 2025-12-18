@@ -18,7 +18,9 @@
       until: _python_ppa is succeeded
       retries: 3
       delay: 5
-      when: ansible_facts['os_family'] | default('') == 'Debian'
+      when:
+        - ansible_facts['os_family'] | default('') == 'Debian'
+        - not (lb_is_container | default(false))
       tags: python
 
     - name: Update apt cache when PPA added
