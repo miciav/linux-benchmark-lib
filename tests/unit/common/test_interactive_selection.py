@@ -8,7 +8,7 @@ import pytest
 from lb_controller.services.test_service import TestService
 from lb_ui.ui import prompts as tui_prompts
 
-pytestmark = [pytest.mark.unit, pytest.mark.cli]
+pytestmark = [pytest.mark.ui, pytest.mark.ui]
 
 
 def test_select_multipass_interactive(monkeypatch):

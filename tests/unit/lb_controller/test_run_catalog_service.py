@@ -10,7 +10,7 @@ import pytest
 
 from lb_controller.services.run_catalog_service import RunCatalogService
 
-pytestmark = [pytest.mark.unit]
+pytestmark = [pytest.mark.controller]
 
 
 def _write_journal(path: Path, created_at: str, tasks: list[dict]) -> None:

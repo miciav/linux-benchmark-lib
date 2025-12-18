@@ -5,7 +5,7 @@ import pytest
 from lb_ui.cli import _print_run_plan
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 
-pytestmark = [pytest.mark.unit, pytest.mark.cli]
+pytestmark = [pytest.mark.ui, pytest.mark.ui]
 
 
 def test_print_run_plan_docker_mode():
@@ -25,7 +25,7 @@ def test_print_run_plan_docker_mode():
     # or check for local libraries, and should succeed even if tools are missing locally.
     
     try:
-        _print_run_plan(cfg, ["stress_ng"], registry=mock_registry, docker_mode=True)
+        _print_run_plan(cfg, ["stress_ng"], registry=mock_registry, execution_mode="docker")
     except Exception as e:
         assert False, f"_print_run_plan raised exception in Docker mode: {e}"
 

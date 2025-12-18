@@ -1072,6 +1072,9 @@ def run(
         raise typer.Exit(1)
     finally:
         if provisioning_result:
+            if result and result.summary and not result.summary.success:
+                 ui.present.warning("Run failed; preserving provisioned nodes for inspection.")
+                 provisioning_result.keep_nodes = True
             provisioning_result.destroy_all()
 
     if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):

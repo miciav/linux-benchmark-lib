@@ -8,6 +8,7 @@ The project is organized into these top-level packages:
 * `lb_runner` – execution, plugins, emission of raw metrics/events and artifacts.
 * `lb_controller` – orchestration (Ansible, journaling, LB_EVENT parsing, artifact collection).
 * `lb_ui` – CLI/TUI and user interaction.
+* `lb_provisioner` - provisioning remote nodes.
 * `lb_analytics` – analytics layer for transforming raw data into profiles, reports, and images.
 
 Your task is to **analyze and evaluate the existing test suite**, with a focus on:
@@ -26,7 +27,7 @@ You should focus on **reasoning and assessment**, not just generating new tests 
 ### 1. Test Inventory and Mapping
 
 1. Inspect the test structure (e.g. `tests/`, `tests/unit`, `tests/integration`, etc.).
-2. For each top-level package (`lb_runner`, `lb_controller`, `lb_ui`, `lb_analytics`), identify:
+2. For each top-level package (`lb_runner`, `lb_controller`, `lb_ui`, `lb_provisioner` `lb_analytics`), identify:
 
    * Which test files and test classes/functions target it.
    * Which main behaviors or components they exercise.
@@ -60,6 +61,10 @@ For each package, evaluate whether **core responsibilities** are reasonably cove
 
   * Are data transformations, profile building, and report/plot generation tested?
   * Are tests deterministic and independent from external state (no random flakiness)?
+
+  * **`lb_provisioner`** (if present or partially implemented)
+
+  * Are provisioning flows tested (local, Docker, remote/multipass where applicable)?
 
 Call out **which responsibilities are well covered** and **which are barely or not covered**.
 
@@ -98,9 +103,9 @@ Highlight concrete examples of **good** tests and **problematic** tests.
 Check whether the tests respect the intended layering:
 
 ```text
-lb_runner   ←   lb_controller   ←   lb_ui
-                 ↓
-            lb_analytics
+lb_runner   ←   lb_controller   ←   lb_ui    
+             lb_analytics ←   lb_ui
+             lb_provisioner ←   lb_ui
 ```
 
 Identify any misalignments, such as:
@@ -138,7 +143,7 @@ Provide **actionable recommendations**, including:
 2. **Medium-term improvements**
 
    * Reorganizing tests to better match package structure (`tests/lb_runner`, `tests/lb_controller`, etc.).
-   * Introducing markers (e.g., `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.slow`).
+   * Refactoring to use markers.
    * Creating shared fixtures/utilities for common patterns (e.g., fake RunJournal, fake Ansible runner).
 
 3. **Principles/Guidelines**
@@ -152,7 +157,7 @@ Provide **actionable recommendations**, including:
 Your output should be a **structured, English-language report** with sections:
 
 1. Overall Test Suite Overview
-2. Per-Package Evaluation (`lb_runner`, `lb_controller`, `lb_ui`, `lb_analytics`)
+2. Per-Package Evaluation (`lb_runner`, `lb_controller`, `lb_ui`, `lb_analytics`, `lb_provisioner`)
 3. Test Quality & Architectural Alignment
 4. Gaps and High-Risk Areas
 5. Recommendations & Step-by-Step Improvement Plan

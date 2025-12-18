@@ -10,7 +10,7 @@ from lb_runner.plugin_system.registry import PluginRegistry, resolve_user_plugin
 from lb_runner.plugin_system.interface import WorkloadPlugin
 from lb_runner.plugin_system.base_generator import BaseGenerator
 
-pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+pytestmark = [pytest.mark.runner, pytest.mark.plugins]
 
 
 

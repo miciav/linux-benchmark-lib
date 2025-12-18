@@ -6,7 +6,7 @@ import pytest
 from lb_runner.events import RunEvent
 from lb_controller.journal import RunJournal, RunStatus, LogSink
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.controller
 
 
 

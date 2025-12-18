@@ -14,7 +14,7 @@ from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.interface import BasePluginConfig
 from lb_runner.plugin_system.registry import PluginRegistry, USER_PLUGIN_DIR
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.runner
 
 
 def _has_external(name: str) -> bool:

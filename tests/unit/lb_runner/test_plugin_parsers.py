@@ -11,7 +11,7 @@ from lb_runner.plugins.hpl.plugin import HPLConfig, HPLPlugin
 from lb_runner.plugins.stream.plugin import StreamConfig, StreamPlugin
 
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.runner
 
 
 def test_dd_builds_command_and_handles_options(tmp_path):

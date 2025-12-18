@@ -13,7 +13,7 @@ from lb_runner.plugins.hpl.plugin import HPLPlugin
 from lb_runner.plugins.stream.plugin import StreamPlugin
 from lb_runner.plugins.yabs.plugin import YabsPlugin
 
-pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+pytestmark = [pytest.mark.runner, pytest.mark.plugins]
 
 
 def test_geekbench_export_results_to_csv_parses_json(tmp_path: Path) -> None:

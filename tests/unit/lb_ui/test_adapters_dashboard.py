@@ -9,7 +9,7 @@ from lb_ui.ui.adapters.headless import HeadlessUIAdapter
 from lb_controller.journal import RunJournal
 
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.ui
 
 
 def _fake_journal():

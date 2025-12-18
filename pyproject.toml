@@ -101,14 +101,16 @@ minversion = "7.0"
 addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
 markers = [
+    "runner: tests for the lb_runner package (execution, local logic)",
+    "controller: tests for the lb_controller package (orchestration, state)",
+    "ui: tests for the User Interface (CLI commands, TUI, prompts)",
+    "provisioner: tests for provisioning logic (Multipass, Docker)",
+    "analytics: tests for lb_analytics (data processing, reporting)",
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "docker: integration tests that build/run plugin Docker images",
     "multipass: integration tests that validate plugin multipass/ansible assets",
     "multipass_single: multipass e2e per-workload runs with artifact checks",
-    "unit: fast isolated tests (no I/O or side effects)",
     "e2e: full end-to-end tests (e.g., with real VMs)",
-    "cli: command-line interface tests",
-    "tui: terminal UI tests, including interactive elements and formatted output",
     "plugins: tests specific to workload plugins",
     "baseline: tests for the baseline workload plugin",
     "slow: tests that require > 1 second",

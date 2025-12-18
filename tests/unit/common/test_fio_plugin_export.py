@@ -4,7 +4,7 @@ import pytest
 
 from lb_runner.plugins.fio.plugin import FIOPlugin
 
-pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+pytestmark = [pytest.mark.runner, pytest.mark.plugins]
 
 
 

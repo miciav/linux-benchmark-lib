@@ -8,7 +8,7 @@ from lb_runner.metric_collectors._base_collector import BaseCollector
 
 import pytest
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.runner
 
 class DummyCollector(BaseCollector):
     def __init__(self, interval_seconds: float = 0.01, fail_env: bool = False, raise_on_collect: bool = False):

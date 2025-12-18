@@ -86,7 +86,10 @@ class ControllerStateMachine:
         """Attempt a state transition; raise ValueError if invalid."""
         with self._lock:
             allowed = _ALLOWED_TRANSITIONS.get(self._state, set())
-            if new_state not in allowed and new_state not in {ControllerState.FAILED, ControllerState.ABORTED, ControllerState.COMPLETED}:
+            if new_state not in allowed and new_state not in {
+                ControllerState.FAILED,
+                ControllerState.ABORTED,
+            }:
                 raise ValueError(f"Invalid transition {self._state} -> {new_state}")
             self._state = new_state
             self._reason = reason

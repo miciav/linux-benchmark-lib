@@ -12,7 +12,7 @@ from lb_runner.log_handler import LBEventLogHandler
 from lb_controller.services.run_service import AnsibleOutputFormatter, _extract_lb_event_data
 
 
-@pytest.mark.unit
+@pytest.mark.controller
 def test_run_event_defaults():
     """Verify RunEvent has correct default values for new fields."""
     event = RunEvent(
@@ -31,7 +31,7 @@ def test_run_event_defaults():
     assert as_dict["level"] == "INFO"
 
 
-@pytest.mark.unit
+@pytest.mark.controller
 def test_lb_event_log_handler_emit(capsys):
     """Verify LBEventLogHandler emits correctly formatted JSON to stdout."""
     handler = LBEventLogHandler(
@@ -68,7 +68,7 @@ def test_lb_event_log_handler_emit(capsys):
     assert "timestamp" in payload
 
 
-@pytest.mark.unit
+@pytest.mark.controller
 def test_ansible_output_formatter_log_parsing():
     """Verify AnsibleOutputFormatter correctly parses log events."""
     formatter = AnsibleOutputFormatter()
@@ -101,7 +101,7 @@ def test_ansible_output_formatter_log_parsing():
     assert message == "[WARNING] Something went wrong"
 
 
-@pytest.mark.unit
+@pytest.mark.controller
 def test_ansible_output_formatter_mixed_input():
     """Verify parser handles mixed Ansible output correctly."""
     formatter = AnsibleOutputFormatter()

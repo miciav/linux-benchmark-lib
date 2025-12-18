@@ -602,7 +602,6 @@ class RunService:
         stop_file: Optional[Path] = None,
         execution_mode: str = "remote",
         preloaded_config: BenchmarkConfig | None = None,
-        **legacy_options: Any,
     ) -> RunContext:
         """
         Orchestrate the creation of a RunContext from raw inputs.

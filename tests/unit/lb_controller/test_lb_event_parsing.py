@@ -6,7 +6,7 @@ from lb_controller.journal import LogSink, RunJournal, RunStatus
 from lb_controller.services.run_service import _extract_lb_event_data
 from lb_runner.events import RunEvent
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.controller
 
 
 def test_extract_lb_event_data_handles_noise():

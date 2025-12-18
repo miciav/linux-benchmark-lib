@@ -82,7 +82,12 @@ class ControllerRunner:
             self._machine.transition(ControllerState.RUNNING)
             self._notify()
             self._result = self._run_callable()
-            self._machine.transition(ControllerState.COMPLETED)
+            final_state = (
+                ControllerState.ABORTED
+                if self._stop_token and self._stop_token.should_stop()
+                else ControllerState.COMPLETED
+            )
+            self._machine.transition(final_state)
         except BaseException as exc:  # pragma: no cover - worker safety
             self._exception = exc
             # If stop was requested, mark as aborted; otherwise failed.

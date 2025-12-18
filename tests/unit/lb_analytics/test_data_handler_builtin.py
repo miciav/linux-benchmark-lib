@@ -5,7 +5,7 @@ from lb_analytics import DataHandler
 
 import pytest
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.analytics
 
 def test_data_handler_fallback_psutil_aggregator():
     handler = DataHandler()

@@ -13,7 +13,8 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     # Defined markers in pyproject.toml
     known_markers = {
         "integration", "docker", "multipass", "multipass_single", 
-        "unit", "e2e", "cli", "tui", "plugins", "baseline", "slow", "slowest"
+        "runner", "controller", "ui", "provisioner", "analytics",
+        "e2e", "plugins", "baseline", "slow", "slowest"
     }
 
     # Iterate over relevant outcomes in terminalreporter.stats

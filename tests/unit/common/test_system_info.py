@@ -10,7 +10,7 @@ import pytest
 import lb_runner.system_info as sysinfo
 from lb_controller.services.run_service import RunService
 
-pytestmark = [pytest.mark.unit]
+pytestmark = [pytest.mark.runner]
 
 
 def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):

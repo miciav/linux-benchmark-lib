@@ -8,7 +8,7 @@ import pytest
 from lb_ui.ui import prompts
 
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.ui
 
 
 def test_prompt_plugins_non_tty_returns_none(monkeypatch):

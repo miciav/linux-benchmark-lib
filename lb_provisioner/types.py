@@ -55,9 +55,12 @@ class ProvisioningResult:
     """Aggregate provisioning outcome."""
 
     nodes: List[ProvisionedNode]
+    keep_nodes: bool = False
 
     def destroy_all(self) -> None:
         """Destroy all provisioned nodes in best-effort fashion."""
+        if self.keep_nodes:
+            return
         for node in self.nodes:
             node.teardown()
 

@@ -4,7 +4,7 @@ from typing import Any
 from lb_ui.ui.system.components.picker import _PickerApp
 from lb_ui.ui.system.models import PickItem
 
-pytestmark = pytest.mark.tui
+pytestmark = pytest.mark.ui
 
 @dataclass
 class UnhashablePayload:

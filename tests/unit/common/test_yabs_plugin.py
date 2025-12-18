@@ -6,7 +6,7 @@ import pytest
 
 import lb_runner.plugins.yabs.plugin as yabs_mod
 
-pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+pytestmark = [pytest.mark.runner, pytest.mark.plugins]
 
 
 
