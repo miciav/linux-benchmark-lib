@@ -1019,6 +1019,7 @@ def run(
             repetitions=repetitions,
             node_count=node_count,
             docker_engine=docker_engine,
+            ui_adapter=ui_adapter,
         )
 
         _print_run_plan(cfg, selected_tests, execution_mode=execution_mode)

@@ -106,7 +106,7 @@ class ApplicationClient(AppClient):
                 context,
                 run_id=request.run_id,
                 output_callback=lambda text, end="": hooks.on_log(text),
-                ui_adapter=None,
+                ui_adapter=request.ui_adapter,
             )
             if run_result.summary and hasattr(run_result.summary, "controller_state"):
                 hooks.on_status(str(run_result.summary.controller_state))

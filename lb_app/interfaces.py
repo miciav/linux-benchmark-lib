@@ -9,6 +9,7 @@ from typing import Callable, Iterable, Protocol, Sequence
 from lb_runner.benchmark_config import BenchmarkConfig
 from lb_controller.journal import RunJournal
 from lb_controller.services.run_service import RunResult
+from lb_controller.ui_interfaces import UIAdapter
 from lb_runner.events import RunEvent
 
 
@@ -38,6 +39,7 @@ class RunRequest:
     repetitions: int | None = None
     node_count: int = 1
     docker_engine: str = "docker"
+    ui_adapter: UIAdapter | None = None
 
 
 class AppClient(Protocol):
