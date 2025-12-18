@@ -102,10 +102,15 @@ class ApplicationClient(AppClient):
 
         run_result: RunResult | None = None
         try:
+            output_cb = None
+            # If no UI adapter is provided, forward raw logs to hooks.
+            if request.ui_adapter is None:
+                output_cb = lambda text, end="": hooks.on_log(text)
+
             run_result = self._run_service.execute(
                 context,
                 run_id=request.run_id,
-                output_callback=lambda text, end="": hooks.on_log(text),
+                output_callback=output_cb,
                 ui_adapter=request.ui_adapter,
             )
             if run_result.summary and hasattr(run_result.summary, "controller_state"):
