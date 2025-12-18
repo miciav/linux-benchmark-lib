@@ -48,7 +48,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["lb_runner*", "lb_controller*", "lb_ui*", "lb_analytics*", "lb_provisioner*"]
+include = ["lb_runner*", "lb_controller*", "lb_ui*", "lb_analytics*", "lb_provisioner*", "lb_app*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [tool.setuptools.package-data]
