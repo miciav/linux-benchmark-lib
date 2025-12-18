@@ -1001,9 +1001,14 @@ def run(
         # Build RunRequest for lb_app
         from lb_app.interfaces import RunRequest
 
+        selected_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+        if not selected_tests:
+            ui.present.error("No workloads selected to run.")
+            raise typer.Exit(1)
+
         run_request = RunRequest(
             config=cfg,
-            tests=tests or [],
+            tests=selected_tests,
             run_id=run_id,
             resume=resume,
             debug=debug,
@@ -1016,7 +1021,7 @@ def run(
             docker_engine=docker_engine,
         )
 
-        _print_run_plan(cfg, run_request.tests or list(cfg.workloads.keys()), execution_mode=execution_mode)
+        _print_run_plan(cfg, selected_tests, execution_mode=execution_mode)
 
         # Hook bridge to adapt to UIAdapter interface
         class _Hooks:
