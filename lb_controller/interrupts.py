@@ -60,6 +60,11 @@ class DoubleCtrlCStateMachine:
         """Transition to FINISHED and disable further confirmation handling."""
         self.state = RunInterruptState.FINISHED
 
+    def reset_arm(self) -> None:
+        """Return to RUNNING from STOP_ARMED after a timeout window."""
+        if self.state == RunInterruptState.STOP_ARMED:
+            self.state = RunInterruptState.RUNNING
+
 
 class SigintDoublePressHandler(AbstractContextManager["SigintDoublePressHandler"]):
     """Installs a SIGINT handler that implements double-press confirmation."""

@@ -138,7 +138,7 @@ class DockerProvisioner:
         except subprocess.CalledProcessError as exc:  # pragma: no cover - defensive
             raise ProvisioningError(f"Failed to inject SSH key into {name}: {exc.stderr}") from exc
 
-    def _wait_for_ssh(self, port: int, key_path: Path, retries: int = 15, delay: float = 2.0) -> None:
+    def _wait_for_ssh(self, port: int, key_path: Path, retries: int = 30, delay: float = 2.0) -> None:
         """Poll until the container's SSH service accepts connections."""
         cmd = [
             "ssh",
@@ -155,6 +155,8 @@ class DockerProvisioner:
             "root@127.0.0.1",
             "true",
         ]
+        # Give the SSH daemon a brief head-start before polling.
+        time.sleep(1.5)
         for attempt in range(retries):
             proc = subprocess.run(cmd, capture_output=True, text=True)
             if proc.returncode == 0:

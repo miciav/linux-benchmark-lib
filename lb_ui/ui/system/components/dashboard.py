@@ -46,6 +46,7 @@ class RichDashboard(Dashboard):
         self.layout = Layout()
         self.layout.split_column(
             Layout(name="journal"),
+            Layout(name="status", size=5, minimum_size=5),
             Layout(name="logs"),
         )
         self._live: Live | None = None
@@ -53,6 +54,9 @@ class RichDashboard(Dashboard):
         self.last_event_ts: float | None = None
         self._intensity = {row.get("name"): row.get("intensity", "-") for row in plan_rows}
         self.ui_log_file = ui_log_file
+        self.controller_state: str = "init"
+        self._warning_message: str | None = None
+        self._warning_expires_at: float | None = None
 
     @contextmanager
     def live(self):
@@ -83,11 +87,14 @@ class RichDashboard(Dashboard):
         row_count = max(1, sum(1 for _ in self._unique_pairs()))
         term_height = self.console.size.height if self.console.size else 40
         journal_height = self._computed_journal_height(row_count, term_height)
-        logs_height = self._computed_log_height(journal_height, term_height)
+        status_size = max(5, getattr(self.layout["status"], "size", 5))
+        logs_height = max(6, term_height - journal_height - status_size - 2)
         self.layout["journal"].size = journal_height
+        self.layout["status"].size = status_size
         self.layout["logs"].size = logs_height
         self._visible_log_lines = max(3, logs_height - 2)
         self.layout["journal"].update(self._render_journal())
+        self.layout["status"].update(self._render_status())
         self.layout["logs"].update(self._render_logs())
         return self.layout
 
@@ -95,13 +102,26 @@ class RichDashboard(Dashboard):
         """Render the rolling log stream."""
         max_visible = getattr(self, "_visible_log_lines", self.max_log_lines)
         lines = self.log_buffer[-max_visible :]
-        status = self._event_status_line()
-        text = "\n".join([status] + lines) if status else "\n".join(lines)
-        return Panel(
-            text,
-            title="[bold blue]Log Stream[/bold blue]",
-            border_style="blue",
-        )
+        text = "\n".join(lines)
+        return Panel(text, title="[bold blue]Log Stream[/bold blue]", border_style="blue")
+
+    def _render_status(self) -> Panel:
+        """Render controller/event status and transient warnings."""
+        now = time.monotonic()
+        warning = None
+        if self._warning_expires_at and now < self._warning_expires_at:
+            warning = self._warning_message
+        elif self._warning_expires_at and now >= self._warning_expires_at:
+            self._warning_expires_at = None
+            self._warning_message = None
+        lines = []
+        lines.append(self._event_status_line())
+        lines.append(f"[cyan]Controller state:[/cyan] {self.controller_state}")
+        if warning:
+            lines.append(f"[bold yellow]{warning}[/bold yellow]")
+        else:
+            lines.append("")
+        return Panel("\n".join(lines), title="[bold blue]Status[/bold blue]", border_style="blue")
 
     def _render_journal(self) -> Panel:
         table = Table(expand=True, box=None, padding=(0, 1))
@@ -171,6 +191,20 @@ class RichDashboard(Dashboard):
         """Record that an event arrived from the given source (e.g., tcp/stdout)."""
         self.event_source = source or "unknown"
         self.last_event_ts = time.monotonic()
+
+    def set_controller_state(self, state: str) -> None:
+        """Update controller state label."""
+        self.controller_state = state
+
+    def set_warning(self, message: str, ttl: float = 10.0) -> None:
+        """Show a transient warning banner for the given duration."""
+        self._warning_message = message
+        self._warning_expires_at = time.monotonic() + ttl
+
+    def clear_warning(self) -> None:
+        """Clear any active warning banner."""
+        self._warning_message = None
+        self._warning_expires_at = None
 
     def _event_status_line(self) -> str:
         if self.last_event_ts is None:

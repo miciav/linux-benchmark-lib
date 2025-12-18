@@ -375,6 +375,21 @@ class _DashboardLogProxy(DashboardHandle):
     def mark_event(self, source: str) -> None:
         self._inner.mark_event(source)
 
+    def set_warning(self, message: str, ttl: float = 10.0) -> None:
+        setter = getattr(self._inner, "set_warning", None)
+        if callable(setter):
+            setter(message, ttl)
+
+    def clear_warning(self) -> None:
+        clearer = getattr(self._inner, "clear_warning", None)
+        if callable(clearer):
+            clearer()
+
+    def set_controller_state(self, state: str) -> None:
+        setter = getattr(self._inner, "set_controller_state", None)
+        if callable(setter):
+            setter(state)
+
 
 class RunService:
     """Coordinate benchmark execution for CLI commands."""
@@ -971,7 +986,8 @@ class RunService:
                     pass
             if dashboard:
                 try:
-                    dashboard.add_log(line)
+                    if hasattr(dashboard, "set_controller_state"):
+                        dashboard.set_controller_state(new_state.value)
                     dashboard.refresh()
                 except Exception:
                     pass
@@ -995,25 +1011,34 @@ class RunService:
         )
         ctrlc_events: queue.SimpleQueue[tuple[str, str | None]] = queue.SimpleQueue()
         sigint_state = DoubleCtrlCStateMachine()
+        warning_timer: threading.Timer | None = None
 
         def _log_arm_warning() -> None:
             msg = "Press Ctrl+C again to stop the execution"
-            display = f"[yellow]{msg}[/yellow]"
-            if ui_adapter:
-                ui_adapter.show_warning(msg)
-            elif dashboard:
-                dashboard.add_log(display)
-                dashboard.refresh()
-            else:
-                print(msg)
-            try:
-                log_file.write(msg + "\n")
-                log_file.flush()
-                if ui_stream_log_file:
-                    ui_stream_log_file.write(msg + "\n")
-                    ui_stream_log_file.flush()
-            except Exception:
-                pass
+            self._emit_warning(
+                msg,
+                dashboard=dashboard,
+                ui_adapter=ui_adapter,
+                log_file=log_file,
+                ui_stream_log_file=ui_stream_log_file,
+                ttl=10.0,
+            )
+            nonlocal warning_timer
+            if warning_timer and warning_timer.is_alive():
+                warning_timer.cancel()
+
+            def _clear_warning() -> None:
+                sigint_state.reset_arm()
+                if dashboard and hasattr(dashboard, "clear_warning"):
+                    try:
+                        dashboard.clear_warning()
+                        dashboard.refresh()
+                    except Exception:
+                        pass
+
+            warning_timer = threading.Timer(10.0, _clear_warning)
+            warning_timer.daemon = True
+            warning_timer.start()
 
         def _drain_ctrlc_queue() -> None:
             while True:
@@ -1119,6 +1144,45 @@ class RunService:
             log_path=log_path,
             ui_log_path=ui_stream_log_path,
         )
+
+    def _emit_warning(
+        self,
+        message: str,
+        *,
+        dashboard: DashboardHandle | None,
+        ui_adapter: UIAdapter | None,
+        log_file: IO[str],
+        ui_stream_log_file: IO[str] | None,
+        ttl: float = 10.0,
+    ) -> None:
+        """Send a warning to UI, dashboard, and logs in a consistent way."""
+        display = f"[yellow]{message}[/yellow]"
+        if ui_adapter:
+            try:
+                ui_adapter.show_warning(message)
+            except Exception:
+                pass
+        if dashboard:
+            try:
+                if hasattr(dashboard, "set_warning"):
+                    dashboard.set_warning(message, ttl=ttl)
+            except Exception:
+                pass
+            try:
+                dashboard.refresh()
+            except Exception:
+                pass
+        else:
+            # Fallback to stdout if no UI/dash
+            print(message)
+        try:
+            log_file.write(message + "\n")
+            log_file.flush()
+            if ui_stream_log_file:
+                ui_stream_log_file.write(message + "\n")
+                ui_stream_log_file.flush()
+        except Exception:
+            pass
 
     def _prepare_journal_and_dashboard(
         self,
