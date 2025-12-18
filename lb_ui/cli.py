@@ -16,16 +16,11 @@ from typing import Dict, List, Optional, Set
 
 import typer
 
-from lb_provisioner import (
-    MAX_NODES,
-    ProvisioningError,
-    ProvisioningMode,
-    ProvisioningRequest,
-    ProvisioningService,
-)
+from lb_app import ApplicationClient
+from lb_provisioner import MAX_NODES
 from lb_controller.journal import RunJournal
 from lb_controller.contracts import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig, PluginRegistry
-from lb_controller.services import ConfigService, RunCatalogService, RunService
+from lb_controller.services import ConfigService, RunCatalogService
 from lb_ui.services.analytics_service import AnalyticsRequest, AnalyticsService
 from lb_controller.services.plugin_service import build_plugin_table, create_registry, PluginInstaller
 from lb_controller.services.doctor_service import DoctorService
@@ -43,6 +38,7 @@ from lb_ui.ui.adapters.tui_adapter import TUIAdapter
 # Initialize UI
 ui: UI = TUI()
 ui_adapter: UIAdapter = TUIAdapter(ui)
+app_client = ApplicationClient()
 
 app = typer.Typer(help="Run linux-benchmark workloads on provisioned hosts (remote, Docker, Multipass).", no_args_is_help=True)
 config_app = typer.Typer(help="Manage benchmark configuration files.", no_args_is_help=True)
@@ -77,7 +73,6 @@ DEV_MODE = _load_dev_mode()
 TEST_CLI_ENABLED = bool(os.environ.get("LB_ENABLE_TEST_CLI")) or DEV_MODE
 
 config_service = ConfigService()
-run_service = RunService(registry_factory=create_registry)
 doctor_service = DoctorService(config_service=config_service)
 test_service = TestService()
 analytics_service = AnalyticsService()
@@ -128,12 +123,8 @@ def _print_run_plan(
     execution_mode: str = "remote",
 ) -> None:
     """Render a compact table of the workloads about to run with availability hints."""
-    plan = run_service.get_run_plan(
-        cfg,
-        tests,
-        execution_mode=execution_mode,
-        registry=registry or create_registry(),
-    )
+    # Delegate to lb_app to compute the plan
+    plan = app_client.get_run_plan(cfg, tests, execution_mode=execution_mode)
 
     rows = [
         [
@@ -1003,82 +994,49 @@ def run(
 
     cfg.ensure_output_dirs()
 
-    execution_mode = (
-        ProvisioningMode.DOCKER
-        if docker
-        else ProvisioningMode.MULTIPASS
-        if multipass
-        else ProvisioningMode.REMOTE
-    )
-
-    provisioner = ProvisioningService()
-    provisioning_result = None
-
-    try:
-        if execution_mode is ProvisioningMode.REMOTE:
-            if remote is False:
-                raise ValueError(
-                    "Remote execution is required; use --docker or --multipass instead."
-                )
-            if not cfg.remote_hosts:
-                raise ValueError(
-                    "Configure at least one remote host or use --docker/--multipass."
-                )
-            request = ProvisioningRequest(
-                mode=ProvisioningMode.REMOTE,
-                count=len(cfg.remote_hosts),
-                remote_hosts=cfg.remote_hosts,
-            )
-        elif execution_mode is ProvisioningMode.DOCKER:
-            request = ProvisioningRequest(
-                mode=ProvisioningMode.DOCKER,
-                count=node_count,
-                docker_engine=docker_engine,
-            )
-        else:
-            temp_dir = cfg.output_dir.parent / "temp_keys"
-            request = ProvisioningRequest(
-                mode=ProvisioningMode.MULTIPASS,
-                count=node_count,
-                state_dir=temp_dir,
-            )
-        provisioning_result = provisioner.provision(request)
-    except ProvisioningError as exc:
-        ui.present.error(f"Provisioning failed: {exc}")
-        raise typer.Exit(1)
-    except ValueError as exc:
-        ui.present.error(str(exc))
-        raise typer.Exit(1)
-
-    cfg.remote_hosts = [node.host for node in provisioning_result.nodes]
-    cfg.remote_execution.enabled = True
+    execution_mode = "docker" if docker else "multipass" if multipass else "remote"
 
     result = None
     try:
-        context = run_service.create_session(
-            config_service=config_service,
-            tests=tests,
-            config_path=resolved,
+        # Build RunRequest for lb_app
+        from lb_app.interfaces import RunRequest
+
+        run_request = RunRequest(
+            config=cfg,
+            tests=tests or [],
             run_id=run_id,
             resume=resume,
-            repetitions=repetitions,
             debug=debug,
             intensity=intensity,
-            ui_adapter=ui_adapter,
             setup=setup,
             stop_file=stop_file,
-            execution_mode=execution_mode.value,
-            preloaded_config=cfg,
+            execution_mode=execution_mode,
+            repetitions=repetitions,
+            node_count=node_count,
+            docker_engine=docker_engine,
         )
 
-        _print_run_plan(
-            context.config,
-            context.target_tests,
-            registry=context.registry,
-            execution_mode=execution_mode.value,
-        )
+        _print_run_plan(cfg, run_request.tests or list(cfg.workloads.keys()), execution_mode=execution_mode)
 
-        result = run_service.execute(context, run_id, ui_adapter=ui_adapter)
+        # Hook bridge to adapt to UIAdapter interface
+        class _Hooks:
+            def on_log(self, line: str) -> None:
+                ui_adapter.show_info(line)
+
+            def on_status(self, controller_state: str) -> None:
+                ui_adapter.show_info(f"Controller state: {controller_state}")
+
+            def on_warning(self, message: str, ttl: float = 10.0) -> None:
+                ui_adapter.show_warning(message)
+
+            def on_event(self, event) -> None:
+                pass  # TODO: bridge events if needed
+
+            def on_journal(self, journal) -> None:
+                pass
+
+        run_result = app_client.start_run(run_request, _Hooks())
+        result = run_result  # for later messaging
 
     except ValueError as e:
         ui.present.warning(str(e))
@@ -1086,8 +1044,6 @@ def run(
     except Exception as exc:
         ui.present.error(f"Run failed: {exc}")
         raise typer.Exit(1)
-    finally:
-        _cleanup_provisioned_nodes(provisioning_result, result, ui.present)
 
     if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):
         _print_run_journal_summary(result.journal_path, log_path=result.log_path, ui_log_path=result.ui_log_path)
