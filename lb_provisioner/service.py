@@ -25,11 +25,16 @@ logger = logging.getLogger(__name__)
 class ProvisioningService:
     """Provision nodes across remote, docker, and multipass modes."""
 
-    def __init__(self, enforce_ui_caller: bool = True):
+    def __init__(
+        self,
+        enforce_ui_caller: bool = True,
+        allowed_callers: tuple[str, ...] = ("lb_ui",),
+    ):
         self._docker = DockerProvisioner()
         self._multipass = MultipassProvisioner()
         self._remote = RemoteProvisioner()
         self._enforce_ui_caller = enforce_ui_caller
+        self._allowed_callers = allowed_callers
         if enforce_ui_caller:
             self._assert_ui_caller()
 
@@ -63,7 +68,8 @@ class ProvisioningService:
             return
 
         for frame in inspect.stack():
-            if "lb_ui" in frame.filename or frame.function.startswith("lb_ui"):
-                return
+            for marker in self._allowed_callers:
+                if marker in frame.filename or frame.function.startswith(marker):
+                    return
 
         raise PermissionError("lb_provisioner can only be invoked from lb_ui")

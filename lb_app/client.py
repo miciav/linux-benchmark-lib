@@ -26,7 +26,9 @@ class ApplicationClient(AppClient):
     def __init__(self) -> None:
         self._config_service = ConfigService()
         self._run_service = RunService(registry_factory=create_registry)
-        self._provisioner = ProvisioningService(enforce_ui_caller=False)
+        self._provisioner = ProvisioningService(
+            enforce_ui_caller=True, allowed_callers=("lb_ui", "lb_app")
+        )
 
     def load_config(self, path: Path | None = None) -> BenchmarkConfig:
         cfg, _, _ = self._config_service.load_for_read(path)
