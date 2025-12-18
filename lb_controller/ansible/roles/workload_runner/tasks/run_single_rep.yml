@@ -103,8 +103,8 @@
       when: workload_runner_rep_result.rc == 0
 
     - name: "{{ run_prefix }} Cooldown between repetitions (pure, collectors stopped)"
-      ansible.builtin.pause:
-        seconds: "{{ workload_runner_config_rendered.cooldown_seconds | default(0) | int }}"
+      ansible.builtin.wait_for:
+        timeout: "{{ workload_runner_config_rendered.cooldown_seconds | default(0) | int }}"
       when:
         - (workload_runner_config_rendered.cooldown_seconds | default(0) | int) > 0
         - workload_runner_reps is defined
