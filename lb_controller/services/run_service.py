@@ -348,6 +348,36 @@ class RunResult:
     ui_log_path: Path | None = None
 
 
+@dataclass
+class _RemoteSession:
+    """Session-scoped state for a remote run."""
+
+    journal: RunJournal
+    journal_path: Path
+    dashboard: DashboardHandle
+    ui_stream_log_file: IO[str] | None
+    ui_stream_log_path: Path | None
+    log_path: Path
+    log_file: IO[str]
+    sink: LogSink
+    stop_token: StopToken
+    effective_run_id: str
+    controller_state: ControllerStateMachine
+    resume_requested: bool
+
+
+@dataclass
+class _EventPipeline:
+    """Event/output wiring for a controller run."""
+
+    output_cb: Callable[[str, str], None]
+    announce_stop: Callable[[str], None]
+    ingest_event: Callable[[RunEvent, str], None]
+    event_from_payload: Callable[[Dict[str, Any]], RunEvent | None]
+    sink: LogSink
+    controller_ref: dict[str, BenchmarkController | None]
+
+
 class _DashboardLogProxy(DashboardHandle):
     """Dashboard wrapper that also writes log lines to a file."""
 
@@ -729,8 +759,63 @@ class RunService:
             BenchmarkController,
         )  # Runtime import to break circular dependency
 
+        session = self._prepare_remote_session(context, run_id, ui_adapter, stop_token)
+
+        if not session.stop_token.should_stop() and not self._pending_exists(
+            context, session.journal
+        ):
+            return self._short_circuit_empty_run(context, session, ui_adapter)
+
+        pipeline = self._build_event_pipeline(
+            context, session, formatter, output_callback, ui_adapter
+        )
+
+        controller = BenchmarkController(
+            context.config,
+            output_callback=pipeline.output_cb,
+            output_formatter=formatter if not context.debug else None,
+            journal_refresh=session.dashboard.refresh if session.dashboard else None,
+            stop_token=session.stop_token,
+            state_machine=session.controller_state,
+        )
+        pipeline.controller_ref["controller"] = controller
+        if formatter:
+            formatter.host_label = ",".join(h.name for h in context.config.remote_hosts)
+
+        tailer = self._maybe_start_event_tailer(
+            controller, pipeline.event_from_payload, pipeline.ingest_event, formatter
+        )
+
+        summary = self._run_controller_loop(
+            controller=controller,
+            context=context,
+            session=session,
+            pipeline=pipeline,
+            ui_adapter=ui_adapter,
+        )
+
+        if tailer:
+            tailer.stop()
+        session.sink.close()
+        session.stop_token.restore()
+        return RunResult(
+            context=context,
+            summary=summary,
+            journal_path=session.journal_path,
+            log_path=session.log_path,
+            ui_log_path=session.ui_stream_log_path,
+        )
+
+    def _prepare_remote_session(
+        self,
+        context: RunContext,
+        run_id: Optional[str],
+        ui_adapter: UIAdapter | None,
+        stop_token: StopToken | None,
+    ) -> _RemoteSession:
+        """Initialize journal, dashboard, log files, and session state."""
         ui_stream_log_file: IO[str] | None = None
-        stop_token = stop_token or StopToken(
+        stop = stop_token or StopToken(
             stop_file=context.stop_file, enable_signals=False
         )
         resume_requested = context.resume_from is not None or context.resume_latest
@@ -744,15 +829,79 @@ class RunService:
         dashboard, ui_stream_log_path, ui_stream_log_file = self._enable_dashboard_log(
             dashboard, journal_path
         )
+        sink = LogSink(journal, journal_path, log_path)
+        return _RemoteSession(
+            journal=journal,
+            journal_path=journal_path,
+            dashboard=dashboard,
+            ui_stream_log_file=ui_stream_log_file,
+            ui_stream_log_path=ui_stream_log_path,
+            log_path=log_path,
+            log_file=log_file,
+            sink=sink,
+            stop_token=stop,
+            effective_run_id=effective_run_id,
+            controller_state=ControllerStateMachine(),
+            resume_requested=resume_requested,
+        )
 
-        # Fan-out Ansible output to both formatter and dashboard log stream.
+    def _pending_exists(self, context: RunContext, journal: RunJournal) -> bool:
+        """Return True if any repetition still needs to run."""
+        hosts = context.config.remote_hosts or []
+        for host in hosts:
+            for test_name in context.target_tests:
+                for rep in range(1, context.config.repetitions + 1):
+                    if journal.should_run(host.name, test_name, rep):
+                        return True
+        return False
+
+    def _short_circuit_empty_run(
+        self, context: RunContext, session: _RemoteSession, ui_adapter: UIAdapter | None
+    ) -> RunResult:
+        """Handle resume cases where nothing remains to run."""
+        msg = "All repetitions already completed; nothing to run."
+        try:
+            session.log_file.write(msg + "\n")
+            session.log_file.flush()
+        except Exception:
+            pass
+        session.sink.close()
+        try:
+            session.log_file.close()
+        except Exception:
+            pass
+        if session.ui_stream_log_file:
+            try:
+                session.ui_stream_log_file.close()
+            except Exception:
+                pass
+        if ui_adapter:
+            ui_adapter.show_info(msg)
+        session.stop_token.restore()
+        return RunResult(
+            context=context,
+            summary=None,
+            journal_path=session.journal_path,
+            log_path=session.log_path,
+            ui_log_path=session.ui_stream_log_path,
+        )
+
+    def _build_event_pipeline(
+        self,
+        context: RunContext,
+        session: _RemoteSession,
+        formatter: AnsibleOutputFormatter | None,
+        output_callback: Callable[[str, str], None],
+        ui_adapter: UIAdapter | None,
+    ) -> _EventPipeline:
+        """Wire output handlers, dedupe, and dashboard logging."""
+        dashboard = session.dashboard
         output_cb = output_callback
         if dashboard and output_callback is not None:
             last_refresh = 0.0
 
             def _dashboard_callback(text: str, end: str = ""):
                 nonlocal last_refresh
-                # If we're using the pretty formatter, let it drive both stdout and dashboard.
                 if formatter and output_callback == formatter.process:
                     formatter.process(text, end=end, log_sink=dashboard.add_log)
                 else:
@@ -767,7 +916,6 @@ class RunService:
 
         downstream = output_cb
         stop_announced = False
-        controller_state = ControllerStateMachine()
 
         def _announce_stop(
             msg: str = "Stop confirmed; initiating teardown and aborting the run.",
@@ -777,7 +925,9 @@ class RunService:
                 return
             stop_announced = True
             try:
-                controller_state.transition(ControllerState.STOP_ARMED, reason=msg)
+                session.controller_state.transition(
+                    ControllerState.STOP_ARMED, reason=msg
+                )
             except Exception:
                 pass
             display_msg, log_msg = self._controller_stop_hint(msg)
@@ -789,64 +939,22 @@ class RunService:
             else:
                 print(log_msg)
             try:
-                log_file.write(log_msg + "\n")
-                log_file.flush()
+                session.log_file.write(log_msg + "\n")
+                session.log_file.flush()
+                if session.ui_stream_log_file:
+                    session.ui_stream_log_file.write(log_msg + "\n")
+                    session.ui_stream_log_file.flush()
             except Exception:
                 pass
 
-        stop_token._on_stop = _announce_stop  # type: ignore[attr-defined]
+        session.stop_token._on_stop = _announce_stop  # type: ignore[attr-defined]
 
-        sink = LogSink(journal, journal_path, log_path)
         recent_events: deque[tuple[str, str, int, str, str, str]] = deque()
         dedupe_limit = 200
         recent_set: set[tuple[str, str, int, str, str, str]] = set()
-
-        if stop_token.should_stop():
-            _announce_stop()
-
-        # Short-circuit if nothing is pending.
-        pending_exists = False
-        hosts_for_pending = context.config.remote_hosts or []
-        for host in hosts_for_pending:
-            for test_name in context.target_tests:
-                for rep in range(1, context.config.repetitions + 1):
-                    if journal.should_run(host.name, test_name, rep):
-                        pending_exists = True
-                        break
-                if pending_exists:
-                    break
-            if pending_exists:
-                break
-        if not pending_exists:
-            msg = "All repetitions already completed; nothing to run."
-            try:
-                log_file.write(msg + "\n")
-                log_file.flush()
-            except Exception:
-                pass
-            sink.close()
-            try:
-                log_file.close()
-            except Exception:
-                pass
-            if ui_stream_log_file:
-                try:
-                    ui_stream_log_file.close()
-                except Exception:
-                    pass
-            if ui_adapter:
-                ui_adapter.show_info(msg)
-            stop_token.restore()
-            return RunResult(
-                context=context,
-                summary=None,
-                journal_path=journal_path,
-                log_path=log_path,
-                ui_log_path=ui_stream_log_path,
-            )
+        controller_ref: dict[str, BenchmarkController | None] = {"controller": None}
 
         def _ingest_event(event: RunEvent, source: str = "unknown") -> None:
-            # Include type and message in key to avoid deduping distinct log lines
             key = (
                 event.host,
                 event.workload,
@@ -859,17 +967,15 @@ class RunService:
                 return
             recent_events.append(key)
             recent_set.add(key)
-            # Keep the dedupe window bounded
             if len(recent_events) > dedupe_limit:
                 old = recent_events.popleft()
                 if old in recent_set:
                     recent_set.remove(old)
 
-            sink.emit(event)
+            session.sink.emit(event)
 
-            # Forward to controller for stop coordination
-            # 'controller' is defined later in this scope but initialized before events flow
-            if "controller" in locals() and controller:
+            controller = controller_ref.get("controller")
+            if controller:
                 controller.on_event(event)
 
             if dashboard:
@@ -888,7 +994,7 @@ class RunService:
             if not required.issubset(data.keys()):
                 return None
             return RunEvent(
-                run_id=journal.run_id,
+                run_id=session.journal.run_id,
                 host=str(data.get("host", "")),
                 workload=str(data.get("workload", "")),
                 repetition=int(data.get("repetition") or 0),
@@ -910,7 +1016,7 @@ class RunService:
                 return
             try:
                 event = RunEvent(
-                    run_id=journal.run_id,
+                    run_id=session.journal.run_id,
                     host=info["host"],
                     workload=info["workload"],
                     repetition=info["rep"],
@@ -925,10 +1031,9 @@ class RunService:
 
         def _tee_output(text: str, end: str = "") -> None:
             fragment = text + (end if end else "\n")
-            # Log everything for post-mortem debugging.
             try:
-                log_file.write(fragment)
-                log_file.flush()
+                session.log_file.write(fragment)
+                session.log_file.flush()
             except Exception:
                 pass
             for line in fragment.splitlines():
@@ -936,78 +1041,65 @@ class RunService:
             if downstream:
                 downstream(text, end=end)
 
-        output_cb = _tee_output
+        if session.stop_token.should_stop():
+            _announce_stop()
 
-        controller = BenchmarkController(
-            context.config,
-            output_callback=output_cb,
-            output_formatter=formatter if not context.debug else None,
-            journal_refresh=dashboard.refresh if dashboard else None,
-            stop_token=stop_token,
-            state_machine=controller_state,
+        return _EventPipeline(
+            output_cb=_tee_output,
+            announce_stop=_announce_stop,
+            ingest_event=_ingest_event,
+            event_from_payload=_event_from_payload,
+            sink=session.sink,
+            controller_ref=controller_ref,
         )
-        if formatter:
-            formatter.host_label = ",".join(h.name for h in context.config.remote_hosts)
-        event_tailer: JsonEventTailer | None = None
+
+    def _maybe_start_event_tailer(
+        self,
+        controller: BenchmarkController,
+        event_from_payload: Callable[[Dict[str, Any]], RunEvent | None],
+        ingest_event: Callable[[RunEvent, str], None],
+        formatter: AnsibleOutputFormatter | None,
+    ) -> JsonEventTailer | None:
+        """Start a callback tailer when the controller provides an event log path."""
         event_log_path = getattr(
             getattr(controller, "executor", None), "event_log_path", None
         )
-        if event_log_path:
+        if not event_log_path:
+            return None
 
-            def _on_event_payload(data: Dict[str, Any]) -> None:
-                event = _event_from_payload(data)
-                if event:
-                    _ingest_event(event, source="callback")
+        def _on_event_payload(data: Dict[str, Any]) -> None:
+            event = event_from_payload(data)
+            if event:
+                ingest_event(event, source="callback")
 
-            event_tailer = JsonEventTailer(Path(event_log_path), _on_event_payload)
-            # When callback stream is active, avoid duplicate progress from stdout parsing.
-            if formatter:
-                formatter.suppress_progress = True
-            event_tailer.start()
-        summary: RunExecutionSummary | None = None
-        elapsed: float | None = None
-        def _on_state_change(new_state: ControllerState, reason: str | None) -> None:
-            line = f"Controller state: {new_state.value}"
-            if reason:
-                line = f"{line} ({reason})"
-            try:
-                log_file.write(line + "\n")
-                log_file.flush()
-                if ui_stream_log_file:
-                    ui_stream_log_file.write(line + "\n")
-                    ui_stream_log_file.flush()
-            except Exception:
-                pass
-            if journal:
-                try:
-                    journal.metadata["controller_state"] = new_state.value
-                    journal.save(journal_path)
-                except Exception:
-                    pass
-            if dashboard:
-                try:
-                    if hasattr(dashboard, "set_controller_state"):
-                        dashboard.set_controller_state(new_state.value)
-                    dashboard.refresh()
-                except Exception:
-                    pass
-            elif ui_adapter:
-                try:
-                    ui_adapter.show_info(line)
-                except Exception:
-                    pass
+        event_tailer = JsonEventTailer(Path(event_log_path), _on_event_payload)
+        if formatter:
+            formatter.suppress_progress = True
+        event_tailer.start()
+        return event_tailer
 
+    def _run_controller_loop(
+        self,
+        controller: BenchmarkController,
+        context: RunContext,
+        session: _RemoteSession,
+        pipeline: _EventPipeline,
+        ui_adapter: UIAdapter | None,
+    ) -> RunExecutionSummary | None:
+        """Drive the controller runner with signal handling and logging."""
         runner = ControllerRunner(
             run_callable=lambda: controller.run(
                 context.target_tests,
-                run_id=effective_run_id,
-                journal=journal,
-                resume=resume_requested,
-                journal_path=journal_path,
+                run_id=session.effective_run_id,
+                journal=session.journal,
+                resume=session.resume_requested,
+                journal_path=session.journal_path,
             ),
-            stop_token=stop_token,
-            on_state_change=_on_state_change,
-            state_machine=controller_state,
+            stop_token=session.stop_token,
+            on_state_change=lambda new, reason: self._on_controller_state_change(
+                new, reason, session, ui_adapter
+            ),
+            state_machine=session.controller_state,
         )
         ctrlc_events: queue.SimpleQueue[tuple[str, str | None]] = queue.SimpleQueue()
         sigint_state = DoubleCtrlCStateMachine()
@@ -1017,10 +1109,10 @@ class RunService:
             msg = "Press Ctrl+C again to stop the execution"
             self._emit_warning(
                 msg,
-                dashboard=dashboard,
+                dashboard=session.dashboard,
                 ui_adapter=ui_adapter,
-                log_file=log_file,
-                ui_stream_log_file=ui_stream_log_file,
+                log_file=session.log_file,
+                ui_stream_log_file=session.ui_stream_log_file,
                 ttl=10.0,
             )
             nonlocal warning_timer
@@ -1029,10 +1121,10 @@ class RunService:
 
             def _clear_warning() -> None:
                 sigint_state.reset_arm()
-                if dashboard and hasattr(dashboard, "clear_warning"):
+                if session.dashboard and hasattr(session.dashboard, "clear_warning"):
                     try:
-                        dashboard.clear_warning()
-                        dashboard.refresh()
+                        session.dashboard.clear_warning()
+                        session.dashboard.refresh()
                     except Exception:
                         pass
 
@@ -1050,18 +1142,23 @@ class RunService:
                     _log_arm_warning()
                 elif kind == "stop":
                     runner.arm_stop(reason or "User requested stop")
-                    _announce_stop()
+                    pipeline.announce_stop()
 
         def _run_active() -> bool:
-            return not controller_state.is_terminal()
+            return not session.controller_state.is_terminal()
 
+        summary: RunExecutionSummary | None = None
+        elapsed: float | None = None
         try:
-            with dashboard.live(), SigintDoublePressHandler(
-                state_machine=sigint_state,
-                run_active=_run_active,
-                on_first_sigint=lambda: ctrlc_events.put(("warn", None)),
-                on_confirmed_sigint=lambda: ctrlc_events.put(
-                    ("stop", "User requested stop")
+            with (
+                session.dashboard.live(),
+                SigintDoublePressHandler(
+                    state_machine=sigint_state,
+                    run_active=_run_active,
+                    on_first_sigint=lambda: ctrlc_events.put(("warn", None)),
+                    on_confirmed_sigint=lambda: ctrlc_events.put(
+                        ("stop", "User requested stop")
+                    ),
                 ),
             ):
                 start_ts = time.monotonic()
@@ -1073,25 +1170,25 @@ class RunService:
                         summary = candidate
                         elapsed = time.monotonic() - start_ts
                         break
-                msg = f"Run {effective_run_id} completed in {elapsed:.1f}s"
+                msg = f"Run {session.effective_run_id} completed in {elapsed:.1f}s"
                 try:
-                    log_file.write(msg + "\n")
-                    log_file.flush()
-                    if ui_stream_log_file:
-                        ui_stream_log_file.write(msg + "\n")
-                        ui_stream_log_file.flush()
+                    session.log_file.write(msg + "\n")
+                    session.log_file.flush()
+                    if session.ui_stream_log_file:
+                        session.ui_stream_log_file.write(msg + "\n")
+                        session.ui_stream_log_file.flush()
                 except Exception:
                     pass
                 if ui_adapter:
                     ui_adapter.show_info(msg)
-                elif dashboard:
-                    dashboard.add_log(msg)
+                elif session.dashboard:
+                    session.dashboard.add_log(msg)
                 else:
                     print(msg)
-                if stop_token.should_stop():
-                    _announce_stop()
-                    self._fail_running_tasks(journal, reason="stopped")
-                    journal.save(journal_path)
+                if session.stop_token.should_stop():
+                    pipeline.announce_stop()
+                    self._fail_running_tasks(session.journal, reason="stopped")
+                    session.journal.save(session.journal_path)
                     if summary is not None:
                         failed_teardowns = [
                             name
@@ -1106,44 +1203,84 @@ class RunService:
                             )
                             if ui_adapter:
                                 ui_adapter.show_error(err)
-                            elif dashboard:
-                                dashboard.add_log(f"[red]{err}[/red]")
-                                dashboard.refresh()
+                            elif session.dashboard:
+                                session.dashboard.add_log(f"[red]{err}[/red]")
+                                session.dashboard.refresh()
                             else:
                                 print(err)
                             try:
-                                log_file.write(err + "\n")
-                                log_file.flush()
+                                session.log_file.write(err + "\n")
+                                session.log_file.flush()
                             except Exception:
                                 pass
-                output_root = journal_path.parent
+                output_root = session.journal_path.parent
                 hosts = (
                     [h.name for h in context.config.remote_hosts]
                     if context.config.remote_hosts
                     else ["localhost"]
                 )
                 if self._attach_system_info(
-                    journal, output_root, hosts, dashboard, ui_adapter, log_file
+                    session.journal,
+                    output_root,
+                    hosts,
+                    session.dashboard,
+                    ui_adapter,
+                    session.log_file,
                 ):
-                    journal.save(journal_path)
-                if dashboard:
-                    dashboard.refresh()
+                    session.journal.save(session.journal_path)
+                if session.dashboard:
+                    session.dashboard.refresh()
         finally:
-            if event_tailer:
-                event_tailer.stop()
-            log_file.close()
-            if ui_stream_log_file:
-                ui_stream_log_file.close()
+            if warning_timer and warning_timer.is_alive():
+                warning_timer.cancel()
+            try:
+                session.log_file.close()
+            except Exception:
+                pass
+            if session.ui_stream_log_file:
+                try:
+                    session.ui_stream_log_file.close()
+                except Exception:
+                    pass
+        return summary
 
-        sink.close()
-        stop_token.restore()
-        return RunResult(
-            context=context,
-            summary=summary,
-            journal_path=journal_path,
-            log_path=log_path,
-            ui_log_path=ui_stream_log_path,
-        )
+    def _on_controller_state_change(
+        self,
+        new_state: ControllerState,
+        reason: str | None,
+        session: _RemoteSession,
+        ui_adapter: UIAdapter | None,
+    ) -> None:
+        """Handle controller state transitions consistently."""
+        line = f"Controller state: {new_state.value}"
+        if reason:
+            line = f"{line} ({reason})"
+        try:
+            session.log_file.write(line + "\n")
+            session.log_file.flush()
+            if session.ui_stream_log_file:
+                session.ui_stream_log_file.write(line + "\n")
+                session.ui_stream_log_file.flush()
+        except Exception:
+            pass
+        if session.journal:
+            try:
+                session.journal.metadata["controller_state"] = new_state.value
+                session.journal.save(session.journal_path)
+            except Exception:
+                pass
+        if session.dashboard:
+            try:
+                if hasattr(session.dashboard, "set_controller_state"):
+                    session.dashboard.set_controller_state(new_state.value)
+                session.dashboard.refresh()
+            except Exception:
+                pass
+        elif ui_adapter:
+            try:
+                ui_adapter.show_info(line)
+            except Exception:
+                pass
 
     def _emit_warning(
         self,
