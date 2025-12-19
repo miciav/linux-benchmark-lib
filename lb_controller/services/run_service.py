@@ -465,129 +465,145 @@ class RunService:
         Returns a list of dictionaries containing status, intensity, details, etc.
         """
         registry = registry or self._registry_factory()
-        plan = []
         mode = (execution_mode or "remote").lower()
+        return [self._build_plan_item(cfg, name, mode, registry) for name in tests]
 
-        for name in tests:
-            wl = cfg.workloads.get(name)
-            item = {
-                "name": name,
-                "plugin": wl.plugin if wl else "unknown",
-                "status": "[yellow]?[/yellow]",
-                "intensity": wl.intensity if wl else "-",
-                "details": "-",
-                "repetitions": str(cfg.repetitions),
-            }
+    def _build_plan_item(
+        self,
+        cfg: BenchmarkConfig,
+        name: str,
+        mode: str,
+        registry: PluginRegistry,
+    ) -> Dict[str, Any]:
+        """Assemble a single plan item for display."""
+        workload = cfg.workloads.get(name)
+        item = {
+            "name": name,
+            "plugin": workload.plugin if workload else "unknown",
+            "status": "[yellow]?[/yellow]",
+            "intensity": workload.intensity if workload else "-",
+            "details": "-",
+            "repetitions": str(cfg.repetitions),
+        }
+        if workload is None:
+            return item
 
-            if not wl:
-                plan.append(item)
-                continue
+        plugin = self._safe_get_plugin(registry, workload.plugin)
+        if plugin is None:
+            item["status"] = "[red]✗ (Missing)[/red]"
+            return item
 
-            try:
-                plugin = registry.get(wl.plugin)
-            except Exception:
-                item["status"] = "[red]✗ (Missing)[/red]"
-                plan.append(item)
-                continue
+        config_obj, config_error = self._resolve_workload_config(workload, plugin)
+        if config_error:
+            item["details"] = f"[red]Config Error: {config_error}[/red]"
+        else:
+            item["details"] = self._format_plan_details(config_obj)
 
-            # Resolve Configuration (Preset vs Options)
+        item["status"] = self._status_for_mode(mode, default=item["status"])
+        return item
+
+    @staticmethod
+    def _safe_get_plugin(registry: PluginRegistry, plugin_name: str):
+        """Return plugin from registry or None on error."""
+        try:
+            return registry.get(plugin_name)
+        except Exception:
+            return None
+
+    def _resolve_workload_config(
+        self,
+        workload: Any,
+        plugin: Any,
+    ) -> tuple[Any | None, str | None]:
+        """Resolve config object from intensity presets or user options."""
+        try:
             config_obj = None
-            try:
-                if wl.intensity and wl.intensity != "user_defined":
-                    try:
-                        level = WorkloadIntensity(wl.intensity)
-                        config_obj = plugin.get_preset_config(level)
-                    except ValueError:
-                        pass  # Invalid intensity, will fall back
-
-                # Fallback to user options if no preset found/used
-                if config_obj is None:
-                    # Instantiate config from dict
-                    if isinstance(wl.options, dict):
-                        config_obj = plugin.config_cls(**wl.options)
-                    else:
-                        config_obj = wl.options
-            except Exception as e:
-                item["details"] = f"[red]Config Error: {e}[/red]"
-
-            # Format details string
-            if config_obj:
+            if workload.intensity and workload.intensity != "user_defined":
                 try:
-                    # Convert to dict, filter None values
-                    if isinstance(config_obj, dict):
-                        data = config_obj
-                    else:
-                        try:
-                            from pydantic import BaseModel
+                    level = WorkloadIntensity(workload.intensity)
+                    config_obj = plugin.get_preset_config(level)
+                except ValueError:
+                    pass
+            if config_obj is None:
+                if isinstance(workload.options, dict):
+                    config_obj = plugin.config_cls(**workload.options)
+                else:
+                    config_obj = workload.options
+            return config_obj, None
+        except Exception as exc:  # noqa: BLE001
+            return None, str(exc)
 
-                            if isinstance(config_obj, BaseModel):
-                                data = config_obj.model_dump()
-                            elif is_dataclass(config_obj):
-                                data = asdict(config_obj)
-                            else:
-                                data = {}
-                        except Exception:
-                            data = (
-                                asdict(config_obj) if is_dataclass(config_obj) else {}
-                            )
-                    # Prioritize common fields for brevity
-                    parts = []
+    def _format_plan_details(self, config_obj: Any | None) -> str:
+        """Return a concise description for a workload config."""
+        if not config_obj:
+            return "-"
+        data = self._config_to_dict(config_obj)
+        if not data:
+            return str(config_obj)
+        parts = self._summarize_config_fields(data)
+        if not parts:
+            return "-"
+        return ", ".join(parts)
 
-                    # Duration/Timeout check
-                    duration = (
-                        data.get("timeout") or data.get("time") or data.get("runtime")
-                    )
-                    if duration:
-                        parts.append(f"Time: {duration}s")
+    @staticmethod
+    def _config_to_dict(config_obj: Any) -> dict[str, Any]:
+        """Convert config object to a dictionary when possible."""
+        if isinstance(config_obj, dict):
+            return config_obj
+        try:
+            from pydantic import BaseModel
 
-                    # Specific fields per plugin type
-                    if "cpu_workers" in data and data["cpu_workers"] > 0:
-                        parts.append(f"CPU: {data['cpu_workers']}")
-                    if "vm_bytes" in data:
-                        parts.append(f"VM: {data['vm_bytes']}")
-                    if "bs" in data:
-                        parts.append(f"BS: {data['bs']}")
-                    if "count" in data and data["count"]:
-                        parts.append(f"Count: {data['count']}")
-                    if "parallel" in data:
-                        parts.append(f"Streams: {data['parallel']}")
-                    if "rw" in data:
-                        parts.append(f"Mode: {data['rw']}")
-                    if "iodepth" in data:
-                        parts.append(f"Depth: {data['iodepth']}")
+            if isinstance(config_obj, BaseModel):
+                return config_obj.model_dump()
+        except Exception:
+            pass
+        try:
+            if is_dataclass(config_obj):
+                return asdict(config_obj)
+        except Exception:
+            pass
+        return {}
 
-                    # Fallback if specific fields didn't cover much
-                    if len(parts) < 2:
-                        parts = [
-                            f"{k}={v}"
-                            for k, v in data.items()
-                            if v is not None and k not in ["extra_args"]
-                        ]
+    @staticmethod
+    def _summarize_config_fields(data: dict[str, Any]) -> list[str]:
+        """Format key config fields into a short, human-friendly list."""
+        parts: list[str] = []
+        duration = data.get("timeout") or data.get("time") or data.get("runtime")
+        if duration:
+            parts.append(f"Time: {duration}s")
 
-                    item["details"] = ", ".join(parts)
-                except Exception:
-                    item["details"] = str(config_obj)
+        if data.get("cpu_workers"):
+            parts.append(f"CPU: {data['cpu_workers']}")
+        if "vm_bytes" in data:
+            parts.append(f"VM: {data['vm_bytes']}")
+        if "bs" in data:
+            parts.append(f"BS: {data['bs']}")
+        if data.get("count"):
+            parts.append(f"Count: {data['count']}")
+        if "parallel" in data:
+            parts.append(f"Streams: {data['parallel']}")
+        if "rw" in data:
+            parts.append(f"Mode: {data['rw']}")
+        if "iodepth" in data:
+            parts.append(f"Depth: {data['iodepth']}")
 
-            if mode == "docker":
-                item["status"] = "[green]Docker (Ansible)[/green]"
-                plan.append(item)
-                continue
+        if len(parts) < 2:
+            parts = [
+                f"{key}={val}"
+                for key, val in data.items()
+                if val is not None and key not in ["extra_args"]
+            ]
+        return parts
 
-            if mode == "multipass":
-                item["status"] = "[green]Multipass[/green]"
-                plan.append(item)
-                continue
-
-            if mode == "remote":
-                item["status"] = "[blue]Remote[/blue]"
-                plan.append(item)
-                continue
-
-            item["status"] = "[yellow]?[/yellow]"
-
-            plan.append(item)
-
-        return plan
+    @staticmethod
+    def _status_for_mode(mode: str, default: str = "[yellow]?[/yellow]") -> str:
+        """Return a status tag based on execution mode."""
+        mapping = {
+            "docker": "[green]Docker (Ansible)[/green]",
+            "multipass": "[green]Multipass[/green]",
+            "remote": "[blue]Remote[/blue]",
+        }
+        return mapping.get(mode, default)
 
     @staticmethod
     def apply_overrides(
