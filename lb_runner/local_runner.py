@@ -136,14 +136,46 @@ class LocalRunner:
             Dictionary containing test results
         """
         logger.info(f"Running test '{test_name}' - Repetition {repetition}")
+        workload_dir, rep_dir = self._prepare_workload_dirs(test_name, repetition)
+        collectors = self._setup_collectors()
+        duration = self._resolve_duration(generator)
+        log_handler = self._attach_event_logger(
+            test_name, repetition, total_repetitions
+        )
+
+        test_start_time, test_end_time = self._execute_generator(
+            generator,
+            collectors,
+            duration,
+            test_name,
+            repetition,
+            stop_token=stop_token,
+        )
+
+        if log_handler:
+            logging.getLogger().removeHandler(log_handler)
+
+        result = self._finalize_single_test(
+            generator,
+            collectors,
+            workload_dir,
+            rep_dir,
+            test_name,
+            repetition,
+            total_repetitions,
+            test_start_time,
+            test_end_time,
+        )
+
+        return result
+
+    def _prepare_workload_dirs(self, test_name: str, repetition: int) -> tuple[Path, Path]:
         workload_dir = self._workload_output_dir(test_name)
         rep_dir = workload_dir / f"rep{repetition}"
         rep_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Set up collectors
-        collectors = self._setup_collectors()
+        return workload_dir, rep_dir
 
-        # Determine duration (allow workload to request a longer runtime)
+    def _resolve_duration(self, generator: Any) -> int:
         duration = self.config.test_duration_seconds
         if hasattr(generator, "expected_runtime_seconds"):
             try:
@@ -155,121 +187,137 @@ class LocalRunner:
                     )
                     duration = expected
             except Exception:
-                logger.debug("Failed to read expected runtime from generator; using default duration")
-        
-        # Pre-test cleanup
+                logger.debug(
+                    "Failed to read expected runtime from generator; using default duration"
+                )
+        return duration
+
+    def _attach_event_logger(
+        self, test_name: str, repetition: int, total_repetitions: int
+    ) -> logging.Handler | None:
+        if os.environ.get("LB_ENABLE_EVENT_LOGGING") != "1":
+            return None
+        handler = LBEventLogHandler(
+            run_id=self._current_run_id or "",
+            host=self._host_name,
+            workload=test_name,
+            repetition=repetition,
+            total_repetitions=total_repetitions,
+        )
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        logging.getLogger().addHandler(handler)
+        return handler
+
+    def _execute_generator(
+        self,
+        generator: Any,
+        collectors: list[Any],
+        duration: int,
+        test_name: str,
+        repetition: int,
+        stop_token: StopToken | None = None,
+    ) -> tuple[datetime | None, datetime | None]:
         self._pre_test_cleanup()
-        
-        generator_started = False
-        test_start_time = None
-        test_end_time = None
+        if stop_token and stop_token.should_stop():
+            raise StopRequested("Stopped by user")
 
-        last_progress_log = 0
+        self._prepare_generator(generator)
+        self._start_collectors(collectors)
 
-        # Attach structured log handler for this repetition
-        log_handler = None
-        if os.environ.get("LB_ENABLE_EVENT_LOGGING") == "1":
-            log_handler = LBEventLogHandler(
-                run_id=self._current_run_id or "",
-                host=self._host_name,
-                workload=test_name,
-                repetition=repetition,
-                total_repetitions=total_repetitions,
-            )
-            log_handler.setFormatter(logging.Formatter('%(message)s'))
-            logging.getLogger().addHandler(log_handler)
+        test_start_time = datetime.now()
+        generator.start()
+        logger.info("Running test for %s seconds", duration)
 
+        test_end_time = self._wait_for_generator(
+            generator, duration, test_name, repetition, stop_token
+        )
+        self._cleanup_after_run(generator, collectors)
+        return test_start_time, test_end_time
+
+    def _prepare_generator(self, generator: Any) -> None:
         try:
-            if stop_token and stop_token.should_stop():
-                raise StopRequested("Stopped by user")
-
-            # Run generator setup before metrics collection to avoid skew
-            try:
-                generator.prepare()
-            except Exception as e:
-                logger.error(f"Generator setup failed: {e}")
-                raise
-
-            if stop_token and stop_token.should_stop():
-                raise StopRequested("Stopped by user")
-
-            # Warmup period
-            if self.config.warmup_seconds > 0:
-                logger.info(f"Warmup period: {self.config.warmup_seconds} seconds")
-                time.sleep(self.config.warmup_seconds)
-
-            # Start collectors
-            for collector in collectors:
-                try:
-                    collector.start()
-                except Exception as e:
-                    logger.error(f"Failed to start collector {collector.name}: {e}")
-            
-            # Start workload generator
-            test_start_time = datetime.now()
-            generator.start()
-            generator_started = True
-            
-            # Run for the specified duration
-            logger.info(f"Running test for {duration} seconds")
-            
-            # Loop to wait for completion with a safety timeout
-            safety_buffer = 10  # Allow 10 extra seconds for graceful exit
-            max_wait = duration + safety_buffer
-            elapsed = 0
-
-            while elapsed < max_wait:
-                if stop_token and stop_token.should_stop():
-                    raise StopRequested("Stopped by user")
-                if not self._generator_running(generator):
-                    break
-
-                time.sleep(1)
-                elapsed += 1
-
-                # Emit lightweight progress logs for long runs
-                if duration:
-                    step = max(1, duration // 10)
-                    percent = int((min(elapsed, duration) / duration) * 100)
-                    if elapsed % step == 0 and elapsed != last_progress_log:
-                        logger.info("Progress for %s rep %s: %s%%", test_name, repetition, percent)
-                        last_progress_log = elapsed
-
-            # Stop workload generator only if it's still running (timeout reached)
-            if self._generator_running(generator):
-                logger.warning(f"Workload exceeded {max_wait}s (duration + safety). Forcing stop.")
-                generator.stop()
-                generator_started = False
-            test_end_time = datetime.now()
-
-        except StopRequested:
-            logger.info("Execution stopped by request.")
-            raise
-
+            generator.prepare()
         except Exception as e:
-            logger.error(f"Test execution failed: {e}")
+            logger.error("Generator setup failed: %s", e)
             raise
+        if self.config.warmup_seconds > 0:
+            logger.info("Warmup period: %s seconds", self.config.warmup_seconds)
+            time.sleep(self.config.warmup_seconds)
 
-        finally:
-            if log_handler:
-                logging.getLogger().removeHandler(log_handler)
+    def _start_collectors(self, collectors: list[Any]) -> None:
+        for collector in collectors:
+            try:
+                collector.start()
+            except Exception as e:
+                logger.error("Failed to start collector %s: %s", collector.name, e)
 
-            # Ensure generator is stopped if an error occurred while it was running
-            if generator_started:
-                try:
-                    logger.info("Stopping generator due to error or interruption...")
-                    generator.stop()
-                except Exception as e:
-                    logger.error(f"Failed to stop generator during cleanup: {e}")
+    def _wait_for_generator(
+        self,
+        generator: Any,
+        duration: int,
+        test_name: str,
+        repetition: int,
+        stop_token: StopToken | None,
+    ) -> datetime:
+        safety_buffer = 10
+        max_wait = duration + safety_buffer
+        elapsed = 0
+        last_progress_log = 0
+        while elapsed < max_wait:
+            if stop_token and stop_token.should_stop():
+                raise StopRequested("Stopped by user")
+            if not self._generator_running(generator):
+                break
+            time.sleep(1)
+            elapsed += 1
+            if self._should_log_progress(duration, elapsed, last_progress_log):
+                percent = int((min(elapsed, duration) / duration) * 100)
+                logger.info(
+                    "Progress for %s rep %s: %s%%", test_name, repetition, percent
+                )
+                last_progress_log = elapsed
+        if self._generator_running(generator):
+            logger.warning(
+                "Workload exceeded %ss (duration + safety). Forcing stop.", max_wait
+            )
+            generator.stop()
+        return datetime.now()
 
-            # Stop collectors
-            for collector in collectors:
-                try:
-                    collector.stop()
-                except Exception as e:
-                    logger.error(f"Failed to stop collector {collector.name}: {e}")
-        
-        # Collect results
+    @staticmethod
+    def _should_log_progress(duration: int, elapsed: int, last_progress_log: int) -> bool:
+        if not duration:
+            return False
+        step = max(1, duration // 10)
+        return elapsed % step == 0 and elapsed != last_progress_log
+
+    def _cleanup_after_run(
+        self, generator: Any, collectors: list[Any], generator_started: bool = True
+    ) -> None:
+        try:
+            if generator_started and self._generator_running(generator):
+                logger.info("Stopping generator due to error or interruption...")
+                generator.stop()
+        except Exception as e:
+            logger.error("Failed to stop generator during cleanup: %s", e)
+
+        for collector in collectors:
+            try:
+                collector.stop()
+            except Exception as e:
+                logger.error("Failed to stop collector %s: %s", collector.name, e)
+
+    def _finalize_single_test(
+        self,
+        generator: Any,
+        collectors: list[Any],
+        workload_dir: Path,
+        rep_dir: Path,
+        test_name: str,
+        repetition: int,
+        total_repetitions: int,
+        test_start_time: datetime | None,
+        test_end_time: datetime | None,
+    ) -> Dict[str, Any]:
         duration_seconds = (
             (test_end_time - test_start_time).total_seconds()
             if test_start_time and test_end_time
@@ -285,49 +333,57 @@ class LocalRunner:
             "end_time": test_end_time.isoformat() if test_end_time else None,
             "duration_seconds": duration_seconds,
             "generator_result": generator.get_result(),
-            "metrics": {}
+            "metrics": {},
+            "artifacts_dir": str(rep_dir),
         }
-        result["artifacts_dir"] = str(rep_dir)
-        gen_result = result["generator_result"]
-        failed = False
+        result["success"] = self._is_generator_success(result["generator_result"])
+        self._emit_progress(
+            test_name, repetition, total_repetitions, "done" if result["success"] else "failed"
+        )
+        self._collect_metrics(collectors, workload_dir, rep_dir, test_name, repetition, result)
+        self._persist_rep_result(rep_dir, result)
+        return result
+
+    @staticmethod
+    def _is_generator_success(gen_result: Any) -> bool:
         if isinstance(gen_result, dict):
             if gen_result.get("error"):
-                failed = True
+                return False
             rc = gen_result.get("returncode")
-            if rc not in (None, 0):
-                failed = True
-        elif gen_result not in (None, 0, True):
-            failed = True
-        result["success"] = not failed
-        # Emit per-repetition progress after completion
-        self._emit_progress(test_name, repetition, total_repetitions, "done" if not failed else "failed")
+            return rc in (None, 0)
+        return gen_result in (None, 0, True)
 
-        # Collect data from each collector
+    def _collect_metrics(
+        self,
+        collectors: list[Any],
+        workload_dir: Path,
+        rep_dir: Path,
+        test_name: str,
+        repetition: int,
+        result: Dict[str, Any],
+    ) -> None:
         for collector in collectors:
             collector_data = collector.get_data()
             result["metrics"][collector.name] = collector_data
-
             filename = f"{test_name}_rep{repetition}_{collector.name}.csv"
             filepath = workload_dir / filename
             collector.save_data(filepath)
-
-            # Also store collector output under a per-repetition directory.
             rep_filepath = rep_dir / filename
             try:
                 if rep_filepath != filepath:
                     shutil.copyfile(filepath, rep_filepath)
             except Exception:
-                # Best-effort: collector output is already persisted at workload scope.
                 pass
 
-        # Persist a per-repetition snapshot for easier navigation.
+    @staticmethod
+    def _persist_rep_result(rep_dir: Path, result: Dict[str, Any]) -> None:
         try:
             rep_result_path = rep_dir / "result.json"
-            rep_result_path.write_text(json.dumps(result, indent=2, cls=DateTimeEncoder))
+            rep_result_path.write_text(
+                json.dumps(result, indent=2, cls=DateTimeEncoder)
+            )
         except Exception:
             pass
-        
-        return result
     
     def _pre_test_cleanup(self) -> None:
         """Perform pre-test cleanup operations."""
@@ -405,124 +461,149 @@ class LocalRunner:
         """
         logger.info(f"Starting benchmark: {test_type}")
 
-        run_identifier = run_id or self._generate_run_id()
-        self._current_run_id = run_identifier
-        self._output_root, self._data_export_root, _ = ensure_run_dirs(self.config, run_identifier)
+        self._prepare_run_scope(run_id)
 
-        if not self._log_file_handler_attached and self._output_root:
-            self._log_file_handler_attached = ensure_runner_log(self._output_root, logger)
-
-        # Collect system info if enabled
         if self.config.collect_system_info and not self.system_info:
             self.collect_system_info()
 
         workload_cfg = self._resolve_workload(test_type)
-        plugin_name = workload_cfg.plugin
-        plugin: WorkloadPlugin = self.plugin_registry.get(plugin_name)
+        plugin: WorkloadPlugin = self.plugin_registry.get(workload_cfg.plugin)
 
-        # Run multiple repetitions
         total_reps = total_repetitions or self.config.repetitions
-        reps = (
-            pending_reps
-            if pending_reps is not None and len(pending_reps) > 0
-            else (
-                [repetition_override]
-                if repetition_override is not None
-                else list(range(1, self.config.repetitions + 1))
-            )
-        )
+        reps = self._select_repetitions(repetition_override, pending_reps)
 
         success_overall = True
         for idx, rep in enumerate(reps):
-            if rep is None or rep <= 0:
-                raise ValueError("Repetition index must be a positive integer")
-            if self._stop_token and self._stop_token.should_stop():
-                logger.info("Stop requested; aborting remaining repetitions.")
-                success_overall = False
-                break
+            success = self._run_single_repetition(
+                test_type=test_type,
+                workload_cfg=workload_cfg,
+                plugin=plugin,
+                repetition=rep,
+                total_reps=total_reps,
+            )
+            success_overall = success_overall and success
 
-            logger.info(f"Starting repetition {rep}/{total_reps}")
-
-            try:
-                # Determine configuration: Preset or User Options
-                config_input: Any = workload_cfg.options
-                
-                if workload_cfg.intensity and workload_cfg.intensity != "user_defined":
-                    try:
-                        level = WorkloadIntensity(workload_cfg.intensity)
-                        preset_config = plugin.get_preset_config(level)
-                        if preset_config:
-                            logger.info(f"Using preset configuration for intensity '{level.value}'")
-                            config_input = preset_config
-                        else:
-                            logger.warning(f"Plugin '{plugin_name}' does not support intensity '{level.value}', falling back to user options.")
-                    except ValueError:
-                        logger.warning(f"Invalid intensity level '{workload_cfg.intensity}', falling back to user options.")
-
-                generator = self.plugin_registry.create_generator(
-                    plugin_name, config_input
-                )
-                logger.info(
-                    "==> Running workload '%s' (repetition %s/%s)",
-                    test_type,
-                    rep,
-                    total_reps,
-                )
-                self._emit_progress(test_type, rep, total_reps, "running")
-                result = self._run_single_test(
-                    test_name=test_type,
-                    generator=generator,
-                    repetition=rep,
-                    total_repetitions=total_reps,
-                    stop_token=self._stop_token,
-                )
-                if not result.get("success", True):
-                    success_overall = False
-
-                # Persist after each repetition to avoid losing partial results.
-                self._process_results(test_type, [result], plugin=plugin)
-
-                # Optional post-repetition cleanup (e.g., remove temp files).
-                if isinstance(generator, BaseGenerator):
-                    try:
-                        generator.cleanup()
-                    except Exception as exc:  # pragma: no cover - best effort cleanup
-                        logger.warning("Generator cleanup failed for %s rep %s: %s", test_type, rep, exc)
-            
-            except StopRequested:
-                logger.info("Benchmark interrupted.")
-                success_overall = False
-                self._emit_progress(test_type, rep, total_reps, "stopped")
-                break
-            
-            except Exception as e:
-                logger.error(
-                    f"Skipping workload '{test_type}' on repetition {rep}: {e}"
-                )
-                success_overall = False
-                self._emit_progress(test_type, rep, total_reps, "failed")
-                break
-
-            # Cooldown between repetitions (collectors are stopped already).
             if idx < len(reps) - 1 and self.config.cooldown_seconds > 0:
                 logger.info("Cooldown period: %s seconds", self.config.cooldown_seconds)
                 time.sleep(self.config.cooldown_seconds)
-        
+
+            if self._stop_token and self._stop_token.should_stop():
+                break
+
         logger.info(f"Completed benchmark: {test_type}")
         return success_overall
+
+    def _prepare_run_scope(self, run_id: str | None) -> None:
+        run_identifier = run_id or self._generate_run_id()
+        self._current_run_id = run_identifier
+        self._output_root, self._data_export_root, _ = ensure_run_dirs(
+            self.config, run_identifier
+        )
+        if not self._log_file_handler_attached and self._output_root:
+            self._log_file_handler_attached = ensure_runner_log(
+                self._output_root, logger
+            )
+
+    def _select_repetitions(
+        self, repetition_override: int | None, pending_reps: List[int] | None
+    ) -> List[int]:
+        if pending_reps:
+            reps = pending_reps
+        elif repetition_override is not None:
+            reps = [repetition_override]
+        else:
+            reps = list(range(1, self.config.repetitions + 1))
+        for rep in reps:
+            if rep is None or rep <= 0:
+                raise ValueError("Repetition index must be a positive integer")
+        return reps
+
+    def _run_single_repetition(
+        self,
+        test_type: str,
+        workload_cfg: WorkloadConfig,
+        plugin: WorkloadPlugin,
+        repetition: int,
+        total_reps: int,
+    ) -> bool:
+        if self._stop_token and self._stop_token.should_stop():
+            logger.info("Stop requested; aborting remaining repetitions.")
+            self._emit_progress(test_type, repetition, total_reps, "stopped")
+            return False
+
+        logger.info("Starting repetition %s/%s", repetition, total_reps)
+        config_input = self._resolve_config_input(workload_cfg, plugin)
+
+        try:
+            generator = self.plugin_registry.create_generator(
+                workload_cfg.plugin, config_input
+            )
+            self._emit_progress(test_type, repetition, total_reps, "running")
+            result = self._run_single_test(
+                test_name=test_type,
+                generator=generator,
+                repetition=repetition,
+                total_repetitions=total_reps,
+                stop_token=self._stop_token,
+            )
+            if isinstance(generator, BaseGenerator):
+                self._cleanup_generator(generator, test_type, repetition)
+            self._process_results(test_type, [result], plugin=plugin)
+            return bool(result.get("success", True))
+        except StopRequested:
+            logger.info("Benchmark interrupted.")
+            self._emit_progress(test_type, repetition, total_reps, "stopped")
+            return False
+        except Exception as exc:
+            logger.error("Skipping workload '%s' on repetition %s: %s", test_type, repetition, exc)
+            self._emit_progress(test_type, repetition, total_reps, "failed")
+            return False
+
+    def _resolve_config_input(
+        self, workload_cfg: WorkloadConfig, plugin: WorkloadPlugin
+    ) -> Any:
+        config_input: Any = workload_cfg.options
+        if workload_cfg.intensity and workload_cfg.intensity != "user_defined":
+            try:
+                level = WorkloadIntensity(workload_cfg.intensity)
+                preset_config = plugin.get_preset_config(level)
+                if preset_config:
+                    logger.info("Using preset configuration for intensity '%s'", level.value)
+                    return preset_config
+                logger.warning(
+                    "Plugin '%s' does not support intensity '%s', falling back to user options.",
+                    plugin.name,
+                    level.value,
+                )
+            except ValueError:
+                logger.warning(
+                    "Invalid intensity level '%s', falling back to user options.",
+                    workload_cfg.intensity,
+                )
+        return config_input
+
+    def _cleanup_generator(
+        self, generator: BaseGenerator, test_type: str, repetition: int
+    ) -> None:
+        try:
+            generator.cleanup()
+        except Exception as exc:  # pragma: no cover - best effort cleanup
+            logger.warning(
+                "Generator cleanup failed for %s rep %s: %s", test_type, repetition, exc
+            )
     
     def _process_results(self, test_name: str, results: List[Dict[str, Any]], plugin: WorkloadPlugin | None = None) -> None:
-        """
-        Process and save test results.
-        
-        Args:
-            test_name: Name of the test
-            results: List of test results
-        """
-        # Merge with existing results for incremental persistence (remote runs invoke one repetition at a time).
+        """Process and save test results."""
         target_root = self._workload_output_dir(test_name)
         results_file = target_root / f"{test_name}_results.json"
 
+        merged_results = self._merge_results(results_file, results)
+        self._persist_results(results_file, merged_results)
+        self._export_plugin_results(plugin, merged_results, target_root, test_name)
+
+    def _merge_results(
+        self, results_file: Path, new_results: List[Dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         merged: list[dict[str, Any]] = []
         if results_file.exists():
             try:
@@ -540,32 +621,41 @@ class LocalRunner:
             rep: entry for entry in merged if (rep := _rep_key(entry)) is not None
         }
         unkeyed: list[dict[str, Any]] = [e for e in merged if _rep_key(e) is None]
-        for entry in results:
+        for entry in new_results:
             rep = _rep_key(entry)
             if rep is None:
                 unkeyed.append(entry)
             else:
                 merged_by_rep[rep] = entry
 
-        merged_results = [merged_by_rep[rep] for rep in sorted(merged_by_rep)] + unkeyed
+        return [merged_by_rep[rep] for rep in sorted(merged_by_rep)] + unkeyed
+
+    def _persist_results(self, results_file: Path, merged_results: list[dict[str, Any]]) -> None:
         tmp_path = results_file.with_suffix(".json.tmp")
         tmp_path.write_text(json.dumps(merged_results, indent=2, cls=DateTimeEncoder))
         tmp_path.replace(results_file)
         logger.info("Saved raw results to %s", results_file)
-        
-        # Allow plugin-specific CSV exports for raw generator outputs
-        if plugin:
-            try:
-                exported = plugin.export_results_to_csv(
-                    results=merged_results,
-                    output_dir=target_root,
-                    run_id=self._current_run_id or "",
-                    test_name=test_name,
-                )
-                for path in exported:
-                    logger.info("Plugin exported CSV: %s", path)
-            except Exception as exc:
-                logger.warning("Plugin '%s' export_results_to_csv failed: %s", plugin.name, exc)
+    
+    def _export_plugin_results(
+        self,
+        plugin: WorkloadPlugin | None,
+        merged_results: list[dict[str, Any]],
+        target_root: Path,
+        test_name: str,
+    ) -> None:
+        if not plugin:
+            return
+        try:
+            exported = plugin.export_results_to_csv(
+                results=merged_results,
+                output_dir=target_root,
+                run_id=self._current_run_id or "",
+                test_name=test_name,
+            )
+            for path in exported:
+                logger.info("Plugin exported CSV: %s", path)
+        except Exception as exc:
+            logger.warning("Plugin '%s' export_results_to_csv failed: %s", plugin.name, exc)
 
     def _resolve_workload(self, name: str) -> WorkloadConfig:
         """Return the workload configuration ensuring it is enabled."""

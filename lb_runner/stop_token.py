@@ -92,5 +92,5 @@ class StopToken:
     def __enter__(self) -> "StopToken":
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(self, _exc_type, _exc, _tb) -> None:
         self.restore()

@@ -80,7 +80,7 @@ def test_handle_stop_protocol_failure(controller, mock_executor):
 
 
 @patch("time.sleep", return_value=None)  # Avoid waiting
-def test_handle_stop_protocol_waits_for_state(mock_sleep, controller, mock_executor):
+def test_handle_stop_protocol_waits_for_state(_mock_sleep, controller, mock_executor):
     """Test that the controller waits for the coordinator state to change."""
     
     # Side effect for state property to simulate transition: IDLE -> STOPPING -> TEARDOWN_READY

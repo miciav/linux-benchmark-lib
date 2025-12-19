@@ -36,7 +36,7 @@ class Connection(ConnectionBase):
         return None
 
     def exec_command(
-        self, cmd: str, in_data: Any | None = None, sudoable: bool = False
+        self, cmd: str, in_data: Any | None = None, _sudoable: bool = False
     ) -> Tuple[int, str, str]:
         command = ["docker", "exec", self.container_name, "bash", "-c", cmd]
         try:

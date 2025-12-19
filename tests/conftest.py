@@ -7,6 +7,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """
     Custom hook to print statistics by marker at the end of the test session.
     """
+    _ = (exitstatus, config)  # unused in our reporting helper
     # Initialize statistics
     marker_stats = defaultdict(lambda: {"passed": 0, "failed": 0, "skipped": 0, "total": 0})
     

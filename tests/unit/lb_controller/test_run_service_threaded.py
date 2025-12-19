@@ -49,7 +49,9 @@ def test_run_service_uses_controller_runner(monkeypatch):
     )
 
     dummy_controller = DummyController()
-    monkeypatch.setattr(controller_module, "BenchmarkController", lambda *a, **k: dummy_controller)
+    monkeypatch.setattr(
+        controller_module, "BenchmarkController", lambda *_args, **_kwargs: dummy_controller
+    )
 
     run_called = {"flag": False}
 

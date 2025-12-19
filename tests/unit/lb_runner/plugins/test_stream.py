@@ -105,7 +105,7 @@ def test_validate_environment_missing_numactl(mock_which, stream_config):
 
 @patch("lb_runner.plugins.stream.plugin.subprocess.run")
 @patch("lb_runner.plugins.stream.plugin.shutil.copy2")
-def test_compile_binary_success(mock_copy, mock_run, stream_generator, tmp_path):
+def test_compile_binary_success(_mock_copy, mock_run, stream_generator, tmp_path):
     # Mock workspace dirs
     stream_generator.workspace_src_dir = tmp_path / "src"
     stream_generator.workspace_bin_dir = tmp_path / "bin"

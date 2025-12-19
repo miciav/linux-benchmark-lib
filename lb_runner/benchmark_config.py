@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 from inspect import isclass
 
-from pydantic import BaseModel, Field, model_validator, ValidationError, model_serializer # Added Pydantic imports
+from pydantic import BaseModel, Field, model_validator, ValidationError  # Added Pydantic imports
 
 # --- Ansible Root Definition ---
 _HERE = Path(__file__).resolve()

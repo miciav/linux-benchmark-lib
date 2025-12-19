@@ -35,6 +35,7 @@ dev = [
     "molecule>=6",
     "molecule-plugins[delegated]",
     "ansible-core>=2.15.0",
+    "flake8-cognitive-complexity>=0.1.0",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -153,4 +154,5 @@ dev = [
     "pre-commit>=3.2.0",
     "ansible-runner>=2.4.0",
     "vulture>=2.10",
+    "flake8-cognitive-complexity>=0.1.0",
 ]

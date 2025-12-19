@@ -119,7 +119,6 @@ def _check_command(name: str) -> bool:
 def _print_run_plan(
     cfg: BenchmarkConfig,
     tests: List[str],
-    registry: Optional[PluginRegistry] = None,
     execution_mode: str = "remote",
 ) -> None:
     """Render a compact table of the workloads about to run with availability hints."""

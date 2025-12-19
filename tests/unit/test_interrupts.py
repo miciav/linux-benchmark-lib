@@ -90,8 +90,10 @@ class TestSigintDoublePressHandler:
         # Should restore original handler (SIG_DFL)
         assert mock_signal.call_count == 2
         mock_signal.assert_called_with(signal.SIGINT, signal.SIG_DFL)
+        mock_getsignal.assert_called_with(signal.SIGINT)
 
     def test_handler_routing(self, mock_signal, mock_getsignal):
+        _ = mock_getsignal  # fixture ensures signals are patched
         sm = DoubleCtrlCStateMachine()
         on_first = Mock()
         on_confirmed = Mock()

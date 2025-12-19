@@ -88,7 +88,7 @@ class SigintDoublePressHandler(AbstractContextManager["SigintDoublePressHandler"
         signal.signal(signal.SIGINT, self._handle_sigint)  # type: ignore[arg-type]
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(self, _exc_type, _exc, _tb) -> None:
         if self._prev_handler is not None:
             signal.signal(signal.SIGINT, self._prev_handler)  # type: ignore[arg-type]
         self._sm.mark_finished()
