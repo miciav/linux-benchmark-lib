@@ -7,7 +7,7 @@ from datetime import datetime
 import time
 import re
 from contextlib import AbstractContextManager
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass
 import threading
 import hashlib
 import json
@@ -206,88 +206,95 @@ class AnsibleOutputFormatter:
         line = line.strip()
         if not line:
             return
-
-        progress = self._format_progress(line)
-        if progress:
-            phase, message = progress
-            self._emit_bullet(phase, message, log_sink)
+        if self._maybe_emit_progress(line, log_sink):
             return
-
-        # Filter noise
-        if any(
-            x in line
-            for x in [
-                "PLAY [",
-                "GATHERING FACTS",
-                "RECAP",
-                "ok:",
-                "skipping:",
-                "included:",
-            ]
-        ):
+        if self._is_noise_line(line):
             return
-        if line.startswith("*****"):
+        if self._maybe_emit_task(line, log_sink):
             return
-
-        # Format Tasks
-        task_match = self.task_pattern.search(line)
-        if task_match:
-            raw_task = task_match.group(1).strip()
-            task_name = raw_task
-            # Cleanup "workload_runner :" prefix if present
-            if " : " in task_name:
-                _, task_name = task_name.split(" : ", 1)
-            phase = self.current_phase
-            message = task_name
-
-            # If the task embeds a bracketed prefix, treat that as the phase.
-            if task_name.startswith("[") and "]" in task_name:
-                closing = task_name.find("]")
-                embedded = task_name[1:closing]
-                message = task_name[closing + 1 :].strip()
-                phase = embedded or self.current_phase
-                if not message:
-                    message = raw_task
-
-            # Show certain tasks even if they're "boring", but keep unified formatting.
-            if (
-                raw_task in self._always_show_tasks
-                or task_name in self._always_show_tasks
-            ):
-                message = task_name
-
-            self._emit_bullet(phase, message, log_sink)
+        if self._maybe_emit_benchmark_start(line, log_sink):
             return
-
-        # Format Benchmark Start (from python script)
-        bench_match = self.bench_pattern.search(line)
-        if bench_match:
-            bench_name = bench_match.group(1)
-            self._emit_bullet(self.current_phase, f"Benchmark: {bench_name}", log_sink)
-            return
-
-        # Format Changes (usually means success in ansible terms)
         if line.startswith("changed:"):
             return
-
-        # Pass through interesting lines from the benchmark script
-        if (
-            "lb_runner.local_runner" in line
-            or "Running test" in line
-            or "Progress:" in line
-            or "Completed" in line
-        ):
-            self._emit_bullet(self.current_phase, line, log_sink)
+        if self._maybe_emit_interesting(line, log_sink):
             return
-
-        # Pass through raw output that looks like a progress bar (rich output often has special chars)
-        if "━" in line:
-            self._emit_bullet(self.current_phase, line, log_sink)
+        if self._maybe_emit_error(line, log_sink):
             return
+        self._emit(line, log_sink)
 
-        # Pass through errors
+    def _maybe_emit_progress(
+        self, line: str, log_sink: Callable[[str], None] | None
+    ) -> bool:
+        progress = self._format_progress(line)
+        if not progress:
+            return False
+        phase, message = progress
+        self._emit_bullet(phase, message, log_sink)
+        return True
+
+    @staticmethod
+    def _is_noise_line(line: str) -> bool:
+        noise_tokens = {
+            "PLAY [",
+            "GATHERING FACTS",
+            "RECAP",
+            "ok:",
+            "skipping:",
+            "included:",
+        }
+        return any(token in line for token in noise_tokens) or line.startswith("*****")
+
+    def _maybe_emit_task(
+        self, line: str, log_sink: Callable[[str], None] | None
+    ) -> bool:
+        task_match = self.task_pattern.search(line)
+        if not task_match:
+            return False
+        raw_task = task_match.group(1).strip()
+        task_name = raw_task.split(" : ", 1)[-1]
+        phase = self.current_phase
+        message = task_name
+        if task_name.startswith("[") and "]" in task_name:
+            closing = task_name.find("]")
+            embedded = task_name[1:closing]
+            message = task_name[closing + 1 :].strip() or raw_task
+            phase = embedded or self.current_phase
+        if raw_task in self._always_show_tasks or task_name in self._always_show_tasks:
+            message = task_name
+        self._emit_bullet(phase, message, log_sink)
+        return True
+
+    def _maybe_emit_benchmark_start(
+        self, line: str, log_sink: Callable[[str], None] | None
+    ) -> bool:
+        bench_match = self.bench_pattern.search(line)
+        if not bench_match:
+            return False
+        bench_name = bench_match.group(1)
+        self._emit_bullet(self.current_phase, f"Benchmark: {bench_name}", log_sink)
+        return True
+
+    def _maybe_emit_interesting(
+        self, line: str, log_sink: Callable[[str], None] | None
+    ) -> bool:
+        interesting_tokens = (
+            "lb_runner.local_runner",
+            "Running test",
+            "Progress:",
+            "Completed",
+        )
+        if any(token in line for token in interesting_tokens) or "━" in line:
+            self._emit_bullet(self.current_phase, line, log_sink)
+            return True
+        return False
+
+    def _maybe_emit_error(
+        self, line: str, log_sink: Callable[[str], None] | None
+    ) -> bool:
         if "fatal:" in line or "ERROR" in line or "failed:" in line:
             self._emit_bullet(self.current_phase, f"[!] {line}", log_sink)
+            return True
+        return False
 
     def _format_progress(self, line: str) -> tuple[str, str] | None:
         """Render LB_EVENT progress lines into a concise message."""
@@ -376,6 +383,45 @@ class _EventPipeline:
     event_from_payload: Callable[[Dict[str, Any]], RunEvent | None]
     sink: LogSink
     controller_ref: dict[str, BenchmarkController | None]
+
+
+@dataclass
+class _SignalContext:
+    """State for SIGINT handling during controller runs."""
+
+    events: queue.SimpleQueue[tuple[str, str | None]]
+    state_machine: DoubleCtrlCStateMachine
+    warning_timer: threading.Timer | None = None
+
+
+@dataclass
+class _EventDedupe:
+    """Track recent events to avoid duplicate fan-out."""
+
+    recent_events: deque[tuple[str, str, int, str, str, str]] = field(
+        default_factory=deque
+    )
+    recent_set: set[tuple[str, str, int, str, str, str]] = field(default_factory=set)
+    limit: int = 200
+
+    def record(self, event: RunEvent) -> bool:
+        """Return True if the event is new within the window."""
+        key = (
+            event.host,
+            event.workload,
+            event.repetition,
+            event.status,
+            event.type,
+            event.message,
+        )
+        if key in self.recent_set:
+            return False
+        self.recent_events.append(key)
+        self.recent_set.add(key)
+        if len(self.recent_events) > self.limit:
+            old = self.recent_events.popleft()
+            self.recent_set.discard(old)
+        return True
 
 
 class _DashboardLogProxy(DashboardHandle):
@@ -671,49 +717,13 @@ class RunService:
 
         This method consolidates configuration loading, overrides, and context building.
         """
-        # 1. Load Config (or reuse provided one)
-        if preloaded_config is not None:
-            cfg = preloaded_config
-            resolved = config_path
-            stale = None
-        else:
-            cfg, resolved, stale = config_service.load_for_read(config_path)
-            if ui_adapter:
-                if stale:
-                    ui_adapter.show_warning(f"Saved default config not found: {stale}")
-                if resolved:
-                    ui_adapter.show_success(f"Loaded config: {resolved}")
-                else:
-                    ui_adapter.show_warning(
-                        "No config file found; using built-in defaults."
-                    )
-
-        # 2. Overrides
-        # Force setup flag from CLI onto the config, which drives logic in execute()
-        cfg.remote_execution.run_setup = setup
-        if not setup:
-            cfg.remote_execution.run_teardown = False
-        cfg.remote_execution.enabled = True
-
-        if repetitions is not None:
-            cfg.repetitions = repetitions
-            if ui_adapter:
-                ui_adapter.show_info(f"Using {repetitions} repetitions for this run")
-
-        self.apply_overrides(cfg, intensity=intensity, debug=debug)
-        if intensity and ui_adapter:
-            ui_adapter.show_info(f"Global intensity override: {intensity}")
-
-        cfg.ensure_output_dirs()
-
-        # 3. Target Tests
-        target_tests = tests or [
-            name for name, wl in cfg.workloads.items() if wl.enabled
-        ]
-        if not target_tests:
-            raise ValueError("No workloads selected to run.")
-
-        # 4. Build Context
+        cfg, resolved = self._load_or_default_config(
+            config_service, config_path, ui_adapter, preloaded_config
+        )
+        self._apply_setup_overrides(
+            cfg, setup, repetitions, intensity, ui_adapter, debug
+        )
+        target_tests = self._resolve_target_tests(cfg, tests)
         context = self.build_context(
             cfg,
             target_tests,
@@ -724,6 +734,63 @@ class RunService:
             execution_mode=execution_mode,
         )
         return context
+
+    def _load_or_default_config(
+        self,
+        config_service: Any,
+        config_path: Optional[Path],
+        ui_adapter: UIAdapter | None,
+        preloaded_config: BenchmarkConfig | None,
+    ) -> tuple[BenchmarkConfig, Optional[Path]]:
+        """Load config from disk or return a provided instance with UI feedback."""
+        if preloaded_config is not None:
+            return preloaded_config, config_path
+        cfg, resolved, stale = config_service.load_for_read(config_path)
+        if ui_adapter:
+            if stale:
+                ui_adapter.show_warning(f"Saved default config not found: {stale}")
+            if resolved:
+                ui_adapter.show_success(f"Loaded config: {resolved}")
+            else:
+                ui_adapter.show_warning(
+                    "No config file found; using built-in defaults."
+                )
+        return cfg, resolved
+
+    def _apply_setup_overrides(
+        self,
+        cfg: BenchmarkConfig,
+        setup: bool,
+        repetitions: Optional[int],
+        intensity: Optional[str],
+        ui_adapter: UIAdapter | None,
+        debug: bool,
+    ) -> None:
+        """Apply CLI flags to config and ensure directories exist."""
+        cfg.remote_execution.run_setup = setup
+        if not setup:
+            cfg.remote_execution.run_teardown = False
+        cfg.remote_execution.enabled = True
+        if repetitions is not None:
+            cfg.repetitions = repetitions
+            if ui_adapter:
+                ui_adapter.show_info(f"Using {repetitions} repetitions for this run")
+        self.apply_overrides(cfg, intensity=intensity, debug=debug)
+        if intensity and ui_adapter:
+            ui_adapter.show_info(f"Global intensity override: {intensity}")
+        cfg.ensure_output_dirs()
+
+    @staticmethod
+    def _resolve_target_tests(
+        cfg: BenchmarkConfig, tests: Optional[List[str]]
+    ) -> List[str]:
+        """Determine which workloads to run, raising if none are enabled/selected."""
+        target_tests = tests or [
+            name for name, wl in cfg.workloads.items() if wl.enabled
+        ]
+        if not target_tests:
+            raise ValueError("No workloads selected to run.")
+        return target_tests
 
     def execute(
         self,
@@ -912,34 +979,83 @@ class RunService:
     ) -> _EventPipeline:
         """Wire output handlers, dedupe, and dashboard logging."""
         dashboard = session.dashboard
-        output_cb = output_callback
-        if dashboard and output_callback is not None:
-            last_refresh = 0.0
+        output_cb = self._pipeline_output_callback(
+            dashboard=dashboard, formatter=formatter, output_callback=output_callback
+        )
+        announce_stop = self._announce_stop_factory(session, ui_adapter)
+        session.stop_token._on_stop = announce_stop  # type: ignore[attr-defined]
 
-            def _dashboard_callback(text: str, end: str = ""):
-                nonlocal last_refresh
-                if formatter and output_callback == formatter.process:
-                    formatter.process(text, end=end, log_sink=dashboard.add_log)
-                else:
-                    output_callback(text, end=end)
-                    dashboard.add_log(text)
-                now = time.monotonic()
-                if now - last_refresh > 0.25:
-                    dashboard.refresh()
-                    last_refresh = now
+        controller_ref: dict[str, BenchmarkController | None] = {"controller": None}
+        dedupe = _EventDedupe()
+        ingest_event = self._make_ingest_event(
+            session=session,
+            dashboard=dashboard,
+            controller_ref=controller_ref,
+            dedupe=dedupe,
+        )
+        event_from_payload = lambda data: self._event_from_payload_data(
+            data, session, context
+        )
+        progress_handler = self._make_progress_handler(
+            session=session,
+            context=context,
+            ingest_event=ingest_event,
+        )
+        output_with_progress = self._make_output_tee(
+            session=session,
+            downstream=output_cb,
+            progress_handler=progress_handler,
+        )
 
-            output_cb = _dashboard_callback
+        if session.stop_token.should_stop():
+            announce_stop()
 
-        downstream = output_cb
-        stop_announced = False
+        return _EventPipeline(
+            output_cb=output_with_progress,
+            announce_stop=announce_stop,
+            ingest_event=ingest_event,
+            event_from_payload=event_from_payload,
+            sink=session.sink,
+            controller_ref=controller_ref,
+        )
+
+    def _pipeline_output_callback(
+        self,
+        dashboard: DashboardHandle | None,
+        formatter: AnsibleOutputFormatter | None,
+        output_callback: Callable[[str, str], None],
+    ) -> Callable[[str, str], None]:
+        """Fan-out formatter output to dashboard when available."""
+        if not dashboard or output_callback is None:
+            return output_callback
+
+        last_refresh = {"ts": 0.0}
+
+        def _dashboard_callback(text: str, end: str = ""):
+            if formatter and output_callback == formatter.process:
+                formatter.process(text, end=end, log_sink=dashboard.add_log)
+            else:
+                output_callback(text, end=end)
+                dashboard.add_log(text)
+            now = time.monotonic()
+            if now - last_refresh["ts"] > 0.25:
+                dashboard.refresh()
+                last_refresh["ts"] = now
+
+        return _dashboard_callback
+
+    def _announce_stop_factory(
+        self, session: _RemoteSession, ui_adapter: UIAdapter | None
+    ) -> Callable[[str], None]:
+        """Create a stop announcer that logs to UI/dashboard."""
+        stop_announced = {"value": False}
 
         def _announce_stop(
             msg: str = "Stop confirmed; initiating teardown and aborting the run.",
         ) -> None:
-            nonlocal stop_announced
-            if stop_announced:
+            if stop_announced["value"]:
                 return
-            stop_announced = True
+            stop_announced["value"] = True
             try:
                 session.controller_state.transition(
                     ControllerState.STOP_ARMED, reason=msg
@@ -949,9 +1065,9 @@ class RunService:
             display_msg, log_msg = self._controller_stop_hint(msg)
             if ui_adapter:
                 ui_adapter.show_warning(log_msg)
-            elif dashboard:
-                dashboard.add_log(display_msg)
-                dashboard.refresh()
+            elif session.dashboard:
+                session.dashboard.add_log(display_msg)
+                session.dashboard.refresh()
             else:
                 print(log_msg)
             try:
@@ -963,68 +1079,77 @@ class RunService:
             except Exception:
                 pass
 
-        session.stop_token._on_stop = _announce_stop  # type: ignore[attr-defined]
+        return _announce_stop
 
-        recent_events: deque[tuple[str, str, int, str, str, str]] = deque()
-        dedupe_limit = 200
-        recent_set: set[tuple[str, str, int, str, str, str]] = set()
-        controller_ref: dict[str, BenchmarkController | None] = {"controller": None}
+    def _make_ingest_event(
+        self,
+        session: _RemoteSession,
+        dashboard: DashboardHandle | None,
+        controller_ref: dict[str, BenchmarkController | None],
+        dedupe: _EventDedupe,
+    ) -> Callable[[RunEvent, str], None]:
+        """Return an ingest function that updates journal, controller, and dashboard."""
 
-        def _ingest_event(event: RunEvent, source: str = "unknown") -> None:
-            key = (
-                event.host,
-                event.workload,
-                event.repetition,
-                event.status,
-                event.type,
-                event.message,
-            )
-            if key in recent_set:
+        def _ingest(event: RunEvent, source: str = "unknown") -> None:
+            if not dedupe.record(event):
                 return
-            recent_events.append(key)
-            recent_set.add(key)
-            if len(recent_events) > dedupe_limit:
-                old = recent_events.popleft()
-                if old in recent_set:
-                    recent_set.remove(old)
-
             session.sink.emit(event)
-
             controller = controller_ref.get("controller")
             if controller:
                 controller.on_event(event)
+            self._mirror_event_to_dashboard(event, dashboard, source)
 
-            if dashboard:
-                dashboard.mark_event(source)
-                label = f"run-{event.host}".replace(":", "-").replace(
-                    " ", "-"
-                ) + f"-{event.workload}".replace(":", "-").replace(" ", "-")
-                text = f"• [{label}] {event.repetition}/{event.total_repetitions} {event.status}"
-                if event.message:
-                    text = f"{text} ({event.message})"
-                dashboard.add_log(escape(text))
-                dashboard.refresh()
+        return _ingest
 
-        def _event_from_payload(data: Dict[str, Any]) -> RunEvent | None:
-            required = {"host", "workload", "repetition", "status"}
-            if not required.issubset(data.keys()):
-                return None
-            return RunEvent(
-                run_id=session.journal.run_id,
-                host=str(data.get("host", "")),
-                workload=str(data.get("workload", "")),
-                repetition=int(data.get("repetition") or 0),
-                total_repetitions=int(
-                    data.get("total_repetitions")
-                    or data.get("total")
-                    or context.config.repetitions
-                ),
-                status=str(data.get("status", "")),
-                message=str(data.get("message") or ""),
-                timestamp=time.time(),
-                type=str(data.get("type", "status")),
-                level=str(data.get("level", "INFO")),
-            )
+    @staticmethod
+    def _mirror_event_to_dashboard(
+        event: RunEvent, dashboard: DashboardHandle | None, source: str
+    ) -> None:
+        if not dashboard:
+            return
+        dashboard.mark_event(source)
+        label = f"run-{event.host}".replace(":", "-").replace(
+            " ", "-"
+        ) + f"-{event.workload}".replace(":", "-").replace(" ", "-")
+        text = (
+            f"• [{label}] {event.repetition}/{event.total_repetitions} {event.status}"
+        )
+        if event.message:
+            text = f"{text} ({event.message})"
+        dashboard.add_log(escape(text))
+        dashboard.refresh()
+
+    @staticmethod
+    def _event_from_payload_data(
+        data: Dict[str, Any], session: _RemoteSession, context: RunContext
+    ) -> RunEvent | None:
+        required = {"host", "workload", "repetition", "status"}
+        if not required.issubset(data.keys()):
+            return None
+        return RunEvent(
+            run_id=session.journal.run_id,
+            host=str(data.get("host", "")),
+            workload=str(data.get("workload", "")),
+            repetition=int(data.get("repetition") or 0),
+            total_repetitions=int(
+                data.get("total_repetitions")
+                or data.get("total")
+                or context.config.repetitions
+            ),
+            status=str(data.get("status", "")),
+            message=str(data.get("message") or ""),
+            timestamp=time.time(),
+            type=str(data.get("type", "status")),
+            level=str(data.get("level", "INFO")),
+        )
+
+    def _make_progress_handler(
+        self,
+        session: _RemoteSession,
+        context: RunContext,
+        ingest_event: Callable[[RunEvent, str], None],
+    ) -> Callable[[str], None]:
+        """Return a handler that converts stdout markers into RunEvents."""
 
         def _handle_progress(line: str) -> None:
             info = self._parse_progress_line(line)
@@ -1041,9 +1166,19 @@ class RunService:
                     message=info.get("message") or "",
                     timestamp=time.time(),
                 )
-                _ingest_event(event, source="stdout")
+                ingest_event(event, source="stdout")
             except Exception:
                 pass
+
+        return _handle_progress
+
+    def _make_output_tee(
+        self,
+        session: _RemoteSession,
+        downstream: Callable[[str, str], None] | None,
+        progress_handler: Callable[[str], None],
+    ) -> Callable[[str, str], None]:
+        """Return an output callback that logs, parses progress, and tees downstream."""
 
         def _tee_output(text: str, end: str = "") -> None:
             fragment = text + (end if end else "\n")
@@ -1053,21 +1188,11 @@ class RunService:
             except Exception:
                 pass
             for line in fragment.splitlines():
-                _handle_progress(line)
+                progress_handler(line)
             if downstream:
                 downstream(text, end=end)
 
-        if session.stop_token.should_stop():
-            _announce_stop()
-
-        return _EventPipeline(
-            output_cb=_tee_output,
-            announce_stop=_announce_stop,
-            ingest_event=_ingest_event,
-            event_from_payload=_event_from_payload,
-            sink=session.sink,
-            controller_ref=controller_ref,
-        )
+        return _tee_output
 
     def _maybe_start_event_tailer(
         self,
@@ -1103,7 +1228,42 @@ class RunService:
         ui_adapter: UIAdapter | None,
     ) -> RunExecutionSummary | None:
         """Drive the controller runner with signal handling and logging."""
-        runner = ControllerRunner(
+        runner = self._build_controller_runner(controller, context, session, ui_adapter)
+        signals = self._build_signal_context(session, ui_adapter)
+        try:
+            summary, elapsed = self._drive_runner(
+                runner, session, signals, pipeline, ui_adapter=ui_adapter
+            )
+            self._handle_run_completion(
+                summary=summary,
+                elapsed=elapsed,
+                context=context,
+                session=session,
+                pipeline=pipeline,
+                ui_adapter=ui_adapter,
+            )
+        finally:
+            self._cleanup_signal_context(signals)
+            try:
+                session.log_file.close()
+            except Exception:
+                pass
+            if session.ui_stream_log_file:
+                try:
+                    session.ui_stream_log_file.close()
+                except Exception:
+                    pass
+        return summary
+
+    def _build_controller_runner(
+        self,
+        controller: BenchmarkController,
+        context: RunContext,
+        session: _RemoteSession,
+        ui_adapter: UIAdapter | None,
+    ) -> ControllerRunner:
+        """Create the controller runner with state-change callbacks."""
+        return ControllerRunner(
             run_callable=lambda: controller.run(
                 context.target_tests,
                 run_id=session.effective_run_id,
@@ -1117,148 +1277,214 @@ class RunService:
             ),
             state_machine=session.controller_state,
         )
-        ctrlc_events: queue.SimpleQueue[tuple[str, str | None]] = queue.SimpleQueue()
-        sigint_state = DoubleCtrlCStateMachine()
-        warning_timer: threading.Timer | None = None
 
-        def _log_arm_warning() -> None:
-            msg = "Press Ctrl+C again to stop the execution"
-            self._emit_warning(
-                msg,
-                dashboard=session.dashboard,
-                ui_adapter=ui_adapter,
-                log_file=session.log_file,
-                ui_stream_log_file=session.ui_stream_log_file,
-                ttl=10.0,
-            )
-            nonlocal warning_timer
-            if warning_timer and warning_timer.is_alive():
-                warning_timer.cancel()
+    def _build_signal_context(
+        self, session: _RemoteSession, ui_adapter: UIAdapter | None
+    ) -> _SignalContext:
+        """Initialize SIGINT handling primitives for the run loop."""
+        ctx = _SignalContext(
+            events=queue.SimpleQueue(), state_machine=DoubleCtrlCStateMachine()
+        )
+        ctx.state_machine.reset_arm()
+        return ctx
 
-            def _clear_warning() -> None:
-                sigint_state.reset_arm()
-                if session.dashboard and hasattr(session.dashboard, "clear_warning"):
-                    try:
-                        session.dashboard.clear_warning()
-                        session.dashboard.refresh()
-                    except Exception:
-                        pass
-
-            warning_timer = threading.Timer(10.0, _clear_warning)
-            warning_timer.daemon = True
-            warning_timer.start()
-
-        def _drain_ctrlc_queue() -> None:
-            while True:
-                try:
-                    kind, reason = ctrlc_events.get_nowait()
-                except queue.Empty:
-                    return
-                if kind == "warn":
-                    _log_arm_warning()
-                elif kind == "stop":
-                    runner.arm_stop(reason or "User requested stop")
-                    pipeline.announce_stop()
+    def _drive_runner(
+        self,
+        runner: ControllerRunner,
+        session: _RemoteSession,
+        signals: _SignalContext,
+        pipeline: _EventPipeline,
+        ui_adapter: UIAdapter | None = None,
+    ) -> tuple[RunExecutionSummary | None, float]:
+        """Run controller loop, honoring double-SIGINT semantics."""
 
         def _run_active() -> bool:
             return not session.controller_state.is_terminal()
 
+        start_ts = time.monotonic()
         summary: RunExecutionSummary | None = None
-        elapsed: float | None = None
-        try:
-            with (
-                session.dashboard.live(),
-                SigintDoublePressHandler(
-                    state_machine=sigint_state,
-                    run_active=_run_active,
-                    on_first_sigint=lambda: ctrlc_events.put(("warn", None)),
-                    on_confirmed_sigint=lambda: ctrlc_events.put(
-                        ("stop", "User requested stop")
-                    ),
+
+        with (
+            session.dashboard.live(),
+            SigintDoublePressHandler(
+                state_machine=signals.state_machine,
+                run_active=_run_active,
+                on_first_sigint=lambda: signals.events.put(("warn", None)),
+                on_confirmed_sigint=lambda: signals.events.put(
+                    ("stop", "User requested stop")
                 ),
-            ):
-                start_ts = time.monotonic()
-                runner.start()
-                while True:
-                    _drain_ctrlc_queue()
-                    candidate = runner.wait(timeout=0.2)
-                    if candidate is not None:
-                        summary = candidate
-                        elapsed = time.monotonic() - start_ts
-                        break
-                msg = f"Run {session.effective_run_id} completed in {elapsed:.1f}s"
-                try:
-                    session.log_file.write(msg + "\n")
-                    session.log_file.flush()
-                    if session.ui_stream_log_file:
-                        session.ui_stream_log_file.write(msg + "\n")
-                        session.ui_stream_log_file.flush()
-                except Exception:
-                    pass
-                if ui_adapter:
-                    ui_adapter.show_info(msg)
-                elif session.dashboard:
-                    session.dashboard.add_log(msg)
-                else:
-                    print(msg)
-                if session.stop_token.should_stop():
-                    pipeline.announce_stop()
-                    self._fail_running_tasks(session.journal, reason="stopped")
-                    session.journal.save(session.journal_path)
-                    if summary is not None:
-                        failed_teardowns = [
-                            name
-                            for name, res in summary.phases.items()
-                            if name.startswith("teardown") and not res.success
-                        ]
-                        if failed_teardowns:
-                            err = (
-                                "Teardown failed ("
-                                + ", ".join(failed_teardowns)
-                                + "); remote workloads may still be running."
-                            )
-                            if ui_adapter:
-                                ui_adapter.show_error(err)
-                            elif session.dashboard:
-                                session.dashboard.add_log(f"[red]{err}[/red]")
-                                session.dashboard.refresh()
-                            else:
-                                print(err)
-                            try:
-                                session.log_file.write(err + "\n")
-                                session.log_file.flush()
-                            except Exception:
-                                pass
-                output_root = session.journal_path.parent
-                hosts = (
-                    [h.name for h in context.config.remote_hosts]
-                    if context.config.remote_hosts
-                    else ["localhost"]
+            ),
+        ):
+            runner.start()
+            while True:
+                self._drain_ctrlc_events(
+                    runner, session, signals, pipeline, ui_adapter=ui_adapter
                 )
-                if self._attach_system_info(
-                    session.journal,
-                    output_root,
-                    hosts,
-                    session.dashboard,
-                    ui_adapter,
-                    session.log_file,
-                ):
-                    session.journal.save(session.journal_path)
-                if session.dashboard:
-                    session.dashboard.refresh()
-        finally:
-            if warning_timer and warning_timer.is_alive():
-                warning_timer.cancel()
+                candidate = runner.wait(timeout=0.2)
+                if candidate is not None:
+                    summary = candidate
+                    break
+        elapsed = time.monotonic() - start_ts
+        return summary, elapsed
+
+    def _drain_ctrlc_events(
+        self,
+        runner: ControllerRunner,
+        session: _RemoteSession,
+        signals: _SignalContext,
+        pipeline: _EventPipeline,
+        ui_adapter: UIAdapter | None = None,
+    ) -> None:
+        """Process pending SIGINT events."""
+        while True:
             try:
-                session.log_file.close()
-            except Exception:
-                pass
-            if session.ui_stream_log_file:
+                kind, reason = signals.events.get_nowait()
+            except queue.Empty:
+                return
+            if kind == "warn":
+                self._log_arm_warning(session, signals, ui_adapter)
+            elif kind == "stop":
+                runner.arm_stop(reason or "User requested stop")
+                pipeline.announce_stop()
+
+    def _log_arm_warning(
+        self,
+        session: _RemoteSession,
+        signals: _SignalContext,
+        ui_adapter: UIAdapter | None,
+    ) -> None:
+        """Emit and schedule clearance for the first Ctrl+C warning."""
+        msg = "Press Ctrl+C again to stop the execution"
+        self._emit_warning(
+            msg,
+            dashboard=session.dashboard,
+            ui_adapter=ui_adapter,
+            log_file=session.log_file,
+            ui_stream_log_file=session.ui_stream_log_file,
+            ttl=10.0,
+        )
+        if signals.warning_timer and signals.warning_timer.is_alive():
+            signals.warning_timer.cancel()
+
+        def _clear_warning() -> None:
+            signals.state_machine.reset_arm()
+            if session.dashboard and hasattr(session.dashboard, "clear_warning"):
                 try:
-                    session.ui_stream_log_file.close()
+                    session.dashboard.clear_warning()
+                    session.dashboard.refresh()
                 except Exception:
                     pass
-        return summary
+
+        timer = threading.Timer(10.0, _clear_warning)
+        timer.daemon = True
+        timer.start()
+        signals.warning_timer = timer
+
+    def _handle_run_completion(
+        self,
+        summary: RunExecutionSummary | None,
+        elapsed: float,
+        context: RunContext,
+        session: _RemoteSession,
+        pipeline: _EventPipeline,
+        ui_adapter: UIAdapter | None,
+    ) -> None:
+        """Finalize run, surface results, and attach metadata."""
+        self._log_completion(elapsed, session, ui_adapter)
+        if session.stop_token.should_stop():
+            self._on_stop_requested(summary, session, pipeline, ui_adapter)
+        self._attach_and_log_system_info(context, session, ui_adapter)
+
+    def _log_completion(
+        self,
+        elapsed: float,
+        session: _RemoteSession,
+        ui_adapter: UIAdapter | None,
+    ) -> None:
+        msg = f"Run {session.effective_run_id} completed in {elapsed:.1f}s"
+        try:
+            session.log_file.write(msg + "\n")
+            session.log_file.flush()
+            if session.ui_stream_log_file:
+                session.ui_stream_log_file.write(msg + "\n")
+                session.ui_stream_log_file.flush()
+        except Exception:
+            pass
+        if ui_adapter:
+            ui_adapter.show_info(msg)
+        elif session.dashboard:
+            session.dashboard.add_log(msg)
+        else:
+            print(msg)
+
+    def _on_stop_requested(
+        self,
+        summary: RunExecutionSummary | None,
+        session: _RemoteSession,
+        pipeline: _EventPipeline,
+        ui_adapter: UIAdapter | None,
+    ) -> None:
+        """Handle teardown when a stop was requested."""
+        pipeline.announce_stop()
+        self._fail_running_tasks(session.journal, reason="stopped")
+        session.journal.save(session.journal_path)
+        if summary is None:
+            return
+        failed_teardowns = [
+            name
+            for name, res in summary.phases.items()
+            if name.startswith("teardown") and not res.success
+        ]
+        if not failed_teardowns:
+            return
+        err = (
+            "Teardown failed ("
+            + ", ".join(failed_teardowns)
+            + "); remote workloads may still be running."
+        )
+        if ui_adapter:
+            ui_adapter.show_error(err)
+        elif session.dashboard:
+            session.dashboard.add_log(f"[red]{err}[/red]")
+            session.dashboard.refresh()
+        else:
+            print(err)
+        try:
+            session.log_file.write(err + "\n")
+            session.log_file.flush()
+        except Exception:
+            pass
+
+    def _attach_and_log_system_info(
+        self,
+        context: RunContext,
+        session: _RemoteSession,
+        ui_adapter: UIAdapter | None,
+    ) -> None:
+        """Attach system info summaries to journal and UI if present."""
+        output_root = session.journal_path.parent
+        hosts = (
+            [h.name for h in context.config.remote_hosts]
+            if context.config.remote_hosts
+            else ["localhost"]
+        )
+        if self._attach_system_info(
+            session.journal,
+            output_root,
+            hosts,
+            session.dashboard,
+            ui_adapter,
+            session.log_file,
+        ):
+            session.journal.save(session.journal_path)
+        if session.dashboard:
+            session.dashboard.refresh()
+
+    @staticmethod
+    def _cleanup_signal_context(signals: _SignalContext) -> None:
+        """Ensure timers are cancelled after the run."""
+        if signals.warning_timer and signals.warning_timer.is_alive():
+            signals.warning_timer.cancel()
 
     def _on_controller_state_change(
         self,
@@ -1346,69 +1572,13 @@ class RunService:
     ) -> tuple[RunJournal, Path, DashboardHandle, str]:
         """Load or create the run journal and optional dashboard."""
         resume_requested = context.resume_from is not None or context.resume_latest
-
         if resume_requested:
-            original_remote_exec = (
-                context.config.remote_execution if context.config else None
+            journal, journal_path, run_identifier = self._load_resume_journal(
+                context, run_id
             )
-            if context.resume_latest:
-                journal_path = self._find_latest_journal(context.config)
-                if journal_path is None:
-                    raise ValueError("No previous run found to resume.")
-            else:
-                journal_path = (
-                    context.config.output_dir / context.resume_from / "run_journal.json"
-                )
-            journal = RunJournal.load(journal_path)
-            rehydrated = journal.rehydrate_config()
-            # If the provided config does not match, prefer the journal's copy for resume.
-            meta_hash = (journal.metadata or {}).get("config_hash")
-            cfg_hash = _hash_config(context.config)
-            if meta_hash and meta_hash != cfg_hash and rehydrated is not None:
-                context.config = rehydrated
-            elif context.config is None and rehydrated is not None:
-                context.config = rehydrated
-            # Preserve explicit remote execution overrides from the caller.
-            if original_remote_exec and context.config:
-                context.config.remote_execution.run_setup = (
-                    original_remote_exec.run_setup
-                )
-                context.config.remote_execution.run_teardown = (
-                    original_remote_exec.run_teardown
-                )
-                context.config.remote_execution.run_collect = (
-                    original_remote_exec.run_collect
-                )
-            # Ensure new hosts/workloads are represented in the journal for resume.
-            hosts = (
-                context.config.remote_hosts
-                if getattr(context.config, "remote_hosts", None)
-                else [SimpleNamespace(name="localhost")]
-            )
-            for test_name in context.target_tests:
-                if test_name not in context.config.workloads:
-                    continue
-                for host in hosts:
-                    for rep in range(1, context.config.repetitions + 1):
-                        if journal.get_task(host.name, test_name, rep):
-                            continue
-                        journal.add_task(
-                            TaskState(
-                                host=host.name, workload=test_name, repetition=rep
-                            )
-                        )
-            if run_id and run_id != journal.run_id:
-                raise ValueError(
-                    f"Run ID mismatch: resume journal={journal.run_id}, cli={run_id}"
-                )
-            run_identifier = journal.run_id
         else:
-            run_identifier = run_id or self._generate_run_id()
-            journal_path = (
-                context.config.output_dir / run_identifier / "run_journal.json"
-            )
-            journal = RunJournal.initialize(
-                run_identifier, context.config, context.target_tests
+            journal, journal_path, run_identifier = self._initialize_new_journal(
+                context, run_id
             )
 
         # Persist the initial state so resume is possible even if execution aborts early
@@ -1419,19 +1589,104 @@ class RunService:
         if context.stop_file is None:
             context.stop_file = journal_path.parent / "STOP"
 
-        dashboard: DashboardHandle
-        if ui_adapter:
-            plan = self.get_run_plan(
-                context.config,
-                context.target_tests,
-                execution_mode=context.execution_mode,
-                registry=context.registry,
-            )
-            dashboard = ui_adapter.create_dashboard(plan, journal, ui_stream_log_file)
-        else:
-            dashboard = NoOpDashboardHandle()
+        dashboard = self._create_dashboard(
+            context, ui_adapter, journal, ui_stream_log_file
+        )
 
         return journal, journal_path, dashboard, run_identifier
+
+    def _load_resume_journal(
+        self, context: RunContext, run_id: Optional[str]
+    ) -> tuple[RunJournal, Path, str]:
+        """Load an existing journal and reconcile configuration for resume."""
+        journal_path = self._resolve_resume_path(context)
+        journal = RunJournal.load(journal_path)
+        self._rehydrate_resume_config(context, journal)
+        self._ensure_resume_tasks(context, journal)
+        if run_id and run_id != journal.run_id:
+            raise ValueError(
+                f"Run ID mismatch: resume journal={journal.run_id}, cli={run_id}"
+            )
+        return journal, journal_path, journal.run_id
+
+    def _resolve_resume_path(self, context: RunContext) -> Path:
+        """Locate the correct journal path for resume."""
+        if context.resume_latest:
+            journal_path = self._find_latest_journal(context.config)
+            if journal_path is None:
+                raise ValueError("No previous run found to resume.")
+            return journal_path
+        return context.config.output_dir / context.resume_from / "run_journal.json"
+
+    def _rehydrate_resume_config(
+        self, context: RunContext, journal: RunJournal
+    ) -> None:
+        """Restore config from journal when resuming, preserving explicit overrides."""
+        original_remote_exec = (
+            context.config.remote_execution if context.config else None
+        )
+        rehydrated = journal.rehydrate_config()
+        meta_hash = (journal.metadata or {}).get("config_hash")
+        cfg_hash = _hash_config(context.config)
+        if meta_hash and meta_hash != cfg_hash and rehydrated is not None:
+            context.config = rehydrated
+        elif context.config is None and rehydrated is not None:
+            context.config = rehydrated
+        if original_remote_exec and context.config:
+            context.config.remote_execution.run_setup = original_remote_exec.run_setup
+            context.config.remote_execution.run_teardown = (
+                original_remote_exec.run_teardown
+            )
+            context.config.remote_execution.run_collect = (
+                original_remote_exec.run_collect
+            )
+
+    def _ensure_resume_tasks(self, context: RunContext, journal: RunJournal) -> None:
+        """Add any missing tasks to the resume journal for new hosts/workloads."""
+        hosts = (
+            context.config.remote_hosts
+            if getattr(context.config, "remote_hosts", None)
+            else [SimpleNamespace(name="localhost")]
+        )
+        for test_name in context.target_tests:
+            if test_name not in context.config.workloads:
+                continue
+            for host in hosts:
+                for rep in range(1, context.config.repetitions + 1):
+                    if journal.get_task(host.name, test_name, rep):
+                        continue
+                    journal.add_task(
+                        TaskState(host=host.name, workload=test_name, repetition=rep)
+                    )
+
+    def _initialize_new_journal(
+        self, context: RunContext, run_id: Optional[str]
+    ) -> tuple[RunJournal, Path, str]:
+        """Create a fresh journal for a new run."""
+        run_identifier = run_id or self._generate_run_id()
+        journal_path = context.config.output_dir / run_identifier / "run_journal.json"
+        journal = RunJournal.initialize(
+            run_identifier, context.config, context.target_tests
+        )
+        return journal, journal_path, run_identifier
+
+    def _create_dashboard(
+        self,
+        context: RunContext,
+        ui_adapter: UIAdapter | None,
+        journal: RunJournal,
+        ui_stream_log_file: IO[str] | None,
+    ) -> DashboardHandle:
+        """Build a dashboard handle or a no-op substitute."""
+        if not ui_adapter:
+            return NoOpDashboardHandle()
+        plan = self.get_run_plan(
+            context.config,
+            context.target_tests,
+            execution_mode=context.execution_mode,
+            registry=context.registry,
+        )
+        return ui_adapter.create_dashboard(plan, journal, ui_stream_log_file)
 
     def _build_journal_from_results(
         self,
@@ -1445,57 +1700,94 @@ class RunService:
         journal = RunJournal.initialize(run_id, context.config, context.target_tests)
         output_root = context.config.output_dir / run_id
         for test_name in context.target_tests:
-            workload_dir = workload_output_dir(output_root, test_name)
-            candidates = [
-                workload_dir / f"{test_name}_results.json",
-                output_root / f"{test_name}_results.json",
-            ]
-            results_file = next((path for path in candidates if path.exists()), None)
-            if results_file is None:
+            results_file = self._find_results_file(output_root, test_name)
+            if not results_file:
                 continue
-            try:
-                entries = json.loads(results_file.read_text())
-            except Exception:
-                continue
-            for entry in entries or []:
-                rep = entry.get("repetition")
-                if rep is None:
-                    continue
-                task = journal.get_task(host_name, test_name, rep)
-                if not task:
-                    continue
-                start_str = entry.get("start_time")
-                end_str = entry.get("end_time")
-                if start_str:
-                    task.started_at = datetime.fromisoformat(start_str).timestamp()
-                if end_str:
-                    task.finished_at = datetime.fromisoformat(end_str).timestamp()
-                duration = entry.get("duration_seconds")
-                if duration is not None:
-                    task.duration_seconds = float(duration)
-                elif task.started_at is not None and task.finished_at is not None:
-                    task.duration_seconds = max(0.0, task.finished_at - task.started_at)
-                gen_result = entry.get("generator_result") or {}
-                gen_error = gen_result.get("error")
-                gen_rc = gen_result.get("returncode")
-                if gen_error or (gen_rc not in (None, 0)):
-                    journal.update_task(
-                        host_name,
-                        test_name,
-                        rep,
-                        RunStatus.FAILED,
-                        action="container_run",
-                        error=gen_error or f"returncode={gen_rc}",
-                    )
-                else:
-                    journal.update_task(
-                        host_name,
-                        test_name,
-                        rep,
-                        RunStatus.COMPLETED,
-                        action="container_run",
-                    )
+            entries = self._load_results_entries(results_file)
+            for entry in entries:
+                self._apply_result_entry(journal, host_name, test_name, entry)
         return journal
+
+    @staticmethod
+    def _find_results_file(output_root: Path, test_name: str) -> Path | None:
+        """Locate results JSON for a given workload."""
+        workload_dir = workload_output_dir(output_root, test_name)
+        candidates = [
+            workload_dir / f"{test_name}_results.json",
+            output_root / f"{test_name}_results.json",
+        ]
+        return next((path for path in candidates if path.exists()), None)
+
+    @staticmethod
+    def _load_results_entries(path: Path) -> list[dict[str, Any]]:
+        """Load result entries from disk, tolerating errors."""
+        try:
+            loaded = json.loads(path.read_text())
+            return loaded or []
+        except Exception:
+            return []
+
+    def _apply_result_entry(
+        self,
+        journal: RunJournal,
+        host_name: str,
+        test_name: str,
+        entry: dict[str, Any],
+    ) -> None:
+        """Update journal tasks from a single results entry."""
+        rep = entry.get("repetition")
+        if rep is None:
+            return
+        task = journal.get_task(host_name, test_name, rep)
+        if not task:
+            return
+        self._populate_task_times(task, entry)
+        self._update_task_status_from_result(journal, host_name, test_name, rep, entry)
+
+    @staticmethod
+    def _populate_task_times(task: TaskState, entry: dict[str, Any]) -> None:
+        """Fill in start/end/duration fields from results."""
+        start_str = entry.get("start_time")
+        end_str = entry.get("end_time")
+        if start_str:
+            task.started_at = datetime.fromisoformat(start_str).timestamp()
+        if end_str:
+            task.finished_at = datetime.fromisoformat(end_str).timestamp()
+        duration = entry.get("duration_seconds")
+        if duration is not None:
+            task.duration_seconds = float(duration)
+        elif task.started_at is not None and task.finished_at is not None:
+            task.duration_seconds = max(0.0, task.finished_at - task.started_at)
+
+    def _update_task_status_from_result(
+        self,
+        journal: RunJournal,
+        host_name: str,
+        test_name: str,
+        rep: int,
+        entry: dict[str, Any],
+    ) -> None:
+        """Set task status based on generator result fields."""
+        gen_result = entry.get("generator_result") or {}
+        gen_error = gen_result.get("error")
+        gen_rc = gen_result.get("returncode")
+        if gen_error or (gen_rc not in (None, 0)):
+            journal.update_task(
+                host_name,
+                test_name,
+                rep,
+                RunStatus.FAILED,
+                action="container_run",
+                error=gen_error or f"returncode={gen_rc}",
+            )
+            return
+        journal.update_task(
+            host_name,
+            test_name,
+            rep,
+            RunStatus.COMPLETED,
+            action="container_run",
+        )
 
     @staticmethod
     def _find_latest_journal(config: BenchmarkConfig) -> Path | None:
@@ -1558,20 +1850,36 @@ class RunService:
 
     def _summarize_system_info(self, path: Path) -> str | None:
         """Return a one-line summary for a system_info.json file."""
+        data = self._load_json(path)
+        if not isinstance(data, dict):
+            return None
+        os_part = self._format_os_summary(data)
+        cpu_part = self._format_cpu_summary(data)
+        mem_part = self._format_memory_summary(data)
+        disk_part = self._format_disk_summary(data)
+        parts = [os_part, cpu_part, mem_part, disk_part]
+        parts = [part for part in parts if part]
+        return " | ".join(parts) if parts else None
+
+    @staticmethod
+    def _load_json(path: Path) -> Any:
         try:
-            data = json.loads(path.read_text())
+            return json.loads(path.read_text())
         except Exception:
             return None
+
+    @staticmethod
+    def _format_os_summary(data: dict[str, Any]) -> str:
         os_info = data.get("os", {}) if isinstance(data, dict) else {}
         kernel = data.get("kernel", {}) if isinstance(data, dict) else {}
-        cpu = data.get("cpu", {}) if isinstance(data, dict) else {}
-        mem = data.get("memory", {}) if isinstance(data, dict) else {}
-        disks = data.get("disks", []) if isinstance(data, dict) else []
-
         os_name = os_info.get("name") or os_info.get("id") or "Unknown OS"
         os_ver = os_info.get("version") or os_info.get("version_id") or ""
         kernel_rel = kernel.get("release") or kernel.get("version") or "kernel ?"
+        return f"OS: {os_name} {os_ver}".strip() + f" | Kernel: {kernel_rel}"
 
+    @staticmethod
+    def _format_cpu_summary(data: dict[str, Any]) -> str:
+        cpu = data.get("cpu", {}) if isinstance(data, dict) else {}
         model = (
             cpu.get("model_name")
             or cpu.get("model")
@@ -1581,38 +1889,37 @@ class RunService:
         )
         phys = cpu.get("physical_cpus") or cpu.get("cpu_cores") or "?"
         logi = cpu.get("logical_cpus") or cpu.get("cpus") or "?"
+        return f"CPU: {model or '?'} ({phys}c/{logi}t)"
 
-        def _to_gib(val: Any) -> str:
-            try:
-                return f"{int(val) / (1024**3):.1f}G"
-            except Exception:
-                return "?"
-
+    def _format_memory_summary(self, data: dict[str, Any]) -> str:
+        mem = data.get("memory", {}) if isinstance(data, dict) else {}
         ram_total = (
             mem.get("total_bytes") or mem.get("memtotal") or mem.get("memtotal:")
         )
-        ram_str = _to_gib(ram_total) if ram_total is not None else "?"
+        ram_str = self._to_gib(ram_total) if ram_total is not None else "?"
+        return f"RAM: {ram_str}"
 
-        disk_summary = ""
-        if isinstance(disks, list) and disks:
-            first = disks[0]
-            if isinstance(first, dict):
-                name = first.get("name") or "disk"
-                size = first.get("size_bytes") or first.get("size") or ""
-                rota = first.get("rotational")
-                kind = "SSD" if rota is False else "HDD" if rota is True else "disk"
-                size_str = _to_gib(size) if size else ""
-                disk_summary = f"{name} {kind} {size_str}".strip()
+    def _format_disk_summary(self, data: dict[str, Any]) -> str | None:
+        disks = data.get("disks", []) if isinstance(data, dict) else []
+        if not isinstance(disks, list) or not disks:
+            return None
+        first = disks[0]
+        if not isinstance(first, dict):
+            return None
+        name = first.get("name") or "disk"
+        size = first.get("size_bytes") or first.get("size") or ""
+        rota = first.get("rotational")
+        kind = "SSD" if rota is False else "HDD" if rota is True else "disk"
+        size_str = self._to_gib(size) if size else ""
+        disk_summary = f"{name} {kind} {size_str}".strip()
+        return f"Disk: {disk_summary}" if disk_summary else None
 
-        parts = [
-            f"OS: {os_name} {os_ver}".strip(),
-            f"Kernel: {kernel_rel}",
-            f"CPU: {model or '?'} ({phys}c/{logi}t)",
-            f"RAM: {ram_str}",
-        ]
-        if disk_summary:
-            parts.append(f"Disk: {disk_summary}")
-        return " | ".join(parts)
+    @staticmethod
+    def _to_gib(val: Any) -> str:
+        try:
+            return f"{int(val) / (1024**3):.1f}G"
+        except Exception:
+            return "?"
 
     def _attach_system_info(
         self,
@@ -1624,19 +1931,41 @@ class RunService:
         log_file: IO[str] | None = None,
     ) -> bool:
         """Load system info summaries and surface them in metadata/logs. Returns True if any summary was added."""
+        summaries = self._collect_system_info(hosts, base_dir, journal)
+        if not summaries:
+            return False
+        self._log_system_info(summaries, dashboard, ui_adapter, log_file)
+        return True
+
+    def _collect_system_info(
+        self, hosts: list[str], base_dir: Path, journal: RunJournal
+    ) -> dict[str, str]:
+        """Gather system info summaries for each host and update journal metadata."""
         summaries: dict[str, str] = {}
         for host in hosts:
-            summary = None
-            for candidate in self._system_info_candidates(base_dir, host):
-                if candidate.exists():
-                    summary = self._summarize_system_info(candidate)
-                    if summary:
-                        break
+            summary = self._find_system_summary(base_dir, host)
             if summary:
                 summaries[host] = summary
                 journal.metadata.setdefault("system_info", {})[host] = summary
-        if not summaries:
-            return False
+        return summaries
+
+    def _find_system_summary(self, base_dir: Path, host: str) -> str | None:
+        """Return the first available system info summary for a host."""
+        for candidate in self._system_info_candidates(base_dir, host):
+            if candidate.exists():
+                summary = self._summarize_system_info(candidate)
+                if summary:
+                    return summary
+        return None
+
+    @staticmethod
+    def _log_system_info(
+        summaries: dict[str, str],
+        dashboard: DashboardHandle | None,
+        ui_adapter: UIAdapter | None,
+        log_file: IO[str] | None,
+    ) -> None:
+        """Emit system info summaries to available sinks."""
         for host, summary in summaries.items():
             line = f"{host}: {summary}"
             if dashboard:
@@ -1653,4 +1982,3 @@ class RunService:
                     log_file.flush()
                 except Exception:
                     pass
-        return True
