@@ -63,6 +63,7 @@ USER_PLUGIN_DIR = resolve_user_plugin_dir()
 @dataclass
 class CollectorPlugin:
     """Metadata and factory for a metric collector plugin."""
+
     name: str
     description: str
     factory: Callable[[BenchmarkConfig], BaseCollector]
@@ -112,18 +113,18 @@ class PluginRegistry:
         self, plugin_name: str, options: Optional[Dict[str, Any]] = None
     ) -> BaseGenerator:
         plugin = self.get(plugin_name)
-        
+
         # New style: we need to handle config instantiation here or in the plugin
         # The interface says `create_generator(config: Any)`.
         # We need to convert dict -> config_obj.
-        
+
         if options is None:
             options = {}
-            
+
         # If options is already the config object, pass it
         if isinstance(options, plugin.config_cls):
             return plugin.create_generator(options)
-            
+
         # Otherwise instantiate from dict
         config_obj = plugin.config_cls(**options)
         return plugin.create_generator(config_obj)
@@ -149,7 +150,7 @@ class PluginRegistry:
         if load_entrypoints:
             self._load_pending_entrypoints()
         return dict(self._workloads)
-    
+
     def available_collectors(self) -> Dict[str, CollectorPlugin]:
         return dict(self._collectors)
 
@@ -184,100 +185,124 @@ class PluginRegistry:
                 exc,
             )
         except Exception as exc:
-            logger.warning(f"Failed to load plugin entry point {entry_point.name}: {exc}")
+            logger.warning(
+                f"Failed to load plugin entry point {entry_point.name}: {exc}"
+            )
 
     def _load_user_plugins(self) -> None:
         """Load python plugins from user plugin directories."""
 
-        def _load_from_dir(root: Path) -> None:
-            if not root.exists():
-                return
-
-            # 1. Load individual .py files (legacy/simple mode)
-            for path in root.glob("*.py"):
-                if path.name.startswith("_"):
-                    continue
-                self._load_plugin_from_path(path)
-
-            # 2. Load plugins from subdirectories (complex mode with assets)
-            for path in root.iterdir():
-                if path.is_dir() and not path.name.startswith("_"):
-                    target = None
-
-                    # A. Try resolving via pyproject.toml
-                    toml_file = path / "pyproject.toml"
-                    if toml_file.exists():
-                        target = self._resolve_entry_point_from_toml(path, toml_file)
-                        if target:
-                            logger.debug(f"Resolved plugin via pyproject.toml: {target}")
-
-                    # B. Fallback to heuristic scanning if TOML didn't yield a result
-                    if not target:
-                        candidates = [
-                            path / "__init__.py",
-                            path / "plugin.py",
-                            path / f"{path.name}.py",
-                        ]
-                        # Also check immediate subdirectories for package structures
-                        for sub in path.iterdir():
-                            if sub.is_dir() and not sub.name.startswith((".", "_", "tests")):
-                                candidates.append(sub / "plugin.py")
-                                candidates.append(sub / "__init__.py")
-
-                        for candidate in candidates:
-                            if candidate.exists():
-                                target = candidate
-                                break
-
-                    if target:
-                        # Use the parent folder name as module name if inside a subdir
-                        module_name = path.name if target.parent == path else target.parent.name
-                        self._load_plugin_from_path(target, module_name=module_name)
-                    else:
-                        logger.debug(
-                            "Skipping user plugin dir %s: No suitable python entry point found.",
-                            path,
-                        )
-
         primary_dir = resolve_user_plugin_dir()
+        if self._should_load_legacy(primary_dir):
+            self._load_plugins_from_dir(LEGACY_USER_PLUGIN_DIR)
+        self._load_plugins_from_dir(primary_dir)
 
-        # Backward-compatible load from legacy location.
-        #
-        # When `LB_USER_PLUGIN_DIR` is explicitly set, treat it as authoritative and
-        # do not also load the legacy directory (avoids duplicate/override surprises).
-        if not os.environ.get("LB_USER_PLUGIN_DIR") and LEGACY_USER_PLUGIN_DIR != primary_dir:
-            _load_from_dir(LEGACY_USER_PLUGIN_DIR)
+    @staticmethod
+    def _should_load_legacy(primary_dir: Path) -> bool:
+        """Return True if legacy directory should also be scanned."""
+        return (
+            not os.environ.get("LB_USER_PLUGIN_DIR")
+            and LEGACY_USER_PLUGIN_DIR != primary_dir
+        )
 
-        # Primary directory (portable with runner) or env override.
-        _load_from_dir(primary_dir)
+    def _load_plugins_from_dir(self, root: Path) -> None:
+        """Load plugins from a directory if it exists."""
+        if not root.exists():
+            return
+        self._load_python_files(root)
+        for path in self._iter_plugin_dirs(root):
+            target = self._resolve_target_from_dir(path)
+            if target:
+                module_name = path.name if target.parent == path else target.parent.name
+                self._load_plugin_from_path(target, module_name=module_name)
+            else:
+                logger.debug(
+                    "Skipping user plugin dir %s: No suitable python entry point found.",
+                    path,
+                )
 
-    def _resolve_entry_point_from_toml(self, root: Path, toml_path: Path) -> Optional[Path]:
+    def _load_python_files(self, root: Path) -> None:
+        """Load top-level python modules that export PLUGIN/PLUGINS."""
+        for path in root.glob("*.py"):
+            if path.name.startswith("_"):
+                continue
+            self._load_plugin_from_path(path)
+
+    @staticmethod
+    def _iter_plugin_dirs(root: Path) -> Iterable[Path]:
+        """Yield plugin directory candidates under root."""
+        return (
+            path
+            for path in root.iterdir()
+            if path.is_dir() and not path.name.startswith("_")
+        )
+
+    def _resolve_target_from_dir(self, path: Path) -> Optional[Path]:
+        """Resolve a plugin entry point within a plugin directory."""
+        toml_file = path / "pyproject.toml"
+        if toml_file.exists():
+            target = self._resolve_entry_point_from_toml(path, toml_file)
+            if target:
+                logger.debug(f"Resolved plugin via pyproject.toml: {target}")
+                return target
+        for candidate in self._candidate_entrypoints(path):
+            if candidate.exists():
+                return candidate
+        return None
+
+    @staticmethod
+    def _candidate_entrypoints(path: Path) -> Iterable[Path]:
+        """Return likely plugin module paths in a plugin directory."""
+        candidates = [
+            path / "__init__.py",
+            path / "plugin.py",
+            path / f"{path.name}.py",
+        ]
+        for sub in path.iterdir():
+            if sub.is_dir() and not sub.name.startswith((".", "_", "tests")):
+                candidates.append(sub / "plugin.py")
+                candidates.append(sub / "__init__.py")
+        return candidates
+
+    def _resolve_entry_point_from_toml(
+        self, root: Path, toml_path: Path
+    ) -> Optional[Path]:
         """Parse pyproject.toml to guess the package location."""
         try:
             with open(toml_path, "rb") as f:
                 data = tomllib.load(f)
-            
+
             project = data.get("project", {})
             name = project.get("name")
             if name:
                 # Standardize name: my-plugin -> my_plugin
                 pkg_name = name.replace("-", "_")
-                
+
                 # Check for src/pkg_name layout
                 src_pkg = root / "src" / pkg_name
                 if src_pkg.exists():
-                     return src_pkg / "plugin.py" if (src_pkg / "plugin.py").exists() else src_pkg / "__init__.py"
-                
+                    return (
+                        src_pkg / "plugin.py"
+                        if (src_pkg / "plugin.py").exists()
+                        else src_pkg / "__init__.py"
+                    )
+
                 # Check for root pkg_name layout
                 root_pkg = root / pkg_name
                 if root_pkg.exists():
-                     return root_pkg / "plugin.py" if (root_pkg / "plugin.py").exists() else root_pkg / "__init__.py"
+                    return (
+                        root_pkg / "plugin.py"
+                        if (root_pkg / "plugin.py").exists()
+                        else root_pkg / "__init__.py"
+                    )
 
         except Exception as e:
             logger.warning(f"Failed to parse {toml_path}: {e}")
         return None
 
-    def _load_plugin_from_path(self, path: Path, module_name: Optional[str] = None) -> None:
+    def _load_plugin_from_path(
+        self, path: Path, module_name: Optional[str] = None
+    ) -> None:
         try:
             name = module_name or path.stem
             spec = importlib.util.spec_from_file_location(name, path)
@@ -287,8 +312,8 @@ class PluginRegistry:
                 try:
                     spec.loader.exec_module(module)
                 except Exception as e:
-                     logger.error(f"Error executing module {path}: {e}")
-                     return
+                    logger.error(f"Error executing module {path}: {e}")
+                    return
 
                 self._register_from_module(module, source=str(path))
         except Exception as e:
@@ -297,16 +322,24 @@ class PluginRegistry:
     def _register_from_module(self, module: Any, source: str) -> None:
         """Register PLUGIN / PLUGINS / get_plugins() exports from a python module."""
         try:
-            if hasattr(module, "get_plugins") and callable(getattr(module, "get_plugins")):
+            if hasattr(module, "get_plugins") and callable(
+                getattr(module, "get_plugins")
+            ):
                 discovered = module.get_plugins()
-                candidates = discovered if isinstance(discovered, list) else [discovered]
+                candidates = (
+                    discovered if isinstance(discovered, list) else [discovered]
+                )
             elif hasattr(module, "PLUGINS"):
                 discovered = getattr(module, "PLUGINS")
-                candidates = discovered if isinstance(discovered, list) else [discovered]
+                candidates = (
+                    discovered if isinstance(discovered, list) else [discovered]
+                )
             elif hasattr(module, "PLUGIN"):
                 candidates = [getattr(module, "PLUGIN")]
             else:
-                logger.debug("Skipping %s: no PLUGIN/PLUGINS/get_plugins exports found", source)
+                logger.debug(
+                    "Skipping %s: no PLUGIN/PLUGINS/get_plugins exports found", source
+                )
                 return
 
             registered = 0
