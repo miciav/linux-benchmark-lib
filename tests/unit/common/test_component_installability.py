@@ -40,8 +40,9 @@ def test_controller_is_importable_even_without_extra_optional_packages():
     The controller component should import cleanly without requiring optional extras.
     """
     import lb_controller  # noqa: F401
-    assert hasattr(lb_controller, "RunService")
     assert hasattr(lb_controller, "BenchmarkController")
+    assert hasattr(lb_controller, "ConfigService")
+    assert not hasattr(lb_controller, "RunService")
 
 
 def test_pyproject_lists_component_cli_scripts():

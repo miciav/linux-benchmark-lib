@@ -3,12 +3,12 @@ Service for managing and configuring test scenarios, specifically for Multipass 
 """
 
 import os
+import sys
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from .config_service import ConfigService
-from lb_controller.ui_interfaces import UIAdapter, NoOpUIAdapter
-from lb_ui.ui import prompts as tui_prompts
+from lb_controller.api import ConfigService
+from lb_app.ui_interfaces import UIAdapter, NoOpUIAdapter
 
 
 @dataclass
@@ -90,10 +90,9 @@ class TestService:
 
         options = list(dict.fromkeys(workload_names + ["multi"]))
 
-        if force_interactive or tui_prompts._check_tty():
+        interactive = force_interactive or (sys.stdin.isatty() and sys.stdout.isatty())
+        if interactive:
             choice = self.ui.prompt_multipass_scenario(options, default_level)
-            if choice is None:
-                choice = tui_prompts.prompt_multipass(options, ui_adapter=self.ui, default_level=default_level)
             if choice is not None:
                 return choice
 

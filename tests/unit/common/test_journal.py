@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
-from lb_controller.journal import RunJournal, RunStatus
+from lb_controller.api import RunJournal, RunStatus
 
 pytestmark = pytest.mark.controller
 

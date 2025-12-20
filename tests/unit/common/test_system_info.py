@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import lb_runner.system_info as sysinfo
-from lb_controller.services.run_service import RunService
+from lb_app.services.run_system_info import summarize_system_info
 
 pytestmark = [pytest.mark.runner]
 
@@ -80,9 +80,7 @@ def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
     csv_data = csv_path.read_text()
     assert "category,name,value" in csv_data.splitlines()[0]
 
-    # Summarize via RunService helper to ensure UI-friendly line
-    svc = RunService(registry_factory=lambda: None)
-    summary = svc._summarize_system_info(json_path)
+    summary = summarize_system_info(json_path)
     assert summary is not None
     assert "TestOS" in summary
     assert "CPU" in summary

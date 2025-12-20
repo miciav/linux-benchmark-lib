@@ -1,30 +1,75 @@
-"""Controller facade for orchestration components.
+"""Controller facade for orchestration components."""
 
-Re-exports controller-facing types to decouple orchestration from runner
-and UI without changing behavior yet.
-"""
+from lb_common import configure_logging as _configure_logging
 
-from lb_controller.ansible_executor import AnsibleRunnerExecutor
-from lb_controller.controller import BenchmarkController
-from lb_controller.journal import LogSink, RunJournal, RunStatus
-from lb_controller.services.plugin_service import create_registry
-from lb_controller.services.run_service import RunService
-from lb_controller.services.setup_service import SetupService
-from lb_controller.types import ExecutionResult, InventorySpec, RunExecutionSummary
-from lb_runner.events import RunEvent, StdoutEmitter
+_configure_logging()
+
+from lb_controller.api import (
+    AnsibleRunnerExecutor,
+    BenchmarkConfig,
+    BenchmarkController,
+    ConfigService,
+    ControllerRunner,
+    ControllerState,
+    ControllerStateMachine,
+    DoubleCtrlCStateMachine,
+    ExecutionResult,
+    InventorySpec,
+    LogSink,
+    pending_exists,
+    PluginInstaller,
+    PluginRegistry,
+    RemoteExecutor,
+    RemoteExecutionConfig,
+    RemoteHostConfig,
+    RunInterruptState,
+    RunCatalogService,
+    RunEvent,
+    RunExecutionSummary,
+    RunInfo,
+    RunJournal,
+    RunStatus,
+    SigintDecision,
+    SetupService,
+    SigintDoublePressHandler,
+    StdoutEmitter,
+    TaskState,
+    WorkloadConfig,
+    build_plugin_table,
+    create_registry,
+)
 
 __all__ = [
     "AnsibleRunnerExecutor",
+    "BenchmarkConfig",
     "BenchmarkController",
+    "ConfigService",
+    "ControllerRunner",
+    "ControllerState",
+    "ControllerStateMachine",
+    "DoubleCtrlCStateMachine",
     "ExecutionResult",
     "InventorySpec",
+    "LogSink",
+    "pending_exists",
+    "PluginInstaller",
+    "PluginRegistry",
+    "RemoteExecutor",
+    "RemoteExecutionConfig",
+    "RemoteHostConfig",
+    "RunInterruptState",
+    "RunCatalogService",
     "RunExecutionSummary",
+    "RunInfo",
     "RunJournal",
-    "RunService",
     "RunStatus",
+    "SigintDecision",
     "SetupService",
+    "SigintDoublePressHandler",
     "RunEvent",
     "StdoutEmitter",
-    "LogSink",
+    "TaskState",
+    "WorkloadConfig",
+    "build_plugin_table",
     "create_registry",
 ]

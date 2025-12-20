@@ -6,7 +6,7 @@ from unittest.mock import Mock, call, patch, ANY
 
 import pytest
 
-from lb_controller.interrupts import (
+from lb_controller.api import (
     DoubleCtrlCStateMachine,
     RunInterruptState,
     SigintDecision,

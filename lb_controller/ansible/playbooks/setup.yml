@@ -81,7 +81,7 @@
       loop:
         - lb_runner
         - lb_controller
-        - lb_ui
+        - lb_common
         - pyproject.toml
         - uv.lock
 

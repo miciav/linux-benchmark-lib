@@ -5,8 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lb_controller.services.test_service import TestService
-from lb_ui.ui import prompts as tui_prompts
+from lb_app.services.test_service import TestService
 
 pytestmark = [pytest.mark.ui, pytest.mark.ui]
 
@@ -20,26 +19,8 @@ def test_select_multipass_interactive(monkeypatch):
     mock_stdout.isatty.return_value = True
     monkeypatch.setattr(sys, "stdout", mock_stdout)
 
-    class DummyPrompt:
-        def __init__(self, value):
-            self._value = value
-
-        def execute(self):
-            return self._value
-
-
-    class DummyInquirer:
-        def checkbox(self, **_kwargs):
-            return DummyPrompt(["fio"])
-
-        def select(self, **_kwargs):
-            return DummyPrompt("high")
-
-    monkeypatch.setattr(tui_prompts, "_check_tty", lambda: True)
-    monkeypatch.setattr(tui_prompts, "_load_inquirer", lambda: DummyInquirer())
-
     with patch(
-        "lb_controller.services.test_service.ConfigService"
+        "lb_app.services.test_service.ConfigService"
     ) as mock_cfg_cls:
         mock_cfg = mock_cfg_cls.return_value
         mock_cfg.create_default_config.return_value.workloads = {
@@ -67,7 +48,7 @@ def test_select_multipass_non_interactive(monkeypatch):
     mock_stdout.isatty.return_value = True
     monkeypatch.setattr(sys, "stdout", mock_stdout)
 
-    with patch("lb_controller.services.test_service.ConfigService") as mock_cfg_cls:
+    with patch("lb_app.services.test_service.ConfigService") as mock_cfg_cls:
         mock_cfg = mock_cfg_cls.return_value
         mock_cfg.create_default_config.return_value.workloads = {"stress_ng": {}}
 
@@ -81,29 +62,23 @@ def test_select_multipass_non_interactive(monkeypatch):
         assert level == "low"
 
 
-def test_prompt_multipass_without_inquirer(monkeypatch):
-    """Fallback to defaults when InquirerPy is missing."""
+def test_select_multipass_prompt_none(monkeypatch):
+    """Fallback to defaults when the UI returns no selection."""
+    mock_stdin = MagicMock()
+    mock_stdin.isatty.return_value = True
+    monkeypatch.setattr(sys, "stdin", mock_stdin)
+    mock_stdout = MagicMock()
+    mock_stdout.isatty.return_value = True
+    monkeypatch.setattr(sys, "stdout", mock_stdout)
 
-    class DummyUI:
-        def __init__(self):
-            self.warning = None
+    with patch("lb_app.services.test_service.ConfigService") as mock_cfg_cls:
+        mock_cfg = mock_cfg_cls.return_value
+        mock_cfg.create_default_config.return_value.workloads = {"stress_ng": {}, "fio": {}}
 
-        def show_table(self, *_args, **_kwargs):
-            return None
+        service = TestService()
+        service.ui = MagicMock()
+        service.ui.prompt_multipass_scenario.return_value = None
 
-        def show_warning(self, message: str):
-            self.warning = message
-
-    ui = DummyUI()
-    monkeypatch.setattr(tui_prompts, "_check_tty", lambda: True)
-    monkeypatch.setattr(tui_prompts, "_load_inquirer", lambda: None)
-    
-    scenario, level = tui_prompts.prompt_multipass(
-        ["stress_ng", "dd"],
-        ui_adapter=ui,
-        default_level="high",
-    )
-
-    assert scenario == "stress_ng"
-    assert level == "high"
-    assert ui.warning and "InquirerPy" in ui.warning
+        scenario, level = service.select_multipass(False, default_level="high")
+        assert scenario == "stress_ng"
+        assert level == "high"

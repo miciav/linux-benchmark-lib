@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, Optional
 
-from lb_controller.services.test_service import TestService
+from lb_app.services.test_service import TestService
 
 
 def get_intensity() -> dict:

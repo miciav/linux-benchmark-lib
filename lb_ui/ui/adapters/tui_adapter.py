@@ -3,12 +3,12 @@ from contextlib import contextmanager, AbstractContextManager
 import threading
 import queue
 
-from lb_controller.ui_interfaces import UIAdapter, DashboardHandle, ProgressHandle
+from lb_app.ui_interfaces import UIAdapter, DashboardHandle, ProgressHandle
 from lb_ui.ui.system.protocols import UI
 from lb_ui.ui.system.models import TableModel, PickItem
 
 class TUIAdapter(UIAdapter):
-    """Adapts the new UI Facade to the old UIAdapter protocol for Controller compatibility."""
+    """Adapts the UI facade to the app-level UIAdapter protocol."""
 
     def __init__(self, tui: UI):
         self.tui = tui

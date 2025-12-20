@@ -1,0 +1,31 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203, W503
+
+banned-modules =
+    lb_controller.ansible = Use lb_controller.api instead.
+    lb_controller.ansible.* = Use lb_controller.api instead.
+    lb_controller.ansible_executor = Use lb_controller.api instead.
+    lb_controller.controller = Use lb_controller.api instead.
+    lb_controller.controller_playbooks = Use lb_controller.api instead.
+    lb_controller.controller_runner = Use lb_controller.api instead.
+    lb_controller.controller_state = Use lb_controller.api instead.
+    lb_controller.controller_stop = Use lb_controller.api instead.
+    lb_controller.contracts = Use lb_controller.api instead.
+    lb_controller.interrupts = Use lb_controller.api instead.
+    lb_controller.journal = Use lb_controller.api instead.
+    lb_controller.journal_sync = Use lb_controller.api instead.
+    lb_controller.lifecycle = Use lb_controller.api instead.
+    lb_controller.paths = Use lb_controller.api instead.
+    lb_controller.pending = Use lb_controller.api instead.
+    lb_controller.stop_coordinator = Use lb_controller.api instead.
+    lb_controller.types = Use lb_controller.api instead.
+    lb_controller.services = Use lb_controller.api instead.
+    lb_controller.services.* = Use lb_controller.api instead.
+
+per-file-ignores =
+    lb_controller/*:I251
+    tests/unit/lb_controller/*:I251
+    tests/unit/common/test_lb_events_callback.py:I251
+    tests/unit/common/test_plugin_installer.py:I251
+    tests/e2e/test_plugin_git_install_e2e.py:I251

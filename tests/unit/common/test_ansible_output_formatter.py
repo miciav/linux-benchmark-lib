@@ -1,4 +1,4 @@
-from lb_controller.services.run_service import AnsibleOutputFormatter
+from lb_app.services.run_service import AnsibleOutputFormatter
 import pytest
 
 
@@ -56,7 +56,7 @@ def test_progress_parsing_from_ansible_debug_wrapped_event():
 
 @pytest.mark.controller
 def test_progress_parse_helper_used_by_run_service():
-    from lb_controller.services.run_service import RunService
+    from lb_app.services.run_service import RunService
 
     svc = RunService(lambda: None)
     line = (

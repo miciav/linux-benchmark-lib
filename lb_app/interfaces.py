@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Callable, Iterable, Protocol, Sequence
 
 from lb_runner.benchmark_config import BenchmarkConfig
-from lb_controller.journal import RunJournal
-from lb_controller.services.run_service import RunResult
-from lb_controller.ui_interfaces import UIAdapter
+from lb_controller.api import RunJournal
+from lb_app.services.run_service import RunResult
+from lb_app.ui_interfaces import UIAdapter
 from lb_runner.events import RunEvent
 
 

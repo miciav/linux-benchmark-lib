@@ -5,7 +5,6 @@ Example script demonstrating the usage of the Linux Benchmark Library.
 This script shows how to configure and run various benchmark tests.
 """
 
-import logging
 from pathlib import Path
 
 from dataclasses import asdict
@@ -17,24 +16,18 @@ from lb_runner.benchmark_config import (
     WorkloadConfig,
 )
 from lb_runner.local_runner import LocalRunner
-from lb_ui.reporter import Reporter
+from lb_analytics.reporter import Reporter
 from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugins.dd.plugin import DDConfig
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 from lb_runner.plugins.fio.plugin import FIOConfig
+from lb_common import configure_logging
 
 
 def setup_logging():
     """Set up logging configuration."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler('benchmark.log'),
-            logging.StreamHandler()
-        ]
-    )
+    configure_logging(level="INFO", log_file="benchmark.log", force=True)
 
 
 def create_custom_config() -> BenchmarkConfig:

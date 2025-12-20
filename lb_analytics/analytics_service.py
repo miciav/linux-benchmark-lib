@@ -1,8 +1,7 @@
-"""UI-facing analytics service.
+"""Analytics service for running exports on stored runs.
 
-The UI layer is responsible for invoking analytics on stored runs.
-This module wraps `lb_analytics` lazily and must not be imported by lb_runner or
-lb_controller.
+This module wraps `lb_analytics` lazily and is invoked by the UI/controller
+layer to produce aggregate artifacts.
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Literal, Optional, Sequence
 
-from lb_controller.services.run_catalog_service import RunInfo
+from lb_controller.api import RunInfo
 
 logger = logging.getLogger(__name__)
 
@@ -80,4 +79,3 @@ class AnalyticsService:
                 produced.append(out_path)
 
         return produced
-

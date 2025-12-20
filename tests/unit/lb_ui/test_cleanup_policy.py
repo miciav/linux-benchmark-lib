@@ -4,8 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_controller.controller_state import ControllerState
-from lb_controller.types import RunExecutionSummary
+from lb_controller.api import ControllerState, RunExecutionSummary
 from lb_provisioner.types import ProvisionedNode, ProvisioningResult
 from lb_runner.benchmark_config import RemoteHostConfig
 from lb_ui.cli import _cleanup_provisioned_nodes

@@ -14,6 +14,7 @@
 ## Coding Style & Naming Conventions
 - Python 3.13, formatted with Black (line length 88) and linted with Flake8; type checking is strict via MyPy (no untyped defs, no implicit Optional). Pydocstyle runs with D100/D104/D203/D213 ignored; keep concise docstrings for public APIs.
 - Use `snake_case` for functions/variables/modules, `PascalCase` for classes, and `UPPER_SNAKE_CASE` for constants. Prefer well-named dataclasses for configs and keep CLI/tool shelling confined to collectors/generators.
+- Logging policy: configure logging via `lb_common.configure_logging()` in entrypoints. `lb_runner` does not auto-configure logging; callers should opt in to keep `LB_EVENT` output on stdout clean.
 
 ## Testing Guidelines
 - Framework: pytest; tests live in `tests/` with files `test_*.py`, classes `Test*`, functions `test_*`. Favor unit tests for collectors/generators with fake command outputs and small integration tests that exercise the controller.

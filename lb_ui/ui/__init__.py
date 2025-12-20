@@ -1,5 +1,5 @@
 """
-UI adapter package providing Textual-based and headless renderers.
+UI adapter package providing Rich-based and headless renderers.
 """
 
 from lb_ui.ui.system.protocols import UI, Picker, TablePresenter, Presenter, Form, Progress

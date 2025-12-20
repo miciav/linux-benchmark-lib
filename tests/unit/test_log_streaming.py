@@ -9,7 +9,7 @@ import pytest
 
 from lb_runner.events import RunEvent
 from lb_runner.log_handler import LBEventLogHandler
-from lb_controller.services.run_service import AnsibleOutputFormatter, _extract_lb_event_data
+from lb_app.services.run_service import AnsibleOutputFormatter, _extract_lb_event_data
 
 
 @pytest.mark.controller

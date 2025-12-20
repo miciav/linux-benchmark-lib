@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from lb_controller.api import PluginInstaller, create_registry
 from lb_controller.services import plugin_service as plugin_service_mod
-from lb_controller.services.plugin_service import PluginInstaller, create_registry
 
 pytestmark = [pytest.mark.e2e, pytest.mark.integration, pytest.mark.plugins, pytest.mark.slow]
 

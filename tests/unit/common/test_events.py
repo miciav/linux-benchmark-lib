@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from lb_runner.events import RunEvent
-from lb_controller.journal import RunJournal, RunStatus, LogSink
+from lb_controller.api import LogSink, RunJournal, RunStatus
 
 pytestmark = pytest.mark.controller
 

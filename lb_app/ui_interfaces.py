@@ -1,13 +1,9 @@
-"""Controller-owned UI contracts and no-op implementations.
-
-These protocols define the presentation hooks exposed by the controller to the
-UI layer without requiring the runner to know anything about rendering.
-"""
+"""App-level UI contracts and no-op implementations."""
 
 from __future__ import annotations
 
 from contextlib import AbstractContextManager, nullcontext
-from typing import Any, Protocol, Sequence
+from typing import Any, Protocol, Sequence, IO
 
 
 class DashboardHandle(Protocol):

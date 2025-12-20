@@ -6,11 +6,10 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from lb_app.interfaces import AppClient, UIHooks, RunRequest
-from lb_controller.services import ConfigService, RunService
-from lb_controller.services.run_service import RunContext
-from lb_controller.journal import RunJournal
-from lb_controller.services.plugin_service import create_registry
-from lb_controller.services.run_service import RunResult
+from lb_controller.api import ConfigService, RunJournal, create_registry
+from lb_app.services.run_service import RunService, RunContext
+from lb_app.services.run_service import RunResult
+from lb_common import configure_logging
 from lb_provisioner import (
     ProvisioningService,
     ProvisioningMode,
@@ -24,6 +23,7 @@ class ApplicationClient(AppClient):
     """Concrete application-layer client."""
 
     def __init__(self) -> None:
+        configure_logging()
         self._config_service = ConfigService()
         self._run_service = RunService(registry_factory=create_registry)
         self._provisioner = ProvisioningService(

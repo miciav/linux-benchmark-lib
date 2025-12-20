@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Dict, Iterable, List, Any, Optional
+from typing import Dict, Iterable, List, Any, IO
 import time
 
 from rich.console import Console
@@ -14,7 +14,7 @@ from rich.table import Table
 
 # Ideally we should decouple this, but for now we reuse the domain objects
 try:
-    from lb_controller.journal import RunJournal, RunStatus, TaskState
+    from lb_controller.api import RunJournal, RunStatus, TaskState
 except ImportError:
     # Fallback for strict isolation if needed, but practically we need these
     class RunStatus:
@@ -27,6 +27,8 @@ except ImportError:
     RunJournal = Any
 
 from lb_ui.ui.system.protocols import Dashboard, DashboardFactory
+from lb_ui import viewmodels
+
 
 class RichDashboard(Dashboard):
     """Render run plan and journal tables with Live refreshes."""
@@ -214,13 +216,7 @@ class RichDashboard(Dashboard):
         return f"[green]Event stream: live ({self.event_source}, {freshness})[/green]"
 
     def _target_repetitions(self) -> int:
-        from_metadata = self.journal.metadata.get("repetitions")
-        if isinstance(from_metadata, int) and from_metadata > 0:
-            return from_metadata
-        if not self.journal.tasks:
-             return 0
-        reps = [task.repetition for task in self.journal.tasks.values()]
-        return max(reps) if reps else 0
+        return viewmodels.target_repetitions(self.journal)
 
     def _unique_pairs(self) -> Iterable[tuple[str, str]]:
         seen = set()
@@ -241,38 +237,19 @@ class RichDashboard(Dashboard):
     def _aggregate_status(self, tasks: Dict[int, TaskState]) -> str:
         """Summarize a workload's status across repetitions."""
         target_reps = self._target_repetitions()
-        status, _ = self._summarize_progress(tasks, target_reps)
-        return status
+        status, _ = viewmodels.summarize_progress(tasks, target_reps)
+        return self._style_status(status)
 
     @staticmethod
-    def _summarize_progress(
-        tasks: Dict[int, TaskState], target_reps: int
-    ) -> tuple[str, str]:
-        total = target_reps or len(tasks)
-        completed = sum(
-            1
-            for task in tasks.values()
-            if task.status in (RunStatus.COMPLETED, RunStatus.SKIPPED, RunStatus.FAILED)
-        )
-        running = any(task.status == RunStatus.RUNNING for task in tasks.values())
-        failed = any(task.status == RunStatus.FAILED for task in tasks.values())
-        skipped = tasks and all(task.status == RunStatus.SKIPPED for task in tasks.values())
-
-        if failed:
-            status = "[red]failed[/red]"
-        elif running:
-            status = "[yellow]running[/yellow]"
-        elif skipped:
-            status = "[dim]skipped[/dim]"
-        elif total and completed >= total:
-            status = "[green]done[/green]"
-        elif completed > 0:
-            status = "[yellow]partial[/yellow]"
-        else:
-            status = "[dim]pending[/dim]"
-
-        progress = f"{completed}/{total}" if total else "0/0"
-        return status, progress
+    def _style_status(status: str) -> str:
+        return {
+            "failed": "[red]failed[/red]",
+            "running": "[yellow]running[/yellow]",
+            "skipped": "[dim]skipped[/dim]",
+            "done": "[green]done[/green]",
+            "partial": "[yellow]partial[/yellow]",
+            "pending": "[dim]pending[/dim]",
+        }.get(status, status)
 
     def _started_repetitions(self, tasks: Dict[int, TaskState]) -> int:
         return sum(1 for task in tasks.values() if task.status != RunStatus.PENDING)

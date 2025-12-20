@@ -3,7 +3,7 @@
 import pytest
 
 from lb_controller.journal import LogSink, RunJournal, RunStatus
-from lb_controller.services.run_service import _extract_lb_event_data
+from lb_app.services.run_service import _extract_lb_event_data
 from lb_runner.events import RunEvent
 
 pytestmark = pytest.mark.controller

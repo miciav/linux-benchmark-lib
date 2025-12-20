@@ -9,14 +9,14 @@ from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, Worklo
 
 pytestmark = pytest.mark.controller
 
-from lb_controller.controller import (
+from lb_controller.api import (
     AnsibleRunnerExecutor,
     BenchmarkController,
+    ControllerState,
     ExecutionResult,
     InventorySpec,
     RemoteExecutor,
 )
-from lb_controller.controller_state import ControllerState
 from lb_runner.stop_token import StopToken
 
 

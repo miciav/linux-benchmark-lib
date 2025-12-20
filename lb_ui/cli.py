@@ -6,7 +6,6 @@ Exposes quick commands to inspect plugins/hosts and run benchmarks via provision
 
 from __future__ import annotations
 
-import logging
 import os
 import subprocess
 import sys
@@ -18,16 +17,24 @@ import typer
 
 from lb_app import ApplicationClient
 from lb_provisioner import MAX_NODES
-from lb_controller.journal import RunJournal
-from lb_controller.contracts import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig, PluginRegistry
-from lb_controller.services import ConfigService, RunCatalogService
-from lb_ui.services.analytics_service import AnalyticsRequest, AnalyticsService
-from lb_controller.services.plugin_service import build_plugin_table, create_registry, PluginInstaller
-from lb_controller.services.doctor_service import DoctorService
-from lb_controller.services.doctor_types import DoctorReport
-from lb_controller.services.test_service import TestService
-from lb_controller.ui_interfaces import UIAdapter
-from lb_ui.ui import viewmodels
+from lb_controller.api import (
+    BenchmarkConfig,
+    ConfigService,
+    PluginRegistry,
+    RemoteExecutionConfig,
+    RemoteHostConfig,
+    RunCatalogService,
+    RunJournal,
+    WorkloadConfig,
+)
+from lb_analytics.analytics_service import AnalyticsRequest, AnalyticsService
+from lb_controller.api import build_plugin_table, create_registry, PluginInstaller
+from lb_app.services.doctor_service import DoctorService
+from lb_app.services.doctor_types import DoctorReport
+from lb_app.services.test_service import TestService
+from lb_app.ui_interfaces import UIAdapter
+from lb_ui import viewmodels
+from lb_common import configure_logging
 
 # New UI System Imports
 from lb_ui.ui.system.protocols import UI
@@ -95,6 +102,7 @@ def entry(
 ) -> None:
     """Global entry point handling interactive vs headless modes."""
     global ui, ui_adapter
+    configure_logging(force=True)
     if headless:
         from lb_ui.ui.system.headless import HeadlessUI
         ui = HeadlessUI()
@@ -959,11 +967,7 @@ def run(
         raise typer.Exit(1)
 
     if debug:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            force=True,
-        )
+        configure_logging(debug=True, force=True)
         ui.present.info("Debug logging enabled")
 
     if node_count < 1:

@@ -7,22 +7,9 @@ import platform
 import shutil
 from typing import List, Tuple, Optional
 
-from .config_service import ConfigService
-from .plugin_service import create_registry
-from lb_controller.ui_interfaces import UIAdapter, NoOpUIAdapter
+from lb_app.services.doctor_types import DoctorCheckGroup, DoctorCheckItem, DoctorReport
+from lb_controller.api import ConfigService, create_registry
 
-"""
-Service for performing environment health checks (doctor).
-"""
-
-import importlib
-import platform
-import shutil
-from typing import List, Tuple, Optional
-
-from .config_service import ConfigService
-from .plugin_service import create_registry
-from .doctor_types import DoctorReport, DoctorCheckGroup, DoctorCheckItem
 
 class DoctorService:
     """Service to check local prerequisites and environment health."""
@@ -43,7 +30,9 @@ class DoctorService:
     def _check_command(self, name: str) -> bool:
         return shutil.which(name) is not None
 
-    def _build_check_group(self, title: str, items: List[Tuple[str, bool, bool]]) -> DoctorCheckGroup:
+    def _build_check_group(
+        self, title: str, items: List[Tuple[str, bool, bool]]
+    ) -> DoctorCheckGroup:
         failures = 0
         check_items = []
         for label, ok, required in items:
@@ -61,7 +50,11 @@ class DoctorService:
             ("matplotlib", self._check_import("matplotlib"), True),
             ("seaborn", self._check_import("seaborn"), True),
             ("jc", self._check_import("jc"), True),
-            ("influxdb-client (optional)", self._check_import("influxdb_client"), False),
+            (
+                "influxdb-client (optional)",
+                self._check_import("influxdb_client"),
+                False,
+            ),
         ]
         groups.append(self._build_check_group("Python Dependencies", py_deps))
 
@@ -78,23 +71,28 @@ class DoctorService:
         ]
         groups.append(self._build_check_group("Config Resolution", cfg_items))
 
-        info = f"Python: {platform.python_version()} ({platform.python_implementation()}) on {platform.system()} {platform.release()}"
-        
+        info = (
+            f"Python: {platform.python_version()} ({platform.python_implementation()}) "
+            f"on {platform.system()} {platform.release()}"
+        )
+
         return DoctorReport(
-            groups=groups, 
-            info_messages=[info], 
-            total_failures=sum(g.failures for g in groups)
+            groups=groups,
+            info_messages=[info],
+            total_failures=sum(g.failures for g in groups),
         )
 
     def check_local_tools(self) -> DoctorReport:
         """Check local workload tools required by installed plugins."""
         registry = create_registry()
         items: List[Tuple[str, bool, bool]] = []
-        
+
         # Common system tools that are always good to have
         common_tools = ["sar", "vmstat", "iostat", "mpstat", "pidstat"]
         for tool in common_tools:
-            items.append((f"{tool} (system)", self._check_command(tool), False)) # Not strictly required but recommended
+            items.append(
+                (f"{tool} (system)", self._check_command(tool), False)
+            )
 
         # Plugin-specific tools
         for plugin in registry.available(load_entrypoints=True).values():
@@ -113,23 +111,28 @@ class DoctorService:
         # Sort by label
         items.sort(key=lambda x: x[0])
         group = self._build_check_group("Local Workload Tools", items)
-        return DoctorReport(groups=[group], info_messages=messages, total_failures=group.failures)
+        return DoctorReport(
+            groups=[group],
+            info_messages=messages,
+            total_failures=group.failures,
+        )
 
     def check_multipass(self) -> DoctorReport:
         """Check if Multipass is installed (used by integration test)."""
         items = [("multipass", self._check_command("multipass"), True)]
         group = self._build_check_group("Multipass", items)
-        return DoctorReport(groups=[group], info_messages=[], total_failures=group.failures)
+        return DoctorReport(
+            groups=[group], info_messages=[], total_failures=group.failures
+        )
 
     def check_all(self) -> DoctorReport:
         """Run all checks."""
         r1 = self.check_controller()
         r2 = self.check_local_tools()
         r3 = self.check_multipass()
-        
+
         return DoctorReport(
             groups=r1.groups + r2.groups + r3.groups,
             info_messages=r1.info_messages + r2.info_messages + r3.info_messages,
-            total_failures=r1.total_failures + r2.total_failures + r3.total_failures
+            total_failures=r1.total_failures + r2.total_failures + r3.total_failures,
         )
-

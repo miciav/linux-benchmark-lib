@@ -100,7 +100,11 @@ See `CLI.md` for the full command reference. Highlights:
 - The CLI/UI entrypoint is `python -m lb_ui.cli` (or the installed `lb` shim). Runner/controller modules no longer import UI.
 - Progress bars and tables are text-friendly; headless output works in CI and when piping.
 - Force headless output with `LB_HEADLESS_UI=1` when running under CI or when piping output.
-- UI adapters live in `lb_ui/ui/*` and depend on controller-owned interfaces (`lb_controller.ui_interfaces`); the runner only emits events/logs.
+- UI adapters live in `lb_ui/ui/*` and depend on app-level interfaces (`lb_app.ui_interfaces`); the runner only emits events/logs.
+
+### Logging policy
+- Logging is configured centrally via `lb_common.configure_logging()` and defaults to stderr so stdout remains reserved for `LB_EVENT` streaming.
+- Entry points (`lb_ui`, `lb_app`, scripts) configure logging automatically; if you use `lb_runner` directly, call `configure_logging()` in your own entrypoint to get the same formatting/levels.
 
 ### Plugin manifests and generated assets
 
@@ -114,7 +118,7 @@ See `CLI.md` for the full command reference. Highlights:
 
 ```python
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig
-from lb_controller.controller import BenchmarkController
+from lb_controller.api import BenchmarkController
 from lb_runner.local_runner import LocalRunner
 from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.registry import PluginRegistry

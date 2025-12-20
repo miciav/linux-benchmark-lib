@@ -11,8 +11,7 @@ from lb_controller.services import plugin_service as plugin_service_mod
 
 pytestmark = [pytest.mark.runner, pytest.mark.plugins]
 
-from lb_controller.services.config_service import ConfigService
-from lb_controller.services.plugin_service import PluginInstaller, create_registry
+from lb_controller.api import ConfigService, PluginInstaller, create_registry
 from lb_runner.plugin_system.interface import WorkloadPlugin
 from lb_runner.plugin_system.base_generator import BaseGenerator
 

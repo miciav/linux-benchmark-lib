@@ -17,7 +17,7 @@ from lb_runner.benchmark_config import (
     WorkloadConfig,
 )
 from lb_runner.plugins.baseline.plugin import BaselineConfig
-from lb_controller.controller import AnsibleRunnerExecutor, BenchmarkController
+from lb_controller.api import AnsibleRunnerExecutor, BenchmarkController
 from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
 

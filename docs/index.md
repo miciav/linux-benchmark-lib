@@ -62,7 +62,7 @@ See `CLI.md` for the full command reference. Highlights:
 - The CLI/UI entrypoint is `python -m lb_ui.cli` (or the installed `lb` shim). Runner/controller modules no longer import UI.
 - Progress bars and tables are text-friendly; headless output works in CI and when piping.
 - Force headless output with `LB_HEADLESS_UI=1` when running under CI or when piping output.
-- UI adapters live in `lb_ui/ui/*` and depend on controller-owned interfaces (`lb_controller.ui_interfaces`); the runner only emits events/logs.
+- UI adapters live in `lb_ui/ui/*` and depend on app-level interfaces (`lb_app.ui_interfaces`); the runner only emits events/logs.
 
 ### Plugin manifests and generated assets
 

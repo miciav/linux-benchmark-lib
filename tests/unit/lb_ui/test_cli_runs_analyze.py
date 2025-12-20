@@ -9,7 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from lb_ui.cli import app
-from lb_controller.services.config_service import ConfigService
+from lb_controller.api import ConfigService
 
 pytestmark = [pytest.mark.ui]
 

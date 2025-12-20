@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Iterable, Mapping, Set, Tuple
 
+from lb_common import configure_logging
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -116,6 +117,7 @@ def render_dot(
 
 
 def main() -> None:
+    configure_logging()
     args = parse_arguments()
     modules = args.modules
     module_paths = [Path(m) for m in modules]

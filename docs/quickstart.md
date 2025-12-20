@@ -2,7 +2,7 @@
 
 ```python
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, RemoteExecutionConfig
-from lb_controller.controller import BenchmarkController
+from lb_controller.api import BenchmarkController
 from lb_runner.local_runner import LocalRunner
 from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.registry import PluginRegistry
