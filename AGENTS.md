@@ -1,8 +1,10 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Core configuration now lives under `lb_runner/` (`benchmark_config.py`).
-- Runner code is under `lb_runner/`; controller under `lb_controller/`; UI under `lb_ui/`.
+- Core configuration lives under `lb_runner/` (`benchmark_config.py`).
+- Runner code is under `lb_runner/`; controller under `lb_controller/`; app-layer API under `lb_app/`; UI under `lb_ui/`.
+- Reporting and post-processing live under `lb_analytics/`; shared utilities in `lb_common/`; provisioning helpers in `lb_provisioner/`.
+- Use the stable APIs from `lb_runner.api`, `lb_controller.api`, and `lb_app.api` instead of importing deep modules.
 - Collectors sit in `lb_runner/metric_collectors/` (PSUtil, CLI, perf, eBPF) and workload plugins in `lb_runner/plugins/` (stress-ng, dd, fio, hpl), each with base abstractions plus concrete implementations.
 - Tests are under `tests/`; sample usage is in `example.py`. Output artifacts are written to `benchmark_results/`, `reports/`, and `data_exports/` (these may be absent until generated).
 

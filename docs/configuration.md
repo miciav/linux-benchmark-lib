@@ -1,25 +1,44 @@
 ## Configuration
 
-All knobs are defined in `BenchmarkConfig`:
+All knobs are defined in `BenchmarkConfig` (import from `lb_runner.api`).
 
 ```python
 from pathlib import Path
-from lb_runner.benchmark_config import BenchmarkConfig
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
+from lb_runner.api import (
+    BenchmarkConfig,
+    RemoteExecutionConfig,
+    RemoteHostConfig,
+    WorkloadConfig,
+)
 
 config = BenchmarkConfig(
-    repetitions=5,
+    repetitions=3,
     test_duration_seconds=120,
-    metrics_interval_seconds=0.5,
-    plugin_settings={
-        "stress_ng": StressNGConfig(
-            cpu_workers=4,
-            vm_workers=2,
-            vm_bytes="2G",
+    metrics_interval_seconds=1.0,
+    remote_hosts=[
+        RemoteHostConfig(
+            name="node1",
+            address="192.168.1.10",
+            user="ubuntu",
+        )
+    ],
+    remote_execution=RemoteExecutionConfig(enabled=True),
+    workloads={
+        "stress_ng": WorkloadConfig(
+            plugin="stress_ng",
+            enabled=True,
+            options={"cpu_workers": 4, "vm_workers": 2, "vm_bytes": "2G"},
         )
     },
 )
 
-config.save(Path("my_config.json"))
-config = BenchmarkConfig.load(Path("my_config.json"))
+config.save(Path("benchmark_config.json"))
+config = BenchmarkConfig.load(Path("benchmark_config.json"))
 ```
+
+### Notes
+
+- `workloads` is the primary map of workload names to configuration.
+- `plugin_settings` can hold typed Pydantic configs for plugins; it is optional.
+- `output_dir`, `report_dir`, and `data_export_dir` control where artifacts are written.
+- `remote_execution.enabled` controls whether the controller uses Ansible to run workloads.

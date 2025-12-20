@@ -5,7 +5,7 @@ mode="${1-}"
 
 usage() {
   cat <<'EOF'
-Usage: bash tools/switch_mode.sh <mode>
+Usage: bash scripts/switch_mode.sh <mode>
 
 Modes:
   base        uv sync (core only)

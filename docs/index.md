@@ -1,120 +1,60 @@
-# Home
+<div class="hero">
+  <div class="hero__content">
+    <p class="hero__eyebrow">Benchmark orchestration for Linux nodes</p>
+    <h1 class="hero__title">Linux Benchmark Library</h1>
+    <p class="hero__subtitle">
+      Run repeatable workloads, collect multi-level metrics, and generate reports with
+      a clean CLI and stable Python APIs.
+    </p>
+    <div class="hero__actions">
+      <a class="btn btn--primary" href="quickstart/">Get started</a>
+      <a class="btn btn--ghost" href="api/">API reference</a>
+    </div>
+  </div>
+  <div class="hero__panel">
+    <div class="hero__panel-title">Quick run</div>
+    <pre>lb config init -i
+lb plugin list --enable stress_ng
+lb run --remote --run-id demo-run</pre>
+    <p class="hero__panel-note">Provisioned runs are available in dev mode: <code>--docker</code> or <code>--multipass</code>.</p>
+  </div>
+</div>
 
-A robust, configurable Python library for benchmarking Linux compute nodes.
+## Why this exists
 
-## Overview
+<div class="feature-grid">
+  <div class="feature-card">
+    <h3>Repeatable workloads</h3>
+    <p>Standardize load patterns and run them across hosts or provisioned targets.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Layered architecture</h3>
+    <p>Runner, controller, app, and UI are cleanly separated to keep coupling low.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Actionable artifacts</h3>
+    <p>Raw metrics, journals, reports, and exports are organized per run and host.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Extensible plugins</h3>
+    <p>Add new workloads via entry points and a user plugin directory.</p>
+  </div>
+</div>
 
-Run repeatable workloads and collect detailed system metrics under synthetic load. The library helps you understand performance variability across repetitions and workloads.
-It supports two operation modes:
-1. **Agent/Runner**: Lightweight installation for target nodes (local execution).
-2. **Controller**: Full orchestration layer for managing remote benchmarks (includes Ansible, plotting tools).
-3. **UI/CLI**: User interaction lives in `lb_ui` and talks only to the controller; the runner does not import or know about UI concerns.
+## Core layers
 
-## Key Features
+| Layer | Responsibility |
+| --- | --- |
+| `lb_runner` | Execute workloads and collect metrics on a node. |
+| `lb_controller` | Orchestrate remote runs via Ansible and manage state. |
+| `lb_app` | Stable API for CLIs/UIs and integrations. |
+| `lb_ui` | CLI/TUI implementation. |
+| `lb_analytics` | Reporting and post-processing. |
+| `lb_provisioner` | Docker/Multipass helpers for the CLI. |
 
-- **Multi-level metrics**: PSUtil, Linux CLI tools, perf events, optional eBPF
-- **Plugin workloads**: stress-ng, dd, fio, and HPL shipped as plugins, extensible via entry points
-- **Data aggregation**: Pandas DataFrames with metrics as index, repetitions as columns
-- **Reporting**: Text reports and plots (Controller only)
-- **Centralized config**: Typed dataclasses for all knobs
-- **Remote execution**: Python controller + Ansible Runner targeting remote hosts or `localhost`
+## Where to go next
 
-## Requirements
-
-- Python 3.13+
-- Linux for full functionality
-- Root privileges for some features (perf, eBPF)
-
-### Required External Software (Target Nodes)
-
-- **sysstat**: sar, vmstat, iostat, mpstat, pidstat
-- **stress-ng**: load generator
-- **fio**: advanced I/O testing
-- **HPL**: Linpack benchmark (optional)
-- **perf**: Linux profiling
-- **bcc/eBPF tools**: optional kernel-level metrics
-
-
-```
-
-## CLI (lb)
-
-See `CLI.md` for the full command reference. Highlights:
-- Config and defaults: `lb config init`, `lb config set-default`, `lb config edit`, `lb config workloads`, `lb plugin list --select/--enable/--disable NAME` (shows enabled state with checkmarks).
-- Discovery and run: `lb plugin list`, `lb hosts`, `lb run [tests...]` (follows config for local/remote unless overridden).
-- Interactive toggle: `lb plugin select` to enable/disable plugins with arrows + space; `lb config select-workloads` to toggle configured workloads the same way.
-- Install plugins from a path or git repo: `lb plugin install /path/to/sysbench_plugin.tar.gz` or `lb plugin install https://github.com/miciav/unixbench-lb-plugin.git`.
-- Third-party plugins are installed under `lb_runner/plugins/_user` so moving the runner also moves installed plugins. Override the location with `LB_USER_PLUGIN_DIR`.
-- Example (UnixBench from git): 
-  ```bash
-  lb plugin install https://github.com/miciav/unixbench-lb-plugin.git
-  lb plugin list --enable unixbench
-  ```
-  Then set options in `benchmark_config.json` if needed:
-  ```json
-  "workloads": {"unixbench": {"plugin": "unixbench", "enabled": true, "options": {"concurrency": 4}}}
-  ```
-- Health checks: `lb doctor controller`, `lb doctor local-tools`, `lb doctor multipass`, `lb doctor all`.
-- Integration helper: `lb test multipass --vm-count {1,2} [--multi-workloads]` (artifacts to `tests/results` by default).
-- Test helpers (`lb test ...`) are available in dev mode (create `.lb_dev_cli` or export `LB_ENABLE_TEST_CLI=1`).
-
-### UI layer
-- The CLI/UI entrypoint is `python -m lb_ui.cli` (or the installed `lb` shim). Runner/controller modules no longer import UI.
-- Progress bars and tables are text-friendly; headless output works in CI and when piping.
-- Force headless output with `LB_HEADLESS_UI=1` when running under CI or when piping output.
-- UI adapters live in `lb_ui/ui/*` and depend on app-level interfaces (`lb_app.ui_interfaces`); the runner only emits events/logs.
-
-### Plugin manifests and generated assets
-
-- Each workload is self-contained in `lb_runner/plugins/<name>/`.
-- Dependencies are defined in the plugin's Python class (`get_required_apt_packages`, etc.).
-- Commit manifests so remote setup stays in sync with available plugins.
-- See `docs/PLUGIN_DEVELOPMENT.md` for a full plugin authoring guide (WorkloadPlugin interface, manifests, packaging, git installs).
-- HPL plugin: see `lb_runner/plugins/hpl/README.md` for notes on `.deb` packaging, build VM/Docker and `xhpl` testing.
-
-
-
-## Project Layout
-
-```
-linux-benchmark-lib/
-├── lb_runner/           # Runner (plugins, collectors, local runner, events)
-├── lb_controller/       # Orchestration (services, ansible, journal, data_handler)
-├── lb_ui/               # CLI/UI (Typer app, adapters, reporter)
-├── tests/               # Unit and integration tests
-├── tools/               # Helper scripts (mode switching, etc.)
-└── pyproject.toml       # Project configuration (Core + Extras)
-```
-
-
-
-## Output
-
-Results are written to three directories:
-
-- `benchmark_results/`: raw metric data
-- `reports/`: text reports and plots (via analytics)
-- `data_exports/`: aggregated CSV/JSON (generated on demand via `lb analyze`)
-- In remote mode results are split by `run_id/host` (e.g., `benchmark_results/run-YYYYmmdd-HHMMSS/node1/...`).
-
-## Diagrams (UML)
-
-The repository ships an action that generates UML class/package diagrams on each release.  
-To regenerate them locally (requires Graphviz installed):
-
-```bash
-pip install "pylint==3.3.1"
-mkdir -p docs/diagrams
-pyreverse -o png -p linux-benchmark lb_runner lb_controller lb_ui -S
-mv classes*.png docs/diagrams/classes.png
-mv packages*.png docs/diagrams/packages.png
-pyreverse -o puml -p linux-benchmark lb_runner lb_controller lb_ui -S
-mv classes*.puml docs/diagrams/classes.puml
-mv packages*.puml docs/diagrams/packages.puml
-```
-
-
-
-## License
-
-Distributed under the MIT License. See `LICENSE` for more information.
+- Read the [Quickstart](quickstart/) for CLI and Python examples.
+- Use the [CLI reference](cli/) for all commands.
+- Browse the [API reference](api/) for stable modules.
+- Check [Diagrams](diagrams/) for architecture visuals and release artifacts.
