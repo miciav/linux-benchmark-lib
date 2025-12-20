@@ -82,7 +82,7 @@ See `CLI.md` for the full command reference. Highlights:
 - Discovery and run: `lb plugin list`, `lb hosts`, `lb run [tests...]` (follows config for local/remote unless overridden).
 - Interactive toggle: `lb plugin select` to enable/disable plugins with arrows + space; `lb config select-workloads` to toggle configured workloads the same way.
 - Install plugins from a path or git repo: `lb plugin install /path/to/sysbench_plugin.tar.gz` or `lb plugin install https://github.com/miciav/unixbench-lb-plugin.git`.
-- Third-party plugins are installed under `lb_runner/plugins/_user` when that directory is writable (e.g., in a repo checkout or remote runner tree), so moving the runner also moves installed plugins. If not writable, the installer falls back to `~/.config/lb/plugins`. You can override the location with `LB_USER_PLUGIN_DIR`.
+- Third-party plugins are installed under `lb_runner/plugins/_user` so moving the runner also moves installed plugins. Override the location with `LB_USER_PLUGIN_DIR`.
 - Example (UnixBench from git): 
   ```bash
   lb plugin install https://github.com/miciav/unixbench-lb-plugin.git

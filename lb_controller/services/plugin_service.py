@@ -16,6 +16,7 @@ from lb_runner.plugin_system import registry as registry  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
+USER_PLUGIN_DIR = resolve_user_plugin_dir()
 _REGISTRY_CACHE: PluginRegistry | None = None
 
 
@@ -34,7 +35,7 @@ class PluginInstaller:
     """Helper to install and uninstall user plugins."""
 
     def __init__(self):
-        self.plugin_dir = resolve_user_plugin_dir()
+        self.plugin_dir = Path(USER_PLUGIN_DIR)
         self.plugin_dir.mkdir(parents=True, exist_ok=True)
 
     def install(self, source_path: Union[Path, str], manifest_path: Optional[Path] = None, force: bool = False) -> str:

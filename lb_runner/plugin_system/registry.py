@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 ENTRYPOINT_GROUP = "linux_benchmark.workloads"
 COLLECTOR_ENTRYPOINT_GROUP = "linux_benchmark.collectors"
 BUILTIN_PLUGIN_ROOT = Path(__file__).resolve().parent.parent / "plugins"
-LEGACY_USER_PLUGIN_DIR = Path.home() / ".config" / "lb" / "plugins"
 
 
 def resolve_user_plugin_dir() -> Path:
@@ -33,8 +32,7 @@ def resolve_user_plugin_dir() -> Path:
 
     Preference order:
     1) `LB_USER_PLUGIN_DIR` env override (if set).
-    2) `<package>/plugins/_user` when writable (portable with runner tree).
-    3) Legacy `~/.config/lb/plugins`.
+    2) `<package>/plugins/_user` (portable with runner tree).
     """
     override = os.environ.get("LB_USER_PLUGIN_DIR")
     if override:
@@ -49,12 +47,9 @@ def resolve_user_plugin_dir() -> Path:
     candidate = BUILTIN_PLUGIN_ROOT / "_user"
     try:
         candidate.mkdir(parents=True, exist_ok=True)
-        test_file = candidate / ".write_test"
-        test_file.touch(exist_ok=True)
-        test_file.unlink(missing_ok=True)
-        return candidate
     except Exception:
-        return LEGACY_USER_PLUGIN_DIR
+        pass
+    return candidate
 
 
 USER_PLUGIN_DIR = resolve_user_plugin_dir()
@@ -191,19 +186,7 @@ class PluginRegistry:
 
     def _load_user_plugins(self) -> None:
         """Load python plugins from user plugin directories."""
-
-        primary_dir = resolve_user_plugin_dir()
-        if self._should_load_legacy(primary_dir):
-            self._load_plugins_from_dir(LEGACY_USER_PLUGIN_DIR)
-        self._load_plugins_from_dir(primary_dir)
-
-    @staticmethod
-    def _should_load_legacy(primary_dir: Path) -> bool:
-        """Return True if legacy directory should also be scanned."""
-        return (
-            not os.environ.get("LB_USER_PLUGIN_DIR")
-            and LEGACY_USER_PLUGIN_DIR != primary_dir
-        )
+        self._load_plugins_from_dir(resolve_user_plugin_dir())
 
     def _load_plugins_from_dir(self, root: Path) -> None:
         """Load plugins from a directory if it exists."""

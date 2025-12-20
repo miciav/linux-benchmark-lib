@@ -73,32 +73,42 @@ class ApplicationClient(AppClient):
 
     def start_run(self, request: RunRequest, hooks: UIHooks) -> RunResult | None:
         cfg = request.config
-        cfg.ensure_output_dirs()
-        target_tests = list(request.tests or [name for name, wl in cfg.workloads.items() if wl.enabled])
-        # Make sure workloads exist
+        target_tests = list(
+            request.tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+        )
         for name in target_tests:
             if name not in cfg.workloads:
                 cfg.workloads[name] = WorkloadConfig(plugin=name, enabled=True)
 
+        context = self._run_service.create_session(
+            self._config_service,
+            tests=target_tests,
+            config_path=None,
+            run_id=request.run_id,
+            resume=request.resume,
+            repetitions=request.repetitions,
+            debug=request.debug,
+            intensity=request.intensity,
+            ui_adapter=request.ui_adapter,
+            setup=request.setup,
+            stop_file=request.stop_file,
+            execution_mode=request.execution_mode,
+            preloaded_config=cfg,
+        )
+
         # Provision according to execution mode
         prov_result = None
         try:
-            cfg, prov_result = self._provision(cfg, request.execution_mode, request.node_count, request.docker_engine)
+            cfg, prov_result = self._provision(
+                cfg,
+                request.execution_mode,
+                request.node_count,
+                request.docker_engine,
+            )
         except ProvisioningError as exc:
             hooks.on_warning(f"Provisioning failed: {exc}", ttl=5)
             return None
-
-        context = RunContext(
-            config=cfg,
-            target_tests=target_tests,
-            registry=create_registry(),
-            config_path=None,
-            debug=request.debug,
-            resume_from=request.resume,
-            resume_latest=request.resume == "latest",
-            stop_file=request.stop_file,
-            execution_mode=request.execution_mode,
-        )
+        context.config = cfg
 
         run_result: RunResult | None = None
         try:

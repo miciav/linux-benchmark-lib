@@ -96,12 +96,10 @@ def test_resolve_user_plugin_dir_env_override(monkeypatch, tmp_path):
 
 
 def test_resolve_user_plugin_dir_prefers_builtin_root(monkeypatch, tmp_path):
-    """When writable, user plugins live under package plugins/_user."""
+    """User plugins live under package plugins/_user by default."""
     builtin_root = tmp_path / "builtin_plugins"
-    legacy_root = tmp_path / "legacy_plugins"
     monkeypatch.delenv("LB_USER_PLUGIN_DIR", raising=False)
     monkeypatch.setattr(registry_mod, "BUILTIN_PLUGIN_ROOT", builtin_root)
-    monkeypatch.setattr(registry_mod, "LEGACY_USER_PLUGIN_DIR", legacy_root)
 
     resolved = resolve_user_plugin_dir()
     assert resolved == (builtin_root / "_user").resolve()

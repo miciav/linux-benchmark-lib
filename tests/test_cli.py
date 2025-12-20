@@ -1,4 +1,5 @@
 import importlib
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -500,13 +501,22 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         called["run_id"] = run_id
 
 
-        return None
+        return SimpleNamespace(
+            summary=None,
+            journal_path=None,
+            log_path=None,
+            ui_log_path=None,
+        )
 
 
 
 
-
-    monkeypatch.setattr(cli.run_service, "execute", fake_execute)
+    monkeypatch.setattr(cli.app_client._run_service, "execute", fake_execute)
+    monkeypatch.setattr(
+        cli.app_client,
+        "_provision",
+        lambda config, execution_mode, node_count, docker_engine=None: (config, None),
+    )
 
 
 
@@ -617,13 +627,22 @@ def test_run_command_allows_repetition_override(monkeypatch: pytest.MonkeyPatch,
         called["run_id"] = run_id
 
 
-        return None
+        return SimpleNamespace(
+            summary=None,
+            journal_path=None,
+            log_path=None,
+            ui_log_path=None,
+        )
 
 
 
 
-
-    monkeypatch.setattr(cli.run_service, "execute", fake_execute)
+    monkeypatch.setattr(cli.app_client._run_service, "execute", fake_execute)
+    monkeypatch.setattr(
+        cli.app_client,
+        "_provision",
+        lambda config, execution_mode, node_count, docker_engine=None: (config, None),
+    )
 
 
 
@@ -659,7 +678,6 @@ def test_run_command_allows_repetition_override(monkeypatch: pytest.MonkeyPatch,
             "test-run",
 
 
-            "--docker-no-build",
 
 
         ],
@@ -1194,204 +1212,73 @@ def test_multipass_helper_accepts_pytest_flags_without_separator(monkeypatch: py
 
 
 def test_run_command_saves_ui_stream_log(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-
-
     cli = _load_cli(monkeypatch, tmp_path)
-
-
     runner = CliRunner()
 
-
-
-
-
-    # Ensure output_dir exists and is in tmp_path
-
-
     output_dir = tmp_path / "benchmark_results"
-
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-
-    monkeypatch.setattr(
-
-
-        cli.BenchmarkConfig,
-
-
-        "output_dir",
-
-
-        output_dir,
-
-
-    )
-
-
-    
-
+    report_dir = tmp_path / "reports"
+    export_dir = tmp_path / "exports"
 
     cfg = BenchmarkConfig()
-
-
+    cfg.output_dir = output_dir
+    cfg.report_dir = report_dir
+    cfg.data_export_dir = export_dir
     if "stress_ng" in cfg.workloads:
-
-
         cfg.workloads["stress_ng"].enabled = True
-
-
     cfg_path = tmp_path / "cfg.json"
-
-
     cfg.save(cfg_path)
 
-
-
-
-
-    # Mock LocalRunner.run_benchmark to simulate some output
-
-
-    def mock_run_benchmark(
-
-
-        self, test_name, run_id, total_repetitions, pending_reps
-
-
-    ):
-
-
-        # Simulate progress updates that would go to the UI stream
-
-
-        for rep in pending_reps:
-
-
-            self.progress_callback(
-
-
-                SimpleNamespace(
-
-
-                    host="localhost",
-
-
-                    workload=test_name,
-
-
-                    repetition=rep,
-
-
-                    total_repetitions=total_repetitions,
-
-
-                    status="running",
-
-
-                    message=f"Running rep {rep}",
-
-
-                )
-
-
-            )
-
-
-        return True # Indicate success
-
-
-
-
-
-    monkeypatch.setattr(cli.LocalRunner, "run_benchmark", mock_run_benchmark)
-
-
-
-
-
-    result = runner.invoke(
-
-
-        cli.app,
-
-
-        [
-
-
-            "run",
-
-
-            "-c",
-
-
-            str(cfg_path),
-
-
-            "--run-id",
-
-
-            "test-ui-stream-log",
-
-
-            "--repetitions",
-
-
-            "1", # Single repetition for simplicity
-
-
-        ],
-
-
+    from lb_controller.api import RunJournal
+
+    def fake_execute(context, run_id, output_callback=None, ui_adapter=None):
+        run_identifier = run_id or "test-ui-stream-log"
+        run_dir = context.config.output_dir / run_identifier
+        run_dir.mkdir(parents=True, exist_ok=True)
+        journal = RunJournal.initialize(run_identifier, context.config, context.target_tests)
+        journal_path = run_dir / "run_journal.json"
+        journal.save(journal_path)
+        log_path = run_dir / "run.log"
+        log_path.write_text("log")
+        ui_log_path = run_dir / "ui_stream.log"
+        ui_log_path.write_text("Running rep 1\ncompleted locally\nSystem info\n")
+        return SimpleNamespace(
+            summary=None,
+            journal_path=journal_path,
+            log_path=log_path,
+            ui_log_path=ui_log_path,
+        )
+
+    monkeypatch.setattr(cli.app_client._run_service, "execute", fake_execute)
+    monkeypatch.setattr(
+        cli.app_client,
+        "_provision",
+        lambda config, execution_mode, node_count, docker_engine=None: (config, None),
     )
 
-
-
-
+    result = runner.invoke(
+        cli.app,
+        [
+            "run",
+            "-c",
+            str(cfg_path),
+            "--run-id",
+            "test-ui-stream-log",
+            "--repetitions",
+            "1",
+        ],
+    )
 
     assert result.exit_code == 0, result.output
 
-
-
-
-
-    # Find the generated run directory
-
-
     run_dir = output_dir / "test-ui-stream-log"
-
-
     assert run_dir.is_dir()
 
-
-
-
-
-    # Check if ui_stream.log exists
-
-
     ui_stream_log_path = run_dir / "ui_stream.log"
-
-
     assert ui_stream_log_path.is_file()
-
-
-    assert str(ui_stream_log_path) in result.output
-
-
-
-
-
-    # Verify content of ui_stream.log
-
+    output = re.sub(r"\x1b\\[[0-9;]*m", "", result.output)
+    assert str(ui_stream_log_path) in output.replace("\n", "")
 
     content = ui_stream_log_path.read_text()
-
-
     assert "Running rep 1" in content
-
-
     assert "completed locally" in content
-
-
-    assert "System info" in content # Should also include system info from _attach_system_info
+    assert "System info" in content

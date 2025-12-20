@@ -293,12 +293,13 @@ class LocalRunner:
     def _cleanup_after_run(
         self, generator: Any, collectors: list[Any], generator_started: bool = True
     ) -> None:
-        try:
-            if generator_started and self._generator_running(generator):
-                logger.info("Stopping generator due to error or interruption...")
+        if generator_started and hasattr(generator, "stop"):
+            try:
+                if self._generator_running(generator):
+                    logger.info("Stopping generator due to error or interruption...")
                 generator.stop()
-        except Exception as e:
-            logger.error("Failed to stop generator during cleanup: %s", e)
+            except Exception as e:
+                logger.error("Failed to stop generator during cleanup: %s", e)
 
         for collector in collectors:
             try:

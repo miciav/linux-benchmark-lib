@@ -25,7 +25,7 @@ def test_sysbench_user_plugin_yaml_config(tmp_path: Path, monkeypatch: pytest.Mo
     if not _has_external("sysbench-plugin"):
         pytest.skip("external sysbench-plugin not present")
 
-    # Ensure we load only from `_user/` and do not get overridden by legacy plugins.
+    # Ensure we load only from `_user/`.
     monkeypatch.setenv("LB_USER_PLUGIN_DIR", str(USER_PLUGIN_DIR))
 
     registry = PluginRegistry(builtin_plugins())
