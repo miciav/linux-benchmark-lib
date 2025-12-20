@@ -16,7 +16,7 @@ from lb_provisioner import (
     ProvisioningRequest,
     ProvisioningError,
 )
-from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
+from lb_runner.api import BenchmarkConfig, WorkloadConfig
 
 
 class ApplicationClient(AppClient):

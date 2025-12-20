@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 
 from lb_runner import system_info
+from lb_runner.system_info_io import write_outputs
 from lb_runner.benchmark_config import BenchmarkConfig
 
 
@@ -72,6 +73,6 @@ def write_system_info_artifacts(collected: system_info.SystemInfo, output_root: 
     json_path = output_root / "system_info.json"
     csv_path = output_root / "system_info.csv"
     try:
-        system_info.write_outputs(collected, json_path, csv_path)
+        write_outputs(collected, json_path, csv_path)
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug("Failed to write system info artifacts: %s", exc)

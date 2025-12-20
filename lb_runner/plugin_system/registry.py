@@ -5,19 +5,18 @@ Registry and discovery utilities for workload plugins.
 from __future__ import annotations
 
 import importlib.metadata
-import importlib.util
 import logging
 import os
-import sys
-import tomllib
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, Optional, Type, Union
+from typing import Any, Callable, Dict, Iterable, Optional
 
 from ..metric_collectors._base_collector import BaseCollector
 from .base_generator import BaseGenerator
 from ..benchmark_config import BenchmarkConfig
+from .entrypoints import discover_entrypoints, load_entrypoint, load_pending_entrypoints
 from .interface import WorkloadPlugin as IWorkloadPlugin
+from .user_plugins import load_plugins_from_dir
 
 
 logger = logging.getLogger(__name__)
@@ -151,189 +150,21 @@ class PluginRegistry:
 
     def _discover_entrypoint_plugins(self) -> None:
         """Collect entry points without importing them. Loaded on demand."""
-        for group in [ENTRYPOINT_GROUP, COLLECTOR_ENTRYPOINT_GROUP]:
-            try:
-                eps = importlib.metadata.entry_points().select(group=group)
-            except Exception:
-                continue
-            for entry_point in eps:
-                self._pending_entrypoints.setdefault(entry_point.name, entry_point)
+        self._pending_entrypoints = discover_entrypoints(
+            [ENTRYPOINT_GROUP, COLLECTOR_ENTRYPOINT_GROUP]
+        )
 
     def _load_pending_entrypoints(self) -> None:
         """Load all pending entry-point plugins."""
-        names = list(self._pending_entrypoints.keys())
-        for name in names:
-            self._load_entrypoint(name)
+        load_pending_entrypoints(self._pending_entrypoints, self.register)
 
     def _load_entrypoint(self, name: str) -> None:
         """Load a single entry-point plugin by name if pending."""
         entry_point = self._pending_entrypoints.pop(name, None)
         if not entry_point:
             return
-        try:
-            plugin = entry_point.load()
-            self.register(plugin)
-        except ImportError as exc:
-            logger.debug(
-                "Skipping plugin entry point %s due to missing dependency: %s",
-                entry_point.name,
-                exc,
-            )
-        except Exception as exc:
-            logger.warning(
-                f"Failed to load plugin entry point {entry_point.name}: {exc}"
-            )
+        load_entrypoint(entry_point, self.register)
 
     def _load_user_plugins(self) -> None:
         """Load python plugins from user plugin directories."""
-        self._load_plugins_from_dir(resolve_user_plugin_dir())
-
-    def _load_plugins_from_dir(self, root: Path) -> None:
-        """Load plugins from a directory if it exists."""
-        if not root.exists():
-            return
-        self._load_python_files(root)
-        for path in self._iter_plugin_dirs(root):
-            target = self._resolve_target_from_dir(path)
-            if target:
-                module_name = path.name if target.parent == path else target.parent.name
-                self._load_plugin_from_path(target, module_name=module_name)
-            else:
-                logger.debug(
-                    "Skipping user plugin dir %s: No suitable python entry point found.",
-                    path,
-                )
-
-    def _load_python_files(self, root: Path) -> None:
-        """Load top-level python modules that export PLUGIN/PLUGINS."""
-        for path in root.glob("*.py"):
-            if path.name.startswith("_"):
-                continue
-            self._load_plugin_from_path(path)
-
-    @staticmethod
-    def _iter_plugin_dirs(root: Path) -> Iterable[Path]:
-        """Yield plugin directory candidates under root."""
-        return (
-            path
-            for path in root.iterdir()
-            if path.is_dir() and not path.name.startswith("_")
-        )
-
-    def _resolve_target_from_dir(self, path: Path) -> Optional[Path]:
-        """Resolve a plugin entry point within a plugin directory."""
-        toml_file = path / "pyproject.toml"
-        if toml_file.exists():
-            target = self._resolve_entry_point_from_toml(path, toml_file)
-            if target:
-                logger.debug(f"Resolved plugin via pyproject.toml: {target}")
-                return target
-        for candidate in self._candidate_entrypoints(path):
-            if candidate.exists():
-                return candidate
-        return None
-
-    @staticmethod
-    def _candidate_entrypoints(path: Path) -> Iterable[Path]:
-        """Return likely plugin module paths in a plugin directory."""
-        candidates = [
-            path / "__init__.py",
-            path / "plugin.py",
-            path / f"{path.name}.py",
-        ]
-        for sub in path.iterdir():
-            if sub.is_dir() and not sub.name.startswith((".", "_", "tests")):
-                candidates.append(sub / "plugin.py")
-                candidates.append(sub / "__init__.py")
-        return candidates
-
-    def _resolve_entry_point_from_toml(
-        self, root: Path, toml_path: Path
-    ) -> Optional[Path]:
-        """Parse pyproject.toml to guess the package location."""
-        try:
-            with open(toml_path, "rb") as f:
-                data = tomllib.load(f)
-
-            project = data.get("project", {})
-            name = project.get("name")
-            if name:
-                # Standardize name: my-plugin -> my_plugin
-                pkg_name = name.replace("-", "_")
-
-                # Check for src/pkg_name layout
-                src_pkg = root / "src" / pkg_name
-                if src_pkg.exists():
-                    return (
-                        src_pkg / "plugin.py"
-                        if (src_pkg / "plugin.py").exists()
-                        else src_pkg / "__init__.py"
-                    )
-
-                # Check for root pkg_name layout
-                root_pkg = root / pkg_name
-                if root_pkg.exists():
-                    return (
-                        root_pkg / "plugin.py"
-                        if (root_pkg / "plugin.py").exists()
-                        else root_pkg / "__init__.py"
-                    )
-
-        except Exception as e:
-            logger.warning(f"Failed to parse {toml_path}: {e}")
-        return None
-
-    def _load_plugin_from_path(
-        self, path: Path, module_name: Optional[str] = None
-    ) -> None:
-        try:
-            name = module_name or path.stem
-            spec = importlib.util.spec_from_file_location(name, path)
-            if spec and spec.loader:
-                module = importlib.util.module_from_spec(spec)
-                sys.modules[name] = module
-                try:
-                    spec.loader.exec_module(module)
-                except Exception as e:
-                    logger.error(f"Error executing module {path}: {e}")
-                    return
-
-                self._register_from_module(module, source=str(path))
-        except Exception as e:
-            logger.warning(f"Failed to load user plugin {path}: {e}")
-
-    def _register_from_module(self, module: Any, source: str) -> None:
-        """Register PLUGIN / PLUGINS / get_plugins() exports from a python module."""
-        try:
-            if hasattr(module, "get_plugins") and callable(
-                getattr(module, "get_plugins")
-            ):
-                discovered = module.get_plugins()
-                candidates = (
-                    discovered if isinstance(discovered, list) else [discovered]
-                )
-            elif hasattr(module, "PLUGINS"):
-                discovered = getattr(module, "PLUGINS")
-                candidates = (
-                    discovered if isinstance(discovered, list) else [discovered]
-                )
-            elif hasattr(module, "PLUGIN"):
-                candidates = [getattr(module, "PLUGIN")]
-            else:
-                logger.debug(
-                    "Skipping %s: no PLUGIN/PLUGINS/get_plugins exports found", source
-                )
-                return
-
-            registered = 0
-            for plugin in candidates:
-                if plugin is None:
-                    continue
-                self.register(plugin)
-                registered += 1
-            if registered:
-                logger.info("Loaded %s plugin(s) from %s", registered, source)
-            else:
-                logger.debug("Skipping %s: exported plugin list was empty", source)
-        except Exception as exc:
-            logger.warning("Failed to register plugins from %s: %s", source, exc)
+        load_plugins_from_dir(resolve_user_plugin_dir(), self.register)

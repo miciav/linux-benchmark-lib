@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Set
 
 import typer
 
-from lb_app import ApplicationClient
+from lb_app.api import ApplicationClient
 from lb_provisioner import MAX_NODES
 from lb_controller.api import (
     BenchmarkConfig,
@@ -29,10 +29,7 @@ from lb_controller.api import (
 )
 from lb_analytics.analytics_service import AnalyticsRequest, AnalyticsService
 from lb_controller.api import build_plugin_table, create_registry, PluginInstaller
-from lb_app.services.doctor_service import DoctorService
-from lb_app.services.doctor_types import DoctorReport
-from lb_app.services.test_service import TestService
-from lb_app.ui_interfaces import UIAdapter
+from lb_app.api import DoctorService, DoctorReport, TestService, UIAdapter
 from lb_ui import viewmodels
 from lb_common import configure_logging
 
@@ -1002,7 +999,7 @@ def run(
     result = None
     try:
         # Build RunRequest for lb_app
-        from lb_app.interfaces import RunRequest
+        from lb_app.api import RunRequest
 
         selected_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
         if not selected_tests:

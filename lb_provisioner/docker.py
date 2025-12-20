@@ -44,7 +44,7 @@ class DockerProvisioner:
             port = self._find_free_port()
             self._run_container(engine, request.docker_image, name, port)
             self._inject_ssh_key(engine, name, pub_path)
-            self._wait_for_ssh(port, key_path)
+            self._wait_for_ssh(engine, name, port, key_path)
             host = RemoteHostConfig(
                 name=name,
                 address="127.0.0.1",
@@ -93,8 +93,9 @@ class DockerProvisioner:
             "apt-get update -qq && "
             "DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server sudo python3 && "
             "mkdir -p /var/run/sshd && "
-            "sed -i 's@^#PasswordAuthentication.*@PasswordAuthentication no@' /etc/ssh/sshd_config && "
-            "sed -i 's@^#PermitRootLogin.*@PermitRootLogin prohibit-password@' /etc/ssh/sshd_config && "
+            "sed -i -E 's@^#?PasswordAuthentication.*@PasswordAuthentication no@' /etc/ssh/sshd_config && "
+            "sed -i -E 's@^#?PermitRootLogin.*@PermitRootLogin prohibit-password@' /etc/ssh/sshd_config && "
+            "ssh-keygen -A && "
             "/usr/sbin/sshd -D"
         )
         cmd = [
@@ -138,7 +139,15 @@ class DockerProvisioner:
         except subprocess.CalledProcessError as exc:  # pragma: no cover - defensive
             raise ProvisioningError(f"Failed to inject SSH key into {name}: {exc.stderr}") from exc
 
-    def _wait_for_ssh(self, port: int, key_path: Path, retries: int = 30, delay: float = 2.0) -> None:
+    def _wait_for_ssh(
+        self,
+        engine: str,
+        name: str,
+        port: int,
+        key_path: Path,
+        retries: int = 60,
+        delay: float = 2.0,
+    ) -> None:
         """Poll until the container's SSH service accepts connections."""
         cmd = [
             "ssh",
@@ -146,6 +155,8 @@ class DockerProvisioner:
             str(key_path),
             "-p",
             str(port),
+            "-o",
+            "BatchMode=yes",
             "-o",
             "StrictHostKeyChecking=no",
             "-o",
@@ -158,11 +169,38 @@ class DockerProvisioner:
         # Give the SSH daemon a brief head-start before polling.
         time.sleep(1.5)
         for attempt in range(retries):
+            if not self._container_running(engine, name):
+                logs = self._container_logs(engine, name)
+                raise ProvisioningError(
+                    f"Container {name} exited before SSH became reachable. Logs:\n{logs}"
+                )
             proc = subprocess.run(cmd, capture_output=True, text=True)
             if proc.returncode == 0:
                 return
             time.sleep(delay)
-        raise ProvisioningError(f"SSH not reachable on 127.0.0.1:{port} after {retries} attempts")
+        logs = self._container_logs(engine, name)
+        raise ProvisioningError(
+            f"SSH not reachable on 127.0.0.1:{port} after {retries} attempts. Logs:\n{logs}"
+        )
+
+    @staticmethod
+    def _container_running(engine: str, name: str) -> bool:
+        cmd = [engine, "inspect", "-f", "{{.State.Running}}", name]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+        except Exception:
+            return False
+        return result.returncode == 0 and result.stdout.strip().lower() == "true"
+
+    @staticmethod
+    def _container_logs(engine: str, name: str, tail: int = 50) -> str:
+        cmd = [engine, "logs", "--tail", str(tail), name]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+        except Exception:
+            return "<unable to fetch logs>"
+        output = (result.stdout or "") + (result.stderr or "")
+        return output.strip() or "<no logs>"
 
     def _destroy_container(self, engine: str, name: str, key_path: Path, pub_path: Path) -> None:
         """Stop and remove a container and its keys; ignore failures."""

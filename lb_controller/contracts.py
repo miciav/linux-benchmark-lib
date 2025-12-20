@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
-from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig
-from lb_runner.plugin_system.registry import PluginRegistry
+from lb_runner.api import (
+    BenchmarkConfig,
+    RemoteExecutionConfig,
+    RemoteHostConfig,
+    WorkloadConfig,
+    PluginRegistry,
+)
 
 __all__ = [
     "BenchmarkConfig",

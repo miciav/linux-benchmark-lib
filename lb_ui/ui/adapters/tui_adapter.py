@@ -3,7 +3,7 @@ from contextlib import contextmanager, AbstractContextManager
 import threading
 import queue
 
-from lb_app.ui_interfaces import UIAdapter, DashboardHandle, ProgressHandle
+from lb_app.api import UIAdapter, DashboardHandle, ProgressHandle
 from lb_ui.ui.system.protocols import UI
 from lb_ui.ui.system.models import TableModel, PickItem
 

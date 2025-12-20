@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import lb_runner.system_info as sysinfo
+from lb_runner.system_info_io import write_outputs
 from lb_app.services.run_system_info import summarize_system_info
 
 pytestmark = [pytest.mark.runner]
@@ -70,7 +71,7 @@ def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
     info = sysinfo.collect_system_info()
     json_path = tmp_path / "system_info.json"
     csv_path = tmp_path / "system_info.csv"
-    sysinfo.write_outputs(info, json_path, csv_path)
+    write_outputs(info, json_path, csv_path)
 
     assert json_path.exists()
     assert csv_path.exists()

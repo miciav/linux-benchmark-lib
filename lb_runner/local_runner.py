@@ -7,20 +7,15 @@ managing the overall benchmark workflow.
 
 from __future__ import annotations
 
-import json
 import os
 import logging
 import platform
-import subprocess
 import time
-import shutil
-from datetime import UTC, datetime
-from json import JSONEncoder
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
-from lb_runner.events import RunEvent, StdoutEmitter
 from lb_runner.log_handler import LBEventLogHandler
 from lb_runner.output_helpers import (
     ensure_run_dirs,
@@ -29,24 +24,35 @@ from lb_runner.output_helpers import (
     write_system_info_artifacts,
 )
 from lb_runner.plugin_system.registry import PluginRegistry
-from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
+from lb_runner.plugin_system.interface import WorkloadPlugin
 from lb_runner.plugin_system.base_generator import BaseGenerator
+from lb_runner.run_execution import (
+    StopRequested,
+    cleanup_after_run,
+    pre_test_cleanup,
+    prepare_generator,
+    resolve_duration,
+    start_collectors,
+    wait_for_generator,
+)
+from lb_runner.run_progress import RunProgressEmitter
+from lb_runner.run_planning import (
+    generate_run_id,
+    resolve_config_input,
+    resolve_workload,
+    select_repetitions,
+)
+from lb_runner.run_results import (
+    build_rep_result,
+    collect_metrics,
+    export_plugin_results,
+    merge_results,
+    persist_rep_result,
+    persist_results,
+)
 from lb_runner.stop_token import StopToken
 from lb_runner import system_info
 logger = logging.getLogger(__name__)
-
-
-class DateTimeEncoder(JSONEncoder):
-    """Custom JSON encoder that handles datetime objects."""
-    def default(self, obj: Any) -> Any:
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
-
-
-class StopRequested(Exception):
-    """Raised when execution is stopped by user request."""
-    pass
 
 
 class LocalRunner:
@@ -74,9 +80,8 @@ class LocalRunner:
         self._output_root: Optional[Path] = None
         self._data_export_root: Optional[Path] = None
         self._log_file_handler_attached: bool = False
-        self._progress_callback = progress_callback
         self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
-        self._progress_emitter = StdoutEmitter()
+        self._progress = RunProgressEmitter(host=self._host_name, callback=progress_callback)
         self._stop_token = stop_token
         
     def collect_system_info(self) -> Dict[str, Any]:
@@ -176,21 +181,7 @@ class LocalRunner:
         return workload_dir, rep_dir
 
     def _resolve_duration(self, generator: Any) -> int:
-        duration = self.config.test_duration_seconds
-        if hasattr(generator, "expected_runtime_seconds"):
-            try:
-                expected = int(getattr(generator, "expected_runtime_seconds"))
-                if expected > duration:
-                    logger.info(
-                        "Extending test duration to %s seconds based on workload hint",
-                        expected,
-                    )
-                    duration = expected
-            except Exception:
-                logger.debug(
-                    "Failed to read expected runtime from generator; using default duration"
-                )
-        return duration
+        return resolve_duration(self.config, generator, logger)
 
     def _attach_event_logger(
         self, test_name: str, repetition: int, total_repetitions: int
@@ -235,21 +226,10 @@ class LocalRunner:
         return test_start_time, test_end_time
 
     def _prepare_generator(self, generator: Any) -> None:
-        try:
-            generator.prepare()
-        except Exception as e:
-            logger.error("Generator setup failed: %s", e)
-            raise
-        if self.config.warmup_seconds > 0:
-            logger.info("Warmup period: %s seconds", self.config.warmup_seconds)
-            time.sleep(self.config.warmup_seconds)
+        prepare_generator(generator, self.config.warmup_seconds, logger)
 
     def _start_collectors(self, collectors: list[Any]) -> None:
-        for collector in collectors:
-            try:
-                collector.start()
-            except Exception as e:
-                logger.error("Failed to start collector %s: %s", collector.name, e)
+        start_collectors(collectors, logger)
 
     def _wait_for_generator(
         self,
@@ -259,53 +239,19 @@ class LocalRunner:
         repetition: int,
         stop_token: StopToken | None,
     ) -> datetime:
-        safety_buffer = 10
-        max_wait = duration + safety_buffer
-        elapsed = 0
-        last_progress_log = 0
-        while elapsed < max_wait:
-            if stop_token and stop_token.should_stop():
-                raise StopRequested("Stopped by user")
-            if not self._generator_running(generator):
-                break
-            time.sleep(1)
-            elapsed += 1
-            if self._should_log_progress(duration, elapsed, last_progress_log):
-                percent = int((min(elapsed, duration) / duration) * 100)
-                logger.info(
-                    "Progress for %s rep %s: %s%%", test_name, repetition, percent
-                )
-                last_progress_log = elapsed
-        if self._generator_running(generator):
-            logger.warning(
-                "Workload exceeded %ss (duration + safety). Forcing stop.", max_wait
-            )
-            generator.stop()
-        return datetime.now()
-
-    @staticmethod
-    def _should_log_progress(duration: int, elapsed: int, last_progress_log: int) -> bool:
-        if not duration:
-            return False
-        step = max(1, duration // 10)
-        return elapsed % step == 0 and elapsed != last_progress_log
+        return wait_for_generator(
+            generator,
+            duration,
+            test_name,
+            repetition,
+            stop_token,
+            logger,
+        )
 
     def _cleanup_after_run(
         self, generator: Any, collectors: list[Any], generator_started: bool = True
     ) -> None:
-        if generator_started and hasattr(generator, "stop"):
-            try:
-                if self._generator_running(generator):
-                    logger.info("Stopping generator due to error or interruption...")
-                generator.stop()
-            except Exception as e:
-                logger.error("Failed to stop generator during cleanup: %s", e)
-
-        for collector in collectors:
-            try:
-                collector.stop()
-            except Exception as e:
-                logger.error("Failed to stop collector %s: %s", collector.name, e)
+        cleanup_after_run(generator, collectors, logger, generator_started=generator_started)
 
     def _finalize_single_test(
         self,
@@ -319,40 +265,28 @@ class LocalRunner:
         test_start_time: datetime | None,
         test_end_time: datetime | None,
     ) -> Dict[str, Any]:
-        duration_seconds = (
-            (test_end_time - test_start_time).total_seconds()
-            if test_start_time and test_end_time
-            else 0
+        result = build_rep_result(
+            test_name=test_name,
+            repetition=repetition,
+            rep_dir=rep_dir,
+            generator_result=generator.get_result(),
+            test_start_time=test_start_time,
+            test_end_time=test_end_time,
         )
+        duration_seconds = result.get("duration_seconds", 0) or 0
         if duration_seconds:
             logger.info("Repetition %s completed in %.2fs", repetition, duration_seconds)
-
-        result = {
-            "test_name": test_name,
-            "repetition": repetition,
-            "start_time": test_start_time.isoformat() if test_start_time else None,
-            "end_time": test_end_time.isoformat() if test_end_time else None,
-            "duration_seconds": duration_seconds,
-            "generator_result": generator.get_result(),
-            "metrics": {},
-            "artifacts_dir": str(rep_dir),
-        }
-        result["success"] = self._is_generator_success(result["generator_result"])
         self._emit_progress(
-            test_name, repetition, total_repetitions, "done" if result["success"] else "failed"
+            test_name,
+            repetition,
+            total_repetitions,
+            "done" if result["success"] else "failed",
         )
-        self._collect_metrics(collectors, workload_dir, rep_dir, test_name, repetition, result)
+        self._collect_metrics(
+            collectors, workload_dir, rep_dir, test_name, repetition, result
+        )
         self._persist_rep_result(rep_dir, result)
         return result
-
-    @staticmethod
-    def _is_generator_success(gen_result: Any) -> bool:
-        if isinstance(gen_result, dict):
-            if gen_result.get("error"):
-                return False
-            rc = gen_result.get("returncode")
-            return rc in (None, 0)
-        return gen_result in (None, 0, True)
 
     def _collect_metrics(
         self,
@@ -363,86 +297,16 @@ class LocalRunner:
         repetition: int,
         result: Dict[str, Any],
     ) -> None:
-        for collector in collectors:
-            collector_data = collector.get_data()
-            result["metrics"][collector.name] = collector_data
-            filename = f"{test_name}_rep{repetition}_{collector.name}.csv"
-            filepath = workload_dir / filename
-            collector.save_data(filepath)
-            rep_filepath = rep_dir / filename
-            try:
-                if rep_filepath != filepath:
-                    shutil.copyfile(filepath, rep_filepath)
-            except Exception:
-                pass
+        collect_metrics(
+            collectors, workload_dir, rep_dir, test_name, repetition, result
+        )
 
     @staticmethod
     def _persist_rep_result(rep_dir: Path, result: Dict[str, Any]) -> None:
-        try:
-            rep_result_path = rep_dir / "result.json"
-            rep_result_path.write_text(
-                json.dumps(result, indent=2, cls=DateTimeEncoder)
-            )
-        except Exception:
-            pass
+        persist_rep_result(rep_dir, result)
     
     def _pre_test_cleanup(self) -> None:
-        """Perform pre-test cleanup operations."""
-        logger.info("Performing pre-test cleanup")
-        
-        if platform.system() == "Linux":
-            # Clear filesystem caches
-            try:
-                subprocess.run(
-                    ["sync"],
-                    check=True
-                )
-                # Try to clear caches only if we have sudo access
-                # In Docker containers, this often fails and that's OK
-                try:
-                    subprocess.run(
-                        ["sudo", "-n", "sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"],
-                        check=True,
-                        capture_output=True
-                    )
-                    logger.info("Cleared filesystem caches")
-                except Exception:
-                    logger.debug("Skipping cache clearing (no sudo access)")
-            except Exception as e:
-                logger.warning(f"Failed to perform pre-test cleanup: {e}")
-
-    def _emit_progress(self, test_name: str, repetition: int, total_repetitions: int, status: str) -> None:
-        """Notify progress callback and stdout marker for remote parsing."""
-        event = RunEvent(
-            run_id=self._current_run_id or "",
-            host=self._host_name,
-            workload=test_name,
-            repetition=repetition,
-            total_repetitions=total_repetitions,
-            status=status,
-            timestamp=time.time(),
-        )
-        if self._progress_callback:
-            try:
-                self._progress_callback(event)
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.debug("Progress callback failed: %s", exc)
-        try:
-            self._progress_emitter.emit(event)
-        except Exception:
-            # Never break workload on progress path
-            pass
-
-    @staticmethod
-    def _generator_running(generator: Any) -> bool:
-        """
-        Safely interpret the generator's running flag.
-
-        MagicMock instances used in tests may return a non-bool sentinel for
-        `_is_running`; treat any non-bool as False to avoid long sleep loops.
-        """
-        state = getattr(generator, "_is_running", False)
-        return state is True or (isinstance(state, bool) and state)
+        pre_test_cleanup(logger)
     
     def run_benchmark(
         self,
@@ -500,6 +364,7 @@ class LocalRunner:
         self._output_root, self._data_export_root, _ = ensure_run_dirs(
             self.config, run_identifier
         )
+        self._progress.set_run_id(run_identifier)
         if not self._log_file_handler_attached and self._output_root:
             self._log_file_handler_attached = ensure_runner_log(
                 self._output_root, logger
@@ -508,16 +373,9 @@ class LocalRunner:
     def _select_repetitions(
         self, repetition_override: int | None, pending_reps: List[int] | None
     ) -> List[int]:
-        if pending_reps:
-            reps = pending_reps
-        elif repetition_override is not None:
-            reps = [repetition_override]
-        else:
-            reps = list(range(1, self.config.repetitions + 1))
-        for rep in reps:
-            if rep is None or rep <= 0:
-                raise ValueError("Repetition index must be a positive integer")
-        return reps
+        return select_repetitions(
+            self.config.repetitions, repetition_override, pending_reps
+        )
 
     def _run_single_repetition(
         self,
@@ -563,25 +421,7 @@ class LocalRunner:
     def _resolve_config_input(
         self, workload_cfg: WorkloadConfig, plugin: WorkloadPlugin
     ) -> Any:
-        config_input: Any = workload_cfg.options
-        if workload_cfg.intensity and workload_cfg.intensity != "user_defined":
-            try:
-                level = WorkloadIntensity(workload_cfg.intensity)
-                preset_config = plugin.get_preset_config(level)
-                if preset_config:
-                    logger.info("Using preset configuration for intensity '%s'", level.value)
-                    return preset_config
-                logger.warning(
-                    "Plugin '%s' does not support intensity '%s', falling back to user options.",
-                    plugin.name,
-                    level.value,
-                )
-            except ValueError:
-                logger.warning(
-                    "Invalid intensity level '%s', falling back to user options.",
-                    workload_cfg.intensity,
-                )
-        return config_input
+        return resolve_config_input(workload_cfg, plugin, logger)
 
     def _cleanup_generator(
         self, generator: BaseGenerator, test_type: str, repetition: int
@@ -605,37 +445,10 @@ class LocalRunner:
     def _merge_results(
         self, results_file: Path, new_results: List[Dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        merged: list[dict[str, Any]] = []
-        if results_file.exists():
-            try:
-                existing_raw = json.loads(results_file.read_text())
-                if isinstance(existing_raw, list):
-                    merged = [r for r in existing_raw if isinstance(r, dict)]
-            except Exception:
-                merged = []
-
-        def _rep_key(entry: dict[str, Any]) -> int | None:
-            rep_val = entry.get("repetition")
-            return rep_val if isinstance(rep_val, int) and rep_val > 0 else None
-
-        merged_by_rep: dict[int, dict[str, Any]] = {
-            rep: entry for entry in merged if (rep := _rep_key(entry)) is not None
-        }
-        unkeyed: list[dict[str, Any]] = [e for e in merged if _rep_key(e) is None]
-        for entry in new_results:
-            rep = _rep_key(entry)
-            if rep is None:
-                unkeyed.append(entry)
-            else:
-                merged_by_rep[rep] = entry
-
-        return [merged_by_rep[rep] for rep in sorted(merged_by_rep)] + unkeyed
+        return merge_results(results_file, new_results)
 
     def _persist_results(self, results_file: Path, merged_results: list[dict[str, Any]]) -> None:
-        tmp_path = results_file.with_suffix(".json.tmp")
-        tmp_path.write_text(json.dumps(merged_results, indent=2, cls=DateTimeEncoder))
-        tmp_path.replace(results_file)
-        logger.info("Saved raw results to %s", results_file)
+        persist_results(results_file, merged_results)
     
     def _export_plugin_results(
         self,
@@ -644,33 +457,28 @@ class LocalRunner:
         target_root: Path,
         test_name: str,
     ) -> None:
-        if not plugin:
-            return
-        try:
-            exported = plugin.export_results_to_csv(
-                results=merged_results,
-                output_dir=target_root,
-                run_id=self._current_run_id or "",
-                test_name=test_name,
-            )
-            for path in exported:
-                logger.info("Plugin exported CSV: %s", path)
-        except Exception as exc:
-            logger.warning("Plugin '%s' export_results_to_csv failed: %s", plugin.name, exc)
+        export_plugin_results(
+            plugin,
+            merged_results,
+            target_root,
+            test_name,
+            self._current_run_id or "",
+        )
+
+    def _emit_progress(
+        self, test_name: str, repetition: int, total_repetitions: int, status: str
+    ) -> None:
+        """Notify progress callback and stdout marker for remote parsing."""
+        self._progress.emit(test_name, repetition, total_repetitions, status)
 
     def _resolve_workload(self, name: str) -> WorkloadConfig:
         """Return the workload configuration ensuring it is enabled."""
-        workload = self.config.workloads.get(name)
-        if workload is None:
-            raise ValueError(f"Unknown workload: {name}")
-        if not workload.enabled:
-            raise ValueError(f"Workload '{name}' is disabled in the configuration")
-        return workload
+        return resolve_workload(name, self.config.workloads)
 
     @staticmethod
     def _generate_run_id() -> str:
         """Generate a timestamp-based run id."""
-        return datetime.now(UTC).strftime("run-%Y%m%d-%H%M%S")
+        return generate_run_id()
     
     def run_all_benchmarks(self) -> None:
         """Run all configured benchmark tests."""

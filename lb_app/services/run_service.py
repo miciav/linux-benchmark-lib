@@ -8,8 +8,7 @@ import queue
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from lb_runner.benchmark_config import BenchmarkConfig
-from lb_runner.plugin_system.registry import PluginRegistry
+from lb_runner.api import BenchmarkConfig, PluginRegistry
 from lb_runner.stop_token import StopToken
 from lb_controller.api import (
     ControllerRunner,

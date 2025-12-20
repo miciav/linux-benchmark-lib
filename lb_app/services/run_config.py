@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from lb_runner.benchmark_config import BenchmarkConfig
+from lb_runner.api import BenchmarkConfig
 
 
 def hash_config(cfg: BenchmarkConfig | None) -> str:

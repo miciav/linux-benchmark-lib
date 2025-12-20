@@ -6,11 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Protocol, Sequence
 
-from lb_runner.benchmark_config import BenchmarkConfig
+from lb_runner.api import BenchmarkConfig, RunEvent
 from lb_controller.api import RunJournal
 from lb_app.services.run_service import RunResult
 from lb_app.ui_interfaces import UIAdapter
-from lb_runner.events import RunEvent
 
 
 class UIHooks(Protocol):
