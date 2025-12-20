@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from lb_controller.api import PluginInstaller, create_registry
 from lb_controller.services import plugin_service as plugin_service_mod
-from lb_controller.services.plugin_service import PluginInstaller, create_registry
 
 pytestmark = [pytest.mark.e2e, pytest.mark.integration, pytest.mark.plugins, pytest.mark.slow]
 
@@ -26,6 +26,7 @@ DEFAULT_E2E_GIT_PLUGIN_URL = "https://github.com/miciav/sysbench-plugin.git"
 def _patch_plugin_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Point user plugin dir to a temporary location."""
     plugin_dir = tmp_path / "plugins"
+    monkeypatch.setenv("LB_USER_PLUGIN_DIR", str(plugin_dir))
     monkeypatch.setattr(plugin_service_mod, "USER_PLUGIN_DIR", plugin_dir)
     import lb_runner.plugin_system.registry as registry_mod
 

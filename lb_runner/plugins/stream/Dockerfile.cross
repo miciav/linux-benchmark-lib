@@ -1,0 +1,33 @@
+FROM debian:bookworm AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ARG STREAM_VERSION=5.10
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    devscripts \
+    debhelper \
+    dh-python \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /stream-deb
+
+# Create a minimal Debian source tree (we vendor stream.c and LICENSE.txt in the repo).
+RUN mkdir -p stream-benchmark-${STREAM_VERSION}/debian
+COPY lb_runner/plugins/stream/upstream/stream.c stream-benchmark-${STREAM_VERSION}/stream.c
+COPY lb_runner/plugins/stream/upstream/LICENSE.txt stream-benchmark-${STREAM_VERSION}/LICENSE.txt
+COPY lb_runner/plugins/stream/control stream-benchmark-${STREAM_VERSION}/debian/control
+COPY lb_runner/plugins/stream/rules stream-benchmark-${STREAM_VERSION}/debian/rules
+RUN chmod +x stream-benchmark-${STREAM_VERSION}/debian/rules
+
+RUN cd stream-benchmark-${STREAM_VERSION} && DEBFULLNAME='STREAM Builder' DEBEMAIL='builder@example.com' \
+    dch --create -v ${STREAM_VERSION}-1 --package stream-benchmark "Cross-built package."
+
+RUN cd stream-benchmark-${STREAM_VERSION} && dpkg-buildpackage -b -us -uc -Zgzip -z3
+
+FROM scratch AS artifact
+COPY --from=builder /stream-deb/*.deb /out/
+

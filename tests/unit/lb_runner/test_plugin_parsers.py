@@ -8,9 +8,10 @@ import pytest
 from lb_runner.plugins.dd.plugin import DDConfig, DDPlugin
 from lb_runner.plugins.fio.plugin import FIOConfig, FIOPlugin
 from lb_runner.plugins.hpl.plugin import HPLConfig, HPLPlugin
+from lb_runner.plugins.stream.plugin import StreamConfig, StreamPlugin
 
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.runner
 
 
 def test_dd_builds_command_and_handles_options(tmp_path):
@@ -84,3 +85,23 @@ PASSED
     assert metrics["q"] == 1
     assert metrics["residual"] == 0.1234
     assert metrics["residual_passed"] is True
+
+
+def test_stream_parses_stdout_metrics() -> None:
+    plugin = StreamPlugin()
+    gen = plugin.create_generator(StreamConfig())
+    sample = """
+-------------------------------------------------------------
+STREAM version $Revision: 5.10 $
+-------------------------------------------------------------
+Function    Best Rate MB/s  Avg time     Min time     Max time
+Copy:       12345.6         0.0012       0.0011       0.0013
+Scale:      23456.7         0.0022       0.0021       0.0023
+Add:        34567.8         0.0032       0.0031       0.0033
+Triad:      45678.9         0.0042       0.0041       0.0043
+Solution Validates: avg error less than 1.000000e-13 on all three arrays
+"""
+    metrics = gen._parse_output(sample)  # type: ignore[attr-defined]
+    assert metrics["copy_best_rate_mb_s"] == 12345.6
+    assert metrics["triad_best_rate_mb_s"] == 45678.9
+    assert metrics["validated"] is True

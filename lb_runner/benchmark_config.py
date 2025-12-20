@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
-from inspect import isclass
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, model_validator, ValidationError, model_serializer # Added Pydantic imports
+from pydantic import BaseModel, Field, model_validator  # Added Pydantic imports
 
 # --- Ansible Root Definition ---
 _HERE = Path(__file__).resolve()
@@ -193,10 +191,9 @@ class BenchmarkConfig(BaseModel):
 
     @model_validator(mode="after")
     def _post_init_validation(self) -> 'BenchmarkConfig':
-        self._hydrate_plugin_settings()
-        if not self.plugin_settings:
-            self._populate_default_plugin_settings()
-        self._ensure_workloads_from_plugin_settings()
+        from lb_runner.plugin_system.settings import apply_plugin_settings_defaults
+
+        apply_plugin_settings_defaults(self)
         self._validate_remote_hosts_unique() # Renamed to call the Pydantic validator
         # remote_execution handles its own path normalization via model_validator
         return self
@@ -235,83 +232,5 @@ class BenchmarkConfig(BaseModel):
     @classmethod
     def load(cls, filepath: Path) -> "BenchmarkConfig":
         return cls.model_validate_json(filepath.read_text())
-
-    def _hydrate_plugin_settings(self) -> None:
-        """
-        Convert plugin_settings dicts into their respective Pydantic models.
-        This relies on the plugin registry to get the correct config_cls.
-        """
-        # Lazy import to avoid circular dependencies
-        from lb_runner.plugin_system.builtin import builtin_plugins
-        from lb_runner.plugin_system.registry import PluginRegistry
-
-        registry = PluginRegistry(builtin_plugins())
-
-        for name, settings_data in list(self.plugin_settings.items()): # Iterate a copy
-            try:
-                plugin = registry.get(name)  # Get the plugin instance
-            except KeyError:
-                logger.warning(
-                    "Plugin '%s' not found while hydrating plugin_settings; keeping raw value.",
-                    name,
-                )
-                continue
-            if plugin and isclass(plugin.config_cls) and issubclass(plugin.config_cls, BaseModel):
-                if isinstance(settings_data, dict):
-                    try:
-                        # Validate and convert dict to Pydantic model
-                        self.plugin_settings[name] = plugin.config_cls.model_validate(settings_data)
-                    except ValidationError as e:
-                        logger.error(f"Validation error for plugin '{name}' config: {e}")
-                        # Keep it as dict if validation fails, or remove, depending on desired strictness
-                        pass
-                # If it's already a Pydantic model, do nothing (or re-validate if needed)
-            else:
-                logger.warning(f"Plugin '{name}' not found or does not have a Pydantic config_cls. Keeping settings as dict.")
-
-    def _ensure_workloads_from_plugin_settings(self) -> None:
-        """Populate workloads dict from plugin_settings if not explicitly defined."""
-        if not self.plugin_settings:
-            return
-        for name, settings in self.plugin_settings.items():
-            if name not in self.workloads:
-                # `settings` is already a Pydantic model (or a dict if _hydrate failed)
-                # If it's a Pydantic model, model_dump() converts it to dict
-                options_dict = settings.model_dump() if isinstance(settings, BaseModel) else settings
-                self.workloads[name] = WorkloadConfig(
-                    plugin=name,
-                    enabled=False,
-                    options=options_dict,
-                )
-            else:
-                # Merge options from plugin_settings into workload config
-                cfg = self.workloads[name]
-                if not cfg.options:
-                    options_dict = settings.model_dump() if isinstance(settings, BaseModel) else settings
-                    cfg.options = options_dict
-
-    def _populate_default_plugin_settings(self) -> None:
-        """Fallback default plugin configs (e.g., stress_ng only for basic setup)."""
-        # Lazy import to avoid circular dependencies
-        from lb_runner.plugin_system.builtin import builtin_plugins
-        from lb_runner.plugin_system.registry import PluginRegistry
-
-        registry = PluginRegistry(builtin_plugins())
-
-        for name in registry.available():
-            if name in self.plugin_settings:
-                continue
-            try:
-                plugin = registry.get(name)
-            except KeyError:
-                continue
-            if not (plugin and isclass(plugin.config_cls) and issubclass(plugin.config_cls, BaseModel)):
-                continue
-            try:
-                self.plugin_settings[name] = plugin.config_cls()  # Instantiate default Pydantic config
-            except (ValidationError, TypeError) as exc:
-                # Some plugin configs require mandatory settings (e.g., remote hosts, license keys).
-                logger.debug("Skipping default config for plugin '%s': %s", name, exc)
-
 
     # Removed _normalize_playbook_paths as its logic is now within RemoteExecutionConfig's model_validator

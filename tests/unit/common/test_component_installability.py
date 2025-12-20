@@ -7,7 +7,7 @@ import tomllib
 
 import pytest
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.controller
 
 
 
@@ -39,9 +39,12 @@ def test_controller_is_importable_even_without_extra_optional_packages():
     """
     The controller component should import cleanly without requiring optional extras.
     """
+    import lb_controller.api as api  # noqa: F401
     import lb_controller  # noqa: F401
-    assert hasattr(lb_controller, "RunService")
-    assert hasattr(lb_controller, "BenchmarkController")
+
+    assert hasattr(api, "BenchmarkController")
+    assert hasattr(api, "ConfigService")
+    assert not hasattr(lb_controller, "BenchmarkController")
 
 
 def test_pyproject_lists_component_cli_scripts():

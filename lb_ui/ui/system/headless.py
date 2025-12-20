@@ -1,4 +1,4 @@
-from typing import Sequence, ContextManager, Any
+from typing import Sequence, ContextManager, Any, IO
 from dataclasses import dataclass, field
 from contextlib import nullcontext
 
@@ -153,10 +153,24 @@ class _HeadlessDashboard(Dashboard):
     def mark_event(self, source: str) -> None:
         pass
 
+    def set_warning(self, message: str, ttl: float = 10.0) -> None:
+        pass
+
+    def clear_warning(self) -> None:
+        pass
+
+    def set_controller_state(self, state: str) -> None:
+        pass
+
 class _HeadlessDashboardFactory(DashboardFactory):
     def __init__(self, ui: HeadlessUI):
         self._ui = ui
 
-    def create(self, plan: list[Any], journal: Any) -> Dashboard:
+    def create(
+        self,
+        plan: list[Any],
+        journal: Any,
+        ui_log_file: IO[str] | None = None,
+    ) -> Dashboard:
         self._ui.recorded_messages.append(f"DASHBOARD: create(plan={len(plan)} items)")
         return _HeadlessDashboard(self._ui)

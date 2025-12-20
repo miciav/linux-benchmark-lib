@@ -39,15 +39,20 @@
         from lb_runner.benchmark_config import BenchmarkConfig
         from lb_runner.local_runner import LocalRunner
         from lb_controller.services.plugin_service import create_registry
+        from lb_runner.stop_token import StopToken
 
         cfg_path = Path("{{ workload_runner_workdir }}/benchmark_config.generated.json")
         cfg = BenchmarkConfig.from_dict(json.loads(cfg_path.read_text()))
+
+        stop_file = Path("{{ workload_runner_workdir }}/STOP")
+        stop_token = StopToken(stop_file=stop_file)
 
         runner = LocalRunner(
             cfg,
             registry=create_registry(),
             progress_callback=None,
             host_name="{{ inventory_hostname }}",
+            stop_token=stop_token,
         )
 
         start = time.time()
@@ -98,8 +103,8 @@
       when: workload_runner_rep_result.rc == 0
 
     - name: "{{ run_prefix }} Cooldown between repetitions (pure, collectors stopped)"
-      ansible.builtin.pause:
-        seconds: "{{ workload_runner_config_rendered.cooldown_seconds | default(0) | int }}"
+      ansible.builtin.wait_for:
+        timeout: "{{ workload_runner_config_rendered.cooldown_seconds | default(0) | int }}"
       when:
         - (workload_runner_config_rendered.cooldown_seconds | default(0) | int) > 0
         - workload_runner_reps is defined

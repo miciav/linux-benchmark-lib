@@ -8,7 +8,7 @@ jobs:
   diagrams:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       actions: write
     steps:
       - name: Checkout
@@ -31,7 +31,7 @@ jobs:
       - name: Generate diagrams
         run: |
           mkdir -p docs/diagrams
-          pyreverse -o png -p linux-benchmark lb_runner lb_controller lb_ui -S
+          pyreverse -o png -p linux-benchmark lb_runner lb_controller lb_app lb_ui lb_analytics lb_provisioner -S
           # pyreverse naming differs across pylint versions; glob and normalize.
           shopt -s nullglob
           classes_png=(classes*.png)
@@ -43,7 +43,7 @@ jobs:
           fi
           mv "${classes_png[0]}" docs/diagrams/classes.png
           mv "${packages_png[0]}" docs/diagrams/packages.png
-          pyreverse -o puml -p linux-benchmark lb_runner lb_controller lb_ui -S
+          pyreverse -o puml -p linux-benchmark lb_runner lb_controller lb_app lb_ui lb_analytics lb_provisioner -S
           classes_puml=(classes*.puml)
           packages_puml=(packages*.puml)
           if [ ${#classes_puml[@]} -eq 0 ] || [ ${#packages_puml[@]} -eq 0 ]; then
@@ -60,3 +60,10 @@ jobs:
           name: diagrams-${{ github.ref_name }}
           path: docs/diagrams
           if-no-files-found: error
+
+      - name: Attach diagrams to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            docs/diagrams/*.png
+            docs/diagrams/*.puml

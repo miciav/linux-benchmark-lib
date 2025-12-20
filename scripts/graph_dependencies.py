@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from lb_common import configure_logging
 
 DEFAULT_EXCLUDE = ["tests", "tests.*"]
 DEFAULT_COMPONENTS = ["lb_runner", "lb_controller", "lb_ui"]
@@ -123,6 +124,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    configure_logging()
     args = parse_args()
     if args.all:
         if args.module:

@@ -1,0 +1,2 @@
+"""STREAM workload plugin."""
+

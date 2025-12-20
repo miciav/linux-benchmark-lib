@@ -372,9 +372,6 @@ class GeekbenchPlugin(WorkloadPlugin):
     def get_required_local_tools(self) -> List[str]:
         return ["curl", "wget", "tar"]
 
-    def get_dockerfile_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "Dockerfile"
-
     def get_ansible_setup_path(self) -> Optional[Path]:
         return Path(__file__).parent / "ansible" / "setup.yml"
 

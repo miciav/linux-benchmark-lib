@@ -1,0 +1,252 @@
+{
+  "run_id": "molecule-teardown",
+  "tasks": [
+    {
+      "host": "simulated",
+      "workload": "dummy",
+      "repetition": 1,
+      "status": "PENDING",
+      "current_action": "",
+      "timestamp": 1766004499.429007,
+      "error": null,
+      "started_at": null,
+      "finished_at": null,
+      "duration_seconds": null
+    }
+  ],
+  "metadata": {
+    "created_at": "2025-12-17T21:48:19.428769",
+    "config_summary": "repetitions=1 test_duration_seconds=3600 metrics_interval_seconds=1.0 warmup_seconds=5 cooldown_seconds=5 output_dir=PosixPath('/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/controller_artifacts/teardown') report_dir=PosixPath('/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/controller_artifacts/teardown/reports') data_export_dir=PosixPath('/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/controller_artifacts/teardown/exports') plugin_settings={'stress_ng': StressNGConfig(max_retries=0, timeout_buffer=10, tags=[], cpu_workers=0, cpu_method='all', vm_workers=1, vm_bytes='1G', io_workers=1, timeout=60, metrics_brief=True, extra_args=[], debug=False), 'fio': FIOConfig(max_retries=0, timeout_buffer=10, tags=[], job_file=None, runtime=60, rw='randrw', bs='4k', iodepth=16, numjobs=1, size='1G', directory='/tmp', name='benchmark', output_format='json', debug=False), 'stream': StreamConfig(max_retries=0, timeout_buffer=10, tags=[], stream_array_size=10000000, ntimes=10, recompile=False, threads=0, use_numactl=False, numactl_args=['--interleave=all'], workspace_dir=None, expected_runtime_seconds=60), 'baseline': BaselineConfig(max_retries=0, timeout_buffer=10, tags=[], duration=60.0), 'hpl': HPLConfig(max_retries=0, timeout_buffer=10, tags=[], n=10000, nb=256, p=1, q=1, mpi_ranks=1, mpi_launcher='fork', workspace_dir=None, debug=False, expected_runtime_seconds=3600), 'dd': DDConfig(max_retries=0, timeout_buffer=10, tags=[], if_path='/dev/zero', of_path='/tmp/lb_dd_test', bs='1M', count=None, conv='fdatasync', oflag='direct', timeout=60, debug=False), 'yabs': YabsConfig(max_retries=0, timeout_buffer=10, tags=[], script_url='https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh', script_checksum=None, skip_disk=False, skip_network=False, skip_geekbench=True, skip_cleanup=True, output_dir=PosixPath('/tmp'), extra_args=[], expected_runtime_seconds=600, debug=False), 'pts_build_linux_kernel': PhoronixConfig(max_retries=0, timeout_buffer=10, tags=[], batch_mode=True, install_system_packages=True, timeout_seconds=0, extra_args=[]), 'pts_compress_7zip': PhoronixConfig(max_retries=0, timeout_buffer=10, tags=[], batch_mode=True, install_system_packages=True, timeout_seconds=0, extra_args=[]), 'geekbench': GeekbenchConfig(max_retries=0, timeout_buffer=10, tags=[], version='6.3.0', download_url=None, download_checksum=None, workdir=PosixPath('/opt/geekbench'), output_dir=PosixPath('/tmp'), license_key=None, skip_cleanup=True, run_gpu=False, extra_args=[], arch_override=None, expected_runtime_seconds=1800, debug=False), 'unixbench': UnixBenchConfig(max_retries=0, timeout_buffer=10, tags=[], threads=1, iterations=1, tests=[], workdir=PosixPath('/opt/UnixBench'), extra_args=[], debug=False), 'sysbench': SysbenchConfig(max_retries=0, timeout_buffer=10, tags=[], test='cpu', threads=1, time=60, max_requests=None, rate=None, cpu_max_prime=20000, extra_args=[], debug=False)} collectors=MetricCollectorConfig(psutil_interval=1.0, cli_commands=['sar -u 1 1', 'vmstat 1 1', 'iostat -d 1 1', 'mpstat 1 1', 'pidstat -h 1 1'], perf_config=PerfConfig(events=['cpu-cycles', 'instructions', 'cache-references', 'cache-misses', 'branches', 'branch-misses'], interval_ms=1000, pid=None, cpu=None), enable_ebpf=False) workloads={'dummy': WorkloadConfig(plugin='stress_ng', enabled=True, intensity='user_defined', options={})} remote_hosts=[RemoteHostConfig(name='simulated', address='127.0.0.1', port=22, user='runner', become=False, become_method='sudo', vars={'ansible_connection': 'local', 'ansible_python_interpreter': 'python3'})] remote_execution=RemoteExecutionConfig(enabled=True, inventory_path=None, run_setup=True, run_collect=False, setup_playbook=PosixPath('/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/playbooks/setup.yml'), run_playbook=PosixPath('/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/playbooks/run.yml'), collect_playbook=PosixPath('/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/playbooks/run.yml'), teardown_playbook=PosixPath('/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/playbooks/teardown.yml'), run_teardown=True, use_container_fallback=False) collect_system_info=True influxdb_enabled=False influxdb_url='http://localhost:8086' influxdb_token='' influxdb_org='benchmark' influxdb_bucket='performance'",
+    "repetitions": 1,
+    "system_info": {},
+    "config_dump": {
+      "repetitions": 1,
+      "test_duration_seconds": 3600,
+      "metrics_interval_seconds": 1.0,
+      "warmup_seconds": 5,
+      "cooldown_seconds": 5,
+      "output_dir": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/controller_artifacts/teardown",
+      "report_dir": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/controller_artifacts/teardown/reports",
+      "data_export_dir": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/controller_artifacts/teardown/exports",
+      "plugin_settings": {
+        "stress_ng": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "cpu_workers": 0,
+          "cpu_method": "all",
+          "vm_workers": 1,
+          "vm_bytes": "1G",
+          "io_workers": 1,
+          "timeout": 60,
+          "metrics_brief": true,
+          "extra_args": [],
+          "debug": false
+        },
+        "fio": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "job_file": null,
+          "runtime": 60,
+          "rw": "randrw",
+          "bs": "4k",
+          "iodepth": 16,
+          "numjobs": 1,
+          "size": "1G",
+          "directory": "/tmp",
+          "name": "benchmark",
+          "output_format": "json",
+          "debug": false
+        },
+        "stream": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "stream_array_size": 10000000,
+          "ntimes": 10,
+          "recompile": false,
+          "threads": 0,
+          "use_numactl": false,
+          "numactl_args": [
+            "--interleave=all"
+          ],
+          "workspace_dir": null,
+          "expected_runtime_seconds": 60
+        },
+        "baseline": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "duration": 60.0
+        },
+        "hpl": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "n": 10000,
+          "nb": 256,
+          "p": 1,
+          "q": 1,
+          "mpi_ranks": 1,
+          "mpi_launcher": "fork",
+          "workspace_dir": null,
+          "debug": false,
+          "expected_runtime_seconds": 3600
+        },
+        "dd": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "if_path": "/dev/zero",
+          "of_path": "/tmp/lb_dd_test",
+          "bs": "1M",
+          "count": null,
+          "conv": "fdatasync",
+          "oflag": "direct",
+          "timeout": 60,
+          "debug": false
+        },
+        "yabs": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "script_url": "https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh",
+          "script_checksum": null,
+          "skip_disk": false,
+          "skip_network": false,
+          "skip_geekbench": true,
+          "skip_cleanup": true,
+          "output_dir": "/tmp",
+          "extra_args": [],
+          "expected_runtime_seconds": 600,
+          "debug": false
+        },
+        "pts_build_linux_kernel": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "batch_mode": true,
+          "install_system_packages": true,
+          "timeout_seconds": 0,
+          "extra_args": []
+        },
+        "pts_compress_7zip": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "batch_mode": true,
+          "install_system_packages": true,
+          "timeout_seconds": 0,
+          "extra_args": []
+        },
+        "geekbench": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "version": "6.3.0",
+          "download_url": null,
+          "download_checksum": null,
+          "workdir": "/opt/geekbench",
+          "output_dir": "/tmp",
+          "license_key": null,
+          "skip_cleanup": true,
+          "run_gpu": false,
+          "extra_args": [],
+          "arch_override": null,
+          "expected_runtime_seconds": 1800,
+          "debug": false
+        },
+        "unixbench": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "threads": 1,
+          "iterations": 1,
+          "tests": [],
+          "workdir": "/opt/UnixBench",
+          "extra_args": [],
+          "debug": false
+        },
+        "sysbench": {
+          "max_retries": 0,
+          "timeout_buffer": 10,
+          "tags": [],
+          "test": "cpu",
+          "threads": 1,
+          "time": 60,
+          "max_requests": null,
+          "rate": null,
+          "cpu_max_prime": 20000,
+          "extra_args": [],
+          "debug": false
+        }
+      },
+      "collectors": {
+        "psutil_interval": 1.0,
+        "cli_commands": [
+          "sar -u 1 1",
+          "vmstat 1 1",
+          "iostat -d 1 1",
+          "mpstat 1 1",
+          "pidstat -h 1 1"
+        ],
+        "perf_config": {
+          "events": [
+            "cpu-cycles",
+            "instructions",
+            "cache-references",
+            "cache-misses",
+            "branches",
+            "branch-misses"
+          ],
+          "interval_ms": 1000,
+          "pid": null,
+          "cpu": null
+        },
+        "enable_ebpf": false
+      },
+      "workloads": {
+        "dummy": {
+          "plugin": "stress_ng",
+          "enabled": true,
+          "intensity": "user_defined",
+          "options": {}
+        }
+      },
+      "remote_hosts": [
+        {
+          "name": "simulated",
+          "address": "127.0.0.1",
+          "port": 22,
+          "user": "runner",
+          "become": false,
+          "become_method": "sudo",
+          "vars": {
+            "ansible_connection": "local",
+            "ansible_python_interpreter": "python3"
+          }
+        }
+      ],
+      "remote_execution": {
+        "enabled": true,
+        "inventory_path": null,
+        "run_setup": true,
+        "run_collect": false,
+        "setup_playbook": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/playbooks/setup.yml",
+        "run_playbook": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/playbooks/run.yml",
+        "collect_playbook": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/playbooks/run.yml",
+        "teardown_playbook": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/molecule/controller-stop/playbooks/teardown.yml",
+        "run_teardown": true,
+        "use_container_fallback": false
+      },
+      "collect_system_info": true,
+      "influxdb_enabled": false,
+      "influxdb_url": "http://localhost:8086",
+      "influxdb_token": "",
+      "influxdb_org": "benchmark",
+      "influxdb_bucket": "performance"
+    },
+    "config_hash": "3aff62941f4d618481c260ae9d4c66f08a44bd52742a3324f9f34435bc7b7362"
+  }
+}

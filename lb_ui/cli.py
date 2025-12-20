@@ -1,12 +1,11 @@
 """
 Command-line interface for linux-benchmark-lib.
 
-Exposes quick commands to inspect plugins/hosts and run benchmarks locally or remotely.
+Exposes quick commands to inspect plugins/hosts and run benchmarks via provisioned environments (remote, Docker, Multipass).
 """
 
 from __future__ import annotations
 
-import logging
 import os
 import subprocess
 import sys
@@ -16,16 +15,23 @@ from typing import Dict, List, Optional, Set
 
 import typer
 
-from lb_controller.journal import RunJournal
-from lb_controller.contracts import BenchmarkConfig, RemoteHostConfig, WorkloadConfig, RemoteExecutionConfig, PluginRegistry
-from lb_controller.services import ConfigService, RunCatalogService, RunService
-from lb_ui.services.analytics_service import AnalyticsRequest, AnalyticsService
-from lb_controller.services.plugin_service import build_plugin_table, create_registry, PluginInstaller
-from lb_controller.services.doctor_service import DoctorService
-from lb_controller.services.doctor_types import DoctorReport
-from lb_controller.services.test_service import TestService
-from lb_controller.ui_interfaces import UIAdapter
-from lb_ui.ui import viewmodels
+from lb_app.api import ApplicationClient
+from lb_provisioner import MAX_NODES
+from lb_controller.api import (
+    BenchmarkConfig,
+    ConfigService,
+    PluginRegistry,
+    RemoteExecutionConfig,
+    RemoteHostConfig,
+    RunCatalogService,
+    RunJournal,
+    WorkloadConfig,
+)
+from lb_analytics.analytics_service import AnalyticsRequest, AnalyticsService
+from lb_controller.api import build_plugin_table, create_registry, PluginInstaller
+from lb_app.api import DoctorService, DoctorReport, TestService, UIAdapter
+from lb_ui import viewmodels
+from lb_common import configure_logging
 
 # New UI System Imports
 from lb_ui.ui.system.protocols import UI
@@ -36,8 +42,9 @@ from lb_ui.ui.adapters.tui_adapter import TUIAdapter
 # Initialize UI
 ui: UI = TUI()
 ui_adapter: UIAdapter = TUIAdapter(ui)
+app_client = ApplicationClient()
 
-app = typer.Typer(help="Run linux-benchmark workloads locally or against remote hosts.", no_args_is_help=True)
+app = typer.Typer(help="Run linux-benchmark workloads on provisioned hosts (remote, Docker, Multipass).", no_args_is_help=True)
 config_app = typer.Typer(help="Manage benchmark configuration files.", no_args_is_help=True)
 doctor_app = typer.Typer(help="Check local prerequisites.", no_args_is_help=True)
 test_app = typer.Typer(help="Convenience helpers to run integration tests.", no_args_is_help=True)
@@ -70,7 +77,6 @@ DEV_MODE = _load_dev_mode()
 TEST_CLI_ENABLED = bool(os.environ.get("LB_ENABLE_TEST_CLI")) or DEV_MODE
 
 config_service = ConfigService()
-run_service = RunService(registry_factory=create_registry)
 doctor_service = DoctorService(config_service=config_service)
 test_service = TestService()
 analytics_service = AnalyticsService()
@@ -93,6 +99,7 @@ def entry(
 ) -> None:
     """Global entry point handling interactive vs headless modes."""
     global ui, ui_adapter
+    configure_logging(force=True)
     if headless:
         from lb_ui.ui.system.headless import HeadlessUI
         ui = HeadlessUI()
@@ -117,20 +124,11 @@ def _check_command(name: str) -> bool:
 def _print_run_plan(
     cfg: BenchmarkConfig,
     tests: List[str],
-    registry: Optional[PluginRegistry] = None,
-    docker_mode: bool = False,
-    multipass_mode: bool = False,
-    remote_mode: bool = False,
+    execution_mode: str = "remote",
 ) -> None:
     """Render a compact table of the workloads about to run with availability hints."""
-    plan = run_service.get_run_plan(
-        cfg,
-        tests,
-        docker_mode,
-        multipass_mode,
-        remote_mode,
-        registry=registry or create_registry(),
-    )
+    # Delegate to lb_app to compute the plan
+    plan = app_client.get_run_plan(cfg, tests, execution_mode=execution_mode)
 
     rows = [
         [
@@ -180,6 +178,22 @@ def _print_run_journal_summary(
         ui.present.info(f"Ansible output log saved to {log_path}")
     if ui_log_path:
         ui.present.info(f"Dashboard log stream saved to {ui_log_path}")
+
+
+def _cleanup_provisioned_nodes(provisioning_result, result, presenter) -> None:
+    """Apply cleanup policy using controller authorization."""
+    if not provisioning_result:
+        return
+    allow_cleanup = bool(
+        result and result.summary and result.summary.cleanup_allowed
+    )
+    if result and result.summary and not result.summary.success:
+        presenter.warning("Run failed; preserving provisioned nodes for inspection.")
+        provisioning_result.keep_nodes = True
+    if not allow_cleanup:
+        presenter.warning("Controller did not authorize cleanup; provisioned nodes preserved.")
+        provisioning_result.keep_nodes = True
+    provisioning_result.destroy_all()
 
 
 @config_app.command("edit")
@@ -883,32 +897,17 @@ def run(
     remote: Optional[bool] = typer.Option(
         None,
         "--remote/--no-remote",
-        help="Override remote execution from the config.",
+        help="Override remote execution from the config (local mode is not supported).",
     ),
     docker: bool = typer.Option(
         False,
         "--docker",
-        help="Run inside the container image (build if needed).",
-    ),
-    docker_image: str = typer.Option(
-        "linux-benchmark-lib:dev",
-        "--docker-image",
-        help="Docker image tag to use when --docker is set.",
+        help="Provision containers (Ubuntu 24.04) and run via Ansible.",
     ),
     docker_engine: str = typer.Option(
         "docker",
         "--docker-engine",
         help="Container engine to use with --docker (docker or podman).",
-    ),
-    docker_no_build: bool = typer.Option(
-        False,
-        "--docker-no-build",
-        help="Skip building the image when using --docker.",
-    ),
-    docker_no_cache: bool = typer.Option(
-        False,
-        "--docker-no-cache",
-        help="Disable cache when building the image with --docker.",
     ),
     repetitions: Optional[int] = typer.Option(
         None,
@@ -919,12 +918,13 @@ def run(
     multipass: bool = typer.Option(
         False,
         "--multipass",
-        help="Provision an ephemeral Multipass VM and run benchmarks on it.",
+        help="Provision Multipass VMs (Ubuntu 24.04) and run benchmarks on them.",
     ),
-    multipass_vm_count: int = typer.Option(
+    node_count: int = typer.Option(
         1,
+        "--nodes",
         "--multipass-vm-count",
-        help="Number of Multipass VMs to provision when using --multipass.",
+        help="Number of containers/VMs to provision (max 2).",
     ),
     debug: bool = typer.Option(
         False,
@@ -948,62 +948,101 @@ def run(
         help="Run environment setup (Global + Workload) before execution.",
     ),
 ) -> None:
-    """Run workloads locally, remotely, or inside the container image."""
+    """Run workloads using Ansible on remote, Docker, or Multipass targets."""
     if not DEV_MODE and (docker or multipass):
         ui.present.error("--docker and --multipass are available only in dev mode.")
         raise typer.Exit(1)
 
-    if debug:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            force=True,
+    if docker and multipass:
+        ui.present.error("Choose either --docker or --multipass, not both.")
+        raise typer.Exit(1)
+
+    if remote is False and not docker and not multipass:
+        ui.present.error(
+            "Local execution has been removed; enable --remote, --docker, or --multipass."
         )
+        raise typer.Exit(1)
+
+    if debug:
+        configure_logging(debug=True, force=True)
         ui.present.info("Debug logging enabled")
 
-    if multipass and multipass_vm_count < 1:
-        ui.present.error("When using --multipass, --multipass-vm-count must be at least 1.")
+    if node_count < 1:
+        ui.present.error("Node count must be at least 1.")
+        raise typer.Exit(1)
+    if node_count > MAX_NODES:
+        ui.present.error(f"Maximum supported nodes is {MAX_NODES}.")
         raise typer.Exit(1)
 
     if repetitions is not None and repetitions < 1:
         ui.present.error("Repetitions must be at least 1.")
         raise typer.Exit(1)
 
-    stop_file = stop_file or (Path(os.environ["LB_STOP_FILE"]) if os.environ.get("LB_STOP_FILE") else None)
+    stop_file = stop_file or (
+        Path(os.environ["LB_STOP_FILE"])
+        if os.environ.get("LB_STOP_FILE")
+        else None
+    )
 
+    cfg, resolved, stale = config_service.load_for_read(config)
+    if stale:
+        ui.present.warning(f"Saved default config not found: {stale}")
+    if resolved:
+        ui.present.success(f"Loaded config: {resolved}")
+    else:
+        ui.present.warning("No config file found; using built-in defaults.")
+
+    cfg.ensure_output_dirs()
+
+    execution_mode = "docker" if docker else "multipass" if multipass else "remote"
+
+    result = None
     try:
-        context = run_service.create_session(
-            config_service=config_service,
-            tests=tests,
-            config_path=config,
+        # Build RunRequest for lb_app
+        from lb_app.api import RunRequest
+
+        selected_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+        if not selected_tests:
+            ui.present.error("No workloads selected to run.")
+            raise typer.Exit(1)
+
+        run_request = RunRequest(
+            config=cfg,
+            tests=selected_tests,
             run_id=run_id,
             resume=resume,
-            remote=remote,
-            docker=docker,
-            docker_image=docker_image,
-            docker_engine=docker_engine,
-            docker_no_build=docker_no_build,
-            docker_no_cache=docker_no_cache,
-            repetitions=repetitions,
-            multipass=multipass,
-            multipass_vm_count=multipass_vm_count,
             debug=debug,
             intensity=intensity,
-            ui_adapter=ui_adapter,
             setup=setup,
             stop_file=stop_file,
+            execution_mode=execution_mode,
+            repetitions=repetitions,
+            node_count=node_count,
+            docker_engine=docker_engine,
+            ui_adapter=ui_adapter,
         )
 
-        _print_run_plan(
-            context.config,
-            context.target_tests,
-            registry=context.registry,
-            docker_mode=context.use_container,
-            multipass_mode=context.use_multipass,
-            remote_mode=context.use_remote,
-        )
+        _print_run_plan(cfg, selected_tests, execution_mode=execution_mode)
 
-        result = run_service.execute(context, run_id, ui_adapter=ui_adapter)
+        # Hook bridge to adapt to UIAdapter interface
+        class _Hooks:
+            def on_log(self, line: str) -> None:
+                ui_adapter.show_info(line)
+
+            def on_status(self, controller_state: str) -> None:
+                ui_adapter.show_info(f"Controller state: {controller_state}")
+
+            def on_warning(self, message: str, ttl: float = 10.0) -> None:
+                ui_adapter.show_warning(message)
+
+            def on_event(self, event) -> None:
+                pass  # TODO: bridge events if needed
+
+            def on_journal(self, journal) -> None:
+                pass
+
+        run_result = app_client.start_run(run_request, _Hooks())
+        result = run_result  # for later messaging
 
     except ValueError as e:
         ui.present.warning(str(e))
@@ -1016,6 +1055,7 @@ def run(
         _print_run_journal_summary(result.journal_path, log_path=result.log_path, ui_log_path=result.ui_log_path)
 
     ui.present.success("Run completed.")
+
 
 
 def _select_plugins_interactively(

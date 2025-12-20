@@ -3,7 +3,7 @@ import pytest
 
 from lb_analytics import DataHandler
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.analytics
 
 
 

@@ -1,7 +1,31 @@
 ## Contributing
 
-1. Fork the project
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+### Development setup
+
+```bash
+uv venv
+uv pip install -e ".[dev]"
+```
+
+### Tests
+
+- Run all tests: `uv run pytest tests/`
+- Containerized tests (Docker): `./run_tests.sh`
+- Quick smoke run: `uv run python example.py`
+
+### Documentation
+
+- Install docs dependencies: `uv pip install -e ".[docs,controller]"`
+- Run the site locally: `uv run mkdocs serve`
+
+### Style and quality
+
+- Format: `uv run black .`
+- Lint: `uv run flake8`
+- Type check: `uv run mypy lb_runner lb_controller lb_app lb_ui`
+
+### PR checklist
+
+- Keep commits focused and present tense.
+- Note any required privileges (perf/eBPF, stress-ng, Docker, Multipass).
+- Include validation steps and relevant logs/screenshots.

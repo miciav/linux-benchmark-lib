@@ -1,6 +1,5 @@
 """UI adapters package."""
 
-from lb_ui.ui.adapters.console import ConsoleUIAdapter
-from lb_ui.ui.adapters.headless import HeadlessUIAdapter
+from lb_ui.ui.adapters.tui_adapter import TUIAdapter
 
-__all__ = ["ConsoleUIAdapter", "HeadlessUIAdapter"]
+__all__ = ["TUIAdapter"]

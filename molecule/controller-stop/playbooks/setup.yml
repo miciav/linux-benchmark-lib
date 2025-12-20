@@ -1,0 +1,8 @@
+---
+- hosts: all
+  gather_facts: false
+  tasks:
+    - name: Create setup marker
+      ansible.builtin.file:
+        path: "{{ output_root }}/setup_marker"
+        state: touch

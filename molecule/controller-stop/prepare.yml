@@ -1,0 +1,7 @@
+---
+- hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Prepare placeholder
+      ansible.builtin.debug:
+        msg: "controller-stop prepare"

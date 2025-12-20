@@ -26,7 +26,8 @@ from lb_runner.plugins.geekbench.plugin import GeekbenchConfig
 from lb_runner.plugins.hpl.plugin import HPLConfig
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 from lb_runner.plugins.yabs.plugin import YabsConfig
-from lb_controller.controller import AnsibleRunnerExecutor, BenchmarkController
+from lb_controller.ansible_executor import AnsibleRunnerExecutor
+from lb_controller.api import BenchmarkController
 from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401 - fixture import
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
 

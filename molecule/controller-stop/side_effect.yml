@@ -1,0 +1,7 @@
+---
+- hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Side-effect placeholder
+      ansible.builtin.debug:
+        msg: "controller-stop side_effect"

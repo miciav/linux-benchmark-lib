@@ -1,13 +1,12 @@
 """System information collection utilities.
 
 Collects host static data (OS, kernel, CPU, memory, disks, network) and optional
-hardware details (PCI, SMART) into JSON/CSV artifacts. Designed to run both
-locally and on remote hosts provisioned by Ansible.
+hardware details (PCI, SMART). Designed to run both locally and on remote hosts
+provisioned by Ansible.
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import platform
 import shutil
@@ -404,31 +403,11 @@ def collect_system_info() -> SystemInfo:
     return info
 
 
-def write_outputs(info: SystemInfo, json_path: Path | None, csv_path: Path | None) -> None:
-    """Persist collected info to JSON/CSV if paths are provided."""
-    if json_path:
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text(json.dumps(info.to_dict(), indent=2), encoding="utf-8")
-    if csv_path:
-        import csv
-
-        csv_path.parent.mkdir(parents=True, exist_ok=True)
-        with csv_path.open("w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=["category", "name", "value"])
-            writer.writeheader()
-            for row in info.to_csv_rows():
-                writer.writerow(row)
-
-
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Collect system information into JSON/CSV.")
-    parser.add_argument("--json", type=Path, help="Path to write JSON output")
-    parser.add_argument("--csv", type=Path, help="Path to write CSV output (flattened)")
-    args = parser.parse_args(argv)
+    """Backwards-compatible CLI entrypoint (delegates to system_info_cli)."""
+    from lb_runner.system_info_cli import main as cli_main
 
-    info = collect_system_info()
-    write_outputs(info, args.json, args.csv)
-    return 0
+    return cli_main(argv)
 
 
 if __name__ == "__main__":  # pragma: no cover

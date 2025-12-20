@@ -1,0 +1,10 @@
+- name: Teardown Phoronix Test Suite workload profile
+  hosts: all
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: No-op teardown (PTS install/cache preserved)
+      ansible.builtin.debug:
+        msg: "PTS teardown is a no-op by default (keeps installed profiles and cache)."
+

@@ -11,6 +11,7 @@ import jc
 from typing import Dict, Any, List
 
 from ._base_collector import BaseCollector
+from .aggregators import aggregate_cli
 
 
 logger = logging.getLogger(__name__)
@@ -160,28 +161,3 @@ class CLICollector(BaseCollector):
         result = subprocess.run(["which", tool], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return result.returncode == 0
 
-
-def aggregate_cli(df) -> Dict[str, float]:
-    """
-    Aggregate metrics collected by CLICollector.
-
-    Args:
-        df: DataFrame with CLI metrics
-
-    Returns:
-        Dictionary of aggregated metrics.
-    """
-    if df is None or df.empty:
-        return {}
-
-    summary: Dict[str, float] = {}
-    if "r" in df.columns:
-        summary["processes_running_avg"] = df["r"].mean()
-    if "b" in df.columns:
-        summary["processes_blocked_avg"] = df["b"].mean()
-    if "si" in df.columns:
-        summary["swap_in_kbps_avg"] = df["si"].mean()
-    if "so" in df.columns:
-        summary["swap_out_kbps_avg"] = df["so"].mean()
-
-    return summary

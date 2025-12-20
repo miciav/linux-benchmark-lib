@@ -1,0 +1,18 @@
+---
+- hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Run controller stop integration script
+      vars:
+        scenario_root: "{{ playbook_dir }}"
+      ansible.builtin.command:
+        cmd: >
+          uv run python {{ scenario_root }}/scripts/test_controller_stop.py
+        chdir: "{{ lookup('env','MOLECULE_SCENARIO_DIRECTORY') | default(scenario_root) }}"
+      environment:
+        PYTHON: "{{ lookup('env', 'PYTHON') | default('python3') }}"
+      register: controller_test
+      changed_when: false
+    - name: Show controller output
+      ansible.builtin.debug:
+        var: controller_test.stdout

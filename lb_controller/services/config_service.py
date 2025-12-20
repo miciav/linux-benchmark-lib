@@ -6,7 +6,6 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Optional, Tuple, Any
-from dataclasses import asdict, is_dataclass
 
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
@@ -80,55 +79,39 @@ class ConfigService:
         """
         # Import here to avoid circular dependency with services package
         from .plugin_service import create_registry
-        
-        registry = create_registry()
-        available = registry.available(load_entrypoints=True)
+        from lb_runner.plugin_system.settings import hydrate_plugin_settings
 
-        for name, settings in cfg.plugin_settings.items():
-            # Only hydrate if it's a raw dict and we know the plugin
-            if isinstance(settings, dict) and name in available:
-                try:
-                    plugin = available[name]
-                    # Supports both new WorkloadPlugin and LegacyWorkloadPlugin
-                    if hasattr(plugin, 'config_cls'):
-                        # Instantiate the config class with the dict
-                        cfg.plugin_settings[name] = plugin.config_cls(**settings)
-                except Exception as e:
-                    # If hydration fails (e.g. schema mismatch), keep the dict but warn?
-                    # For now we silently fail and leave it as dict, which might cause issues later,
-                    # but is safer than crashing the load.
-                    pass
+        registry = create_registry()
+        hydrate_plugin_settings(cfg, registry=registry)
     
     def create_default_config(self) -> BenchmarkConfig:
         """Create a fresh BenchmarkConfig populated with all installed plugins."""
         from .plugin_service import create_registry
+        from lb_runner.plugin_system.settings import (
+            ensure_workloads_from_plugin_settings,
+            populate_default_plugin_settings,
+        )
+
         registry = create_registry()
         
         cfg = BenchmarkConfig()
         # Clear any legacy hardcoded defaults if BenchmarkConfig still has them (redundant safety)
         cfg.workloads = {} 
-        
-        for name, plugin in registry.available(load_entrypoints=True).items():
-            # Create default plugin config
-            if hasattr(plugin, 'config_cls'):
-                try:
-                    default_settings = plugin.config_cls()
-                    cfg.plugin_settings[name] = default_settings
-                    if hasattr(default_settings, "model_dump"):
-                        options = default_settings.model_dump(mode="json")
-                    elif is_dataclass(default_settings):
-                        options = asdict(default_settings)
-                    else:
-                        options = {}
-                    cfg.workloads[name] = WorkloadConfig(
-                        plugin=name,
-                        enabled=False,
-                        options=options,
-                    )
-                except Exception:
-                    # Fallback if config_cls cannot be instantiated without args
-                    cfg.workloads[name] = WorkloadConfig(plugin=name, enabled=False)
-            else:
+        cfg.plugin_settings = {}
+
+        available = registry.available(load_entrypoints=True)
+        populate_default_plugin_settings(
+            cfg,
+            registry=registry,
+            load_entrypoints=True,
+            allow_dataclasses=True,
+        )
+        ensure_workloads_from_plugin_settings(
+            cfg, dump_mode="json", convert_dataclasses=True
+        )
+
+        for name, plugin in available.items():
+            if name not in cfg.workloads:
                 cfg.workloads[name] = WorkloadConfig(plugin=name, enabled=False)
                 
         return cfg

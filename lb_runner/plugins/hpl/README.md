@@ -68,9 +68,6 @@ Dockerfile per costruire un’immagine docker che installa rispettivamente il `.
   docker build --platform linux/amd64  -f lb_runner/plugins/hpl/Dockerfile.amd64 --build-arg HPL_DEB=lb_runner/plugins/hpl/hpl_2.3-1_amd64.deb .
   ```
 
-### Dockerfile (plugin)
-Il Dockerfile principale del plugin usa la base multi‑arch (`miciav/hpl:2.3-${TARGETARCH}`, tag disponibili `-amd64` e `-arm64`). Docker/BuildKit popola automaticamente `TARGETARCH` (override con `--build-arg TARGETARCH=arm64` o `amd64` se serve). La base contiene già `xhpl`, OpenMPI/OpenBLAS e Python 3.12; il Dockerfile aggiunge solo gli strumenti runtime leggeri (`procps`, `sysstat`) e installa la libreria in un venv. Non installa Ansible: la compilazione via playbook resta solo per scenari remoti/Multipass dove è il controller a gestire il provisioning.
-
 ### push_hpl_images.sh
 Script helper per buildare e pushare su Docker Hub le immagini ARM64/AMD64 e creare un manifest multi-arch.
 
@@ -84,7 +81,7 @@ Script helper per buildare e pushare su Docker Hub le immagini ARM64/AMD64 e cre
   ```
 
 ## Note operative
-- Se la build HPL consuma troppa RAM, usa `HPL_MAKEFLAGS=-j1` (già impostato nei playbook e Dockerfile principali) o esegui la compilazione in una VM/Docker con più memoria.
+- Se la build HPL consuma troppa RAM, usa `HPL_MAKEFLAGS=-j1` (già impostato nei playbook e Dockerfile di build) o esegui la compilazione in una VM/Docker con più memoria.
 - I pacchetti generati installano `xhpl` in `/opt/hpl-2.3/bin/Linux/`; `HPL.dat` va posizionato nella stessa directory prima di lanciare `mpirun ./xhpl`.
 
 ## Output CSV

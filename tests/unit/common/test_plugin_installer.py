@@ -9,10 +9,9 @@ import pytest
 from lb_runner.benchmark_config import BenchmarkConfig
 from lb_controller.services import plugin_service as plugin_service_mod
 
-pytestmark = [pytest.mark.unit, pytest.mark.plugins]
+pytestmark = [pytest.mark.runner, pytest.mark.plugins]
 
-from lb_controller.services.config_service import ConfigService
-from lb_controller.services.plugin_service import PluginInstaller, create_registry
+from lb_controller.api import ConfigService, PluginInstaller, create_registry
 from lb_runner.plugin_system.interface import WorkloadPlugin
 from lb_runner.plugin_system.base_generator import BaseGenerator
 
@@ -71,11 +70,8 @@ def dummy_plugin_path(tmp_path):
 def _patch_plugin_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Point user plugin dir to a temporary location."""
     plugin_dir = tmp_path / "plugins"
-    monkeypatch.setattr(plugin_service_mod, "USER_PLUGIN_DIR", plugin_dir)
-    # Patch both plugin_service and registry modules
-    import lb_runner.plugin_system.registry as registry_mod
-    monkeypatch.setattr(registry_mod, "USER_PLUGIN_DIR", plugin_dir)
-    monkeypatch.setattr(create_registry.__globals__['registry'], "USER_PLUGIN_DIR", plugin_dir)
+    monkeypatch.setenv("LB_USER_PLUGIN_DIR", str(plugin_dir))
+    plugin_dir.mkdir(parents=True, exist_ok=True)
     return plugin_dir
 
 @pytest.mark.parametrize("source", ["archive", "directory"])

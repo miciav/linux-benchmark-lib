@@ -420,7 +420,11 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             "-o",
             "UserKnownHostsFile=/dev/null",
             f"ubuntu@{ip_addr}",
-            "test -x /opt/lb/.venv/bin/python && test -f /opt/lb/lb_ui/cli.py",
+            (
+                "test -x /opt/lb/.venv/bin/python "
+                "&& test -f /opt/lb/lb_controller/__init__.py "
+                "&& test -f /opt/lb/lb_common/logging.py"
+            ),
         ]
         subprocess.run(ssh_cmd, check=True)
 

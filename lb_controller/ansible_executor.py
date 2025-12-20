@@ -5,8 +5,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+import selectors
+import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -46,6 +49,10 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         self._runner_fn = runner_fn
         self.stream_output = stream_output
         self.stop_token = stop_token
+        self._interrupt_flag = threading.Event()
+        self._active_process: subprocess.Popen[str] | None = None
+        self._active_label: str | None = None
+        self._lock = threading.Lock()
         # Force Ansible temp into a writable location inside the runner dir to avoid host-level permission issues
         self.local_tmp = self.private_data_dir / "tmp"
         self.local_tmp.mkdir(parents=True, exist_ok=True)
@@ -67,9 +74,15 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         extravars: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
         limit_hosts: Optional[List[str]] = None,
+        *,
+        cancellable: bool = True,
     ) -> ExecutionResult:
         """Execute a playbook using ansible-runner."""
-        if self.stop_token and self.stop_token.should_stop():
+        self._interrupt_flag.clear()
+        if cancellable and (
+            self._interrupt_flag.is_set()
+            or (self.stop_token and self.stop_token.should_stop())
+        ):
             return ExecutionResult(rc=1, status="stopped", stats={})
         if not playbook_path.exists():
             raise FileNotFoundError(f"Playbook not found: {playbook_path}")
@@ -81,11 +94,11 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         # regardless of private_data_dir location
         abs_playbook_path = playbook_path.resolve()
 
+        label = abs_playbook_path.name
         logger.info(
-            "Running playbook %s against %d host(s)",
-            abs_playbook_path,
-            len(inventory.hosts),
+            "Running playbook %s against %d host(s)", label, len(inventory.hosts)
         )
+        self._active_label = label
 
         merged_extravars = extravars.copy() if extravars else {}
         merged_extravars.setdefault("_lb_inventory_path", str(inventory_path))
@@ -93,8 +106,17 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         repo_roles = (ANSIBLE_ROOT / "roles").resolve()
         runner_roles = (self.private_data_dir / "roles").resolve()
         callback_dir = (ANSIBLE_ROOT / "callback_plugins").resolve()
+        repo_collections = (ANSIBLE_ROOT / "collections").resolve()
+        runner_collections = (self.private_data_dir / "collections").resolve()
+        if repo_collections.exists():
+            shutil.copytree(
+                repo_collections,
+                runner_collections,
+                dirs_exist_ok=True,
+            )
         envvars = {
             "ANSIBLE_ROLES_PATH": f"{runner_roles}:{repo_roles}",
+            "ANSIBLE_COLLECTIONS_PATHS": f"{runner_collections}:{repo_collections}",
             "ANSIBLE_LOCAL_TEMP": str(self.local_tmp),
             "ANSIBLE_REMOTE_TMP": "/tmp/.ansible",
             "ANSIBLE_CONFIG": str((ANSIBLE_ROOT / "ansible.cfg").resolve()),
@@ -105,25 +127,29 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             "LB_EVENT_LOG_PATH": str(self.event_log_path),
         }
 
-        if self._runner_fn:
-            result = runner_fn(
-                private_data_dir=str(self.private_data_dir),
-                playbook=str(abs_playbook_path),
-                inventory=str(inventory_path.resolve()),
-                extravars=merged_extravars,
-                tags=",".join(tags) if tags else None,
-                envvars=envvars,
-                limit=",".join(limit_hosts) if limit_hosts else None,
-            )
-        else:
-            result = self._run_subprocess_playbook(
-                abs_playbook_path=abs_playbook_path,
-                inventory_path=inventory_path,
-                extravars=merged_extravars,
-                tags=tags,
-                envvars=envvars,
-                limit_hosts=limit_hosts,
-            )
+        try:
+            if self._runner_fn:
+                result = runner_fn(
+                    private_data_dir=str(self.private_data_dir),
+                    playbook=str(abs_playbook_path),
+                    inventory=str(inventory_path.resolve()),
+                    extravars=merged_extravars,
+                    tags=",".join(tags) if tags else None,
+                    envvars=envvars,
+                    limit=",".join(limit_hosts) if limit_hosts else None,
+                )
+            else:
+                result = self._run_subprocess_playbook(
+                    abs_playbook_path=abs_playbook_path,
+                    inventory_path=inventory_path,
+                    extravars=merged_extravars,
+                    tags=tags,
+                    envvars=envvars,
+                    limit_hosts=limit_hosts,
+                    cancellable=cancellable,
+                )
+        finally:
+            self._active_label = None
 
         rc = getattr(result, "rc", 1)
         status = getattr(result, "status", "failed")
@@ -171,10 +197,32 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         tags: Optional[List[str]],
         envvars: Dict[str, str],
         limit_hosts: Optional[List[str]] = None,
+        *,
+        cancellable: bool = True,
     ) -> ExecutionResult:
         """
         Execute ansible-playbook via subprocess to avoid ansible-runner's awx_display callback.
         """
+        cmd = self._build_playbook_cmd(
+            abs_playbook_path, inventory_path, tags, limit_hosts
+        )
+        extravars_file = self._write_extravars(extravars)
+        cmd.extend(["-e", f"@{extravars_file.resolve()}"])
+
+        env = self._build_env(envvars)
+        self._log_subprocess_command(cmd, envvars)
+
+        if self.stream_output:
+            return self._run_streaming_subprocess(cmd, env, cancellable)
+        return self._run_capture_subprocess(cmd, env)
+
+    def _build_playbook_cmd(
+        self,
+        abs_playbook_path: Path,
+        inventory_path: Path,
+        tags: Optional[List[str]],
+        limit_hosts: Optional[List[str]],
+    ) -> list[str]:
         cmd = [
             "ansible-playbook",
             "-i",
@@ -185,60 +233,148 @@ class AnsibleRunnerExecutor(RemoteExecutor):
             cmd.extend(["--tags", ",".join(tags)])
         if limit_hosts:
             cmd.extend(["--limit", ",".join(limit_hosts)])
+        return cmd
 
-        # Write extravars to a transient JSON file.
+    def _write_extravars(self, extravars: Dict[str, Any]) -> Path:
         env_dir = self.private_data_dir / "env"
         env_dir.mkdir(parents=True, exist_ok=True)
         extravars_file = env_dir / "extravars.json"
         extravars_file.write_text(json.dumps(extravars))
-        cmd.extend(["-e", f"@{extravars_file.resolve()}"])
+        return extravars_file
 
+    @staticmethod
+    def _build_env(envvars: Dict[str, str]) -> Dict[str, str]:
         env = os.environ.copy()
         env.update(envvars)
+        return env
 
+    @staticmethod
+    def _log_subprocess_command(cmd: list[str], envvars: Dict[str, str]) -> None:
         logger.debug("Executing Ansible command: %s", " ".join(cmd))
         logger.debug("Ansible Env: %s", envvars)
 
-        if self.stream_output:
-            proc = subprocess.Popen(
-                cmd,
-                cwd=self.private_data_dir,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-            assert proc.stdout is not None
-            stop_requested = False
-            for line in proc.stdout:
-                if self.stop_token and self.stop_token.should_stop():
-                    stop_requested = True
-                    proc.terminate()
-                    break
-                if self.output_callback:
-                    self.output_callback(line.rstrip("\n"), "\n")
-                else:
-                    sys.stdout.write(line)
-            proc.wait()
-            rc = proc.returncode
-            if stop_requested or (self.stop_token and self.stop_token.should_stop()):
-                return ExecutionResult(rc=rc or 1, status="stopped", stats={})
-        else:
-            completed = subprocess.run(
-                cmd,
-                cwd=self.private_data_dir,
-                env=env,
-                capture_output=True,
-                text=True,
-            )
-            rc = completed.returncode
-            if rc != 0:
-                logger.error("ansible-playbook failed rc=%s", rc)
-                logger.error("stdout: %s", completed.stdout)
-                logger.error("stderr: %s", completed.stderr)
-
+    def _run_streaming_subprocess(
+        self, cmd: list[str], env: Dict[str, str], cancellable: bool
+    ) -> ExecutionResult:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=self.private_data_dir,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+        with self._lock:
+            self._active_process = proc
+        stop_requested = self._stream_process_output(proc, cancellable)
+        rc = self._finalize_process(proc, stop_requested)
+        if stop_requested or self._should_stop(cancellable):
+            return ExecutionResult(rc=rc or 1, status="stopped", stats={})
         status = "successful" if rc == 0 else "failed"
         return ExecutionResult(rc=rc, status=status, stats={})
+
+    def _run_capture_subprocess(
+        self, cmd: list[str], env: Dict[str, str]
+    ) -> ExecutionResult:
+        completed = subprocess.run(
+            cmd,
+            cwd=self.private_data_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+            start_new_session=True,
+        )
+        rc = completed.returncode
+        if rc != 0:
+            logger.error("ansible-playbook failed rc=%s", rc)
+            logger.error("stdout: %s", completed.stdout)
+            logger.error("stderr: %s", completed.stderr)
+        status = "successful" if rc == 0 else "failed"
+        return ExecutionResult(rc=rc, status=status, stats={})
+
+    def _stream_process_output(
+        self, proc: subprocess.Popen[str], cancellable: bool
+    ) -> bool:
+        assert proc.stdout is not None
+        stop_requested = False
+        selector = selectors.DefaultSelector()
+        selector.register(proc.stdout, selectors.EVENT_READ)
+        try:
+            while True:
+                if self._should_stop(cancellable):
+                    stop_requested = True
+                    self._terminate_process(proc)
+                    break
+                if proc.poll() is not None:
+                    break
+                events = selector.select(timeout=0.1)
+                if not events:
+                    continue
+                for key, _mask in events:
+                    line = key.fileobj.readline()
+                    if not line:
+                        break
+                    self._emit_stream_line(line)
+        finally:
+            selector.close()
+            with self._lock:
+                self._active_process = None
+        return stop_requested
+
+    def _emit_stream_line(self, line: str) -> None:
+        if self.output_callback:
+            self.output_callback(line.rstrip("\n"), "\n")
+        else:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+
+    def _finalize_process(
+        self, proc: subprocess.Popen[str], stop_requested: bool
+    ) -> int:
+        try:
+            proc.wait(timeout=5 if stop_requested else None)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+        return proc.returncode
+
+    def _terminate_process(self, proc: subprocess.Popen[str]) -> None:
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+
+    def _should_stop(self, cancellable: bool) -> bool:
+        return cancellable and (
+            self._interrupt_flag.is_set()
+            or (self.stop_token and self.stop_token.should_stop())
+        )
+
+    def interrupt(self) -> None:
+        """Request interruption of the current playbook execution."""
+        self._interrupt_flag.set()
+        with self._lock:
+            proc = self._active_process
+        if proc and proc.poll() is None:
+            try:
+                proc.terminate()
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        with self._lock:
+            self._active_process = None
+            self._active_label = None
+
+    @property
+    def is_running(self) -> bool:
+        """Return True when a playbook is in-flight."""
+        with self._lock:
+            if self._active_process and self._active_process.poll() is None:
+                return True
+        return self._active_label is not None
 
 
 def _render_inventory(hosts: List[Any]) -> str:

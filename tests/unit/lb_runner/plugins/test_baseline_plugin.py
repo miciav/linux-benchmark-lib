@@ -16,6 +16,7 @@ from lb_runner.plugins.baseline.plugin import (
     PLUGIN,
 )
 
+pytestmark = pytest.mark.runner
 
 class TestBaselineConfig:
     def test_defaults(self):
@@ -70,7 +71,6 @@ class TestBaselinePlugin:
     def test_requirements(self):
         assert PLUGIN.get_required_apt_packages() == []
         assert PLUGIN.get_required_local_tools() == []
-        assert PLUGIN.get_dockerfile_path().name == "Dockerfile"
 
 
 class TestBaselineConfigLoading:

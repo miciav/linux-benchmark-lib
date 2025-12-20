@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Dict, Iterable, List, Any, Optional
+from typing import Dict, Iterable, List, Any, IO
 import time
 
 from rich.console import Console
@@ -14,7 +14,7 @@ from rich.table import Table
 
 # Ideally we should decouple this, but for now we reuse the domain objects
 try:
-    from lb_controller.journal import RunJournal, RunStatus, TaskState
+    from lb_controller.api import RunJournal, RunStatus, TaskState
 except ImportError:
     # Fallback for strict isolation if needed, but practically we need these
     class RunStatus:
@@ -27,6 +27,8 @@ except ImportError:
     RunJournal = Any
 
 from lb_ui.ui.system.protocols import Dashboard, DashboardFactory
+from lb_ui import viewmodels
+
 
 class RichDashboard(Dashboard):
     """Render run plan and journal tables with Live refreshes."""
@@ -46,6 +48,7 @@ class RichDashboard(Dashboard):
         self.layout = Layout()
         self.layout.split_column(
             Layout(name="journal"),
+            Layout(name="status", size=5, minimum_size=5),
             Layout(name="logs"),
         )
         self._live: Live | None = None
@@ -53,6 +56,9 @@ class RichDashboard(Dashboard):
         self.last_event_ts: float | None = None
         self._intensity = {row.get("name"): row.get("intensity", "-") for row in plan_rows}
         self.ui_log_file = ui_log_file
+        self.controller_state: str = "init"
+        self._warning_message: str | None = None
+        self._warning_expires_at: float | None = None
 
     @contextmanager
     def live(self):
@@ -83,11 +89,14 @@ class RichDashboard(Dashboard):
         row_count = max(1, sum(1 for _ in self._unique_pairs()))
         term_height = self.console.size.height if self.console.size else 40
         journal_height = self._computed_journal_height(row_count, term_height)
-        logs_height = self._computed_log_height(journal_height, term_height)
+        status_size = max(5, getattr(self.layout["status"], "size", 5))
+        logs_height = max(6, term_height - journal_height - status_size - 2)
         self.layout["journal"].size = journal_height
+        self.layout["status"].size = status_size
         self.layout["logs"].size = logs_height
         self._visible_log_lines = max(3, logs_height - 2)
         self.layout["journal"].update(self._render_journal())
+        self.layout["status"].update(self._render_status())
         self.layout["logs"].update(self._render_logs())
         return self.layout
 
@@ -95,13 +104,26 @@ class RichDashboard(Dashboard):
         """Render the rolling log stream."""
         max_visible = getattr(self, "_visible_log_lines", self.max_log_lines)
         lines = self.log_buffer[-max_visible :]
-        status = self._event_status_line()
-        text = "\n".join([status] + lines) if status else "\n".join(lines)
-        return Panel(
-            text,
-            title="[bold blue]Log Stream[/bold blue]",
-            border_style="blue",
-        )
+        text = "\n".join(lines)
+        return Panel(text, title="[bold blue]Log Stream[/bold blue]", border_style="blue")
+
+    def _render_status(self) -> Panel:
+        """Render controller/event status and transient warnings."""
+        now = time.monotonic()
+        warning = None
+        if self._warning_expires_at and now < self._warning_expires_at:
+            warning = self._warning_message
+        elif self._warning_expires_at and now >= self._warning_expires_at:
+            self._warning_expires_at = None
+            self._warning_message = None
+        lines = []
+        lines.append(self._event_status_line())
+        lines.append(f"[cyan]Controller state:[/cyan] {self.controller_state}")
+        if warning:
+            lines.append(f"[bold yellow]{warning}[/bold yellow]")
+        else:
+            lines.append("")
+        return Panel("\n".join(lines), title="[bold blue]Status[/bold blue]", border_style="blue")
 
     def _render_journal(self) -> Panel:
         table = Table(expand=True, box=None, padding=(0, 1))
@@ -172,6 +194,20 @@ class RichDashboard(Dashboard):
         self.event_source = source or "unknown"
         self.last_event_ts = time.monotonic()
 
+    def set_controller_state(self, state: str) -> None:
+        """Update controller state label."""
+        self.controller_state = state
+
+    def set_warning(self, message: str, ttl: float = 10.0) -> None:
+        """Show a transient warning banner for the given duration."""
+        self._warning_message = message
+        self._warning_expires_at = time.monotonic() + ttl
+
+    def clear_warning(self) -> None:
+        """Clear any active warning banner."""
+        self._warning_message = None
+        self._warning_expires_at = None
+
     def _event_status_line(self) -> str:
         if self.last_event_ts is None:
             return "[dim]Event stream: waiting[/dim]"
@@ -180,13 +216,7 @@ class RichDashboard(Dashboard):
         return f"[green]Event stream: live ({self.event_source}, {freshness})[/green]"
 
     def _target_repetitions(self) -> int:
-        from_metadata = self.journal.metadata.get("repetitions")
-        if isinstance(from_metadata, int) and from_metadata > 0:
-            return from_metadata
-        if not self.journal.tasks:
-             return 0
-        reps = [task.repetition for task in self.journal.tasks.values()]
-        return max(reps) if reps else 0
+        return viewmodels.target_repetitions(self.journal)
 
     def _unique_pairs(self) -> Iterable[tuple[str, str]]:
         seen = set()
@@ -207,38 +237,19 @@ class RichDashboard(Dashboard):
     def _aggregate_status(self, tasks: Dict[int, TaskState]) -> str:
         """Summarize a workload's status across repetitions."""
         target_reps = self._target_repetitions()
-        status, _ = self._summarize_progress(tasks, target_reps)
-        return status
+        status, _ = viewmodels.summarize_progress(tasks, target_reps)
+        return self._style_status(status)
 
     @staticmethod
-    def _summarize_progress(
-        tasks: Dict[int, TaskState], target_reps: int
-    ) -> tuple[str, str]:
-        total = target_reps or len(tasks)
-        completed = sum(
-            1
-            for task in tasks.values()
-            if task.status in (RunStatus.COMPLETED, RunStatus.SKIPPED, RunStatus.FAILED)
-        )
-        running = any(task.status == RunStatus.RUNNING for task in tasks.values())
-        failed = any(task.status == RunStatus.FAILED for task in tasks.values())
-        skipped = tasks and all(task.status == RunStatus.SKIPPED for task in tasks.values())
-
-        if failed:
-            status = "[red]failed[/red]"
-        elif running:
-            status = "[yellow]running[/yellow]"
-        elif skipped:
-            status = "[dim]skipped[/dim]"
-        elif total and completed >= total:
-            status = "[green]done[/green]"
-        elif completed > 0:
-            status = "[yellow]partial[/yellow]"
-        else:
-            status = "[dim]pending[/dim]"
-
-        progress = f"{completed}/{total}" if total else "0/0"
-        return status, progress
+    def _style_status(status: str) -> str:
+        return {
+            "failed": "[red]failed[/red]",
+            "running": "[yellow]running[/yellow]",
+            "skipped": "[dim]skipped[/dim]",
+            "done": "[green]done[/green]",
+            "partial": "[yellow]partial[/yellow]",
+            "pending": "[dim]pending[/dim]",
+        }.get(status, status)
 
     def _started_repetitions(self, tasks: Dict[int, TaskState]) -> int:
         return sum(1 for task in tasks.values() if task.status != RunStatus.PENDING)

@@ -39,18 +39,20 @@ class SetupService:
             name="localhost",
             address="127.0.0.1",
             user=os.environ.get("USER", "root"),
-            become=True, # Typically setup requires sudo
+            become=True,  # Typically setup requires sudo
             vars={
                 "ansible_connection": "local",
-                "ansible_python_interpreter": sys.executable
-            }
+                "ansible_python_interpreter": sys.executable,
+            },
         )
         return self._inventory_cls(hosts=[localhost])
 
-    def provision_global(self, target_hosts: Optional[List[RemoteHostConfig]] = None) -> bool:
+    def provision_global(
+        self, target_hosts: Optional[List[RemoteHostConfig]] = None
+    ) -> bool:
         """
         Run the global setup playbook (dependencies, base directories).
-        
+
         If target_hosts is None, runs against localhost.
         """
         playbook = ANSIBLE_ROOT / "playbooks" / "setup.yml"
@@ -68,14 +70,14 @@ class SetupService:
         result = self.executor.run_playbook(
             playbook,
             inventory=inventory,
-            extravars={"lb_workdir": "/opt/lb"} # Default global workdir
+            extravars={"lb_workdir": "/opt/lb"},  # Default global workdir
         )
         return result.success
 
     def provision_workload(
         self,
         plugin: WorkloadPlugin,
-        target_hosts: Optional[List[RemoteHostConfig]] = None
+        target_hosts: Optional[List[RemoteHostConfig]] = None,
     ) -> bool:
         """
         Run the setup playbook for a specific workload plugin.
@@ -91,14 +93,24 @@ class SetupService:
             else self._get_local_inventory()
         )
 
+        extravars: Dict[str, Any] = {}
+        try:
+            extravars.update(plugin.get_ansible_setup_extravars())
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug(
+                "Failed to compute setup extravars for %s: %s", plugin.name, exc
+            )
+
         logger.info(f"Running setup for {plugin.name}...")
-        result = self.executor.run_playbook(playbook, inventory=inventory)
+        result = self.executor.run_playbook(
+            playbook, inventory=inventory, extravars=extravars or None
+        )
         return result.success
 
     def teardown_workload(
         self,
         plugin: WorkloadPlugin,
-        target_hosts: Optional[List[RemoteHostConfig]] = None
+        target_hosts: Optional[List[RemoteHostConfig]] = None,
     ) -> bool:
         """
         Run the teardown playbook for a specific workload plugin.
@@ -113,11 +125,26 @@ class SetupService:
             else self._get_local_inventory()
         )
 
+        extravars: Dict[str, Any] = {}
+        try:
+            extravars.update(plugin.get_ansible_teardown_extravars())
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug(
+                "Failed to compute teardown extravars for %s: %s", plugin.name, exc
+            )
+
         logger.info(f"Running teardown for {plugin.name}...")
-        result = self.executor.run_playbook(playbook, inventory=inventory)
+        result = self.executor.run_playbook(
+            playbook,
+            inventory=inventory,
+            extravars=extravars or None,
+            cancellable=False,
+        )
         return result.success
 
-    def teardown_global(self, target_hosts: Optional[List[RemoteHostConfig]] = None) -> bool:
+    def teardown_global(
+        self, target_hosts: Optional[List[RemoteHostConfig]] = None
+    ) -> bool:
         """
         Run the global teardown playbook.
         """
@@ -132,5 +159,7 @@ class SetupService:
         )
 
         logger.info("Running global teardown...")
-        result = self.executor.run_playbook(playbook, inventory=inventory)
+        result = self.executor.run_playbook(
+            playbook, inventory=inventory, cancellable=False
+        )
         return result.success

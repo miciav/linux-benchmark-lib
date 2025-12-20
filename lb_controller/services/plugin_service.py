@@ -10,12 +10,13 @@ from pathlib import Path
 from typing import Optional, Any, Union, List, Dict
 
 from lb_runner.plugin_system.builtin import builtin_plugins
-from lb_runner.plugin_system.registry import PluginRegistry, USER_PLUGIN_DIR
+from lb_runner.plugin_system.registry import PluginRegistry, resolve_user_plugin_dir
 # Alias to preserve compatibility with test monkeypatches expecting a `registry` module
 from lb_runner.plugin_system import registry as registry  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
+USER_PLUGIN_DIR = resolve_user_plugin_dir()
 _REGISTRY_CACHE: PluginRegistry | None = None
 
 
@@ -34,7 +35,7 @@ class PluginInstaller:
     """Helper to install and uninstall user plugins."""
 
     def __init__(self):
-        self.plugin_dir = USER_PLUGIN_DIR
+        self.plugin_dir = resolve_user_plugin_dir()
         self.plugin_dir.mkdir(parents=True, exist_ok=True)
 
     def install(self, source_path: Union[Path, str], manifest_path: Optional[Path] = None, force: bool = False) -> str:
@@ -188,7 +189,7 @@ class PluginInstaller:
             raise ValueError(f"Directory '{source_dir.name}' does not contain any Python files.")
 
         if len(py_files) == 1 and (source_dir / "__init__.py").exists():
-            # Treat as flat plugin: copy the module to USER_PLUGIN_DIR/<stem>.py
+            # Treat as flat plugin: copy the module to the user plugin directory.
             module = py_files[0]
             plugin_name = module.stem
             target_py = self.plugin_dir / f"{plugin_name}.py"

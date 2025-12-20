@@ -64,73 +64,104 @@ class RunCatalogService:
 
     def get_run(self, run_id: str) -> Optional[RunInfo]:
         """Return RunInfo for the given run_id if present."""
-        output_root = (self.output_dir / run_id).resolve()
-        if not output_root.exists():
+        output_root = self._resolve_output_root(run_id)
+        if output_root is None:
             return None
 
-        report_root = (
-            (self.report_dir / run_id).resolve() if self.report_dir else None
-        )
-        export_root = (
-            (self.data_export_dir / run_id).resolve() if self.data_export_dir else None
-        )
+        report_root = self._resolve_optional_root(self.report_dir, run_id)
+        export_root = self._resolve_optional_root(self.data_export_dir, run_id)
 
         journal_path = output_root / "run_journal.json"
-        journal_data: Dict[str, Any] = {}
-        created_at: Optional[datetime] = None
-        hosts: Set[str] = set()
-        workloads: Set[str] = set()
-
-        if journal_path.exists():
-            try:
-                journal_data = json.loads(journal_path.read_text())
-            except Exception:
-                journal_data = {}
-
-        # Prefer metadata when present.
-        metadata = journal_data.get("metadata", {}) if isinstance(journal_data, dict) else {}
-        created_raw = metadata.get("created_at")
-        if isinstance(created_raw, str):
-            try:
-                created_at = datetime.fromisoformat(created_raw)
-            except Exception:
-                created_at = None
-
-        tasks = journal_data.get("tasks") if isinstance(journal_data, dict) else None
-        if isinstance(tasks, list):
-            for t in tasks:
-                if not isinstance(t, dict):
-                    continue
-                host = t.get("host")
-                workload = t.get("workload")
-                if isinstance(host, str):
-                    hosts.add(host)
-                if isinstance(workload, str):
-                    workloads.add(workload)
+        journal_data = self._load_journal(journal_path)
+        created_at = self._extract_created_at(journal_data)
+        hosts, workloads = self._extract_hosts_workloads(journal_data)
 
         if not hosts:
-            # Fallback to directory names under output_root
-            for host_dir in output_root.iterdir():
-                if host_dir.is_dir():
-                    hosts.add(host_dir.name)
-
+            hosts = self._fallback_hosts(output_root)
         if not workloads and hosts:
-            # Infer workloads by scanning first host folder.
-            first_host = next(iter(hosts))
-            host_root = output_root / first_host
-            if host_root.exists():
-                for wdir in host_root.iterdir():
-                    if wdir.is_dir() and not wdir.name.startswith("_"):
-                        workloads.add(wdir.name)
+            workloads = self._fallback_workloads(output_root, hosts)
 
         return RunInfo(
             run_id=run_id,
             output_root=output_root,
-            report_root=report_root if report_root and report_root.exists() else report_root,
-            data_export_root=export_root if export_root and export_root.exists() else export_root,
+            report_root=self._existing_or_none(report_root),
+            data_export_root=self._existing_or_none(export_root),
             hosts=sorted(hosts),
             workloads=sorted(workloads),
             created_at=created_at,
             journal_path=journal_path if journal_path.exists() else None,
         )
 
+    def _resolve_output_root(self, run_id: str) -> Optional[Path]:
+        output_root = (self.output_dir / run_id).resolve()
+        return output_root if output_root.exists() else None
+
+    @staticmethod
+    def _resolve_optional_root(root: Optional[Path], run_id: str) -> Optional[Path]:
+        if not root:
+            return None
+        return (root / run_id).resolve()
+
+    @staticmethod
+    def _existing_or_none(root: Optional[Path]) -> Optional[Path]:
+        if root and root.exists():
+            return root
+        return root
+
+    @staticmethod
+    def _load_journal(journal_path: Path) -> Dict[str, Any]:
+        if not journal_path.exists():
+            return {}
+        try:
+            return json.loads(journal_path.read_text())
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _extract_created_at(journal_data: Dict[str, Any]) -> Optional[datetime]:
+        metadata = (
+            journal_data.get("metadata", {}) if isinstance(journal_data, dict) else {}
+        )
+        created_raw = metadata.get("created_at")
+        if not isinstance(created_raw, str):
+            return None
+        try:
+            return datetime.fromisoformat(created_raw)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _extract_hosts_workloads(
+        journal_data: Dict[str, Any],
+    ) -> tuple[Set[str], Set[str]]:
+        hosts: Set[str] = set()
+        workloads: Set[str] = set()
+        tasks = journal_data.get("tasks") if isinstance(journal_data, dict) else None
+        if not isinstance(tasks, list):
+            return hosts, workloads
+        for task in tasks:
+            if not isinstance(task, dict):
+                continue
+            host = task.get("host")
+            workload = task.get("workload")
+            if isinstance(host, str):
+                hosts.add(host)
+            if isinstance(workload, str):
+                workloads.add(workload)
+        return hosts, workloads
+
+    @staticmethod
+    def _fallback_hosts(output_root: Path) -> Set[str]:
+        return {entry.name for entry in output_root.iterdir() if entry.is_dir()}
+
+    @staticmethod
+    def _fallback_workloads(output_root: Path, hosts: Set[str]) -> Set[str]:
+        first_host = next(iter(hosts))
+        host_root = output_root / first_host
+        if not host_root.exists():
+            return set()
+        return {
+            entry.name
+            for entry in host_root.iterdir()
+            if entry.is_dir() and not entry.name.startswith("_")
+        }

@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 from textwrap import dedent
 
+from lb_common import configure_logging
 
 def git_log(from_ref: str | None = None, to_ref: str = "HEAD") -> list[str]:
     """Return a list of commit subjects between refs."""
@@ -27,6 +28,7 @@ def git_log(from_ref: str | None = None, to_ref: str = "HEAD") -> list[str]:
 
 
 def main() -> None:
+    configure_logging()
     parser = argparse.ArgumentParser(description="Generate release notes skeleton.")
     parser.add_argument("--version", required=True, help="Version string (e.g., 0.21.0)")
     parser.add_argument("--output", required=True, help="Output markdown file")
