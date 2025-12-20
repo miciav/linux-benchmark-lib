@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from lb_runner.events import RunEvent
 from lb_runner.benchmark_config import BenchmarkConfig
 
+
 class RunStatus:
     PENDING = "PENDING"
     RUNNING = "RUNNING"
@@ -16,16 +17,18 @@ class RunStatus:
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
 
+
 @dataclass
 class TaskState:
     """
     Represents a single atomic unit of work (Host + Workload + Repetition).
     """
+
     host: str
     workload: str
     repetition: int
     status: str = RunStatus.PENDING
-    current_action: str = "" 
+    current_action: str = ""
     timestamp: float = field(default_factory=lambda: datetime.now().timestamp())
     error: Optional[str] = None
     started_at: Optional[float] = None
@@ -36,17 +39,21 @@ class TaskState:
     def key(self) -> str:
         return f"{self.host}::{self.workload}::{self.repetition}"
 
+
 @dataclass
 class RunJournal:
     """
     Contains the entire execution plan and state.
     """
+
     run_id: str
     tasks: Dict[str, TaskState] = field(default_factory=dict)
     metadata: Dict = field(default_factory=dict)
 
     @classmethod
-    def initialize(cls, run_id: str, config: Any, test_types: List[str]) -> 'RunJournal':
+    def initialize(
+        cls, run_id: str, config: Any, test_types: List[str]
+    ) -> "RunJournal":
         """Factory to create a new journal based on configuration."""
         journal = cls(run_id=run_id)
         cfg_dump = _config_dump(config)
@@ -58,21 +65,25 @@ class RunJournal:
             "config_dump": cfg_dump,
             "config_hash": _config_hash(cfg_dump),
         }
-        
+
         # Pre-populate tasks based on config
         # We iterate test_types order to keep logical sequence
-        hosts = config.remote_hosts if getattr(config, "remote_hosts", None) else [SimpleNamespace(name="localhost")]
+        hosts = (
+            config.remote_hosts
+            if getattr(config, "remote_hosts", None)
+            else [SimpleNamespace(name="localhost")]
+        )
         for test_name in test_types:
             if test_name not in config.workloads:
                 continue
-                
+
             for host in hosts:
                 for rep in range(1, config.repetitions + 1):
                     task = TaskState(
                         host=host.name,
                         workload=test_name,
                         repetition=rep,
-                        status=RunStatus.PENDING
+                        status=RunStatus.PENDING,
                     )
                     journal.add_task(task)
         return journal
@@ -81,7 +92,10 @@ class RunJournal:
         self.tasks[task.key] = task
 
     def get_tasks_by_host(self, host: str) -> List[TaskState]:
-        return sorted([t for t in self.tasks.values() if t.host == host], key=lambda x: x.repetition)
+        return sorted(
+            [t for t in self.tasks.values() if t.host == host],
+            key=lambda x: x.repetition,
+        )
 
     def get_task(self, host: str, workload: str, rep: int) -> Optional[TaskState]:
         """Return a specific task or None when absent."""
@@ -97,22 +111,17 @@ class RunJournal:
         action: str = "",
         error: Optional[str] = None,
     ) -> None:
-        for t in self.tasks.values():
-            if t.host == host and t.workload == workload and t.repetition == rep:
-                now_ts = datetime.now().timestamp()
-                if status == RunStatus.RUNNING and t.started_at is None:
-                    t.started_at = now_ts
-                if status in (RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.SKIPPED):
-                    t.finished_at = now_ts
-                    if t.started_at is not None:
-                        t.duration_seconds = max(0.0, t.finished_at - t.started_at)
-                t.status = status
-                t.timestamp = now_ts
-                if action:
-                    t.current_action = action
-                if error:
-                    t.error = error
-                break
+        task = self.get_task(host, workload, rep)
+        if not task:
+            return
+        now_ts = datetime.now().timestamp()
+        self._update_task_timings(task, status, now_ts)
+        task.status = status
+        task.timestamp = now_ts
+        if action:
+            task.current_action = action
+        if error:
+            task.error = error
 
     def should_run(self, host: str, workload: str, rep: int) -> bool:
         """
@@ -120,11 +129,20 @@ class RunJournal:
         Returns True if task is PENDING or FAILED (and we want to retry).
         For now, we skip COMPLETED tasks.
         """
-        for t in self.tasks.values():
-            if t.host == host and t.workload == workload and t.repetition == rep:
-                return t.status not in (RunStatus.COMPLETED, RunStatus.SKIPPED)
+        task = self.get_task(host, workload, rep)
+        if task:
+            return task.status not in (RunStatus.COMPLETED, RunStatus.SKIPPED)
         # If task not found, it's technically new, so run it (though this shouldn't happen if initialized correctly)
         return True
+
+    @staticmethod
+    def _update_task_timings(task: TaskState, status: str, now_ts: float) -> None:
+        if status == RunStatus.RUNNING and task.started_at is None:
+            task.started_at = now_ts
+        if status in (RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.SKIPPED):
+            task.finished_at = now_ts
+            if task.started_at is not None:
+                task.duration_seconds = max(0.0, task.finished_at - task.started_at)
 
     def save(self, path: Path) -> None:
         """Persist journal to disk."""
@@ -133,17 +151,17 @@ class RunJournal:
         if isinstance(path, str):
             path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         serialized = data.copy()
         serialized["tasks"] = [asdict(task) for task in self.tasks.values()]
 
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             json.dump(serialized, f, indent=2, default=str)
 
     @classmethod
-    def load(cls, path: Path, config: Any | None = None) -> 'RunJournal':
+    def load(cls, path: Path, config: Any | None = None) -> "RunJournal":
         """Load journal from disk, optionally validating against a config."""
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             data = json.load(f)
 
         metadata = data.get("metadata", {}) or {}
@@ -153,13 +171,17 @@ class RunJournal:
         if config is not None:
             expected_reps = metadata.get("repetitions")
             if expected_reps and getattr(config, "repetitions", None) != expected_reps:
-                raise ValueError("Config does not match journal repetitions; aborting resume.")
+                raise ValueError(
+                    "Config does not match journal repetitions; aborting resume."
+                )
             if cfg_hash and cfg_dump:
                 current_dump = _config_dump(config)
                 current_hash = _config_hash(current_dump)
                 if current_hash != cfg_hash:
-                    raise ValueError("Config hash mismatch for resume; supply matching config or rely on journal config_dump.")
-        tasks_data = data.pop('tasks', [])
+                    raise ValueError(
+                        "Config hash mismatch for resume; supply matching config or rely on journal config_dump."
+                    )
+        tasks_data = data.pop("tasks", [])
         journal = cls(**data)
         journal.tasks = {}
         for t in tasks_data:
@@ -185,7 +207,9 @@ class RunJournal:
 class LogSink:
     """Persist events and mirror them to the run journal and optional stdout/log file."""
 
-    def __init__(self, journal: RunJournal, journal_path: Path, log_file: Path | None = None):
+    def __init__(
+        self, journal: RunJournal, journal_path: Path, log_file: Path | None = None
+    ):
         self.journal = journal
         self.journal_path = journal_path
         self.log_file = log_file
