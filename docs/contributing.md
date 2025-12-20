@@ -13,6 +13,11 @@ uv pip install -e ".[dev]"
 - Containerized tests (Docker): `./run_tests.sh`
 - Quick smoke run: `uv run python example.py`
 
+### Documentation
+
+- Install docs dependencies: `uv pip install -e ".[docs,controller]"`
+- Run the site locally: `uv run mkdocs serve`
+
 ### Style and quality
 
 - Format: `uv run black .`

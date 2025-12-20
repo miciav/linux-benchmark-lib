@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install deps
-        run: pip install -e ".[docs]"
+        run: pip install -e ".[docs,controller]"
       - name: Build site
         run: mkdocs build --strict
       - uses: actions/upload-pages-artifact@v3

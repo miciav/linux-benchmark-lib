@@ -7,8 +7,8 @@
       a clean CLI and stable Python APIs.
     </p>
     <div class="hero__actions">
-      <a class="btn btn--primary" href="quickstart/">Get started</a>
-      <a class="btn btn--ghost" href="api/">API reference</a>
+      <a class="btn btn--primary" href="quickstart.md">Get started</a>
+      <a class="btn btn--ghost" href="api.md">API reference</a>
     </div>
   </div>
   <div class="hero__panel">
@@ -54,7 +54,7 @@ lb run --remote --run-id demo-run</pre>
 
 ## Where to go next
 
-- Read the [Quickstart](quickstart/) for CLI and Python examples.
-- Use the [CLI reference](cli/) for all commands.
-- Browse the [API reference](api/) for stable modules.
-- Check [Diagrams](diagrams/) for architecture visuals and release artifacts.
+- Read the [Quickstart](quickstart.md) for CLI and Python examples.
+- Use the [CLI reference](cli.md) for all commands.
+- Browse the [API reference](api.md) for stable modules.
+- Check [Diagrams](diagrams.md) for architecture visuals and release artifacts.

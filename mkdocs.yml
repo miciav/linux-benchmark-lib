@@ -25,6 +25,10 @@ nav:
   - CLI: cli.md
   - API Reference: api.md
   - Diagrams: diagrams.md
+  - Design:
+      - Interrupts: interrupts.md
+      - Ctrl+C Design: ctrl_c_design.md
+      - Ctrl+C Stop Flow: ctrl_c_stop_flow.md
   - Contributing: contributing.md
 plugins:
   - search
