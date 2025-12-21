@@ -9,7 +9,7 @@ from lb_controller.types import InventorySpec
 from lb_runner.benchmark_config import RemoteHostConfig
 
 
-@pytest.mark.controller
+@pytest.mark.unit_controller
 def test_subprocess_run_uses_new_session(monkeypatch, tmp_path):
     captured = {}
 
@@ -30,7 +30,7 @@ def test_subprocess_run_uses_new_session(monkeypatch, tmp_path):
     assert captured.get("start_new_session") is True
 
 
-@pytest.mark.controller
+@pytest.mark.unit_controller
 def test_subprocess_popen_uses_new_session(monkeypatch, tmp_path):
     captured = {}
 

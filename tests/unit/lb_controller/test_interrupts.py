@@ -8,7 +8,7 @@ from lb_controller.interrupts import (
     SigintDecision,
 )
 
-pytestmark = pytest.mark.controller
+pytestmark = pytest.mark.unit_controller
 
 
 def test_double_ctrl_c_arms_then_requests_stop() -> None:

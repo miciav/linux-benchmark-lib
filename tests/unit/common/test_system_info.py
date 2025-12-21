@@ -11,7 +11,7 @@ import lb_runner.system_info as sysinfo
 from lb_runner.system_info_io import write_outputs
 from lb_app.services.run_system_info import summarize_system_info
 
-pytestmark = [pytest.mark.runner]
+pytestmark = [pytest.mark.unit_runner]
 
 
 def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):

@@ -8,7 +8,7 @@ from lb_controller.controller_state import ControllerState
 from lb_runner.stop_token import StopToken
 
 
-pytestmark = pytest.mark.controller
+pytestmark = pytest.mark.unit_controller
 
 
 def test_runner_completes_and_emits_states():

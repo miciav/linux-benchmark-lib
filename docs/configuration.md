@@ -42,3 +42,4 @@ config = BenchmarkConfig.load(Path("benchmark_config.json"))
 - `plugin_settings` can hold typed Pydantic configs for plugins; it is optional.
 - `output_dir`, `report_dir`, and `data_export_dir` control where artifacts are written.
 - `remote_execution.enabled` controls whether the controller uses Ansible to run workloads.
+- `remote_execution.upgrade_pip` toggles the pip upgrade step during global setup.

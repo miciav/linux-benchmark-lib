@@ -7,7 +7,7 @@ import pytest
 
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
-pytestmark = pytest.mark.controller
+pytestmark = pytest.mark.unit_controller
 
 from lb_controller.api import BenchmarkController, ControllerState
 from lb_controller.ansible_executor import AnsibleRunnerExecutor

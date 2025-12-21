@@ -16,7 +16,7 @@ import pytest
 # except RuntimeError:
 #     pass # Already set, or not supported on this platform/context
 
-pytestmark = [pytest.mark.e2e, pytest.mark.multipass, pytest.mark.slowest]
+pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"

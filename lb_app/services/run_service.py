@@ -261,8 +261,11 @@ class RunService:
             )
 
         stop_token = StopToken(stop_file=context.stop_file, enable_signals=False)
-        formatter: AnsibleOutputFormatter | None = None
+        formatter = AnsibleOutputFormatter()
+        formatter.emit_task_timings = False
+        formatter.emit_task_starts = False
         callback = output_callback
+        emit_timing = False
         if callback is None:
             if context.debug:
                 # In debug mode, print everything raw for troubleshooting
@@ -271,7 +274,6 @@ class RunService:
 
                 callback = _debug_printer
             else:
-                formatter = AnsibleOutputFormatter()
                 callback = formatter.process
 
         return self._run_remote(
@@ -281,6 +283,7 @@ class RunService:
             formatter,
             ui_adapter,
             stop_token=stop_token,
+            emit_timing=emit_timing,
         )
 
     def _run_remote(
@@ -291,6 +294,7 @@ class RunService:
         formatter: AnsibleOutputFormatter | None,
         ui_adapter: UIAdapter | None,
         stop_token: StopToken | None = None,
+        emit_timing: bool = True,
     ) -> RunResult:
         """Execute a remote run using the controller with journal integration."""
         from lb_controller.api import (
@@ -308,13 +312,13 @@ class RunService:
             return self._short_circuit_empty_run(context, session, ui_adapter)
 
         pipeline = self._build_event_pipeline(
-            context, session, formatter, output_callback, ui_adapter
+            context, session, formatter, output_callback, ui_adapter, emit_timing
         )
 
         controller = BenchmarkController(
             context.config,
             output_callback=pipeline.output_cb,
-            output_formatter=formatter if not context.debug else None,
+            output_formatter=formatter,
             journal_refresh=session.dashboard.refresh if session.dashboard else None,
             stop_token=session.stop_token,
             state_machine=session.controller_state,
@@ -424,12 +428,22 @@ class RunService:
         formatter: AnsibleOutputFormatter | None,
         output_callback: Callable[[str, str], None],
         ui_adapter: UIAdapter | None,
+        emit_timing: bool,
     ) -> _EventPipeline:
         """Wire output handlers, dedupe, and dashboard logging."""
         dashboard = session.dashboard
         output_cb = pipeline_output_callback(
             dashboard=dashboard, formatter=formatter, output_callback=output_callback
         )
+        timing_handler: Callable[[str], None] | None = None
+        if emit_timing and formatter and output_callback is not formatter.process:
+            def _timing_sink(message: str) -> None:
+                output_cb(message, end="\n")
+
+            def _timing_handler(line: str) -> None:
+                formatter.process_timing(line, log_sink=_timing_sink)
+
+            timing_handler = _timing_handler
         announce_stop = announce_stop_factory(session, ui_adapter)
         session.stop_token._on_stop = announce_stop  # type: ignore[attr-defined]
 
@@ -452,6 +466,7 @@ class RunService:
             session=session,
             downstream=output_cb,
             progress_handler=progress_handler,
+            timing_handler=timing_handler,
         )
 
         if session.stop_token.should_stop():

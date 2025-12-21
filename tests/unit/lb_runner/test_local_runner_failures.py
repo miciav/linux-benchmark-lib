@@ -9,7 +9,7 @@ from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 from lb_runner.local_runner import LocalRunner
 
 
-pytestmark = pytest.mark.runner
+pytestmark = pytest.mark.unit_runner
 
 
 def test_collector_start_failure_does_not_crash(mocker, tmp_path):

@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 from lb_ui.cli import app
 from lb_controller.api import ConfigService
 
-pytestmark = [pytest.mark.ui]
+pytestmark = [pytest.mark.unit_ui]
 
 
 def test_cli_runs_list_and_analyze(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

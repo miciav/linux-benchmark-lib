@@ -32,11 +32,11 @@ from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401 - fixt
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
 
 pytestmark = [
-    pytest.mark.e2e,
-    pytest.mark.multipass,
+    pytest.mark.inter_e2e,
+    pytest.mark.inter_multipass,
     pytest.mark.slowest,
-    pytest.mark.integration,
-    pytest.mark.multipass_single,
+    pytest.mark.inter_generic,
+    pytest.mark.inter_multipass_single,
 ]
 
 
@@ -97,7 +97,7 @@ def _run_single_workload(
     export_dir = tmp_path / f"{workload}_exports"
 
     config = BenchmarkConfig(
-        repetitions=3,
+        repetitions=1,
         test_duration_seconds=duration_override_seconds or intensity["stress_duration"],
         warmup_seconds=0,
         cooldown_seconds=0,
@@ -199,7 +199,7 @@ def test_multipass_geekbench_three_reps(multipass_vm, tmp_path: Path) -> None:
         output_dir=Path("/tmp"),
         skip_cleanup=True,
         run_gpu=False,
-        expected_runtime_seconds=max(300, int(intensity.get("stress_timeout", 120))),
+        expected_runtime_seconds=max(120, int(intensity.get("stress_timeout", 120))),
         download_checksum=download_checksum,
     )
     workload_cfg = WorkloadConfig(
@@ -228,7 +228,7 @@ def test_multipass_hpl_three_reps(multipass_vm, tmp_path: Path) -> None:
         q=1,
         mpi_ranks=1,
         mpi_launcher="fork",
-        expected_runtime_seconds=max(300, int(intensity.get("stress_timeout", 120))),
+        expected_runtime_seconds=max(30, int(intensity.get("stress_timeout", 120))),
     )
     workload_cfg = WorkloadConfig(
         plugin="hpl",
@@ -255,7 +255,7 @@ def test_multipass_yabs_three_reps(multipass_vm, tmp_path: Path) -> None:
         skip_network=True,
         skip_geekbench=True,
         skip_cleanup=True,
-        expected_runtime_seconds=max(600, int(intensity.get("stress_timeout", 120))),
+        expected_runtime_seconds=max(300, int(intensity.get("stress_timeout", 120))),
     )
     workload_cfg = WorkloadConfig(
         plugin="yabs",

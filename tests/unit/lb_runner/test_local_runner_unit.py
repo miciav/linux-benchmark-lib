@@ -10,7 +10,7 @@ from lb_runner.local_runner import LocalRunner
 from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.registry import PluginRegistry
 
-pytestmark = pytest.mark.runner
+pytestmark = pytest.mark.unit_runner
 
 
 

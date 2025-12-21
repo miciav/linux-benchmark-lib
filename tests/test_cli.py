@@ -30,7 +30,7 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     return cli
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_plugins_enable_disable_persists_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -102,7 +102,7 @@ def test_plugins_enable_disable_persists_config(monkeypatch: pytest.MonkeyPatch,
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_plugins_shows_enabled_column(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture):
@@ -141,7 +141,7 @@ def test_plugins_shows_enabled_column(monkeypatch: pytest.MonkeyPatch, tmp_path:
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_doctor_controller_uses_checks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -174,7 +174,7 @@ def test_doctor_controller_uses_checks(monkeypatch: pytest.MonkeyPatch, tmp_path
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_doctor_local_tools_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -201,7 +201,7 @@ def test_doctor_local_tools_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_plugins_conflicting_flags_fail(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -225,7 +225,7 @@ def test_plugins_conflicting_flags_fail(monkeypatch: pytest.MonkeyPatch, tmp_pat
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -288,7 +288,7 @@ def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, 
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_plugin_select_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -348,7 +348,7 @@ def test_plugin_select_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_plugin_root_defaults_to_list(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -378,7 +378,7 @@ def test_plugin_root_defaults_to_list(monkeypatch: pytest.MonkeyPatch, tmp_path:
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_config_init_sets_repetitions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -450,7 +450,7 @@ def test_config_init_sets_repetitions(monkeypatch: pytest.MonkeyPatch, tmp_path:
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -576,7 +576,7 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_run_command_allows_repetition_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -704,7 +704,7 @@ def test_run_command_allows_repetition_override(monkeypatch: pytest.MonkeyPatch,
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -764,7 +764,7 @@ def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatc
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_config_set_repetitions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -809,7 +809,7 @@ def test_config_set_repetitions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_multipass_helper_sets_artifacts_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -899,7 +899,7 @@ def test_multipass_helper_sets_artifacts_env(monkeypatch: pytest.MonkeyPatch, tm
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_multipass_helper_allows_vm_count_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -995,7 +995,7 @@ def test_multipass_helper_allows_vm_count_override(monkeypatch: pytest.MonkeyPat
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_multipass_helper_runs_multi_workloads(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -1082,7 +1082,7 @@ def test_multipass_helper_runs_multi_workloads(monkeypatch: pytest.MonkeyPatch, 
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 
@@ -1208,7 +1208,7 @@ def test_multipass_helper_accepts_pytest_flags_without_separator(monkeypatch: py
 
 
 
-@pytest.mark.ui
+@pytest.mark.unit_ui
 
 
 def test_run_command_saves_ui_stream_log(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):

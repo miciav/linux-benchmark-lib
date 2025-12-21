@@ -3,7 +3,7 @@ import pytest
 from lb_ui.cli import _print_run_plan
 from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
 
-pytestmark = [pytest.mark.ui, pytest.mark.ui]
+pytestmark = [pytest.mark.unit_ui, pytest.mark.unit_ui]
 
 
 def test_print_run_plan_docker_mode(capsys: pytest.CaptureFixture[str]):

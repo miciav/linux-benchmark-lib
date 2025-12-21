@@ -6,7 +6,7 @@ from lb_ui.ui.system.headless import HeadlessUI
 from lb_ui.ui.system.models import SelectionNode
 
 
-pytestmark = pytest.mark.ui
+pytestmark = pytest.mark.unit_ui
 
 
 def _sample_tree() -> SelectionNode:

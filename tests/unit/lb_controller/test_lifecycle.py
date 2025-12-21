@@ -4,7 +4,7 @@ import pytest
 
 from lb_controller.lifecycle import RunLifecycle, RunPhase, StopStage
 
-pytestmark = pytest.mark.controller
+pytestmark = pytest.mark.unit_controller
 
 
 def test_lifecycle_phase_and_finish():

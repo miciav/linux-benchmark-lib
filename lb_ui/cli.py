@@ -26,9 +26,11 @@ from lb_controller.api import (
     RunCatalogService,
     RunJournal,
     WorkloadConfig,
+    build_plugin_table,
+    create_registry,
+    PluginInstaller,
 )
 from lb_analytics.analytics_service import AnalyticsRequest, AnalyticsService
-from lb_controller.api import build_plugin_table, create_registry, PluginInstaller
 from lb_app.api import DoctorService, DoctorReport, TestService, UIAdapter
 from lb_ui import viewmodels
 from lb_common import configure_logging

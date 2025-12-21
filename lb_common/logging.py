@@ -14,7 +14,7 @@ def _resolve_level(value: str | int | None, debug: bool) -> int:
     if debug:
         return logging.DEBUG
     if value is None:
-        return logging.INFO
+        return logging.WARNING
     if isinstance(value, int):
         return value
     try:

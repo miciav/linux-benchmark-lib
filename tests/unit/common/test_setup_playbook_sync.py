@@ -6,7 +6,7 @@ import pytest
 import yaml
 
 
-pytestmark = pytest.mark.controller
+pytestmark = pytest.mark.unit_controller
 
 
 def test_setup_playbook_sync_includes_lb_common() -> None:

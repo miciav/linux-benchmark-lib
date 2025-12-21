@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List
 
@@ -78,6 +79,7 @@ class CallbackModule(CallbackBase):
         log_path = os.getenv("LB_EVENT_LOG_PATH") or "lb_events.jsonl"
         self.log_path = Path(log_path).expanduser()
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        self._task_start_times: Dict[str, float] = {}
 
     def v2_runner_on_ok(self, result, **kwargs):  # type: ignore[override]
         self._handle_result(result, status_override=None)
@@ -91,6 +93,12 @@ class CallbackModule(CallbackBase):
     def v2_runner_on_skipped(self, result, **kwargs):  # type: ignore[override]
         self._handle_result(result, status_override="skipped")
 
+    def v2_playbook_on_task_start(self, task, is_conditional=False):  # type: ignore[override]
+        task_id = getattr(task, "_uuid", None)
+        if task_id is None:
+            return
+        self._task_start_times[str(task_id)] = time.monotonic()
+
     # --- helpers ---
 
     def _handle_result(self, result: Any, status_override: str | None) -> None:
@@ -100,6 +108,7 @@ class CallbackModule(CallbackBase):
             if status_override and "status" not in event:
                 event["status"] = status_override
             self._write_event(event)
+        self._emit_task_timing(result, host, status_override)
 
     def _events_from_result(self, result: Any) -> Iterator[Dict[str, Any]]:
         payloads = list(self._candidate_texts(result))
@@ -136,4 +145,29 @@ class CallbackModule(CallbackBase):
                 fp.write(json.dumps(event) + "\n")
         except Exception:
             # Callback errors must never break Ansible execution.
+            return
+
+    def _emit_task_timing(
+        self, result: Any, host: str | None, status_override: str | None
+    ) -> None:
+        task = getattr(result, "_task", None)
+        task_id = getattr(task, "_uuid", None)
+        if task_id is None:
+            return
+        start = self._task_start_times.get(str(task_id))
+        if start is None:
+            return
+        duration_s = max(0.0, time.monotonic() - start)
+        task_name = ""
+        if task is not None:
+            task_name = getattr(task, "get_name", lambda: "")() or ""
+        payload = {
+            "host": host or "",
+            "task": task_name,
+            "duration_s": round(duration_s, 3),
+            "status": status_override or "ok",
+        }
+        try:
+            self._display.display(f"LB_TASK {json.dumps(payload)}")
+        except Exception:
             return

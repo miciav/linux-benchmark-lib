@@ -8,6 +8,8 @@
     use_container_fallback: "{{ use_container_fallback | default(false) }}"
     # Define a consistent workdir for the benchmark library on remote hosts
     lb_workdir: "/opt/lb"
+    lb_apt_cache_valid_time: 3600
+    lb_src_root: "{{ playbook_dir }}/../../.."
 
   tasks:
     - name: Ensure deadsnakes PPA present for Python 3.12 (Debian/Ubuntu)
@@ -20,6 +22,8 @@
       delay: 5
       when:
         - ansible_facts['os_family'] | default('') == 'Debian'
+        - ansible_facts['distribution'] | default('') == 'Ubuntu'
+        - ansible_facts['distribution_version'] is version('24.04', '<')
         - not (lb_is_container | default(false))
       tags: python
 
@@ -32,7 +36,7 @@
       tags: python
 
     - name: Ensure base packages are installed (Python 3.12, venv, pip)
-      package:
+      ansible.builtin.apt:
         name:
           - python3.12
           - python3.12-venv
@@ -41,12 +45,14 @@
           - python3-venv
         state: present
         update_cache: true
+        cache_valid_time: "{{ lb_apt_cache_valid_time }}"
 
     - name: Install collector dependencies (APT)
       ansible.builtin.apt:
         name: "{{ (collector_apt_packages | default([])) + ['pciutils', 'smartmontools'] }}"
         state: present
         update_cache: true
+        cache_valid_time: "{{ lb_apt_cache_valid_time }}"
       when:
         - ansible_facts['os_family'] | default('') == 'Debian'
       tags: deps
@@ -73,22 +79,65 @@
         cmd: "{{ (lb_python_bin.stdout or 'python3') }} -m venv {{ lb_workdir }}/.venv"
         creates: "{{ lb_workdir }}/.venv/bin/python"
 
-    - name: Synchronize benchmark library sources to remote host
+    - name: Create local archive for benchmark library sources
+      ansible.builtin.tempfile:
+        state: file
+        suffix: ".tar.gz"
+      register: lb_src_archive
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Store local archive path for all hosts
+      ansible.builtin.set_fact:
+        lb_src_archive_path: "{{ lb_src_archive.path }}"
+      delegate_to: localhost
+      delegate_facts: true
+      become: false
+      run_once: true
+
+    - name: Build benchmark library archive locally
+      ansible.builtin.command:
+        cmd: >-
+          tar -czf {{ hostvars['localhost'].lb_src_archive_path }}
+          -C {{ lb_src_root }}
+          lb_app lb_analytics lb_common lb_controller lb_provisioner lb_runner lb_ui
+          pyproject.toml README.md uv.lock
+      delegate_to: localhost
+      changed_when: true
+      become: false
+      run_once: true
+
+    - name: Upload benchmark library archive
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../../../{{ item }}"
+        src: "{{ hostvars['localhost'].lb_src_archive_path }}"
+        dest: "{{ lb_workdir }}/lb_src.tar.gz"
+        mode: "0644"
+
+    - name: Extract benchmark library archive on remote host
+      ansible.builtin.unarchive:
+        src: "{{ lb_workdir }}/lb_src.tar.gz"
         dest: "{{ lb_workdir }}/"
-        mode: preserve
-      loop:
-        - lb_runner
-        - lb_controller
-        - lb_common
-        - pyproject.toml
-        - uv.lock
+        remote_src: true
+
+    - name: Remove remote benchmark library archive
+      ansible.builtin.file:
+        path: "{{ lb_workdir }}/lb_src.tar.gz"
+        state: absent
+
+    - name: Remove local benchmark library archive
+      ansible.builtin.file:
+        path: "{{ hostvars['localhost'].lb_src_archive_path }}"
+        state: absent
+      delegate_to: localhost
+      become: false
+      run_once: true
 
     - name: Upgrade pip inside virtual environment
       ansible.builtin.command:
         cmd: "{{ lb_workdir }}/.venv/bin/pip install --upgrade pip"
         chdir: "{{ lb_workdir }}"
+      when: lb_upgrade_pip | default(false) | bool
 
     - name: Install benchmark library in editable mode
       ansible.builtin.command:

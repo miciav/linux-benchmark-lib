@@ -3,7 +3,7 @@ import pytest
 from lb_ui.cli import _build_journal_summary
 from lb_controller.api import RunJournal, RunStatus, TaskState
 
-pytestmark = [pytest.mark.ui, pytest.mark.ui]
+pytestmark = [pytest.mark.unit_ui, pytest.mark.unit_ui]
 
 
 

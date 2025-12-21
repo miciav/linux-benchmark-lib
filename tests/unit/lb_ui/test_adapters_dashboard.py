@@ -10,7 +10,7 @@ from lb_ui.ui.adapters.tui_adapter import TUIAdapter, ThreadedDashboardHandle
 from lb_controller.api import RunJournal
 
 
-pytestmark = pytest.mark.ui
+pytestmark = pytest.mark.unit_ui
 
 
 def _fake_journal():

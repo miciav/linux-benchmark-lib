@@ -12,6 +12,7 @@ from lb_app.services.run_events import JsonEventTailer
 from lb_app.services.run_output import (
     AnsibleOutputFormatter,
     _extract_lb_event_data,
+    format_bullet_line,
 )
 from lb_app.services.run_types import RunContext, _EventDedupe, _RemoteSession
 from lb_app.ui_interfaces import DashboardHandle
@@ -70,11 +71,11 @@ def mirror_event_to_dashboard(
     if not dashboard:
         return
     dashboard.mark_event(source)
-    label = f"run-{event.host}".replace(":", "-").replace(" ", "-")
-    label = f"{label}-{event.workload}".replace(":", "-").replace(" ", "-")
-    text = f"• [{label}] {event.repetition}/{event.total_repetitions} {event.status}"
+    host_label = str(event.host or "?")
+    message = f"{event.repetition}/{event.total_repetitions} {event.status}"
     if event.message:
-        text = f"{text} ({event.message})"
+        message = f"{message} ({event.message})"
+    text = format_bullet_line(f"run {event.workload}", message, host_label=host_label)
     dashboard.add_log(escape(text))
     dashboard.refresh()
 
@@ -138,8 +139,9 @@ def make_output_tee(
     session: _RemoteSession,
     downstream: Callable[[str, str], None] | None,
     progress_handler: Callable[[str], None],
+    timing_handler: Callable[[str], None] | None = None,
 ) -> Callable[[str, str], None]:
-    """Return an output callback that logs, parses progress, and tees downstream."""
+    """Return an output callback that logs, parses progress/timing, and tees downstream."""
 
     def _tee_output(text: str, end: str = "") -> None:
         fragment = text + (end if end else "\n")
@@ -149,6 +151,8 @@ def make_output_tee(
         except Exception:
             pass
         for line in fragment.splitlines():
+            if timing_handler:
+                timing_handler(line)
             progress_handler(line)
         if downstream:
             downstream(text, end=end)

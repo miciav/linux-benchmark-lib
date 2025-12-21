@@ -7,7 +7,7 @@ import lb_controller.controller as controller_module
 import lb_app.services.run_service as run_service_module
 
 
-pytestmark = pytest.mark.controller
+pytestmark = pytest.mark.unit_controller
 
 
 class DummyController:

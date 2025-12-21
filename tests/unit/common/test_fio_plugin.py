@@ -4,7 +4,7 @@ import pytest
 
 from lb_runner.plugins.fio.plugin import FIOConfig, FIOGenerator
 
-pytestmark = [pytest.mark.runner, pytest.mark.plugins]
+pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
 
 

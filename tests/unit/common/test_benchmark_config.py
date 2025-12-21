@@ -27,7 +27,7 @@ from lb_runner.plugins.hpl.plugin import HPLConfig
 from lb_runner.plugins.stream.plugin import StreamConfig
 from lb_runner.plugins.yabs.plugin import YabsConfig
 
-pytestmark = pytest.mark.runner
+pytestmark = pytest.mark.unit_runner
 
 class TestBenchmarkConfig:
     """Test cases for BenchmarkConfig class."""

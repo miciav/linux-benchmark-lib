@@ -3,7 +3,7 @@ import pytest
 from lb_controller.controller_state import ControllerState, ControllerStateMachine
 
 
-pytestmark = pytest.mark.controller
+pytestmark = pytest.mark.unit_controller
 
 
 def test_valid_transitions():

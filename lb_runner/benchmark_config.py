@@ -108,6 +108,7 @@ class RemoteExecutionConfig(BaseModel):
     collect_playbook: Path = Field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "collect.yml", description="Path to the Ansible collect playbook")
     teardown_playbook: Path = Field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "teardown.yml", description="Path to the Ansible teardown playbook")
     run_teardown: bool = Field(default=True, description="Execute teardown playbooks after tests")
+    upgrade_pip: bool = Field(default=False, description="Upgrade pip inside the benchmark virtual environment during setup")
     use_container_fallback: bool = Field(default=False, description="Use container-based fallback for remote execution")
 
     @model_validator(mode="after")

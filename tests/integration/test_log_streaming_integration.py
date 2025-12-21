@@ -12,7 +12,7 @@ from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.log_handler import LBEventLogHandler
 
 
-@pytest.mark.integration
+@pytest.mark.inter_generic
 def test_local_runner_attaches_log_handler(monkeypatch):
     """Verify LocalRunner attaches LBEventLogHandler when env var is set."""
     # Mock environment
@@ -57,7 +57,7 @@ def test_local_runner_attaches_log_handler(monkeypatch):
         mock_logger.removeHandler.assert_called_with(handler_arg)
 
 
-@pytest.mark.integration
+@pytest.mark.inter_generic
 def test_local_runner_ignores_log_handler_default(monkeypatch):
     """Verify LocalRunner does NOT attach handler if env var is missing."""
     monkeypatch.delenv("LB_ENABLE_EVENT_LOGGING", raising=False)
