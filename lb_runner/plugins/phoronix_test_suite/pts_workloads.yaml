@@ -34,3 +34,11 @@ workloads:
     tags: ["pts", "compression", "cpu"]
     apt_packages:
       - p7zip-full
+
+  - profile: gmpbench
+    expected_runtime_seconds: 300
+    description: "PTS: GMPbench (The Great Computer Language Shootout)"
+    tags: ["pts", "cpu", "math"]
+    apt_packages:
+      - build-essential
+      - m4
