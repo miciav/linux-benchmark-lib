@@ -29,5 +29,6 @@ Switch between dependency sets with the helper script:
 ```bash
 bash scripts/switch_mode.sh base
 bash scripts/switch_mode.sh controller
+bash scripts/switch_mode.sh headless
 bash scripts/switch_mode.sh dev
 ```
