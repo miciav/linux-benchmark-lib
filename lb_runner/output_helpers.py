@@ -29,8 +29,10 @@ def ensure_run_dirs(config: BenchmarkConfig, run_id: str) -> tuple[Path, Path, P
     output_root = _scope_with_run_id(config.output_dir)
     report_root = _scope_with_run_id(config.report_dir)
     data_export_root = _scope_with_run_id(config.data_export_dir)
-    for path in (output_root, report_root, data_export_root):
-        path.mkdir(parents=True, exist_ok=True)
+    
+    # Only create output_root; report/export dirs are created on demand by analytics.
+    output_root.mkdir(parents=True, exist_ok=True)
+    
     return output_root, data_export_root, report_root
 
 

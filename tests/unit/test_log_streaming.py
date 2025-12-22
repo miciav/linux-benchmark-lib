@@ -95,10 +95,11 @@ def test_ansible_output_formatter_log_parsing():
     # Verify formatter logic
     result = formatter._format_progress(line)
     assert result is not None
-    phase, message = result
+    phase, message, host = result
     
-    assert phase == "run h1 w1"
+    assert phase == "run w1"
     assert message == "[WARNING] Something went wrong"
+    assert host == "h1"
 
 
 @pytest.mark.unit_controller
@@ -117,7 +118,7 @@ def test_ansible_output_formatter_mixed_input():
     status_line = f"LB_EVENT {json.dumps(status_payload)}"
     
     res_status = formatter._format_progress(status_line)
-    assert res_status == ("run h1 w1", "1/? running")
+    assert res_status == ("run w1", "1/? running", "h1")
     
     # Log event inside an Ansible task output line (simulated)
     log_payload = {
@@ -133,4 +134,4 @@ def test_ansible_output_formatter_mixed_input():
     log_line = f'msg: LB_EVENT {json.dumps(log_payload)}'
     
     res_log = formatter._format_progress(log_line)
-    assert res_log == ("run h1 w1", "[ERROR] Critical failure")
+    assert res_log == ("run w1", "[ERROR] Critical failure", "h1")

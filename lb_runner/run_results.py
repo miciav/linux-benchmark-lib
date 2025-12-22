@@ -75,14 +75,8 @@ def collect_metrics(
         collector_data = collector.get_data()
         result["metrics"][collector.name] = collector_data
         filename = f"{test_name}_rep{repetition}_{collector.name}.csv"
-        filepath = workload_dir / filename
-        collector.save_data(filepath)
         rep_filepath = rep_dir / filename
-        try:
-            if rep_filepath != filepath:
-                shutil.copyfile(filepath, rep_filepath)
-        except Exception:
-            pass
+        collector.save_data(rep_filepath)
 
 
 def persist_rep_result(rep_dir: Path, result: dict[str, Any]) -> None:
