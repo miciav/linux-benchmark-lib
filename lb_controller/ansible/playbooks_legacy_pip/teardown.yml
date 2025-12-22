@@ -21,7 +21,7 @@
           when: runner_log.stat.exists
       ignore_errors: true # Do not fail teardown if logs are missing
 
-    - name: Clean up benchmark workspace (code and uv env)
+    - name: Clean up benchmark workspace (code and venv)
       ansible.builtin.file:
         path: "{{ lb_workdir }}"
         state: absent

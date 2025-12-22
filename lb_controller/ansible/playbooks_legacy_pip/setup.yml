@@ -8,14 +8,45 @@
     use_container_fallback: "{{ use_container_fallback | default(false) }}"
     # Define a consistent workdir for the benchmark library on remote hosts
     lb_workdir: "/opt/lb"
-    lb_uv_install_dir: "{{ lb_workdir }}/.local/bin"
-    lb_uv_bin: "{{ lb_uv_install_dir }}/uv"
-    lb_uv_python_version: "3.12"
-    lb_uv_install_script: "{{ lb_workdir }}/uv-install.sh"
     lb_apt_cache_valid_time: 3600
     lb_src_root: "{{ playbook_dir }}/../../.."
 
   tasks:
+    - name: Ensure deadsnakes PPA present for Python 3.12 (Debian/Ubuntu)
+      ansible.builtin.apt_repository:
+        repo: ppa:deadsnakes/ppa
+        state: present
+      register: _python_ppa
+      until: _python_ppa is succeeded
+      retries: 3
+      delay: 5
+      when:
+        - ansible_facts['os_family'] | default('') == 'Debian'
+        - ansible_facts['distribution'] | default('') == 'Ubuntu'
+        - ansible_facts['distribution_version'] is version('24.04', '<')
+        - not (lb_is_container | default(false))
+      tags: python
+
+    - name: Update apt cache when PPA added
+      ansible.builtin.apt:
+        update_cache: true
+      when:
+        - ansible_facts['os_family'] | default('') == 'Debian'
+        - _python_ppa is defined and _python_ppa is changed
+      tags: python
+
+    - name: Ensure base packages are installed (Python 3.12, venv, pip)
+      ansible.builtin.apt:
+        name:
+          - python3.12
+          - python3.12-venv
+          - python3
+          - python3-pip
+          - python3-venv
+        state: present
+        update_cache: true
+        cache_valid_time: "{{ lb_apt_cache_valid_time }}"
+
     - name: Install collector dependencies (APT)
       ansible.builtin.apt:
         name: "{{ (collector_apt_packages | default([])) + ['pciutils', 'smartmontools'] }}"
@@ -26,43 +57,27 @@
         - ansible_facts['os_family'] | default('') == 'Debian'
       tags: deps
 
+    - name: Define Python interpreter for the virtual environment
+      ansible.builtin.shell: |
+        set -e
+        if command -v python3.12 >/dev/null 2>&1; then
+          command -v python3.12
+        else
+          command -v python3
+        fi
+      register: lb_python_bin
+      changed_when: false
+
     - name: Create benchmark library workdir on remote host
       ansible.builtin.file:
         path: "{{ lb_workdir }}"
         state: directory
         mode: "0755"
 
-    - name: Ensure uv install directory exists
-      ansible.builtin.file:
-        path: "{{ lb_uv_install_dir }}"
-        state: directory
-        mode: "0755"
-
-    - name: Check for uv binary
-      ansible.builtin.stat:
-        path: "{{ lb_uv_bin }}"
-      register: lb_uv_stat
-
-    - name: Download uv install script
-      ansible.builtin.get_url:
-        url: https://astral.sh/uv/install.sh
-        dest: "{{ lb_uv_install_script }}"
-        mode: "0755"
-      when: not lb_uv_stat.stat.exists
-
-    - name: Install uv
+    - name: Create virtual environment for benchmark library
       ansible.builtin.command:
-        cmd: "{{ lb_uv_install_script }}"
-      environment:
-        UV_INSTALL_DIR: "{{ lb_uv_install_dir }}"
-        UV_NO_MODIFY_PATH: "1"
-      when: not lb_uv_stat.stat.exists
-
-    - name: Remove uv install script
-      ansible.builtin.file:
-        path: "{{ lb_uv_install_script }}"
-        state: absent
-      when: not lb_uv_stat.stat.exists
+        cmd: "{{ (lb_python_bin.stdout or 'python3') }} -m venv {{ lb_workdir }}/.venv"
+        creates: "{{ lb_workdir }}/.venv/bin/python"
 
     - name: Create local archive for benchmark library sources
       ansible.builtin.tempfile:
@@ -118,15 +133,15 @@
       become: false
       run_once: true
 
-    - name: Create uv virtual environment for benchmark library
+    - name: Upgrade pip inside virtual environment
       ansible.builtin.command:
-        cmd: "{{ lb_uv_bin }} venv --python {{ lb_uv_python_version }} .venv"
+        cmd: "{{ lb_workdir }}/.venv/bin/pip install --upgrade pip"
         chdir: "{{ lb_workdir }}"
-        creates: "{{ lb_workdir }}/.venv/bin/python"
+      when: lb_upgrade_pip | default(false) | bool
 
-    - name: Sync benchmark dependencies with uv (no dev)
+    - name: Install benchmark library in editable mode
       ansible.builtin.command:
-        cmd: "{{ lb_uv_bin }} sync --frozen --no-dev"
+        cmd: "{{ lb_workdir }}/.venv/bin/pip install -e ."
         chdir: "{{ lb_workdir }}"
 
     - name: Ensure benchmark output directory exists

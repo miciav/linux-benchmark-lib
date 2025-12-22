@@ -5,7 +5,7 @@ Questo plugin include alcuni strumenti per compilare HPL 2.3, impacchettarlo in 
 - **VM (Multipass)**: build e test su una VM dedicata.
 - **Docker Buildx**: cross‑build multi‑arch tramite Docker.
 
-Per l’esecuzione remota/multipass: il playbook `ansible/setup.yml` installa le dipendenze, copia il `.deb` precompilato per l’architettura corretta, esegue `dpkg -i` e replica `xhpl` nel workspace.
+Per l’esecuzione remota/multipass: il playbook `ansible/setup.yml` gestisce solo le dipendenze HPL, copia il `.deb` precompilato per l’architettura corretta, esegue `dpkg -i` e replica `xhpl` nel workspace. L’install del runner e delle dipendenze di `linux-benchmark-lib` e' gestita dal global setup del controller.
 
 ## File di packaging
 - `Make.Linux`: configurazione HPL per OpenMPI/OpenBLAS (usata in make e packaging).
