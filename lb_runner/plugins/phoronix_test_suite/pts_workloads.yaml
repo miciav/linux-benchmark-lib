@@ -42,3 +42,10 @@ workloads:
     apt_packages:
       - build-essential
       - m4
+
+  - profile: ramspeed
+    expected_runtime_seconds: 120
+    description: "PTS: RAMspeed SMP (System Memory Performance)"
+    tags: ["pts", "memory", "ram"]
+    apt_packages:
+      - build-essential

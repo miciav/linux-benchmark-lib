@@ -6,8 +6,8 @@ import pytest
 
 from lb_controller.api import ControllerState, RunExecutionSummary
 from lb_provisioner.types import ProvisionedNode, ProvisioningResult
+from lb_provisioner.utils import cleanup_provisioned_nodes
 from lb_runner.benchmark_config import RemoteHostConfig
-from lb_ui.cli import _cleanup_provisioned_nodes
 
 
 class DummyPresenter:
@@ -43,7 +43,7 @@ def test_cleanup_skipped_when_not_authorized(tmp_path):
     summary = _make_summary(tmp_path, cleanup_allowed=False)
     result = SimpleNamespace(summary=summary)
 
-    _cleanup_provisioned_nodes(provisioning, result, presenter)
+    cleanup_provisioned_nodes(provisioning, result, presenter)
 
     assert provisioning.keep_nodes is True
     assert destroyed == []
@@ -61,7 +61,7 @@ def test_cleanup_runs_when_authorized(tmp_path):
     summary = _make_summary(tmp_path, cleanup_allowed=True)
     result = SimpleNamespace(summary=summary)
 
-    _cleanup_provisioned_nodes(provisioning, result, presenter)
+    cleanup_provisioned_nodes(provisioning, result, presenter)
 
     assert provisioning.keep_nodes is False
     assert destroyed == ["x"]

@@ -1,18 +1,24 @@
 import pytest
 
-from lb_ui.cli import _print_run_plan
-from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
+from lb_ui.presenters.plan import build_run_plan_table
 
 pytestmark = [pytest.mark.unit_ui, pytest.mark.unit_ui]
 
 
-def test_print_run_plan_docker_mode(capsys: pytest.CaptureFixture[str]):
-    """Test that _print_run_plan returns correct status in Docker mode."""
-    cfg = BenchmarkConfig()
-    cfg.workloads["stress_ng"] = WorkloadConfig(plugin="stress_ng", enabled=True)
+def test_build_run_plan_table_docker_mode():
+    """Ensure plan presenter includes workload and engine details."""
+    plan = [
+        {
+            "name": "stress_ng",
+            "plugin": "stress_ng",
+            "intensity": "default",
+            "details": "Docker engine",
+            "repetitions": 1,
+            "status": "ready",
+        }
+    ]
 
-    _print_run_plan(cfg, ["stress_ng"], execution_mode="docker")
+    table = build_run_plan_table(plan)
 
-    out = capsys.readouterr().out
-    assert "stress_ng" in out
-    assert "Docker" in out or "docker" in out
+    assert table.columns == ["Workload", "Plugin", "Intensity", "Configuration", "Repetitions", "Status"]
+    assert table.rows == [["stress_ng", "stress_ng", "default", "Docker engine", "1", "ready"]]
