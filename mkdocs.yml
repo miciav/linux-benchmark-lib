@@ -8,7 +8,10 @@ theme:
   features:
     - navigation.tabs
     - navigation.sections
+    - navigation.instant
+    - navigation.indexes
     - content.code.copy
+    - content.action.view
   palette:
     - scheme: default
       primary: blue grey
@@ -23,7 +26,13 @@ nav:
   - Workloads & Plugins: plugins.md
   - Remote Execution: remote_execution.md
   - CLI: cli.md
-  - API Reference: api.md
+  - API Reference:
+      - Overview: api.md
+      - Runner: reference/runner.md
+      - Controller: reference/controller.md
+      - App & UI: reference/app.md
+      - Provisioning: reference/provisioner.md
+      - Analytics: reference/analytics.md
   - Diagrams: diagrams.md
   - Design:
       - Interrupts: interrupts.md
@@ -33,15 +42,31 @@ nav:
 plugins:
   - search
   - mkdocstrings:
+      default_handler: python
       handlers:
         python:
           paths: [lb_runner, lb_controller, lb_app, lb_ui, lb_analytics]
           options:
+            docstring_style: google
             show_object_full_path: false
             show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_signature: true
+            separate_signature: true
+            show_if_no_docstring: true
             members_order: "alphabetical"
+            filters:
+              - "!^_"
 markdown_extensions:
   - admonition
+  - attr_list
   - codehilite
+  - def_list
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed
   - toc:
       permalink: true

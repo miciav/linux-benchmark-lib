@@ -1,16 +1,18 @@
 # API Reference
 
-The stable public surfaces live under `lb_runner.api`, `lb_controller.api`, and `lb_app.api`.
-Import those modules instead of relying on internal implementation details.
+The codebase exposes a few stable, documented surfaces. Use these modules instead of
+reaching into private internals.
 
-## Runner API
+- **Runner**: local execution, plugin registry, and configuration models.
+- **Controller**: orchestration, Ansible execution, journals.
+- **App & UI**: Application client plus UI wiring helpers.
+- **Provisioning**: helpers to clean up provisioned nodes safely.
+- **Analytics**: post-processing of stored runs.
 
-::: lb_runner.api
+Use the navigation to open each section, or jump directly:
 
-## Controller API
-
-::: lb_controller.api
-
-## App API
-
-::: lb_app.api
+- [Runner](reference/runner.md)
+- [Controller](reference/controller.md)
+- [App & UI](reference/app.md)
+- [Provisioning](reference/provisioner.md)
+- [Analytics](reference/analytics.md)
