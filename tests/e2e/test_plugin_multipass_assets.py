@@ -63,7 +63,7 @@ if not PLAYBOOKS:
 
 MULTIPASS_READY = _multipass_status()
 
-pytestmark = [pytest.mark.e2e, pytest.mark.multipass, pytest.mark.slow]
+pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slow]
 
 @pytest.mark.skipif(not MULTIPASS_READY.ready, reason=MULTIPASS_READY.reason or "multipass unavailable")
 @pytest.mark.parametrize("plugin_name,kind,playbook_path", PLAYBOOKS)

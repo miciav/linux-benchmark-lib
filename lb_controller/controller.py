@@ -254,6 +254,7 @@ class BenchmarkController:
             "per_host_output": {k: str(v) for k, v in per_host_output.items()},
             "benchmark_config": self.config.model_dump(mode="json"),
             "use_container_fallback": self.config.remote_execution.use_container_fallback,
+            "lb_upgrade_pip": self.config.remote_execution.upgrade_pip,
             "collector_apt_packages": sorted(self._collector_apt_packages()),
             "workload_runner_install_deps": False,
             "repetitions_total": target_reps,

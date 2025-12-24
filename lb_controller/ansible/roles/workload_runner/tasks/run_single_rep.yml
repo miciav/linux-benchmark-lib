@@ -30,7 +30,7 @@
       ansible.builtin.shell: |
         set -e
         export PYTHONUNBUFFERED=1
-        "{{ lb_workdir | default('/opt/lb') }}/.venv/bin/python" - <<'PY'
+        "{{ workload_runner_uv_bin }}" run python - <<'PY'
         import json
         import sys
         import time

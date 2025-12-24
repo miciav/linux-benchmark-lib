@@ -7,7 +7,7 @@ import pytest
 
 from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
-pytestmark = pytest.mark.controller
+pytestmark = pytest.mark.unit_controller
 
 from lb_controller.api import BenchmarkController, ControllerState
 from lb_controller.ansible_executor import AnsibleRunnerExecutor
@@ -45,7 +45,7 @@ class DummyExecutor(RemoteExecutor):
 
 
 def test_controller_creates_output_dirs(tmp_path: Path):
-    """Controller should prepare per-run and per-host directories."""
+    """Controller should prepare per-run and per-host output directories."""
     config = BenchmarkConfig(
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",
@@ -61,11 +61,13 @@ def test_controller_creates_output_dirs(tmp_path: Path):
     summary = controller.run(test_types=["stress_ng"], run_id="run-test")
 
     host_dir = config.output_dir / "run-test" / "node1"
-    report_dir = config.report_dir / "run-test" / "node1"
+    report_root = config.report_dir / "run-test"
+    report_dir = report_root / "node1"
 
     assert summary.success
     assert host_dir.exists()
-    assert report_dir.exists()
+    assert not report_root.exists()
+    assert not report_dir.exists()
     run_calls = [
         call for call in executor.calls if "run_benchmark" in str(call["playbook"])
     ]

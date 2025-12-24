@@ -8,8 +8,9 @@ usage() {
 Usage: bash scripts/switch_mode.sh <mode>
 
 Modes:
-  base        uv sync (core only)
-  controller  uv sync --extra controller
+  base        uv sync (runner only)
+  controller  uv sync --extra controller --extra ui
+  headless    uv sync --extra controller
   dev         uv sync --all-extras --dev
 
 Re-syncs the current virtual environment with the selected dependency set.
@@ -34,6 +35,11 @@ case "${mode}" in
     ;;
   controller)
     echo "[info] Syncing controller deps"
+    uv sync --extra controller --extra ui
+    rm -f .lb_dev_cli
+    ;;
+  headless)
+    echo "[info] Syncing controller deps (no UI)"
     uv sync --extra controller
     rm -f .lb_dev_cli
     ;;

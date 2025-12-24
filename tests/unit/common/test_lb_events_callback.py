@@ -9,7 +9,7 @@ from lb_controller.ansible.callback_plugins.lb_events import (
 
 import pytest
 
-pytestmark = pytest.mark.controller
+pytestmark = pytest.mark.unit_controller
 
 class _Host:
     def __init__(self, name: str):

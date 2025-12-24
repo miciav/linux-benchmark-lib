@@ -12,6 +12,7 @@ from .types import (
     ProvisioningResult,
     MAX_NODES,
 )
+from .utils import cleanup_provisioned_nodes
 from .service import ProvisioningService
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "ProvisioningRequest",
     "ProvisionedNode",
     "ProvisioningResult",
+    "cleanup_provisioned_nodes",
     "ProvisioningService",
     "MAX_NODES",
 ]

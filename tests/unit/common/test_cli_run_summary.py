@@ -1,9 +1,9 @@
 import pytest
 
-from lb_ui.cli import _build_journal_summary
+from lb_ui.presenters.journal import build_journal_summary
 from lb_controller.api import RunJournal, RunStatus, TaskState
 
-pytestmark = [pytest.mark.ui, pytest.mark.ui]
+pytestmark = [pytest.mark.unit_ui, pytest.mark.unit_ui]
 
 
 
@@ -15,7 +15,7 @@ def test_build_journal_summary_collapses_repetitions():
         "h::w::2": TaskState(host="h", workload="w", repetition=2, status=RunStatus.RUNNING, current_action="Doing"),
     }
 
-    columns, rows = _build_journal_summary(journal)
+    columns, rows = build_journal_summary(journal)
 
     assert columns == ["Host", "Workload", "Run", "Last Action"]
     assert rows == [["h", "w", "running\n1/3", "Doing"]]

@@ -8,7 +8,7 @@ from lb_runner.benchmark_config import (
     WorkloadConfig,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.slow]
+pytestmark = [pytest.mark.inter_generic, pytest.mark.slow]
 
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 from lb_runner.local_runner import LocalRunner
@@ -87,5 +87,8 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     assert called_path.name == "stress_ng_rep1_PSUtilCollector.csv"
     run_id = getattr(runner, "_current_run_id", None)
     if run_id:
-        # CSVs are stored under <run_id>/<workload>/filename.csv
-        assert called_path.parent.parent.name == run_id
+        # CSVs are stored under <run_id>/<workload>/repX/filename.csv
+        assert run_id in called_path.parts
+        assert "stress_ng" in called_path.parts
+    else:
+        assert called_path.parent.name == "stress_ng"

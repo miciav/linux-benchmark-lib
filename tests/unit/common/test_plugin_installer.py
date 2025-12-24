@@ -9,7 +9,7 @@ import pytest
 from lb_runner.benchmark_config import BenchmarkConfig
 from lb_controller.services import plugin_service as plugin_service_mod
 
-pytestmark = [pytest.mark.runner, pytest.mark.plugins]
+pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
 from lb_controller.api import ConfigService, PluginInstaller, create_registry
 from lb_runner.plugin_system.interface import WorkloadPlugin

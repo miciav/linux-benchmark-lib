@@ -2,12 +2,12 @@
 - hosts: localhost
   gather_facts: false
   tasks:
-    - name: Run controller stop integration script
+    - name: Run controller stop pytest verifier
       vars:
         scenario_root: "{{ playbook_dir }}"
       ansible.builtin.command:
         cmd: >
-          uv run python {{ scenario_root }}/scripts/test_controller_stop.py
+          uv run pytest -q {{ scenario_root }}/tests
         chdir: "{{ lookup('env','MOLECULE_SCENARIO_DIRECTORY') | default(scenario_root) }}"
       environment:
         PYTHON: "{{ lookup('env', 'PYTHON') | default('python3') }}"

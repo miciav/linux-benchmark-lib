@@ -14,7 +14,7 @@ from lb_runner.plugins.stream.plugin import (
     StreamPlugin,
 )
 
-pytestmark = pytest.mark.runner
+pytestmark = pytest.mark.unit_runner
 
 @pytest.fixture
 def stream_config():

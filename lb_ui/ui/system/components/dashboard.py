@@ -104,8 +104,22 @@ class RichDashboard(Dashboard):
         """Render the rolling log stream."""
         max_visible = getattr(self, "_visible_log_lines", self.max_log_lines)
         lines = self.log_buffer[-max_visible :]
-        text = "\n".join(lines)
-        return Panel(text, title="[bold blue]Log Stream[/bold blue]", border_style="blue")
+        table = Table.grid(expand=True)
+        table.add_column(ratio=1)
+        table.add_column(justify="right", style="dim", width=14)
+        for line in lines:
+            message, timing = self._split_timing(line)
+            table.add_row(message, timing)
+        return Panel(table, title="[bold blue]Log Stream[/bold blue]", border_style="blue")
+
+    def _split_timing(self, line: str) -> tuple[str, str]:
+        text = line.strip()
+        if " done in " not in text:
+            return line, ""
+        message, timing = text.rsplit(" done in ", 1)
+        if not timing.endswith("s"):
+            return line, ""
+        return message.rstrip(), timing
 
     def _render_status(self) -> Panel:
         """Render controller/event status and transient warnings."""

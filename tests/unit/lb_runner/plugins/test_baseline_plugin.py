@@ -16,7 +16,7 @@ from lb_runner.plugins.baseline.plugin import (
     PLUGIN,
 )
 
-pytestmark = pytest.mark.runner
+pytestmark = pytest.mark.unit_runner
 
 class TestBaselineConfig:
     def test_defaults(self):

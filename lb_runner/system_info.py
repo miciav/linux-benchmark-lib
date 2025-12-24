@@ -7,6 +7,7 @@ provisioned by Ansible.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import platform
 import shutil
@@ -96,6 +97,18 @@ class SmartStatus:
 
 
 @dataclass
+class KernelModule:
+    name: str
+    size: int
+
+
+@dataclass
+class SystemService:
+    name: str
+    state: str
+
+
+@dataclass
 class SystemInfo:
     host: str
     timestamp: str
@@ -109,11 +122,15 @@ class SystemInfo:
     nics: list[NicInfo] = field(default_factory=list)
     pci: list[PciDevice] = field(default_factory=list)
     smart: list[SmartStatus] = field(default_factory=list)
+    modules: list[KernelModule] = field(default_factory=list)
+    services: list[SystemService] = field(default_factory=list)
+    fingerprint: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "host": self.host,
             "timestamp": self.timestamp,
+            "fingerprint": self.fingerprint,
             "os": self.os,
             "kernel": self.kernel,
             "platform": self.platform,
@@ -124,6 +141,8 @@ class SystemInfo:
             "nics": [asdict(n) for n in self.nics],
             "pci": [asdict(p) for p in self.pci],
             "smart": [asdict(s) for s in self.smart],
+            "modules": [asdict(m) for m in self.modules],
+            "services": [asdict(s) for s in self.services],
         }
 
     def to_csv_rows(self) -> list[dict[str, str]]:
@@ -135,6 +154,7 @@ class SystemInfo:
 
         # Basic sections
         add("meta", "timestamp", self.timestamp)
+        add("meta", "fingerprint", self.fingerprint)
         for k, v in self.platform.items():
             add("platform", k, v)
         for k, v in self.python.items():
@@ -156,6 +176,10 @@ class SystemInfo:
             add("pci", dev.slot, json.dumps({k: v for k, v in asdict(dev).items() if v is not None}))
         for sm in self.smart:
             add("smart", sm.device, json.dumps({k: v for k, v in asdict(sm).items() if v is not None}))
+        for mod in self.modules:
+            add("module", mod.name, str(mod.size))
+        for svc in self.services:
+            add("service", svc.name, svc.state)
         return rows
 
 
@@ -351,6 +375,74 @@ def _collect_smart(disks: Iterable[DiskInfo]) -> list[SmartStatus]:
     return statuses
 
 
+def _collect_kernel_modules() -> list[KernelModule]:
+    modules: list[KernelModule] = []
+    proc_modules = Path("/proc/modules")
+    if not proc_modules.exists():
+        return modules
+    try:
+        for line in proc_modules.read_text().splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                name = parts[0]
+                try:
+                    size = int(parts[1])
+                except ValueError:
+                    size = 0
+                modules.append(KernelModule(name=name, size=size))
+    except Exception:
+        pass
+    modules.sort(key=lambda m: m.name)
+    return modules
+
+
+def _collect_services() -> list[SystemService]:
+    services: list[SystemService] = []
+    # Only support systemd for now
+    if shutil.which("systemctl") is None:
+        return services
+    
+    # List active running services
+    cmd = ["systemctl", "list-units", "--type=service", "--state=running", "--no-pager", "--no-legend"]
+    out = _run(cmd)
+    if not out:
+        return services
+
+    for line in out.splitlines():
+        parts = line.split()
+        if not parts:
+            continue
+        # Format is usually: UNIT LOAD ACTIVE SUB DESCRIPTION...
+        # e.g. "cron.service loaded active running Regular background program processing daemon"
+        name = parts[0]
+        state = "running" # We filtered by --state=running, but could parse parts[2/3]
+        services.append(SystemService(name=name, state=state))
+    
+    services.sort(key=lambda s: s.name)
+    return services
+
+
+def _calculate_fingerprint(info: SystemInfo) -> str:
+    """Calculate a deterministic hash of the system configuration."""
+    # Build a dictionary of stable characteristics
+    data = {
+        "os": info.os,
+        "kernel": info.kernel,
+        "platform": info.platform,
+        "cpu": info.cpu,
+        "memory": info.memory,
+        "disks": [asdict(d) for d in sorted(info.disks, key=lambda x: x.name)],
+        "nics": [asdict(n) for n in sorted(info.nics, key=lambda x: x.name)],
+        "pci": [asdict(p) for p in sorted(info.pci, key=lambda x: x.slot)],
+        "modules": [asdict(m) for m in info.modules], # Already sorted
+        "services": [asdict(s) for s in info.services], # Already sorted
+    }
+    
+    # Canonical JSON representation
+    canonical = json.dumps(data, sort_keys=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def collect_system_info() -> SystemInfo:
     """Collect system information into a structured dataclass."""
     now = datetime.now(timezone.utc).isoformat()
@@ -386,6 +478,9 @@ def collect_system_info() -> SystemInfo:
     }
 
     disks = _collect_disks()
+    modules = _collect_kernel_modules()
+    services = _collect_services()
+    
     info = SystemInfo(
         host=host,
         timestamp=now,
@@ -399,7 +494,11 @@ def collect_system_info() -> SystemInfo:
         nics=_collect_nics(),
         pci=_collect_pci(),
         smart=_collect_smart(disks),
+        modules=modules,
+        services=services,
     )
+    
+    info.fingerprint = _calculate_fingerprint(info)
     return info
 
 

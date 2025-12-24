@@ -11,7 +11,7 @@ import lb_runner.system_info as sysinfo
 from lb_runner.system_info_io import write_outputs
 from lb_app.services.run_system_info import summarize_system_info
 
-pytestmark = [pytest.mark.runner]
+pytestmark = [pytest.mark.unit_runner]
 
 
 def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
@@ -68,6 +68,18 @@ def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
     monkeypatch.setattr(sysinfo, "_run", _fake_run)
     monkeypatch.setattr(sysinfo.shutil, "which", lambda name: f"/usr/bin/{name}")
 
+    # Mock new collectors
+    monkeypatch.setattr(
+        sysinfo,
+        "_collect_kernel_modules",
+        lambda: [sysinfo.KernelModule("module_a", 1024)],
+    )
+    monkeypatch.setattr(
+        sysinfo,
+        "_collect_services",
+        lambda: [sysinfo.SystemService("service_b", "running")],
+    )
+
     info = sysinfo.collect_system_info()
     json_path = tmp_path / "system_info.json"
     csv_path = tmp_path / "system_info.csv"
@@ -78,8 +90,14 @@ def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
     data = json_path.read_text()
     assert "TestOS" in data
     assert "DiskX" in data
+    assert "module_a" in data
+    assert "service_b" in data
+    assert info.fingerprint != ""
+    
     csv_data = csv_path.read_text()
     assert "category,name,value" in csv_data.splitlines()[0]
+    assert "module_a" in csv_data
+    assert "service_b" in csv_data
 
     summary = summarize_system_info(json_path)
     assert summary is not None

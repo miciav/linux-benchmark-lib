@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 import lb_runner.plugins.geekbench.plugin as gb_mod
 
-pytestmark = [pytest.mark.runner, pytest.mark.plugins]
+pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
 
 

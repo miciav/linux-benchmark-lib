@@ -18,7 +18,7 @@ import pytest
 from lb_controller.api import PluginInstaller, create_registry
 from lb_controller.services import plugin_service as plugin_service_mod
 
-pytestmark = [pytest.mark.e2e, pytest.mark.integration, pytest.mark.plugins, pytest.mark.slow]
+pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_generic, pytest.mark.inter_plugins, pytest.mark.slow]
 
 DEFAULT_E2E_GIT_PLUGIN_URL = "https://github.com/miciav/sysbench-plugin.git"
 

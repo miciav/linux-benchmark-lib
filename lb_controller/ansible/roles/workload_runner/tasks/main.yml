@@ -9,6 +9,11 @@
 - name: Define workload runner workdir (use globally installed lb_workdir)
   set_fact:
     workload_runner_workdir: "{{ lb_workdir | default('/opt/lb') }}"
+    workload_runner_uv_bin: >-
+      {{
+        lb_uv_bin
+        | default((lb_workdir | default('/opt/lb')) + '/.local/bin/uv')
+      }}
     setup_prefix: "[setup]"
     run_prefix: "[run]"
 
@@ -34,7 +39,7 @@
   ansible.builtin.shell: |
     set -e
     export PYTHONUNBUFFERED=1
-    "{{ lb_workdir | default('/opt/lb') }}/.venv/bin/python" -m lb_runner.system_info \
+    "{{ workload_runner_uv_bin }}" run python -m lb_runner.system_info \
       --json "{{ workload_runner_output_dir | default('/tmp') }}/system_info.json" \
       --csv "{{ workload_runner_output_dir | default('/tmp') }}/system_info.csv"
   args:

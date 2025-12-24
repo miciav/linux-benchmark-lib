@@ -1,0 +1,32 @@
+- name: Global Teardown and Cleanup
+  hosts: all
+  become: true
+  vars:
+    lb_workdir: "/opt/lb"
+    # remote_output_root is passed via extravars during execution
+
+  tasks:
+    - name: Archive and fetch runner logs
+      block:
+        - name: Check if runner log exists
+          ansible.builtin.stat:
+            path: "{{ remote_output_root }}/runner.log"
+          register: runner_log
+
+        - name: Fetch runner log
+          ansible.builtin.fetch:
+            src: "{{ remote_output_root }}/runner.log"
+            dest: "{{ output_root }}/{{ inventory_hostname }}/runner.log"
+            flat: true
+          when: runner_log.stat.exists
+      ignore_errors: true # Do not fail teardown if logs are missing
+
+    - name: Clean up benchmark workspace (code and venv)
+      ansible.builtin.file:
+        path: "{{ lb_workdir }}"
+        state: absent
+
+    - name: Clean up remote output directory
+      ansible.builtin.file:
+        path: "{{ remote_output_root }}"
+        state: absent

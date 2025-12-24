@@ -11,7 +11,7 @@ from lb_runner.benchmark_config import (
     WorkloadConfig,
 )
 
-pytestmark = [pytest.mark.e2e, pytest.mark.multipass, pytest.mark.slowest]
+pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
 
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 from lb_runner.plugins.dd.plugin import DDConfig
@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 
 
-@pytest.mark.integration
+@pytest.mark.inter_generic
 def test_remote_multiple_workloads(multipass_vm, tmp_path):
     """
     Run a short multipass-based integration across multiple workloads.

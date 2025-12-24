@@ -22,8 +22,10 @@ def prepare_run_dirs(
     output_root = (config.output_dir / run_id).resolve()
     report_root = (config.report_dir / run_id).resolve()
     data_export_root = (config.data_export_dir / run_id).resolve()
-    for path in (output_root, report_root, data_export_root):
-        path.mkdir(parents=True, exist_ok=True)
+    
+    # Only create output_root; report/export dirs are created on demand by analytics.
+    output_root.mkdir(parents=True, exist_ok=True)
+    
     return output_root, report_root, data_export_root
 
 
@@ -35,9 +37,7 @@ def prepare_per_host_dirs(
     """Prepare output/report directories per host."""
     per_host: Dict[str, Path] = {}
     for host in remote_hosts:
-        host_report_dir = report_root / host.name
         host_dir = output_root / host.name
         host_dir.mkdir(parents=True, exist_ok=True)
-        host_report_dir.mkdir(parents=True, exist_ok=True)
         per_host[host.name] = host_dir
     return per_host

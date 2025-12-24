@@ -7,7 +7,7 @@ import tomllib
 
 import pytest
 
-pytestmark = pytest.mark.controller
+pytestmark = pytest.mark.unit_controller
 
 
 

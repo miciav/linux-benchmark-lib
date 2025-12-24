@@ -9,7 +9,7 @@ import pytest
 
 from tests.helpers.multipass import ensure_ansible_available, make_test_ansible_env
 
-pytestmark = [pytest.mark.e2e, pytest.mark.multipass, pytest.mark.slowest]
+pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -62,7 +62,7 @@ def _inject_ssh_key(vm_name: str, pub_key_path: Path) -> None:
     )
 
 
-@pytest.mark.integration
+@pytest.mark.inter_generic
 def test_multipass_ssh_roundtrip(tmp_path: Path) -> None:
     """
     Minimal Multipass smoke test for SSH key provisioning.
@@ -143,7 +143,7 @@ def test_multipass_ssh_roundtrip(tmp_path: Path) -> None:
                 pass
 
 
-@pytest.mark.integration
+@pytest.mark.inter_generic
 def test_multipass_ansible_ping(tmp_path: Path) -> None:
     """
     End-to-end smoke test: provision VM, inject key, run Ansible ping.
@@ -227,7 +227,7 @@ def test_multipass_ansible_ping(tmp_path: Path) -> None:
                 pass
 
 
-@pytest.mark.integration
+@pytest.mark.inter_generic
 def test_multipass_ansible_stress_ng(tmp_path: Path) -> None:
     """
     Run a minimal stress-ng workload via Ansible on a fresh Multipass VM.
@@ -320,7 +320,7 @@ def test_multipass_ansible_stress_ng(tmp_path: Path) -> None:
                 pass
 
 
-@pytest.mark.integration
+@pytest.mark.inter_generic
 def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
     """
     Run the repo's setup playbook against a Multipass VM with controller-like extravars.

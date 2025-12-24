@@ -4,8 +4,8 @@
 
 ## Setup
 
-- Install in a venv: `uv venv && uv pip install -e .`
-- Make `lb` globally available (optional): `uv tool install -e .`
+- Install in a venv: `uv venv && uv pip install -e ".[ui,controller]"`
+- Make `lb` globally available (optional): `uv tool install -e ".[ui,controller]"`
 - Enable shell completion: `lb --install-completion` (bash/zsh/fish)
 
 ## Global flags

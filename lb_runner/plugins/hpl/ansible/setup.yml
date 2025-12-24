@@ -18,9 +18,6 @@
     hpl_deb_src_resolved: "{{ hpl_deb_src | default(hpl_deb_default, true) }}"
     hpl_deb_dest: "/tmp/hpl_{{ hpl_version }}.deb"
     hpl_packages:
-      - python3
-      - python3-venv
-      - python3-pip
       - openmpi-bin
       - libopenmpi-dev
       - libopenblas-dev
@@ -125,30 +122,3 @@
         dest: "{{ hpl_workspace }}/hpl-{{ hpl_version }}/bin/Linux/xhpl"
         mode: "0755"
         remote_src: true
-
-    - name: Ensure benchmark workdir exists
-      ansible.builtin.file:
-        path: "{{ lb_workdir }}"
-        state: directory
-        mode: "0755"
-
-    - name: Check for project sources
-      ansible.builtin.stat:
-        path: "{{ lb_workdir }}/pyproject.toml"
-      register: lb_pyproject
-
-    - name: Check for virtualenv pip
-      ansible.builtin.stat:
-        path: "{{ lb_workdir }}/.venv/bin/pip"
-      register: lb_venv_pip
-
-    - name: Install linux-benchmark-lib (editable)
-      ansible.builtin.command:
-        cmd: "{{ (lb_venv_pip.stat.exists | ternary(lb_workdir + '/.venv/bin/pip', 'pip3')) }} install -e ."
-        chdir: "{{ lb_workdir }}"
-      when: lb_pyproject.stat.exists
-
-    - name: Warn if project sources are missing
-      ansible.builtin.debug:
-        msg: "Skipping linux-benchmark-lib install: {{ lb_workdir }}/pyproject.toml not found"
-      when: not lb_pyproject.stat.exists
