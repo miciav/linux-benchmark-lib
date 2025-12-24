@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/img/lb_mark.svg" width="120" alt="Linux Benchmark Library logo" />
+  <img src="docs/img/lb_mark.png" width="120" alt="Linux Benchmark Library logo" />
 </p>
 
 <h1 align="center">Linux Benchmark Library</h1>
@@ -13,6 +13,19 @@
   <a href="https://miciav.github.io/linux-benchmark-lib/cli/">CLI</a> |
   <a href="https://miciav.github.io/linux-benchmark-lib/api/">API Reference</a> |
   <a href="https://github.com/miciav/linux-benchmark-lib/releases">Releases</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/miciav/linux-benchmark-lib/actions/workflows/pages.yml">
+    <img src="https://github.com/miciav/linux-benchmark-lib/actions/workflows/pages.yml/badge.svg" alt="Docs build" />
+  </a>
+  <a href="https://github.com/miciav/linux-benchmark-lib/actions/workflows/diagrams.yml">
+    <img src="https://github.com/miciav/linux-benchmark-lib/actions/workflows/diagrams.yml/badge.svg" alt="Diagrams build" />
+  </a>
+  <a href="https://github.com/miciav/linux-benchmark-lib/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/miciav/linux-benchmark-lib" alt="License" />
+  </a>
+  <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python versions" />
 </p>
 
 ## Highlights

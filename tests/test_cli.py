@@ -240,18 +240,11 @@ def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, 
 
 
 
+    from lb_ui.commands import plugin as plugin_commands
     monkeypatch.setattr(
-
-
-        cli,
-
-
-        "_select_plugins_interactively",
-
-
-        lambda registry, enabled: {"stress_ng", "dd"},
-
-
+        plugin_commands,
+        "select_plugins_interactively",
+        lambda ui, registry, enabled: {"stress_ng", "dd"},
     )
 
 
@@ -303,18 +296,11 @@ def test_plugin_select_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 
 
+    from lb_ui.commands import plugin as plugin_commands
     monkeypatch.setattr(
-
-
-        cli,
-
-
-        "_select_plugins_interactively",
-
-
-        lambda registry, enabled: {"fio"},
-
-
+        plugin_commands,
+        "select_plugins_interactively",
+        lambda ui, registry, enabled: {"fio"},
     )
 
 
@@ -824,10 +810,10 @@ def test_multipass_helper_sets_artifacts_env(monkeypatch: pytest.MonkeyPatch, tm
 
 
 
-    monkeypatch.setattr(cli, "_check_command", lambda name: True)
+    monkeypatch.setattr(cli.doctor_service, "_check_command", lambda name: True)
 
 
-    monkeypatch.setattr(cli, "_check_import", lambda name: True)
+    monkeypatch.setattr(cli.doctor_service, "_check_import", lambda name: True)
 
 
 
@@ -914,10 +900,10 @@ def test_multipass_helper_allows_vm_count_override(monkeypatch: pytest.MonkeyPat
 
 
 
-    monkeypatch.setattr(cli, "_check_command", lambda name: True)
+    monkeypatch.setattr(cli.doctor_service, "_check_command", lambda name: True)
 
 
-    monkeypatch.setattr(cli, "_check_import", lambda name: True)
+    monkeypatch.setattr(cli.doctor_service, "_check_import", lambda name: True)
 
 
 
@@ -1010,10 +996,10 @@ def test_multipass_helper_runs_multi_workloads(monkeypatch: pytest.MonkeyPatch, 
 
 
 
-    monkeypatch.setattr(cli, "_check_command", lambda name: True)
+    monkeypatch.setattr(cli.doctor_service, "_check_command", lambda name: True)
 
 
-    monkeypatch.setattr(cli, "_check_import", lambda name: True)
+    monkeypatch.setattr(cli.doctor_service, "_check_import", lambda name: True)
 
 
 
@@ -1127,7 +1113,7 @@ def test_multipass_helper_accepts_pytest_flags_without_separator(monkeypatch: py
 
 
 
-    monkeypatch.setattr(cli, "_check_command", lambda name: True)
+    monkeypatch.setattr(cli.doctor_service, "_check_command", lambda name: True)
 
 
 

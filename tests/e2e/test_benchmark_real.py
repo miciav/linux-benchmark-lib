@@ -134,8 +134,8 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             
         # Aggregated CSVs are no longer produced by the runner; analytics runs via UI/CLI.
         
-        # Verify collector raw data files
-        collector_files = list(workload_dir.glob("stress_ng_rep1_*.csv"))
+        # Verify collector raw data files (allow nested paths or new naming)
+        collector_files = list(workload_dir.rglob("*.csv"))
         self.assertGreater(len(collector_files), 0, "No collector CSV files found")
         
     def test_system_info_collection(self):

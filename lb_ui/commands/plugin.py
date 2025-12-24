@@ -127,4 +127,24 @@ def create_plugin_app(config_service: ConfigService, ui) -> typer.Typer:
             config=config, enable=enable, disable=disable, set_default=set_default, select=select
         )
 
+    @app.command("select")
+    def plugin_select(
+        config: Optional[Path] = typer.Option(
+            None, "--config", "-c", help="Config file to update when enabling/disabling."
+        ),
+        set_default: bool = typer.Option(
+            False,
+            "--set-default/--no-set-default",
+            help="Remember the config after enabling/disabling.",
+        ),
+    ) -> None:
+        """Interactive plugin selection (compatibility command)."""
+        _list_plugins_command(
+            config=config,
+            enable=None,
+            disable=None,
+            set_default=set_default,
+            select=True,
+        )
+
     return app

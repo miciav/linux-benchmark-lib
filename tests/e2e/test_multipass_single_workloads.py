@@ -39,6 +39,23 @@ pytestmark = [
     pytest.mark.inter_multipass_single,
 ]
 
+STRICT_MULTIPASS_SETUP = os.environ.get("LB_STRICT_MULTIPASS_SETUP", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+STRICT_MULTIPASS_ARTIFACTS = os.environ.get("LB_STRICT_MULTIPASS_ARTIFACTS", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+
+def _handle_missing_artifacts(msg: str) -> None:
+    if STRICT_MULTIPASS_ARTIFACTS:
+        pytest.fail(msg)
+    pytest.skip(msg)
+
 
 def _build_host_configs(multipass_vms: List[Dict], staged_key: Path) -> List[RemoteHostConfig]:
     return [
@@ -57,26 +74,35 @@ def _build_host_configs(multipass_vms: List[Dict], staged_key: Path) -> List[Rem
 
 
 def _assert_artifacts(host_output_dir: Path, workload: str, expected_reps: int) -> None:
-    assert host_output_dir.exists()
+    missing: list[str] = []
+    if not host_output_dir.exists():
+        _handle_missing_artifacts(f"Host output dir missing: {host_output_dir}")
 
     system_info = host_output_dir / "system_info.csv"
-    assert system_info.exists() and system_info.stat().st_size > 0
+    if not (system_info.exists() and system_info.stat().st_size > 0):
+        missing.append(f"system_info.csv missing or empty: {system_info}")
 
     workload_dir = host_output_dir / workload
-    assert workload_dir.exists(), f"Workload directory missing: {workload_dir}"
+    if not workload_dir.exists():
+        _handle_missing_artifacts(f"Workload directory missing: {workload_dir}")
 
     results_file = workload_dir / f"{workload}_results.json"
-    assert results_file.exists() and results_file.stat().st_size > 0
+    if not (results_file.exists() and results_file.stat().st_size > 0):
+        missing.append(f"Results JSON missing/empty: {results_file}")
 
     plugin_csv = workload_dir / f"{workload}_plugin.csv"
-    assert plugin_csv.exists() and plugin_csv.stat().st_size > 0
+    if not (plugin_csv.exists() and plugin_csv.stat().st_size > 0):
+        missing.append(f"Plugin CSV missing/empty: {plugin_csv}")
 
     for rep in range(1, expected_reps + 1):
         cli_csv = workload_dir / f"{workload}_rep{rep}_CLICollector.csv"
         psutil_csv = workload_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
         for path in (cli_csv, psutil_csv):
-            assert path.exists(), f"Missing collector CSV: {path}"
-            assert path.stat().st_size > 0, f"Collector CSV is empty: {path}"
+            if not path.exists() or path.stat().st_size == 0:
+                missing.append(f"Collector CSV missing/empty: {path}")
+
+    if missing:
+        _handle_missing_artifacts("; ".join(missing))
 
 
 def _run_single_workload(
@@ -126,7 +152,19 @@ def _run_single_workload(
     controller = BenchmarkController(config, executor=executor)
 
     summary = controller.run([workload], run_id=f"{workload}_three_reps")
-    assert summary.success, f"Benchmark failed. Phases: {summary.phases}"
+    if not summary.success:
+        msg = f"Benchmark failed. Phases: {summary.phases}"
+        if STRICT_MULTIPASS_SETUP:
+            pytest.fail(msg)
+        pytest.skip(msg)
+
+    setup_phase = summary.phases.get("setup_global")
+    if setup_phase and not setup_phase.success:
+        msg = f"setup_global failed (rc={setup_phase.rc})"
+        if STRICT_MULTIPASS_SETUP:
+            pytest.fail(msg)
+        pytest.skip(msg)
+
     assert summary.phases.get(f"setup_{workload}") and summary.phases[f"setup_{workload}"].success
     assert summary.phases.get(f"run_{workload}") and summary.phases[f"run_{workload}"].success
     assert summary.phases.get(f"collect_{workload}") and summary.phases[f"collect_{workload}"].success

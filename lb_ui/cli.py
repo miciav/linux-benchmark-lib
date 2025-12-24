@@ -7,6 +7,7 @@ Exposes quick commands to inspect plugins/hosts and run benchmarks via provision
 from __future__ import annotations
 
 import os
+import subprocess
 from typing import Optional
 
 import typer

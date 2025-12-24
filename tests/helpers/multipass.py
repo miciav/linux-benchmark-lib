@@ -25,6 +25,19 @@ def ensure_ansible_available() -> None:
         pytest.skip("ansible-playbook not available on this host")
 
 
+def ensure_multipass_access() -> None:
+    """Skip when multipass is not usable (socket permission, service down)."""
+    import subprocess
+    import pytest  # Local import to keep test-only dependency localized
+
+    if shutil.which("multipass") is None:
+        pytest.skip("multipass not available on this host")
+    try:
+        subprocess.run(["multipass", "list"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as exc:
+        pytest.skip(f"multipass not usable ({exc}); skipping integration tests")
+
+
 def stage_private_key(source_key: Path, target_dir: Path) -> Path:
     """
     Copy the generated SSH private key into a target directory that Ansible will access.
