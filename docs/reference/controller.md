@@ -8,11 +8,11 @@ Orchestration helpers for remote runs, Ansible execution, and run catalogs.
 
 ## Benchmark controller
 
-::: lb_controller.controller.BenchmarkController
+::: lb_controller.engine.controller.BenchmarkController
 
 ## Ansible executor
 
-::: lb_controller.ansible_executor.AnsibleRunnerExecutor
+::: lb_controller.adapters.ansible_runner.AnsibleRunnerExecutor
 
 ## Config and registry services
 
@@ -22,6 +22,6 @@ Orchestration helpers for remote runs, Ansible execution, and run catalogs.
 
 ## Journals and execution types
 
-::: lb_controller.journal.RunJournal
-::: lb_controller.types.RunExecutionSummary
+::: lb_controller.services.journal.RunJournal
+::: lb_controller.models.types.RunExecutionSummary
 

@@ -48,5 +48,5 @@ The interrupt handling logic is separated into three layers:
 
 - `lb_controller/interrupts.py`: state machine and handler.
 - `lb_app/services/run_service.py`: wiring to UI and controller.
-- `lb_controller/controller.py`: phase-aware stop logic.
-- `lb_controller/ansible_executor.py`: playbook interruption.
+- `lb_controller.engine.controller.py`: phase-aware stop logic.
+- `lb_controller.adapters.ansible_runner.py`: playbook interruption.
