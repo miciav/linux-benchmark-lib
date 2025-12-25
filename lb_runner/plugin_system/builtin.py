@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import List, Any, Optional, Tuple, Callable
 
-from ..benchmark_config import BenchmarkConfig
+from lb_runner.models.config import BenchmarkConfig
 
 # Import the registry types
 from .registry import CollectorPlugin

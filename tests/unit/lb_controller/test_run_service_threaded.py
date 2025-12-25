@@ -1,9 +1,9 @@
 import pytest
 
 from lb_app.services.run_service import RunService, RunContext, RunResult
-from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig, RemoteHostConfig
+from lb_runner.models.config import BenchmarkConfig, WorkloadConfig, RemoteHostConfig
 from lb_runner.plugin_system.registry import PluginRegistry
-import lb_controller.controller as controller_module
+import lb_controller.engine.controller as controller_module
 import lb_app.services.run_service as run_service_module
 
 

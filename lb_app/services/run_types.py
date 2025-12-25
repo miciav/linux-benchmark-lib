@@ -17,7 +17,7 @@ from lb_controller.api import (
 )
 from lb_app.ui_interfaces import DashboardHandle
 from lb_runner.api import BenchmarkConfig, PluginRegistry, RunEvent
-from lb_runner.stop_token import StopToken
+from lb_runner.engine.stop_token import StopToken
 
 if TYPE_CHECKING:
     from lb_controller.api import BenchmarkController, RunExecutionSummary

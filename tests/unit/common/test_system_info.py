@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-import lb_runner.system_info as sysinfo
-from lb_runner.system_info_io import write_outputs
+import lb_runner.services.system_info as sysinfo
+from lb_runner.services.system_info_io import write_outputs
 from lb_app.services.run_system_info import summarize_system_info
 
 pytestmark = [pytest.mark.unit_runner]

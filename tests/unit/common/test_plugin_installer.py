@@ -6,7 +6,7 @@ from typing import Type
 
 import pytest
 
-from lb_runner.benchmark_config import BenchmarkConfig
+from lb_runner.models.config import BenchmarkConfig
 from lb_controller.services import plugin_service as plugin_service_mod
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]

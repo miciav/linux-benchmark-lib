@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from lb_runner.api import BenchmarkConfig
-from lb_runner.output_helpers import workload_output_dir
+from lb_runner.services.storage import workload_output_dir
 
 from lb_controller.api import RunJournal, RunStatus, TaskState
 from lb_app.services.run_config import hash_config

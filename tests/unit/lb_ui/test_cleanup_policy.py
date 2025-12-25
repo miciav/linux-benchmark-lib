@@ -5,9 +5,9 @@ from types import SimpleNamespace
 import pytest
 
 from lb_controller.api import ControllerState, RunExecutionSummary
-from lb_provisioner.types import ProvisionedNode, ProvisioningResult
-from lb_provisioner.utils import cleanup_provisioned_nodes
-from lb_runner.benchmark_config import RemoteHostConfig
+from lb_provisioner.models.types import ProvisionedNode, ProvisioningResult
+from lb_provisioner.services.utils import cleanup_provisioned_nodes
+from lb_runner.models.config import RemoteHostConfig
 
 
 class DummyPresenter:

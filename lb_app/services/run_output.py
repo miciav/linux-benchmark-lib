@@ -407,7 +407,7 @@ class AnsibleOutputFormatter:
         self, line: str, log_sink: Callable[[str], None] | None
     ) -> bool:
         interesting_tokens = (
-            "lb_runner.local_runner",
+            "lb_runner.engine.runner",
             "Running test",
             "Progress:",
             "Completed",

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
-from lb_runner.benchmark_config import RemoteHostConfig
+from lb_runner.models.config import RemoteHostConfig
 from lb_runner.plugin_system.interface import WorkloadPlugin
 
 if TYPE_CHECKING:

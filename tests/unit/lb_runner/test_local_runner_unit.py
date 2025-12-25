@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
-from lb_runner.local_runner import LocalRunner
+from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
+from lb_runner.engine.runner import LocalRunner
 from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.registry import PluginRegistry
 

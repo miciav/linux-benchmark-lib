@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lb_runner.events import RunEvent
-from lb_runner.log_handler import LBEventLogHandler
+from lb_runner.models.events import RunEvent
+from lb_runner.services.log_handler import LBEventLogHandler
 from lb_app.services.run_service import AnsibleOutputFormatter, _extract_lb_event_data
 
 

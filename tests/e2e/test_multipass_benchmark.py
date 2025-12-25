@@ -21,7 +21,7 @@ pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.sl
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 
-from lb_runner.benchmark_config import (
+from lb_runner.models.config import (
     BenchmarkConfig,
     MetricCollectorConfig,
     RemoteExecutionConfig,
@@ -30,7 +30,7 @@ from lb_runner.benchmark_config import (
 )
 from lb_runner.plugins.dd.plugin import DDConfig
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
-from lb_controller.ansible_executor import AnsibleRunnerExecutor
+from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController
 from tests.helpers.multipass import (
     ensure_ansible_available,

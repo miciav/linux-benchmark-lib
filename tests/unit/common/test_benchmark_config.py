@@ -9,7 +9,7 @@ import tempfile
 import pytest
 from pydantic import ValidationError # Added ValidationError import
 
-from lb_runner.benchmark_config import (
+from lb_runner.models.config import (
     BenchmarkConfig,
     MetricCollectorConfig,
     PerfConfig,
@@ -131,7 +131,7 @@ class TestBenchmarkConfig:
 
     def test_module_does_not_create_default_instance(self):
         """The module should not instantiate configs at import time."""
-        import lb_runner.benchmark_config as bc
+        import lb_runner.models.config as bc
 
         assert not hasattr(bc, "default_config")
 

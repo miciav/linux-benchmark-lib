@@ -2,7 +2,7 @@ import pytest
 from dataclasses import dataclass
 
 from lb_app.services.run_service import RunService
-from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
+from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
 
 
 @dataclass

@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, Iterable, Optional
 
 from ..metric_collectors._base_collector import BaseCollector
 from .base_generator import BaseGenerator
-from ..benchmark_config import BenchmarkConfig
+from lb_runner.models.config import BenchmarkConfig
 from .entrypoints import discover_entrypoints, load_entrypoint, load_pending_entrypoints
 from .interface import WorkloadPlugin as IWorkloadPlugin
 from .user_plugins import load_plugins_from_dir

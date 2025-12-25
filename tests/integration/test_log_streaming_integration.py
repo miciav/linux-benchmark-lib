@@ -6,10 +6,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lb_runner.local_runner import LocalRunner
-from lb_runner.benchmark_config import BenchmarkConfig
+from lb_runner.engine.runner import LocalRunner
+from lb_runner.models.config import BenchmarkConfig
 from lb_runner.plugin_system.registry import PluginRegistry
-from lb_runner.log_handler import LBEventLogHandler
+from lb_runner.services.log_handler import LBEventLogHandler
 
 
 @pytest.mark.inter_generic

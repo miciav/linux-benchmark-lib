@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from lb_runner.benchmark_config import (
+from lb_runner.models.config import (
     BenchmarkConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
@@ -15,7 +15,7 @@ pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.sl
 
 from lb_runner.plugins.stress_ng.plugin import StressNGConfig
 from lb_runner.plugins.dd.plugin import DDConfig
-from lb_controller.ansible_executor import AnsibleRunnerExecutor
+from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController
 from tests.e2e.test_multipass_benchmark import multipass_vm
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key

@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_controller.ansible_executor import AnsibleRunnerExecutor
-from lb_controller.types import InventorySpec
-from lb_runner.benchmark_config import RemoteHostConfig
+from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
+from lb_controller.models.types import InventorySpec
+from lb_runner.models.config import RemoteHostConfig
 
 
 @pytest.mark.unit_controller

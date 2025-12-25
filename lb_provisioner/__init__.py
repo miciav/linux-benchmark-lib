@@ -4,7 +4,7 @@ from lb_common import configure_logging as _configure_logging
 
 _configure_logging()
 
-from .types import (
+from lb_provisioner.models.types import (
     ProvisionedNode,
     ProvisioningError,
     ProvisioningMode,
@@ -12,8 +12,8 @@ from .types import (
     ProvisioningResult,
     MAX_NODES,
 )
-from .utils import cleanup_provisioned_nodes
-from .service import ProvisioningService
+from lb_provisioner.services.utils import cleanup_provisioned_nodes
+from lb_provisioner.engine.service import ProvisioningService
 
 __all__ = [
     "ProvisioningError",

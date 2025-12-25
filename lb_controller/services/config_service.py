@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple, Any
 
-from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+from lb_runner.models.config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
 
 DEFAULT_CONFIG_NAME = "config.json"

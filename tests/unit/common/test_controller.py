@@ -5,14 +5,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_runner.benchmark_config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+from lb_runner.models.config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
 pytestmark = pytest.mark.unit_controller
 
 from lb_controller.api import BenchmarkController, ControllerState
-from lb_controller.ansible_executor import AnsibleRunnerExecutor
-from lb_controller.types import ExecutionResult, InventorySpec, RemoteExecutor
-from lb_runner.stop_token import StopToken
+from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
+from lb_controller.models.types import ExecutionResult, InventorySpec, RemoteExecutor
+from lb_runner.engine.stop_token import StopToken
 
 
 class DummyExecutor(RemoteExecutor):

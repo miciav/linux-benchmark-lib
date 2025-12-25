@@ -9,14 +9,14 @@ from pathlib import Path
 
 from dataclasses import asdict
 
-from lb_runner.benchmark_config import (
+from lb_runner.models.config import (
     BenchmarkConfig,
     MetricCollectorConfig,
     PerfConfig,
     WorkloadConfig,
 )
-from lb_runner.local_runner import LocalRunner
-from lb_analytics.reporter import Reporter
+from lb_runner.engine.runner import LocalRunner
+from lb_analytics.reporting.generator import Reporter
 from lb_runner.plugin_system.builtin import builtin_plugins
 from lb_runner.plugin_system.registry import PluginRegistry
 from lb_runner.plugins.dd.plugin import DDConfig

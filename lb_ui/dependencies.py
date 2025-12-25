@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Tuple
 
 from lb_app.api import ApplicationClient, DoctorService, TestService, UIAdapter
-from lb_analytics.analytics_service import AnalyticsService
+from lb_analytics.engine.service import AnalyticsService
 from lb_common import configure_logging
 from lb_controller.api import ConfigService
 from lb_ui.ui.adapters.tui_adapter import TUIAdapter

@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_runner.events import RunEvent
+from lb_runner.models.events import RunEvent
 from lb_controller.api import LogSink, RunJournal, RunStatus
 
 pytestmark = pytest.mark.unit_controller

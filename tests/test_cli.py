@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import pytest
 from typer.testing import CliRunner
 
-from lb_runner.benchmark_config import BenchmarkConfig
+from lb_runner.models.config import BenchmarkConfig
 
 @dataclass
 class MockDoctorReport:

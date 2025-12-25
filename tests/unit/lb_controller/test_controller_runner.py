@@ -3,9 +3,9 @@ import time
 
 import pytest
 
-from lb_controller.controller_runner import ControllerRunner
-from lb_controller.controller_state import ControllerState
-from lb_runner.stop_token import StopToken
+from lb_controller.adapters.remote_runner import ControllerRunner
+from lb_controller.models.state import ControllerState
+from lb_runner.engine.stop_token import StopToken
 
 
 pytestmark = pytest.mark.unit_controller
