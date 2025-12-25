@@ -6,9 +6,9 @@ from typing import Optional
 import typer
 
 from lb_controller.api import BenchmarkConfig, ConfigService, PluginRegistry, create_registry
-from lb_ui.ui.system.models import TableModel
-from lb_ui.workflows.config_wizard import run_config_wizard
-from lb_ui.workflows.selection import select_workloads_interactively
+from lb_ui.tui.system.models import TableModel
+from lb_ui.flows.config_wizard import run_config_wizard
+from lb_ui.flows.selection import select_workloads_interactively
 
 
 def create_config_app(config_service: ConfigService, ui) -> typer.Typer:

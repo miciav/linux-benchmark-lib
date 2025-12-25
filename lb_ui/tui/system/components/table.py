@@ -1,7 +1,7 @@
 from rich.console import Console
-from lb_ui.ui.system.models import TableModel
-from lb_ui.ui.system.protocols import TablePresenter
-from lb_ui.ui.system.components.table_layout import build_rich_table
+from lb_ui.tui.system.models import TableModel
+from lb_ui.tui.system.protocols import TablePresenter
+from lb_ui.tui.system.components.table_layout import build_rich_table
 
 class RichTablePresenter(TablePresenter):
     def __init__(self, console: Console):

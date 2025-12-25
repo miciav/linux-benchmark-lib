@@ -4,8 +4,8 @@ import threading
 import queue
 
 from lb_app.api import UIAdapter, DashboardHandle, ProgressHandle
-from lb_ui.ui.system.protocols import UI
-from lb_ui.ui.system.models import TableModel, PickItem
+from lb_ui.tui.system.protocols import UI
+from lb_ui.tui.system.models import TableModel, PickItem
 
 class TUIAdapter(UIAdapter):
     """Adapts the UI facade to the app-level UIAdapter protocol."""

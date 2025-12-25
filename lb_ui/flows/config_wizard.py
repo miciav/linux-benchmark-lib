@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from lb_controller.api import BenchmarkConfig, RemoteHostConfig
-from lb_ui.ui.system.protocols import UI
+from lb_ui.tui.system.protocols import UI
 
 
 def run_config_wizard(ui: UI, cfg: BenchmarkConfig) -> None:

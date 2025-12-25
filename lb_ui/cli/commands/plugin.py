@@ -6,8 +6,8 @@ from typing import Optional
 import typer
 
 from lb_controller.api import ConfigService, create_registry, build_plugin_table
-from lb_ui.ui.system.models import TableModel
-from lb_ui.workflows.selection import select_plugins_interactively, apply_plugin_selection
+from lb_ui.tui.system.models import TableModel
+from lb_ui.flows.selection import select_plugins_interactively, apply_plugin_selection
 
 
 def create_plugin_app(config_service: ConfigService, ui) -> typer.Typer:

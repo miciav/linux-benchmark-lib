@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from lb_ui.ui.system.models import TableModel
+from lb_ui.tui.system.models import TableModel
 
 
 def _console_width(console: Console) -> int | None:

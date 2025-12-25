@@ -8,9 +8,9 @@ from lb_app.api import ApplicationClient, DoctorService, TestService, UIAdapter
 from lb_analytics.engine.service import AnalyticsService
 from lb_common import configure_logging
 from lb_controller.api import ConfigService
-from lb_ui.ui.adapters.tui_adapter import TUIAdapter
-from lb_ui.ui.system.facade import TUI
-from lb_ui.ui.system.protocols import UI
+from lb_ui.tui.adapters.tui_adapter import TUIAdapter
+from lb_ui.tui.system.facade import TUI
+from lb_ui.tui.system.protocols import UI
 
 
 def load_dev_mode(cli_root: Path) -> bool:
@@ -37,7 +37,7 @@ def create_ui(headless: bool = False) -> Tuple[UI, UIAdapter]:
     ui: UI = TUI()
     adapter: UIAdapter = TUIAdapter(ui)
     if headless:
-        from lb_ui.ui.system.headless import HeadlessUI
+        from lb_ui.tui.system.headless import HeadlessUI
         ui = HeadlessUI()
         adapter = TUIAdapter(ui)
     return ui, adapter

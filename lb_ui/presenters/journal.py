@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Tuple
 from lb_controller.api import RunJournal, RunStatus, TaskState
-from lb_ui.ui.system.models import TableModel
+from lb_ui.tui.system.models import TableModel
 
 
 def _target_repetitions(journal: RunJournal) -> int:

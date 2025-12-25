@@ -2,7 +2,7 @@ from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
-from lb_ui.ui.system.protocols import Presenter
+from lb_ui.tui.system.protocols import Presenter
 
 class RichPresenter(Presenter):
     def __init__(self, console: Console):

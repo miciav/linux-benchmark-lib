@@ -7,7 +7,7 @@ import typer
 
 from lb_analytics.engine.service import AnalyticsRequest
 from lb_controller.api import ConfigService, RunCatalogService
-from lb_ui.ui.system.models import PickItem, TableModel
+from lb_ui.tui.system.models import PickItem, TableModel
 
 
 def create_runs_app(config_service_provider: Callable[[], ConfigService], ui) -> typer.Typer:

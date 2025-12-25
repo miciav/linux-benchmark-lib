@@ -23,10 +23,11 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
     monkeypatch.setenv("LB_ENABLE_TEST_CLI", "1")
     monkeypatch.chdir(tmp_path)
-    if "lb_ui.cli" in sys.modules:
-        del sys.modules["lb_ui.cli"]
+    # Clear all submodules to ensure fresh initialization of services
+    for mod in list(sys.modules.keys()):
+        if mod.startswith("lb_ui.cli"):
+            del sys.modules[mod]
     cli = importlib.import_module("lb_ui.cli")
-    importlib.reload(cli)
     return cli
 
 
@@ -240,7 +241,7 @@ def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, 
 
 
 
-    from lb_ui.commands import plugin as plugin_commands
+    from lb_ui.cli.commands import plugin as plugin_commands
     monkeypatch.setattr(
         plugin_commands,
         "select_plugins_interactively",
@@ -296,7 +297,7 @@ def test_plugin_select_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 
 
-    from lb_ui.commands import plugin as plugin_commands
+    from lb_ui.cli.commands import plugin as plugin_commands
     monkeypatch.setattr(
         plugin_commands,
         "select_plugins_interactively",

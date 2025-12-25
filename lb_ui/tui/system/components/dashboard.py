@@ -26,8 +26,8 @@ except ImportError:
     TaskState = Any
     RunJournal = Any
 
-from lb_ui.ui.system.protocols import Dashboard, DashboardFactory
-from lb_ui import viewmodels
+from lb_ui.tui.system.protocols import Dashboard, DashboardFactory
+from lb_ui.presenters import viewmodels
 
 
 class RichDashboard(Dashboard):

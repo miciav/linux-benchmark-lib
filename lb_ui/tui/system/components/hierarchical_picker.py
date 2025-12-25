@@ -11,9 +11,9 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.widgets import Frame
 from prompt_toolkit.styles import Style
 
-from lb_ui.ui.system.components.flat_picker_panel import FlatPickerPanel, FlatPickerPanelConfig
-from lb_ui.ui.system.models import PickItem, SelectionNode
-from lb_ui.ui.system.protocols import HierarchicalPicker
+from lb_ui.tui.system.components.flat_picker_panel import FlatPickerPanel, FlatPickerPanelConfig
+from lb_ui.tui.system.models import PickItem, SelectionNode
+from lb_ui.tui.system.protocols import HierarchicalPicker
 
 
 @dataclass

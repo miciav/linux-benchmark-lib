@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import List, Any, Dict
-from lb_ui.ui.system.models import TableModel
+from lb_ui.tui.system.models import TableModel
 
 
 def build_run_plan_table(plan: List[Dict[str, Any]]) -> TableModel:

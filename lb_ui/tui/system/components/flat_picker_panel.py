@@ -12,7 +12,7 @@ from rapidfuzz import fuzz, process
 from rich.console import Console
 from rich.text import Text
 
-from lb_ui.ui.system.models import PickItem
+from lb_ui.tui.system.models import PickItem
 
 RowFragment: TypeAlias = tuple[str, str]
 RowRenderer: TypeAlias = Callable[[PickItem, bool], RowFragment]

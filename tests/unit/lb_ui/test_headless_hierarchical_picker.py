@@ -2,8 +2,8 @@
 
 import pytest
 
-from lb_ui.ui.system.headless import HeadlessUI
-from lb_ui.ui.system.models import SelectionNode
+from lb_ui.tui.system.headless import HeadlessUI
+from lb_ui.tui.system.models import SelectionNode
 
 
 pytestmark = pytest.mark.unit_ui

@@ -2,8 +2,8 @@ from typing import Sequence, ContextManager, Any, IO
 from dataclasses import dataclass, field
 from contextlib import nullcontext
 
-from lb_ui.ui.system.protocols import UI, Picker, TablePresenter, Presenter, Form, Progress, Dashboard, DashboardFactory, HierarchicalPicker
-from lb_ui.ui.system.models import TableModel, PickItem, SelectionNode
+from lb_ui.tui.system.protocols import UI, Picker, TablePresenter, Presenter, Form, Progress, Dashboard, DashboardFactory, HierarchicalPicker
+from lb_ui.tui.system.models import TableModel, PickItem, SelectionNode
 
 @dataclass
 class RecordedTable:

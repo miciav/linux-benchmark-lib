@@ -1,5 +1,5 @@
 from typing import Any, Protocol, Sequence, ContextManager, IO
-from lb_ui.ui.system.models import TableModel, PickItem, SelectionNode
+from lb_ui.tui.system.models import TableModel, PickItem, SelectionNode
 
 class TablePresenter(Protocol):
     def show(self, table: TableModel) -> None: ...

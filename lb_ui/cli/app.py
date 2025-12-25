@@ -13,20 +13,20 @@ from typing import Optional
 import typer
 
 from pathlib import Path
-from lb_ui.ui.system.models import PickItem
+from lb_ui.tui.system.models import PickItem
 
 # Command modules
-from lb_ui.commands.config import create_config_app
-from lb_ui.commands.doctor import create_doctor_app
-from lb_ui.commands.plugin import create_plugin_app
-from lb_ui.commands.runs import create_runs_app, register_analyze_command
-from lb_ui.commands.test import create_test_app
-from lb_ui.commands.run import register_run_command
+from lb_ui.cli.commands.config import create_config_app
+from lb_ui.cli.commands.doctor import create_doctor_app
+from lb_ui.cli.commands.plugin import create_plugin_app
+from lb_ui.cli.commands.runs import create_runs_app, register_analyze_command
+from lb_ui.cli.commands.test import create_test_app
+from lb_ui.cli.commands.run import register_run_command
 
-from lb_ui.dependencies import create_ui, create_services, load_dev_mode, configure_logging
+from lb_ui.wiring.dependencies import create_ui, create_services, load_dev_mode, configure_logging
 
 # Initialize UI and services via dependencies
-_CLI_ROOT = Path(__file__).resolve().parent.parent
+_CLI_ROOT = Path(__file__).resolve().parent.parent.parent
 DEV_MODE = load_dev_mode(_CLI_ROOT)
 TEST_CLI_ENABLED = bool(os.environ.get("LB_ENABLE_TEST_CLI")) or DEV_MODE
 
@@ -60,7 +60,7 @@ def entry(
     global ui, ui_adapter
     configure_logging(force=True)
     if headless:
-        from lb_ui.ui.system.headless import HeadlessUI
+        from lb_ui.tui.system.headless import HeadlessUI
         ui = HeadlessUI()
         ui_adapter = TUIAdapter(ui)
         # Re-inject if necessary, but services now mostly return data or use ui_adapter passed in methods (RunService)

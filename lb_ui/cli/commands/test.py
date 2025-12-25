@@ -10,7 +10,7 @@ import typer
 
 from lb_app.api import TestService, DoctorService
 from lb_controller.api import ConfigService
-from lb_ui.ui.system.models import PickItem
+from lb_ui.tui.system.models import PickItem
 
 
 def create_test_app(test_service: TestService, doctor_service: DoctorService, ui) -> typer.Typer:

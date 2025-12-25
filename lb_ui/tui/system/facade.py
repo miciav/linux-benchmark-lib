@@ -2,7 +2,7 @@ from typing import Sequence
 
 from rich.console import Console
 
-from lb_ui.ui.system.protocols import (
+from lb_ui.tui.system.protocols import (
     UI,
     Picker,
     TablePresenter,
@@ -12,14 +12,14 @@ from lb_ui.ui.system.protocols import (
     DashboardFactory,
     HierarchicalPicker,
 )
-from lb_ui.ui.system.components.table import RichTablePresenter
-from lb_ui.ui.system.components.picker import PowerPicker
-from lb_ui.ui.system.components.hierarchical_picker import PowerHierarchicalPicker
-from lb_ui.ui.system.components.presenter import RichPresenter
-from lb_ui.ui.system.components.form import RichForm
-from lb_ui.ui.system.components.progress import RichProgress
-from lb_ui.ui.system.components.dashboard import RichDashboardFactory
-from lb_ui.ui.system.models import TableModel
+from lb_ui.tui.system.components.table import RichTablePresenter
+from lb_ui.tui.system.components.picker import PowerPicker
+from lb_ui.tui.system.components.hierarchical_picker import PowerHierarchicalPicker
+from lb_ui.tui.system.components.presenter import RichPresenter
+from lb_ui.tui.system.components.form import RichForm
+from lb_ui.tui.system.components.progress import RichProgress
+from lb_ui.tui.system.components.dashboard import RichDashboardFactory
+from lb_ui.tui.system.models import TableModel
 
 class TUI(UI):
     def __init__(self, console: Console | None = None):

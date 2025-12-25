@@ -13,8 +13,8 @@ from lb_controller.api import (
     WorkloadConfig,
     build_plugin_table,
 )
-from lb_ui.ui.system.protocols import UI
-from lb_ui.ui.system.models import PickItem, TableModel
+from lb_ui.tui.system.protocols import UI
+from lb_ui.tui.system.models import PickItem, TableModel
 
 
 def select_workloads_interactively(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List
 from lb_app.api import DoctorReport
-from lb_ui.ui.system.models import TableModel
+from lb_ui.tui.system.models import TableModel
 
 
 def build_doctor_tables(report: DoctorReport) -> List[TableModel]:

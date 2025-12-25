@@ -18,9 +18,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from lb_ui.ui.system.components.flat_picker_panel import FlatPickerPanel
-from lb_ui.ui.system.models import PickItem
-from lb_ui.ui.system.protocols import Picker
+from lb_ui.tui.system.components.flat_picker_panel import FlatPickerPanel
+from lb_ui.tui.system.models import PickItem
+from lb_ui.tui.system.protocols import Picker
 
 try:
     from rapidfuzz import fuzz, process
