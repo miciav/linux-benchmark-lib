@@ -69,8 +69,8 @@ lb_controller = [
 ]
 
 [project.scripts]
-lb = "lb_ui.cli.app:main"
-lb-ui = "lb_ui.cli.app:main"
+lb = "lb_ui.cli.main:main"
+lb-ui = "lb_ui.cli.main:main"
 
 [project.entry-points."linux_benchmark.collectors"]
 psutil = "lb_runner.plugin_system.builtin:PSUTIL_COLLECTOR"

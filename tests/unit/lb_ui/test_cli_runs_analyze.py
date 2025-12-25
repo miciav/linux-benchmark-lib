@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from lb_ui.cli.app import app
+from lb_ui.cli.main import app
 from lb_controller.api import ConfigService
 
 pytestmark = [pytest.mark.unit_ui]

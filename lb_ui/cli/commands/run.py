@@ -6,18 +6,15 @@ from typing import List, Optional, Callable
 
 import typer
 
-from lb_provisioner import MAX_NODES
+from lb_provisioner.models.types import MAX_NODES
+from lb_ui.wiring.dependencies import UIContext
 from lb_ui.presenters.plan import build_run_plan_table
 from lb_ui.presenters.journal import build_journal_table
 
 
 def register_run_command(
     app: typer.Typer,
-    app_client,
-    config_service_provider,
-    ui,
-    ui_adapter,
-    dev_mode: bool,
+    ctx: UIContext,
 ) -> None:
     """Register the main run command on the given Typer app."""
 
@@ -31,18 +28,18 @@ def register_run_command(
             from lb_controller.api import RunJournal
             journal = RunJournal.load(journal_path)
         except Exception as exc:
-            ui.present.warning(f"Could not read run journal at {journal_path}: {exc}")
+            ctx.ui.present.warning(f"Could not read run journal at {journal_path}: {exc}")
             if log_path:
-                ui.present.info(f"Ansible output log: {log_path}")
+                ctx.ui.present.info(f"Ansible output log: {log_path}")
             return
 
-        ui.tables.show(build_journal_table(journal))
+        ctx.ui.tables.show(build_journal_table(journal))
 
-        ui.present.info(f"Journal saved to {journal_path}")
+        ctx.ui.present.info(f"Journal saved to {journal_path}")
         if log_path:
-            ui.present.info(f"Ansible output log saved to {log_path}")
+            ctx.ui.present.info(f"Ansible output log saved to {log_path}")
         if ui_log_path:
-            ui.present.info(f"Dashboard log stream saved to {ui_log_path}")
+            ctx.ui.present.info(f"Dashboard log stream saved to {ui_log_path}")
 
     @app.command("run")
     def run(
@@ -124,33 +121,33 @@ def register_run_command(
         """Run workloads using Ansible on remote, Docker, or Multipass targets."""
         from lb_common import configure_logging
 
-        if not dev_mode and (docker or multipass):
-            ui.present.error("--docker and --multipass are available only in dev mode.")
+        if not ctx.dev_mode and (docker or multipass):
+            ctx.ui.present.error("--docker and --multipass are available only in dev mode.")
             raise typer.Exit(1)
 
         if docker and multipass:
-            ui.present.error("Choose either --docker or --multipass, not both.")
+            ctx.ui.present.error("Choose either --docker or --multipass, not both.")
             raise typer.Exit(1)
 
         if remote is False and not docker and not multipass:
-            ui.present.error(
+            ctx.ui.present.error(
                 "Local execution has been removed; enable --remote, --docker, or --multipass."
             )
             raise typer.Exit(1)
 
         if debug:
             configure_logging(debug=True, force=True)
-            ui.present.info("Debug logging enabled")
+            ctx.ui.present.info("Debug logging enabled")
 
         if node_count < 1:
-            ui.present.error("Node count must be at least 1.")
+            ctx.ui.present.error("Node count must be at least 1.")
             raise typer.Exit(1)
         if node_count > MAX_NODES:
-            ui.present.error(f"Maximum supported nodes is {MAX_NODES}.")
+            ctx.ui.present.error(f"Maximum supported nodes is {MAX_NODES}.")
             raise typer.Exit(1)
 
         if repetitions is not None and repetitions < 1:
-            ui.present.error("Repetitions must be at least 1.")
+            ctx.ui.present.error("Repetitions must be at least 1.")
             raise typer.Exit(1)
 
         stop_file_resolved = stop_file or (
@@ -159,13 +156,13 @@ def register_run_command(
             else None
         )
 
-        cfg, resolved, stale = config_service_provider().load_for_read(config)
+        cfg, resolved, stale = ctx.config_service.load_for_read(config)
         if stale:
-            ui.present.warning(f"Saved default config not found: {stale}")
+            ctx.ui.present.warning(f"Saved default config not found: {stale}")
         if resolved:
-            ui.present.success(f"Loaded config: {resolved}")
+            ctx.ui.present.success(f"Loaded config: {resolved}")
         else:
-            ui.present.warning("No config file found; using built-in defaults.")
+            ctx.ui.present.warning("No config file found; using built-in defaults.")
 
         cfg.ensure_output_dirs()
 
@@ -177,7 +174,7 @@ def register_run_command(
 
             selected_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
             if not selected_tests:
-                ui.present.error("No workloads selected to run.")
+                ctx.ui.present.error("No workloads selected to run.")
                 raise typer.Exit(1)
 
             run_request = RunRequest(
@@ -193,21 +190,21 @@ def register_run_command(
                 repetitions=repetitions,
                 node_count=node_count,
                 docker_engine=docker_engine,
-                ui_adapter=ui_adapter,
+                ui_adapter=ctx.ui_adapter,
             )
 
-            plan = app_client.get_run_plan(cfg, selected_tests, execution_mode=execution_mode)
-            ui.tables.show(build_run_plan_table(plan))
+            plan = ctx.app_client.get_run_plan(cfg, selected_tests, execution_mode=execution_mode)
+            ctx.ui.tables.show(build_run_plan_table(plan))
 
             class _Hooks:
                 def on_log(self, line: str) -> None:
-                    ui_adapter.show_info(line)
+                    ctx.ui_adapter.show_info(line)
 
                 def on_status(self, controller_state: str) -> None:
-                    ui_adapter.show_info(f"Controller state: {controller_state}")
+                    ctx.ui_adapter.show_info(f"Controller state: {controller_state}")
 
                 def on_warning(self, message: str, ttl: float = 10.0) -> None:
-                    ui_adapter.show_warning(message)
+                    ctx.ui_adapter.show_warning(message)
 
                 def on_event(self, event) -> None:
                     pass
@@ -215,17 +212,17 @@ def register_run_command(
                 def on_journal(self, journal) -> None:
                     pass
 
-            run_result = app_client.start_run(run_request, _Hooks())
+            run_result = ctx.app_client.start_run(run_request, _Hooks())
             result = run_result
 
         except ValueError as e:
-            ui.present.warning(str(e))
+            ctx.ui.present.warning(str(e))
             raise typer.Exit(1)
         except Exception as exc:
-            ui.present.error(f"Run failed: {exc}")
+            ctx.ui.present.error(f"Run failed: {exc}")
             raise typer.Exit(1)
 
         if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):
             _print_run_journal_summary(result.journal_path, log_path=result.log_path, ui_log_path=result.ui_log_path)
 
-        ui.present.success("Run completed.")
+        ctx.ui.present.success("Run completed.")

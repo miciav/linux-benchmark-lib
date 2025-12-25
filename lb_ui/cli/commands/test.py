@@ -8,12 +8,11 @@ from typing import List
 
 import typer
 
-from lb_app.api import TestService, DoctorService
-from lb_controller.api import ConfigService
+from lb_ui.wiring.dependencies import UIContext
 from lb_ui.tui.system.models import PickItem
 
 
-def create_test_app(test_service: TestService, doctor_service: DoctorService, ui) -> typer.Typer:
+def create_test_app(ctx: UIContext) -> typer.Typer:
     """Build the test Typer app for integration helpers."""
     app = typer.Typer(help="Convenience helpers to run integration tests.", no_args_is_help=True)
 
@@ -25,7 +24,7 @@ def create_test_app(test_service: TestService, doctor_service: DoctorService, ui
         },
     )
     def test_multipass(
-        ctx: typer.Context,
+        typer_ctx: typer.Context,
         output: Path = typer.Option(
             Path("tests/results"),
             "--output",
@@ -44,11 +43,11 @@ def create_test_app(test_service: TestService, doctor_service: DoctorService, ui
         ),
     ) -> None:
         """Run the Multipass integration test helper."""
-        if not doctor_service._check_command("multipass"):
-            ui.present.error("multipass not found in PATH.")
+        if not ctx.doctor_service._check_command("multipass"):
+            ctx.ui.present.error("multipass not found in PATH.")
             raise typer.Exit(1)
-        if not doctor_service._check_import("pytest"):
-            ui.present.error("pytest is not installed.")
+        if not ctx.doctor_service._check_import("pytest"):
+            ctx.ui.present.error("pytest is not installed.")
             raise typer.Exit(1)
 
         output = output.expanduser()
@@ -61,7 +60,7 @@ def create_test_app(test_service: TestService, doctor_service: DoctorService, ui
         if multi_workloads:
             scenario_choice = "multi"
         else:
-            cfg_preview = ConfigService().create_default_config().workloads
+            cfg_preview = ctx.config_service.create_default_config().workloads
             names = sorted(cfg_preview.keys())
             options = list(dict.fromkeys(names + ["multi"]).keys())
 
@@ -70,19 +69,19 @@ def create_test_app(test_service: TestService, doctor_service: DoctorService, ui
                 variants = [PickItem(id=f"{opt}:{l}", title=l) for l in ["low", "medium", "high"]]
                 items.append(PickItem(id=opt, title=opt, variants=variants, description=f"Run {opt} scenario"))
 
-            selection = ui.picker.pick_one(items, title="Select Multipass Scenario & Intensity")
+            selection = ctx.ui.picker.pick_one(items, title="Select Multipass Scenario & Intensity")
             if selection:
                 if ":" in selection.id:
                     scenario_choice, level = selection.id.split(":")
                 else:
                     scenario_choice = selection.id
                     level = default_level
-                ui.present.success(f"Selected: {scenario_choice} @ {level}")
+                ctx.ui.present.success(f"Selected: {scenario_choice} @ {level}")
             else:
-                ui.present.info(f"Using default: {scenario_choice} @ {level}")
+                ctx.ui.present.info(f"Using default: {scenario_choice} @ {level}")
 
-        intensity = test_service.get_multipass_intensity()
-        scenario = test_service.build_multipass_scenario(intensity, scenario_choice)
+        intensity = ctx.test_service.get_multipass_intensity()
+        scenario = ctx.test_service.build_multipass_scenario(intensity, scenario_choice)
 
         env = os.environ.copy()
         env["LB_TEST_RESULTS_DIR"] = str(output)
@@ -91,24 +90,24 @@ def create_test_app(test_service: TestService, doctor_service: DoctorService, ui
         for key, value in scenario.env_vars.items():
             env[key] = value
 
-        extra_args = list(ctx.args) if ctx.args else []
+        extra_args = list(typer_ctx.args) if typer_ctx.args else []
         cmd: List[str] = [sys.executable, "-m", "pytest", scenario.target]
         if extra_args:
             cmd.extend(extra_args)
 
         label = "multi-VM" if vm_count > 1 else "single-VM"
-        ui.present.info(f"VM count: {vm_count} ({label})")
-        ui.present.info(f"Scenario: {scenario.workload_label} -> {scenario.target_label}")
-        ui.present.info(f"Artifacts: {output}")
+        ctx.ui.present.info(f"VM count: {vm_count} ({label})")
+        ctx.ui.present.info(f"Scenario: {scenario.workload_label} -> {scenario.target_label}")
+        ctx.ui.present.info(f"Artifacts: {output}")
 
         try:
             result = subprocess.run(cmd, check=False, env=env)
         except Exception as exc:
-            ui.present.error(f"Failed to launch Multipass test: {exc}")
+            ctx.ui.present.error(f"Failed to launch Multipass test: {exc}")
             raise typer.Exit(1)
 
         if result.returncode != 0:
-            ui.present.error(f"`pytest` exited with {result.returncode}")
+            ctx.ui.present.error(f"`pytest` exited with {result.returncode}")
             raise typer.Exit(result.returncode)
 
     return app

@@ -23,20 +23,21 @@ from lb_ui.cli.commands.runs import create_runs_app, register_analyze_command
 from lb_ui.cli.commands.test import create_test_app
 from lb_ui.cli.commands.run import register_run_command
 
-from lb_ui.wiring.dependencies import create_ui, create_services, load_dev_mode, configure_logging
+from lb_ui.wiring.dependencies import load_dev_mode, configure_logging, UIContext
 
-# Initialize UI and services via dependencies
+# Initialize global context (lazy)
 _CLI_ROOT = Path(__file__).resolve().parent.parent.parent
-DEV_MODE = load_dev_mode(_CLI_ROOT)
-TEST_CLI_ENABLED = bool(os.environ.get("LB_ENABLE_TEST_CLI")) or DEV_MODE
+ctx_store = UIContext(dev_mode=load_dev_mode(_CLI_ROOT))
 
-ui, ui_adapter = create_ui()
-config_service, doctor_service, test_service, analytics_service, app_client = create_services()
-doctor_app = create_doctor_app(doctor_service, ui)
-runs_app = create_runs_app(lambda: config_service, ui)
-config_app = create_config_app(config_service, ui)
-test_app = create_test_app(test_service, doctor_service, ui)
-plugin_app = create_plugin_app(config_service, ui)
+# Shortcuts for clarity in registration
+def ui_provider(): return ctx_store.ui
+def ui_adapter_provider(): return ctx_store.ui_adapter
+
+doctor_app = create_doctor_app(ctx_store)
+runs_app = create_runs_app(ctx_store)
+config_app = create_config_app(ctx_store)
+test_app = create_test_app(ctx_store)
+plugin_app = create_plugin_app(ctx_store)
 
 app = typer.Typer(help="Run linux-benchmark workloads on provisioned hosts (remote, Docker, Multipass).", no_args_is_help=True)
 
@@ -57,36 +58,32 @@ def entry(
     ),
 ) -> None:
     """Global entry point handling interactive vs headless modes."""
-    global ui, ui_adapter
     configure_logging(force=True)
-    if headless:
-        from lb_ui.tui.system.headless import HeadlessUI
-        ui = HeadlessUI()
-        ui_adapter = TUIAdapter(ui)
-        # Re-inject if necessary, but services now mostly return data or use ui_adapter passed in methods (RunService)
+    ctx_store.headless = headless
+    
+    # If a specific config is provided, we might want to tell config_service 
+    # but currently ConfigService reads from env or default targets.
+    # The commands usually handle the -c flag themselves.
 
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
         raise typer.Exit()
 
 
-
-
-register_analyze_command(app, lambda: config_service, lambda: analytics_service, ui)
+register_analyze_command(app, ctx_store)
 
 
 app.add_typer(config_app, name="config")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(plugin_app, name="plugin")
 app.add_typer(runs_app, name="runs")
-if TEST_CLI_ENABLED:
+if bool(os.environ.get("LB_ENABLE_TEST_CLI")) or ctx_store.dev_mode:
     app.add_typer(test_app, name="test")
 else:
-
     @app.command("test")
     def _test_disabled() -> None:
         """Hide test helpers when not installed in dev mode."""
-        ui.present.error(
+        ctx_store.ui.present.error(
             "`lb test` is available only in dev installs. "
             "Run `LB_ENABLE_TEST_CLI=1 lb test ...` or create .lb_dev_cli to override."
         )
@@ -95,11 +92,7 @@ else:
 
 register_run_command(
     app=app,
-    app_client=app_client,
-    config_service_provider=lambda: config_service,
-    ui=ui,
-    ui_adapter=ui_adapter,
-    dev_mode=DEV_MODE,
+    ctx=ctx_store,
 )
 
 

@@ -10,7 +10,11 @@ from lb_controller.api import ConfigService, RunCatalogService
 from lb_ui.tui.system.models import PickItem, TableModel
 
 
-def create_runs_app(config_service_provider: Callable[[], ConfigService], ui) -> typer.Typer:
+from lb_ui.wiring.dependencies import UIContext
+from lb_ui.tui.system.models import PickItem, TableModel
+
+
+def create_runs_app(ctx: UIContext) -> typer.Typer:
     """Build the runs Typer app (list/show)."""
     app = typer.Typer(help="Inspect past benchmark runs.", no_args_is_help=True)
 
@@ -30,7 +34,7 @@ def create_runs_app(config_service_provider: Callable[[], ConfigService], ui) ->
         ),
     ) -> None:
         """List available benchmark runs."""
-        cfg, _, _ = config_service_provider().load_for_read(config)
+        cfg, _, _ = ctx.config_service.load_for_read(config)
         output_root = root or cfg.output_dir
         catalog = RunCatalogService(
             output_dir=output_root,
@@ -39,7 +43,7 @@ def create_runs_app(config_service_provider: Callable[[], ConfigService], ui) ->
         )
         runs = catalog.list_runs()
         if not runs:
-            ui.present.warning(f"No runs found under {output_root}")
+            ctx.ui.present.warning(f"No runs found under {output_root}")
             return
         rows: List[List[str]] = []
         for run in runs:
@@ -47,7 +51,7 @@ def create_runs_app(config_service_provider: Callable[[], ConfigService], ui) ->
             hosts = ", ".join(run.hosts) if run.hosts else "-"
             workloads = ", ".join(run.workloads) if run.workloads else "-"
             rows.append([run.run_id, created, hosts, workloads])
-        ui.tables.show(
+        ctx.ui.tables.show(
             TableModel(
                 title="Benchmark Runs",
                 columns=["Run ID", "Created", "Hosts", "Workloads"],
@@ -72,7 +76,7 @@ def create_runs_app(config_service_provider: Callable[[], ConfigService], ui) ->
         ),
     ) -> None:
         """Show details for a single run."""
-        cfg, _, _ = config_service_provider().load_for_read(config)
+        cfg, _, _ = ctx.config_service.load_for_read(config)
         output_root = root or cfg.output_dir
         catalog = RunCatalogService(
             output_dir=output_root,
@@ -81,7 +85,7 @@ def create_runs_app(config_service_provider: Callable[[], ConfigService], ui) ->
         )
         run = catalog.get_run(run_id)
         if not run:
-            ui.present.error(f"Run '{run_id}' not found under {output_root}")
+            ctx.ui.present.error(f"Run '{run_id}' not found under {output_root}")
             raise typer.Exit(1)
         rows = [
             ["Run ID", run.run_id],
@@ -93,16 +97,14 @@ def create_runs_app(config_service_provider: Callable[[], ConfigService], ui) ->
             ["Workloads", ", ".join(run.workloads) if run.workloads else "-"],
             ["Journal", str(run.journal_path or "-")],
         ]
-        ui.tables.show(TableModel(title="Run Details", columns=["Field", "Value"], rows=rows))
+        ctx.ui.tables.show(TableModel(title="Run Details", columns=["Field", "Value"], rows=rows))
 
     return app
 
 
 def register_analyze_command(
     app: typer.Typer,
-    config_service_provider: Callable[[], ConfigService],
-    analytics_service_provider,
-    ui,
+    ctx: UIContext,
 ) -> None:
     """Register the analyze command on the given Typer app."""
 
@@ -143,7 +145,7 @@ def register_analyze_command(
         ),
     ) -> None:
         """Run analytics on an existing benchmark run."""
-        cfg, _, _ = config_service_provider().load_for_read(config)
+        cfg, _, _ = ctx.config_service.load_for_read(config)
         output_root = root or cfg.output_dir
         catalog = RunCatalogService(
             output_dir=output_root,
@@ -155,39 +157,39 @@ def register_analyze_command(
         if selected_run_id is None:
             runs = catalog.list_runs()
             if not runs:
-                ui.present.error(f"No runs found under {output_root}")
+                ctx.ui.present.error(f"No runs found under {output_root}")
                 raise typer.Exit(1)
 
             items = [PickItem(id=r.run_id, title=f"{r.run_id} ({r.created_at})") for r in runs]
-            selection = ui.picker.pick_one(items, title="Select a benchmark run")
+            selection = ctx.ui.picker.pick_one(items, title="Select a benchmark run")
             selected_run_id = selection.id if selection else runs[0].run_id
-            ui.present.info(f"Selected run: {selected_run_id}")
+            ctx.ui.present.info(f"Selected run: {selected_run_id}")
 
         run = catalog.get_run(selected_run_id)
         if not run:
-            ui.present.error(f"Run '{selected_run_id}' not found under {output_root}")
+            ctx.ui.present.error(f"Run '{selected_run_id}' not found under {output_root}")
             raise typer.Exit(1)
 
         selected_kind = kind
         if not selected_kind:
             k_items = [PickItem(id="aggregate", title="aggregate")]
-            k_sel = ui.picker.pick_one(k_items, title="Select analytics type", query_hint="aggregate")
+            k_sel = ctx.ui.picker.pick_one(k_items, title="Select analytics type", query_hint="aggregate")
             selected_kind = k_sel.id if k_sel else "aggregate"
 
         if selected_kind != "aggregate":
-            ui.present.error(f"Unsupported analytics kind: {selected_kind}")
+            ctx.ui.present.error(f"Unsupported analytics kind: {selected_kind}")
             raise typer.Exit(1)
 
         selected_workloads = workload
         if selected_workloads is None:
             w_items = [PickItem(id=w, title=w) for w in list(run.workloads)]
-            w_sel = ui.picker.pick_many(w_items, title="Select workloads to analyze")
+            w_sel = ctx.ui.picker.pick_many(w_items, title="Select workloads to analyze")
             selected_workloads = sorted([s.id for s in w_sel]) if w_sel else None
 
         selected_hosts = host
         if selected_hosts is None:
             h_items = [PickItem(id=h, title=h) for h in list(run.hosts)]
-            h_sel = ui.picker.pick_many(h_items, title="Select hosts to analyze")
+            h_sel = ctx.ui.picker.pick_many(h_items, title="Select hosts to analyze")
             selected_hosts = sorted([s.id for s in h_sel]) if h_sel else None
 
         req = AnalyticsRequest(
@@ -196,11 +198,11 @@ def register_analyze_command(
             hosts=selected_hosts,
             workloads=selected_workloads,
         )
-        with ui.progress.status(f"Running analytics '{selected_kind}' on {run.run_id}"):
-            produced = analytics_service_provider().run(req)
+        with ctx.ui.progress.status(f"Running analytics '{selected_kind}' on {run.run_id}"):
+            produced = ctx.analytics_service.run(req)
         if not produced:
-            ui.present.warning("No analytics artifacts produced.")
+            ctx.ui.present.warning("No analytics artifacts produced.")
             return
         rows = [[str(p)] for p in produced]
-        ui.tables.show(TableModel(title="Analytics Artifacts", columns=["Path"], rows=rows))
-        ui.present.success("Analytics completed.")
+        ctx.ui.tables.show(TableModel(title="Analytics Artifacts", columns=["Path"], rows=rows))
+        ctx.ui.present.success("Analytics completed.")

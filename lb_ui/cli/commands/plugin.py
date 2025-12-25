@@ -5,23 +5,24 @@ from typing import Optional
 
 import typer
 
-from lb_controller.api import ConfigService, create_registry, build_plugin_table
+from lb_controller.api import create_registry, build_plugin_table, BenchmarkConfig
+from lb_ui.wiring.dependencies import UIContext
 from lb_ui.tui.system.models import TableModel
 from lb_ui.flows.selection import select_plugins_interactively, apply_plugin_selection
 
 
-def create_plugin_app(config_service: ConfigService, ui) -> typer.Typer:
+def create_plugin_app(ctx: UIContext) -> typer.Typer:
     """Build the plugin Typer app (list/manage workload plugins)."""
     app = typer.Typer(help="Inspect and manage workload plugins.", no_args_is_help=False)
 
     def _load_config(config_path: Optional[Path]):
-        cfg, resolved, stale = config_service.load_for_read(config_path)
+        cfg, resolved, stale = ctx.config_service.load_for_read(config_path)
         if stale:
-            ui.present.warning(f"Saved default config not found: {stale}")
+            ctx.ui.present.warning(f"Saved default config not found: {stale}")
         if resolved is None:
-            ui.present.warning("No config file found; using built-in defaults.")
+            ctx.ui.present.warning("No config file found; using built-in defaults.")
             return cfg
-        ui.present.success(f"Loaded config: {resolved}")
+        ctx.ui.present.success(f"Loaded config: {resolved}")
         return cfg
 
     def _list_plugins_command(
@@ -33,24 +34,24 @@ def create_plugin_app(config_service: ConfigService, ui) -> typer.Typer:
     ) -> None:
         registry = create_registry()
         if not registry.available():
-            ui.present.warning("No workload plugins registered.")
+            ctx.ui.present.warning("No workload plugins registered.")
             return
 
         if enable and disable:
-            ui.present.error("Choose either --enable or --disable, not both.")
+            ctx.ui.present.error("Choose either --enable or --disable, not both.")
             raise typer.Exit(1)
         if select and (enable or disable):
-            ui.present.error("Use --select alone, not with --enable/--disable.")
+            ctx.ui.present.error("Use --select alone, not with --enable/--disable.")
             raise typer.Exit(1)
 
         cfg_for_table = None
         try:
             if enable:
-                cfg_for_table, _, _ = config_service.update_workload_enabled(enable, True, config, set_default)
+                cfg_for_table, _, _ = ctx.config_service.update_workload_enabled(enable, True, config, set_default)
             if disable:
-                cfg_for_table, _, _ = config_service.update_workload_enabled(disable, False, config, set_default)
+                cfg_for_table, _, _ = ctx.config_service.update_workload_enabled(disable, False, config, set_default)
         except ValueError as e:
-            ui.present.error(str(e))
+            ctx.ui.present.error(str(e))
             raise typer.Exit(1)
 
         if cfg_for_table is None:
@@ -58,17 +59,17 @@ def create_plugin_app(config_service: ConfigService, ui) -> typer.Typer:
 
         enabled_map = {name: wl.enabled for name, wl in cfg_for_table.workloads.items()}
         if select:
-            selection = select_plugins_interactively(ui, registry, enabled_map)
+            selection = select_plugins_interactively(ctx.ui, registry, enabled_map)
             if selection is None:
                 raise typer.Exit(1)
-            enabled_map = apply_plugin_selection(ui, config_service, registry, selection, config, set_default)
+            enabled_map = apply_plugin_selection(ctx.ui, ctx.config_service, registry, selection, config, set_default)
 
         headers, rows = build_plugin_table(registry, enabled=enabled_map)
-        ui.tables.show(TableModel(title="Available Workload Plugins", columns=headers, rows=rows))
+        ctx.ui.tables.show(TableModel(title="Available Workload Plugins", columns=headers, rows=rows))
 
     @app.callback(invoke_without_command=True)
     def plugin_root(
-        ctx: typer.Context,
+        typer_ctx: typer.Context,
         config: Optional[Path] = typer.Option(
             None, "--config", "-c", help="Config file to update when enabling/disabling."
         ),
@@ -90,7 +91,7 @@ def create_plugin_app(config_service: ConfigService, ui) -> typer.Typer:
             help="Interactively toggle plugins using arrows and space.",
         ),
     ) -> None:
-        if ctx.invoked_subcommand is None:
+        if typer_ctx.invoked_subcommand is None:
             _list_plugins_command(
                 config=config,
                 enable=enable,

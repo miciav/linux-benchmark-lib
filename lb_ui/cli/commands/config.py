@@ -5,26 +5,26 @@ from typing import Optional
 
 import typer
 
-from lb_controller.api import BenchmarkConfig, ConfigService, PluginRegistry, create_registry
+from lb_ui.wiring.dependencies import UIContext
 from lb_ui.tui.system.models import TableModel
 from lb_ui.flows.config_wizard import run_config_wizard
 from lb_ui.flows.selection import select_workloads_interactively
 
 
-def create_config_app(config_service: ConfigService, ui) -> typer.Typer:
-    """Build the config Typer app, wired to the given service and UI."""
+def create_config_app(ctx: UIContext) -> typer.Typer:
+    """Build the config Typer app, wired to the given context."""
     app = typer.Typer(help="Manage benchmark configuration files.", no_args_is_help=True)
 
     def _load_config(config_path: Optional[Path]) -> BenchmarkConfig:
         """Load a BenchmarkConfig from disk or fall back to defaults."""
-        cfg, resolved, stale = config_service.load_for_read(config_path)
+        cfg, resolved, stale = ctx.config_service.load_for_read(config_path)
         if stale:
-            ui.present.warning(f"Saved default config not found: {stale}")
+            ctx.ui.present.warning(f"Saved default config not found: {stale}")
         if resolved is None:
-            ui.present.warning("No config file found; using built-in defaults.")
+            ctx.ui.present.warning("No config file found; using built-in defaults.")
             return cfg
 
-        ui.present.success(f"Loaded config: {resolved}")
+        ctx.ui.present.success(f"Loaded config: {resolved}")
         return cfg
 
     @app.command("edit")
@@ -38,9 +38,9 @@ def create_config_app(config_service: ConfigService, ui) -> typer.Typer:
     ) -> None:
         """Open a config file in $EDITOR."""
         try:
-            config_service.open_editor(path)
+            ctx.config_service.open_editor(path)
         except Exception as exc:
-            ui.present.error(str(exc))
+            ctx.ui.present.error(str(exc))
             raise typer.Exit(1)
 
     @app.command("init")
@@ -70,23 +70,23 @@ def create_config_app(config_service: ConfigService, ui) -> typer.Typer:
         ),
     ) -> None:
         """Create a config file from defaults and optionally set it as default."""
-        target = Path(path).expanduser() if path else config_service.default_target
+        target = Path(path).expanduser() if path else ctx.config_service.default_target
         target.parent.mkdir(parents=True, exist_ok=True)
 
         if repetitions < 1:
-            ui.present.error("Repetitions must be at least 1.")
+            ctx.ui.present.error("Repetitions must be at least 1.")
             raise typer.Exit(1)
 
-        cfg = config_service.create_default_config()
+        cfg = ctx.config_service.create_default_config()
         cfg.repetitions = repetitions
         if interactive:
-            run_config_wizard(ui, cfg)
+            run_config_wizard(ctx.ui, cfg)
 
         cfg.save(target)
-        ui.present.success(f"Config written to {target}")
+        ctx.ui.present.success(f"Config written to {target}")
         if set_default:
-            config_service.write_saved_config_path(target)
-            ui.present.info(f"Default config set to {target}")
+            ctx.config_service.write_saved_config_path(target)
+            ctx.ui.present.info(f"Default config set to {target}")
 
     @app.command("set-repetitions")
     def config_set_repetitions(
@@ -101,19 +101,19 @@ def create_config_app(config_service: ConfigService, ui) -> typer.Typer:
         """Persist the desired repetitions count to the configuration file."""
 
         if repetitions < 1:
-            ui.present.error("Repetitions must be at least 1.")
+            ctx.ui.present.error("Repetitions must be at least 1.")
             raise typer.Exit(1)
 
-        cfg, target, stale, _ = config_service.load_for_write(config, allow_create=True)
+        cfg, target, stale, _ = ctx.config_service.load_for_write(config, allow_create=True)
         cfg.repetitions = repetitions
         cfg.save(target)
 
         if set_default:
-            config_service.write_saved_config_path(target)
+            ctx.config_service.write_saved_config_path(target)
 
         if stale:
-            ui.present.warning(f"Saved default config not found: {stale}")
-        ui.present.success(f"Repetitions set to {repetitions} in {target}")
+            ctx.ui.present.warning(f"Saved default config not found: {stale}")
+        ctx.ui.present.success(f"Repetitions set to {repetitions} in {target}")
 
     @app.command("set-default")
     def config_set_default(
@@ -122,25 +122,25 @@ def create_config_app(config_service: ConfigService, ui) -> typer.Typer:
         """Remember a config path as the CLI default."""
         target = Path(path).expanduser()
         if not target.exists():
-            ui.present.error(f"Config file not found: {target}")
+            ctx.ui.present.error(f"Config file not found: {target}")
             raise typer.Exit(1)
-        config_service.write_saved_config_path(target)
-        ui.present.success(f"Default config set to {target}")
+        ctx.config_service.write_saved_config_path(target)
+        ctx.ui.present.success(f"Default config set to {target}")
 
     @app.command("show-default")
     def config_show_default() -> None:
         """Show the currently saved default config path."""
-        saved, _ = config_service.read_saved_config_path()
+        saved, _ = ctx.config_service.read_saved_config_path()
         if not saved:
-            ui.present.warning("No default config is set.")
+            ctx.ui.present.warning("No default config is set.")
             return
-        ui.present.success(f"Default config: {saved}")
+        ctx.ui.present.success(f"Default config: {saved}")
 
     @app.command("unset-default")
     def config_unset_default() -> None:
         """Clear the saved default config path."""
-        config_service.clear_saved_config_path()
-        ui.present.success("Default config cleared.")
+        ctx.config_service.clear_saved_config_path()
+        ctx.ui.present.success("Default config cleared.")
 
     @app.command("workloads")
     def config_list_workloads(
@@ -154,7 +154,7 @@ def create_config_app(config_service: ConfigService, ui) -> typer.Typer:
             [name, wl.plugin, "yes" if wl.enabled else "no"]
             for name, wl in sorted(cfg.workloads.items())
         ]
-        ui.tables.show(
+        ctx.ui.tables.show(
             TableModel(title="Configured Workloads", columns=["Name", "Plugin", "Enabled"], rows=rows)
         )
 
@@ -170,12 +170,12 @@ def create_config_app(config_service: ConfigService, ui) -> typer.Typer:
     ) -> None:
         """Enable a workload in the configuration (creates it if missing)."""
         try:
-            cfg, target, stale = config_service.update_workload_enabled(name, True, config, set_default)
+            cfg, target, stale = ctx.config_service.update_workload_enabled(name, True, config, set_default)
             if stale:
-                ui.present.warning(f"Saved default config not found: {stale}")
-            ui.present.success(f"Workload '{name}' enabled in {target}")
+                ctx.ui.present.warning(f"Saved default config not found: {stale}")
+            ctx.ui.present.success(f"Workload '{name}' enabled in {target}")
         except ValueError as e:
-            ui.present.error(str(e))
+            ctx.ui.present.error(str(e))
             raise typer.Exit(1)
 
     @app.command("disable-workload")
@@ -189,10 +189,10 @@ def create_config_app(config_service: ConfigService, ui) -> typer.Typer:
         ),
     ) -> None:
         """Disable a workload in the configuration (creates it if missing)."""
-        cfg, target, stale = config_service.update_workload_enabled(name, False, config, set_default)
+        cfg, target, stale = ctx.config_service.update_workload_enabled(name, False, config, set_default)
         if stale:
-            ui.present.warning(f"Saved default config not found: {stale}")
-        ui.present.success(f"Workload '{name}' disabled in {target}")
+            ctx.ui.present.warning(f"Saved default config not found: {stale}")
+        ctx.ui.present.success(f"Workload '{name}' disabled in {target}")
 
     def _select_workloads_interactively(
         cfg: BenchmarkConfig,
@@ -201,7 +201,7 @@ def create_config_app(config_service: ConfigService, ui) -> typer.Typer:
         set_default: bool,
     ) -> None:
         """Interactively toggle configured workloads using arrows + space."""
-        select_workloads_interactively(ui, config_service, cfg, registry, config, set_default)
+        select_workloads_interactively(ctx.ui, ctx.config_service, cfg, registry, config, set_default)
 
     @app.command("select-workloads")
     def config_select_workloads(
@@ -217,7 +217,7 @@ def create_config_app(config_service: ConfigService, ui) -> typer.Typer:
         """Interactively enable/disable workloads using arrows + space."""
         cfg = _load_config(config)
         if not cfg.workloads:
-            ui.present.warning("No workloads configured yet. Enable plugins first with `lb plugin list --enable NAME`.")
+            ctx.ui.present.warning("No workloads configured yet. Enable plugins first with `lb plugin list --enable NAME`.")
             return
 
         registry = create_registry()
