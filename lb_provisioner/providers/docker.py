@@ -11,7 +11,7 @@ import uuid
 from typing import List
 from pathlib import Path
 
-from lb_runner.models.config import RemoteHostConfig
+from lb_common.api import RemoteHostSpec
 
 from lb_provisioner.models.types import (
     MAX_NODES,
@@ -45,7 +45,7 @@ class DockerProvisioner:
             self._run_container(engine, request.docker_image, name, port)
             self._inject_ssh_key(engine, name, pub_path)
             self._wait_for_ssh(engine, name, port, key_path)
-            host = RemoteHostConfig(
+            host = RemoteHostSpec(
                 name=name,
                 address="127.0.0.1",
                 user="root",

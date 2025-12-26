@@ -5,14 +5,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_runner.models.config import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+from lb_runner.api import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
 pytestmark = pytest.mark.unit_controller
 
-from lb_controller.api import BenchmarkController, ControllerState
-from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
-from lb_controller.models.types import ExecutionResult, InventorySpec, RemoteExecutor
-from lb_runner.engine.stop_token import StopToken
+from lb_controller.api import BenchmarkController, ControllerState, apply_playbook_defaults
+from lb_controller.api import AnsibleRunnerExecutor
+from lb_controller.api import ExecutionResult, InventorySpec, RemoteExecutor
+from lb_plugins.api import apply_plugin_assets, create_registry
+from lb_runner.api import StopToken
 
 
 class DummyExecutor(RemoteExecutor):
@@ -44,6 +45,11 @@ class DummyExecutor(RemoteExecutor):
         return ExecutionResult(rc=0, status="successful")
 
 
+def _prepare_controller_config(config: BenchmarkConfig) -> None:
+    apply_playbook_defaults(config)
+    apply_plugin_assets(config, create_registry())
+
+
 def test_controller_creates_output_dirs(tmp_path: Path):
     """Controller should prepare per-run and per-host output directories."""
     config = BenchmarkConfig(
@@ -55,6 +61,7 @@ def test_controller_creates_output_dirs(tmp_path: Path):
     config.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
     config.repetitions = 1
     config.remote_execution.run_teardown = False
+    _prepare_controller_config(config)
     executor = DummyExecutor()
     controller = BenchmarkController(config, executor=executor)
 
@@ -178,6 +185,7 @@ def test_controller_merges_plugin_extravars_into_setup(tmp_path: Path) -> None:
     config.remote_execution.run_setup = False
     config.remote_execution.run_collect = False
     config.remote_execution.run_teardown = False
+    _prepare_controller_config(config)
 
     executor = DummyExecutor()
     controller = BenchmarkController(config, executor=executor)
@@ -216,6 +224,7 @@ def test_controller_runs_teardown_even_after_stop_requested(tmp_path: Path) -> N
     config.remote_execution.run_setup = False
     config.remote_execution.run_collect = False
     config.remote_execution.run_teardown = True
+    _prepare_controller_config(config)
 
     stop_token = StopToken(enable_signals=False)
     run_playbook_path = config.remote_execution.run_playbook
@@ -277,6 +286,7 @@ def test_controller_interrupt_setup_triggers_teardown(tmp_path: Path) -> None:
     config.remote_execution.run_setup = True
     config.remote_execution.run_collect = False
     config.remote_execution.run_teardown = True
+    _prepare_controller_config(config)
 
     stop_token = StopToken(enable_signals=False)
 
@@ -324,6 +334,7 @@ def test_controller_sets_aborted_state_on_setup_stop(tmp_path: Path) -> None:
     config.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
     config.repetitions = 1
     config.remote_execution.run_teardown = False
+    _prepare_controller_config(config)
 
     stop_token = StopToken(enable_signals=False)
 

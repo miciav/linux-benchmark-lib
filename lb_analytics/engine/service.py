@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Literal, Optional, Sequence
 
-from lb_controller.api import RunInfo
+from lb_common.api import RunInfo
 
 logger = logging.getLogger(__name__)
 

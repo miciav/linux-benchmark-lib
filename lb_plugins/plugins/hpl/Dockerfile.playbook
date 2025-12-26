@@ -1,0 +1,49 @@
+FROM python:3.13-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Ansible and runtime dependencies needed by the setup playbook
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gfortran \
+    openmpi-bin \
+    libopenblas-dev \
+    libopenmpi-dev \
+    wget \
+    tar \
+    git \
+    sudo \
+    procps \
+    sysstat \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir ansible
+
+WORKDIR /app
+
+# Setup Ansible local connection
+RUN mkdir -p /etc/ansible && echo "localhost ansible_connection=local" > /etc/ansible/hosts
+
+# Only bring in the playbook needed to compile HPL
+COPY lb_plugins/plugins/hpl/ansible/setup.yml /app/setup.yml
+
+# Optional pre-build to avoid first-run compilation cost (disabled by default to
+# keep memory usage low during docker build)
+ARG HPL_PRECOMPILE=0
+ARG HPL_MAKEFLAGS="-j1"
+ENV HPL_WORKSPACE=/root/.lb/workspaces/hpl \
+    HPL_VERSION=2.3 \
+    HPL_PRECOMPILE=${HPL_PRECOMPILE} \
+    HPL_MAKEFLAGS=${HPL_MAKEFLAGS}
+
+RUN if [ "$HPL_PRECOMPILE" = "1" ]; then \
+        ansible-playbook /app/setup.yml \
+        -i localhost, \
+        -c local \
+        -e hpl_workspace=${HPL_WORKSPACE} \
+        -e hpl_version=${HPL_VERSION} \
+        -e hpl_make_flags=${HPL_MAKEFLAGS}; \
+    else \
+        echo "Skipping HPL precompile (HPL_PRECOMPILE=$HPL_PRECOMPILE)"; \
+    fi

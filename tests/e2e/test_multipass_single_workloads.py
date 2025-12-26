@@ -13,20 +13,22 @@ import pytest
 import shutil
 import platform
 
-from lb_runner.models.config import (
+from lb_plugins.api import (
+    DDConfig,
+    FIOConfig,
+    GeekbenchConfig,
+    HPLConfig,
+    StressNGConfig,
+    YabsConfig,
+)
+from lb_runner.api import (
     BenchmarkConfig,
     MetricCollectorConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
 )
-from lb_runner.plugins.dd.plugin import DDConfig
-from lb_runner.plugins.fio.plugin import FIOConfig
-from lb_runner.plugins.geekbench.plugin import GeekbenchConfig
-from lb_runner.plugins.hpl.plugin import HPLConfig
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
-from lb_runner.plugins.yabs.plugin import YabsConfig
-from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
+from lb_controller.api import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController
 from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401 - fixture import
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lb_app.services.test_service import TestService
+from lb_app.api import TestService
 
 pytestmark = [pytest.mark.unit_ui, pytest.mark.unit_ui]
 
@@ -20,7 +20,7 @@ def test_select_multipass_interactive(monkeypatch):
     monkeypatch.setattr(sys, "stdout", mock_stdout)
 
     with patch(
-        "lb_app.services.test_service.ConfigService"
+        "lb_app.api.test_service_module.ConfigService"
     ) as mock_cfg_cls:
         mock_cfg = mock_cfg_cls.return_value
         mock_cfg.create_default_config.return_value.workloads = {
@@ -48,7 +48,7 @@ def test_select_multipass_non_interactive(monkeypatch):
     mock_stdout.isatty.return_value = True
     monkeypatch.setattr(sys, "stdout", mock_stdout)
 
-    with patch("lb_app.services.test_service.ConfigService") as mock_cfg_cls:
+    with patch("lb_app.api.test_service_module.ConfigService") as mock_cfg_cls:
         mock_cfg = mock_cfg_cls.return_value
         mock_cfg.create_default_config.return_value.workloads = {"stress_ng": {}}
 
@@ -71,7 +71,7 @@ def test_select_multipass_prompt_none(monkeypatch):
     mock_stdout.isatty.return_value = True
     monkeypatch.setattr(sys, "stdout", mock_stdout)
 
-    with patch("lb_app.services.test_service.ConfigService") as mock_cfg_cls:
+    with patch("lb_app.api.test_service_module.ConfigService") as mock_cfg_cls:
         mock_cfg = mock_cfg_cls.return_value
         mock_cfg.create_default_config.return_value.workloads = {"stress_ng": {}, "fio": {}}
 

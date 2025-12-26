@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from lb_analytics import DataHandler
+from lb_analytics.api import DataHandler
 
 pytestmark = pytest.mark.unit_analytics
 

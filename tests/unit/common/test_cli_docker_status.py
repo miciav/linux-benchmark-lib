@@ -1,6 +1,6 @@
 import pytest
 
-from lb_ui.presenters.plan import build_run_plan_table
+from lb_ui.api import build_run_plan_table
 
 pytestmark = [pytest.mark.unit_ui, pytest.mark.unit_ui]
 

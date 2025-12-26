@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import Callable, Dict, List, Optional, TYPE_CHECKING
 
 from lb_controller.models.state import ControllerState
 from lb_controller.services.journal import RunStatus
 from lb_controller.services.journal_sync import backfill_timings_from_results, update_all_reps
 from lb_controller.engine.lifecycle import RunPhase
 from lb_controller.models.types import ExecutionResult, InventorySpec
-from lb_runner.models.config import RemoteHostConfig
+from lb_common.api import PluginAssetConfig
+from lb_runner.api import RemoteHostConfig
 
 if TYPE_CHECKING:
     from lb_controller.engine.controller import BenchmarkController, _RunFlags, _RunState
@@ -74,7 +75,8 @@ def run_global_setup(
 def run_workload_setup(
     controller: "BenchmarkController",
     test_name: str,
-    plugin: Any,
+    plugin_assets: PluginAssetConfig | None,
+    plugin_name: str,
     inventory: InventorySpec,
     extravars: Dict[str, Any],
     pending_reps: Dict[str, List[int]],
@@ -83,17 +85,15 @@ def run_workload_setup(
     ui_log: Callable[[str], None],
 ) -> None:
     """Execute per-workload setup playbook."""
-    setup_pb = plugin.get_ansible_setup_path()
+    setup_pb = plugin_assets.setup_playbook if plugin_assets else None
     if not setup_pb:
         return
-    ui_log(f"Setup: {test_name} ({plugin.name})")
+    ui_log(f"Setup: {test_name} ({plugin_name})")
     if controller.output_formatter:
         controller.output_formatter.set_phase(f"Setup: {test_name}")
     setup_extravars = extravars.copy()
-    try:
-        setup_extravars.update(plugin.get_ansible_setup_extravars())
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.debug("Failed to compute setup extravars for %s: %s", plugin.name, exc)
+    if plugin_assets:
+        setup_extravars.update(plugin_assets.setup_extravars)
     res = controller.executor.run_playbook(
         setup_pb,
         inventory=inventory,
@@ -103,14 +103,15 @@ def run_workload_setup(
     if not res.success:
         ui_log(f"Setup failed for {test_name}")
         flags.all_tests_success = False
-        run_teardown_playbook(controller, plugin, inventory, extravars)
+        run_teardown_playbook(controller, plugin_assets, plugin_name, inventory, extravars)
         pending_reps.clear()
 
 
 def run_workload_execution(
     controller: "BenchmarkController",
     test_name: str,
-    plugin: Any,
+    plugin_assets: PluginAssetConfig | None,
+    plugin_name: str,
     state: "_RunState",
     pending_hosts: List[RemoteHostConfig],
     pending_reps: Dict[str, List[int]],
@@ -139,7 +140,7 @@ def run_workload_execution(
     handle_collect_phase(
         controller, test_name, pending_hosts, state, phases, flags, ui_log
     )
-    run_teardown_playbook(controller, plugin, state.inventory, state.extravars)
+    run_teardown_playbook(controller, plugin_assets, plugin_name, state.inventory, state.extravars)
 
 
 def execute_run_playbook(
@@ -266,23 +267,18 @@ def handle_collect_phase(
 
 def run_teardown_playbook(
     controller: "BenchmarkController",
-    plugin: Any,
+    plugin_assets: PluginAssetConfig | None,
+    plugin_name: str,
     inventory: InventorySpec,
     extravars: Dict[str, Any],
 ) -> None:
     """Execute per-workload teardown playbook when configured."""
-    teardown_pb = plugin.get_ansible_teardown_path()
+    teardown_pb = plugin_assets.teardown_playbook if plugin_assets else None
     if not teardown_pb:
         return
     td_extravars = extravars.copy()
-    try:
-        td_extravars.update(plugin.get_ansible_teardown_extravars())
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.debug(
-            "Failed to compute teardown extravars for %s: %s",
-            plugin.name,
-            exc,
-        )
+    if plugin_assets:
+        td_extravars.update(plugin_assets.teardown_extravars)
     controller.executor.run_playbook(
         teardown_pb,
         inventory=inventory,

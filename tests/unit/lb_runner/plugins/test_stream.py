@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lb_runner.plugins.stream.plugin import (
+from lb_plugins.api import (
     DEFAULT_NTIMES,
     DEFAULT_STREAM_ARRAY_SIZE,
     StreamConfig,
@@ -85,7 +85,7 @@ def test_launcher_env(stream_config):
     assert env["OMP_NUM_THREADS"] == "4"
 
 
-@patch("lb_runner.plugins.stream.plugin.shutil.which")
+@patch("shutil.which")
 def test_validate_environment_missing_gcc_for_recompile(mock_which, stream_config):
     stream_config.recompile = True
     mock_which.return_value = None  # gcc missing
@@ -94,7 +94,7 @@ def test_validate_environment_missing_gcc_for_recompile(mock_which, stream_confi
     assert gen._validate_environment() is False
 
 
-@patch("lb_runner.plugins.stream.plugin.shutil.which")
+@patch("shutil.which")
 def test_validate_environment_missing_numactl(mock_which, stream_config):
     stream_config.use_numactl = True
     mock_which.side_effect = lambda cmd: "/usr/bin/gcc" if cmd == "gcc" else None # numactl missing
@@ -103,8 +103,8 @@ def test_validate_environment_missing_numactl(mock_which, stream_config):
     assert gen._validate_environment() is False
 
 
-@patch("lb_runner.plugins.stream.plugin.subprocess.run")
-@patch("lb_runner.plugins.stream.plugin.shutil.copy2")
+@patch("subprocess.run")
+@patch("shutil.copy2")
 def test_compile_binary_success(_mock_copy, mock_run, stream_generator, tmp_path):
     # Mock workspace dirs
     stream_generator.workspace_src_dir = tmp_path / "src"
@@ -128,13 +128,13 @@ def test_compile_binary_success(_mock_copy, mock_run, stream_generator, tmp_path
         assert f"-DSTREAM_ARRAY_SIZE={DEFAULT_STREAM_ARRAY_SIZE}" in args
 
 
-@patch("lb_runner.plugins.stream.plugin.subprocess.run")
+@patch("subprocess.run")
 def test_compile_binary_failure(mock_run, stream_generator, tmp_path):
     stream_generator.workspace_src_dir = tmp_path / "src"
     stream_generator.workspace_bin_dir = tmp_path / "bin"
     
     with patch.object(StreamGenerator, "_upstream_stream_c", return_value=Path("/upstream/stream.c")):
-        with patch("lb_runner.plugins.stream.plugin.shutil.copy2"):
+        with patch("shutil.copy2"):
             # Simulate gcc failure
             mock_run.return_value = MagicMock(returncode=1, stderr="Compilation error")
             
@@ -144,7 +144,7 @@ def test_compile_binary_failure(mock_run, stream_generator, tmp_path):
             assert "Failed to compile STREAM" in str(exc.value)
 
 
-@patch("lb_runner.plugins.stream.plugin.os.access")
+@patch("os.access")
 def test_ensure_binary_uses_system_if_available(mock_access, stream_generator):
     # recompile is False by default
     
@@ -161,7 +161,7 @@ def test_ensure_binary_uses_system_if_available(mock_access, stream_generator):
         assert stream_generator.stream_path == stream_generator.system_stream_path
 
 
-@patch("lb_runner.plugins.stream.plugin.os.access")
+@patch("os.access")
 def test_ensure_binary_fails_if_nothing_available(mock_access, stream_generator):
     # Mock nothing exists
     with patch.object(Path, "exists", return_value=False):

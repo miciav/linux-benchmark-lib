@@ -2,7 +2,7 @@
 
 import pytest
 import pandas as pd
-from lb_runner.metric_collectors.cli_collector import aggregate_cli
+from lb_runner.api import aggregate_cli
 
 import pytest
 

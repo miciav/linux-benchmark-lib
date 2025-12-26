@@ -12,7 +12,7 @@ import logging
 from enum import Enum, auto
 from typing import Set, Dict, Any
 
-from lb_runner.models.events import RunEvent
+from lb_runner.api import RunEvent
 
 logger = logging.getLogger(__name__)
 

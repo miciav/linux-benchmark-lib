@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Iterable, Mapping, Set, Tuple
 
-from lb_common import configure_logging
+from lb_common.api import configure_logging
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -18,7 +18,16 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--modules",
         nargs="+",
-        default=["lb_runner", "lb_controller", "lb_ui"],
+        default=[
+            "lb_common",
+            "lb_plugins",
+            "lb_runner",
+            "lb_controller",
+            "lb_app",
+            "lb_ui",
+            "lb_analytics",
+            "lb_provisioner",
+        ],
         help="Component roots to scan.",
     )
     parser.add_argument(
@@ -69,7 +78,7 @@ def extract_edges(
 
         owner = path.parts[0] if path.parts else None
         if owner not in components:
-            # Some files can live in nested dirs (e.g. lb_runner/plugins). Derive owner by checking prefix.
+            # Some files can live in nested dirs (e.g. lb_plugins/plugins). Derive owner by checking prefix.
             owner = next((comp for comp in components if path.match(f"{comp}/**")), owner)
         if owner not in components:
             continue

@@ -16,7 +16,7 @@ from lb_app.services.run_output import (
 )
 from lb_app.services.run_types import RunContext, _EventDedupe, _RemoteSession
 from lb_app.ui_interfaces import DashboardHandle
-from lb_runner.api import RunEvent
+from lb_controller.api import RunEvent
 
 
 def pipeline_output_callback(

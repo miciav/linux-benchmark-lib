@@ -10,7 +10,7 @@ from json import JSONEncoder
 from pathlib import Path
 from typing import Any
 
-from lb_runner.plugin_system.interface import WorkloadPlugin
+from lb_plugins.api import WorkloadPlugin
 
 
 logger = logging.getLogger(__name__)

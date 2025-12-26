@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from lb_runner.models.config import RemoteHostConfig
+from lb_runner.api import RemoteHostConfig
 
 from lb_controller.services.journal import RunJournal, RunStatus
 

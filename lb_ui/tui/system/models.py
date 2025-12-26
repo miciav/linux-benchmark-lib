@@ -17,6 +17,8 @@ class PickItem:
     preview: object | None = None  # Rich renderable
     payload: Any = None            # domain object
     variants: Sequence["PickItem"] = () # Nested options (e.g. intensities)
+    selected: bool = False
+    disabled: bool = False
 
 @dataclass
 class SelectionNode:

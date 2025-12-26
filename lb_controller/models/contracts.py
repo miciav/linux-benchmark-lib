@@ -7,7 +7,6 @@ from lb_runner.api import (
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
-    PluginRegistry,
 )
 
 __all__ = [
@@ -15,5 +14,4 @@ __all__ = [
     "RemoteHostConfig",
     "WorkloadConfig",
     "RemoteExecutionConfig",
-    "PluginRegistry",
 ]

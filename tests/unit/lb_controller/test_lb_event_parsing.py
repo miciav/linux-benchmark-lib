@@ -2,9 +2,9 @@
 
 import pytest
 
-from lb_controller.services.journal import LogSink, RunJournal, RunStatus
-from lb_app.services.run_service import _extract_lb_event_data
-from lb_runner.models.events import RunEvent
+from lb_controller.api import LogSink, RunJournal, RunStatus
+from lb_app.api import _extract_lb_event_data
+from lb_runner.api import RunEvent
 
 pytestmark = pytest.mark.unit_controller
 

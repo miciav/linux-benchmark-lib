@@ -8,11 +8,11 @@ Entry points for running workloads locally and working with the plugin system.
 
 ## Local runner
 
-::: lb_runner.engine.runner.LocalRunner
+::: lb_runner.api.LocalRunner
 
 ## Plugin registry
 
-::: lb_runner.plugin_system.registry.PluginRegistry
+::: lb_plugins.api.PluginRegistry
 
 ## Configuration models
 
@@ -20,4 +20,3 @@ Entry points for running workloads locally and working with the plugin system.
 ::: lb_runner.models.config.WorkloadConfig
 ::: lb_runner.models.config.RemoteExecutionConfig
 ::: lb_runner.models.config.RemoteHostConfig
-

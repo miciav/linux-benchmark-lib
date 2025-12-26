@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Iterable, Sequence
 
 from lb_controller.services.journal import RunJournal
-from lb_runner.models.config import RemoteHostConfig
+from lb_runner.api import RemoteHostConfig
 
 
 def pending_hosts_for(

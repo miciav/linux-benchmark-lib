@@ -19,7 +19,7 @@ class Picker(Protocol):
         *,
         title: str,
         query_hint: str = ""
-    ) -> list[PickItem]: ...
+    ) -> list[PickItem] | None: ...
 
 class HierarchicalPicker(Protocol):
     def pick_one(

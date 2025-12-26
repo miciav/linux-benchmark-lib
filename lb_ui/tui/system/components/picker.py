@@ -40,6 +40,8 @@ class _Node:
     children: list["_Node"] = field(default_factory=list)
     payload: PickItem | None = None
     parent_id: str | None = None
+    selected: bool = False
+    disabled: bool = False
 
     def search_blob(self) -> str:
         parts = [self.label, self.kind, " ".join(self.tags), self.description]
@@ -95,6 +97,7 @@ class _TwoLevelPicker:
                     "row.selected": "reverse",
                     "separator": "fg:#0000aa",
                     "search": "bg:#eeeeee fg:#000000",
+                    "disabled": "fg:#aa0000",
                 }
             ),
             full_screen=True,
@@ -140,6 +143,8 @@ class _TwoLevelPicker:
         fragments: list[tuple[str, str]] = []
         for i, node in enumerate(self._children()):
             style = "class:row.selected" if i == self.state.cursor else ""
+            if node.disabled and i != self.state.cursor:
+                style = "class:disabled"
             marker = "▸" if i == self.state.cursor else " "
             fragments.append((style, f" {marker} {node.label}\n"))
         return fragments
@@ -208,6 +213,8 @@ class _TwoLevelPicker:
         def _(event: Any) -> None:
             node = self._selected()
             if node is None:
+                return
+            if node.disabled:
                 return
             if node.children:
                 self.state.path.append(node)
@@ -279,12 +286,14 @@ class _TwoLevelMultiPicker:
                     "checked": "bold",
                     "separator": "fg:#0000aa",
                     "search": "bg:#eeeeee fg:#000000",
+                    "disabled": "fg:#aa0000",
                 }
             ),
             full_screen=True,
         )
 
         self.search.buffer.on_text_changed += lambda _: self._on_query_changed()
+        self._seed_selected()
 
     def _header(self) -> list[tuple[str, str]]:
         hint = "Space=toggle (defaults to medium), Right=drill, Enter=save, Ctrl+S=save, Esc=cancel"
@@ -314,6 +323,35 @@ class _TwoLevelMultiPicker:
     def _children(self) -> list[_Node]:
         return self._filter(self._current().children)
 
+    def _seed_selected(self) -> None:
+        root = self.state.path[0]
+        for node in root.children:
+            if node.kind != "item":
+                continue
+            if node.disabled:
+                continue
+            if node.children:
+                selected_child = next(
+                    (child for child in node.children if child.selected and not child.disabled), None
+                )
+                if selected_child is None and node.selected:
+                    selected_child = self._default_variant(node)
+                if selected_child is not None:
+                    self.selected[node.id] = selected_child
+            else:
+                if node.selected:
+                    self.selected[node.id] = node
+
+    @staticmethod
+    def _default_variant(node: _Node) -> _Node | None:
+        for child in node.children:
+            if child.disabled:
+                continue
+            tail = child.id.split(":", 1)[-1].lower()
+            if child.label.lower() == "medium" or tail == "medium":
+                return child
+        return node.children[0] if node.children else None
+
     def _selected_node(self) -> _Node | None:
         children = self._children()
         if not children:
@@ -322,6 +360,8 @@ class _TwoLevelMultiPicker:
         return children[self.state.cursor]
 
     def _is_checked(self, node: _Node) -> bool:
+        if node.disabled:
+            return False
         if node.kind == "variant":
             return self.selected.get(node.parent_id or "") is node
         if node.kind == "item" and node.children:
@@ -336,6 +376,8 @@ class _TwoLevelMultiPicker:
             selected = i == self.state.cursor
             checked = self._is_checked(node)
             style = "class:row.selected" if selected else ""
+            if node.disabled and not selected:
+                style = "class:disabled"
             if checked and not selected:
                 style = "class:checked"
             marker = "▸" if selected else " "
@@ -381,6 +423,8 @@ class _TwoLevelMultiPicker:
 
     def _toggle_selection(self, node: _Node | None) -> None:
         if node is None:
+            return
+        if node.disabled:
             return
         # Leaf with variants uses parent_id mapping; leaf without children uses its own id.
         if node.kind == "variant":
@@ -452,7 +496,7 @@ class _TwoLevelMultiPicker:
         @kb.add("right")
         def _(event: Any) -> None:
             node = self._selected_node()
-            if node and node.children:
+            if node and node.children and not node.disabled:
                 self.state.path.append(node)
                 self.state.cursor = 0
                 self.search.text = ""
@@ -497,6 +541,8 @@ def _clone_variant(parent_id: str, variant: PickItem) -> PickItem:
         preview=variant.preview,
         payload=variant.payload,
         variants=variant.variants,
+        selected=variant.selected,
+        disabled=variant.disabled,
     )
 
 
@@ -511,6 +557,8 @@ def _build_tree(items: Sequence[PickItem]) -> _Node:
             tags=item.tags,
             description=item.description or "",
             payload=item,
+            selected=item.selected,
+            disabled=item.disabled,
         )
         if item.variants:
             node.children = [
@@ -522,6 +570,8 @@ def _build_tree(items: Sequence[PickItem]) -> _Node:
                     description=variant.description or "",
                     payload=_clone_variant(item.id, variant),
                     parent_id=item.id,
+                    selected=variant.selected,
+                    disabled=item.disabled or variant.disabled,
                 )
                 for variant in item.variants
             ]
@@ -586,11 +636,13 @@ class _PickerApp:
                 "frame.label": "fg:#0000aa bold",
                 "search": "bg:#eeeeee fg:#000000",
                 "variant-selected": "bg:#005500 fg:white bold",
+                "disabled": "fg:#aa0000",
             }),
             full_screen=True,
         )
 
         self.search.buffer.on_text_changed += lambda _: self._apply_filter()
+        self._seed_selected()
 
     def _exit(self, app: Application, result: Any) -> None:
         """Exit the prompt safely, ignoring duplicate-exit errors."""
@@ -605,6 +657,17 @@ class _PickerApp:
         self._panel.apply_filter(reset_index=True)
         if hasattr(self, "app"):
             self.app.invalidate()
+
+    def _seed_selected(self) -> None:
+        if not self.multi_select:
+            return
+        for idx, item in enumerate(self.items):
+            if not item.selected:
+                continue
+            if item.disabled:
+                continue
+            default_variant = 0 if item.variants else None
+            self.selections[idx] = default_variant
 
     @property
     def filtered(self) -> list[PickItem]:
@@ -623,6 +686,8 @@ class _PickerApp:
 
         prefix = "[ ]" if self.multi_select else "   "
         suffix = ""
+        if item.disabled:
+            prefix = "[!]"
         checked = original_idx in self.selections
         if checked:
             prefix = "[x]"
@@ -638,6 +703,8 @@ class _PickerApp:
         style = ""
         if is_selected:
             style = "class:selected"
+        elif item.disabled:
+            style = "class:disabled"
         elif checked:
             style = "class:checked"
 
@@ -757,6 +824,8 @@ class _PickerApp:
         self.app.invalidate()
 
     def _toggle_selection(self, item: PickItem, default_variant: int | None = None) -> None:
+        if item.disabled:
+            return
         try:
             idx = self.items.index(item)
             if idx in self.selections:
@@ -833,19 +902,19 @@ class PowerPicker(Picker):
         *,
         title: str,
         query_hint: str = ""
-    ) -> list[PickItem]:
+    ) -> list[PickItem] | None:
         if not items:
-            return []
+            return None
         if not sys.stdin.isatty() or not sys.stdout.isatty():
-            return []
+            return None
         has_variants = any(item.variants for item in items)
         if has_variants:
             tree = _build_tree(items)
             picker = _TwoLevelMultiPicker(tree, title=title, query_hint=query_hint)
             result = picker.run()
-            return result if result is not None else []
+            return result
         app = _PickerApp(items, title, multi_select=True)
         if query_hint:
             app.search.text = query_hint
         result = app.run()
-        return result if result is not None else []
+        return result

@@ -1,6 +1,6 @@
 [project]
 name = "linux-benchmark-lib"
-version = "0.50.0"
+version = "0.50.1"
 description = "A robust and configurable Python library for benchmarking Linux computational node performance"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -57,11 +57,11 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["lb_runner*", "lb_controller*", "lb_ui*", "lb_analytics*", "lb_provisioner*", "lb_app*", "lb_common*"]
+include = ["lb_runner*", "lb_controller*", "lb_ui*", "lb_analytics*", "lb_provisioner*", "lb_app*", "lb_common*", "lb_plugins*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [tool.setuptools.package-data]
-lb_runner = [
+lb_plugins = [
     "plugins/**/*",
 ]
 lb_controller = [
@@ -73,15 +73,15 @@ lb = "lb_ui.cli.main:main"
 lb-ui = "lb_ui.cli.main:main"
 
 [project.entry-points."linux_benchmark.collectors"]
-psutil = "lb_runner.plugin_system.builtin:PSUTIL_COLLECTOR"
-cli = "lb_runner.plugin_system.builtin:CLI_COLLECTOR"
+psutil = "lb_runner.metric_collectors.builtin:PSUTIL_COLLECTOR"
+cli = "lb_runner.metric_collectors.builtin:CLI_COLLECTOR"
 
 [project.entry-points."linux_benchmark.workloads"]
-stress_ng = "lb_runner.plugins.stress_ng.plugin:PLUGIN"
-fio = "lb_runner.plugins.fio.plugin:PLUGIN"
-dd = "lb_runner.plugins.dd.plugin:PLUGIN"
-hpl = "lb_runner.plugins.hpl.plugin:PLUGIN"
-stream = "lb_runner.plugins.stream.plugin:PLUGIN"
+stress_ng = "lb_plugins.plugins.stress_ng.plugin:PLUGIN"
+fio = "lb_plugins.plugins.fio.plugin:PLUGIN"
+dd = "lb_plugins.plugins.dd.plugin:PLUGIN"
+hpl = "lb_plugins.plugins.hpl.plugin:PLUGIN"
+stream = "lb_plugins.plugins.stream.plugin:PLUGIN"
 
 [tool.uv]
 package = true

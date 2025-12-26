@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import pytest
 from typer.testing import CliRunner
 
-from lb_runner.models.config import BenchmarkConfig
+from lb_runner.api import BenchmarkConfig
 
 @dataclass
 class MockDoctorReport:
@@ -25,9 +25,9 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.chdir(tmp_path)
     # Clear all submodules to ensure fresh initialization of services
     for mod in list(sys.modules.keys()):
-        if mod.startswith("lb_ui.cli"):
+        if mod.startswith(("lb_ui.cli", "lb_ui.api")):
             del sys.modules[mod]
-    cli = importlib.import_module("lb_ui.cli")
+    cli = importlib.import_module("lb_ui.api")
     return cli
 
 
@@ -241,7 +241,7 @@ def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, 
 
 
 
-    from lb_ui.cli.commands import plugin as plugin_commands
+    from lb_ui.api import plugin_commands
     monkeypatch.setattr(
         plugin_commands,
         "select_plugins_interactively",
@@ -297,7 +297,7 @@ def test_plugin_select_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 
 
-    from lb_ui.cli.commands import plugin as plugin_commands
+    from lb_ui.api import plugin_commands
     monkeypatch.setattr(
         plugin_commands,
         "select_plugins_interactively",
@@ -572,7 +572,7 @@ def test_run_command_allows_repetition_override(monkeypatch: pytest.MonkeyPatch,
     cli = _load_cli(monkeypatch, tmp_path)
 
 
-    monkeypatch.setattr(cli, "DEV_MODE", True)
+    monkeypatch.setattr(cli.ctx_store, "dev_mode", True)
 
 
     runner = CliRunner()

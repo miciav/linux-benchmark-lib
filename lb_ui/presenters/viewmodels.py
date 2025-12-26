@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, Iterable
 
-from lb_controller.api import RunJournal, RunStatus, TaskState
+from lb_app.api import RunJournal, RunStatus, TaskState
 
 
 def target_repetitions(journal: RunJournal) -> int:

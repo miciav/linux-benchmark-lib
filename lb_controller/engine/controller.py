@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from lb_runner.models.config import BenchmarkConfig, RemoteHostConfig
-from lb_runner.engine.stop_token import StopToken
+from lb_common.api import PluginAssetConfig
+from lb_runner.api import BenchmarkConfig, RemoteHostConfig, RunEvent, StopToken
 
 from lb_controller.models.state import ControllerState, ControllerStateMachine
 from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
@@ -30,7 +30,6 @@ from lb_controller.adapters.playbooks import (
 )
 from lb_controller.engine.stop_logic import handle_stop_during_workloads, handle_stop_protocol
 from lb_controller.services.paths import generate_run_id, prepare_per_host_dirs, prepare_run_dirs
-from lb_controller.services.plugin_service import create_registry
 from lb_controller.engine.stops import StopCoordinator
 from lb_controller.engine.lifecycle import RunLifecycle, RunPhase
 from lb_controller.models.types import (
@@ -40,7 +39,6 @@ from lb_controller.models.types import (
     RunExecutionSummary,
 )
 from lb_controller.models.pending import pending_hosts_for, pending_repetitions
-from lb_runner.models.events import RunEvent
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +96,6 @@ class BenchmarkController:
             stream_output=stream,
             stop_token=stop_token,
         )
-        self.plugin_registry = create_registry()
         self._journal_refresh = journal_refresh
         # Use event stream as the source of truth; avoid mass RUNNING/COMPLETED updates.
         self._use_progress_stream = True
@@ -323,9 +320,7 @@ class BenchmarkController:
             ui_log(f"All repetitions already completed for {test_name}, skipping.")
             return True
 
-        plugin = self._get_plugin_or_skip(workload_cfg.plugin, test_name, ui_log, flags)
-        if plugin is None:
-            return True
+        plugin_assets = self._get_plugin_assets(workload_cfg.plugin, test_name, ui_log, flags)
 
         if self.stop_token and self.stop_token.should_stop():
             self._handle_stop_during_workloads(
@@ -339,7 +334,8 @@ class BenchmarkController:
 
         self._run_workload_setup(
             test_name,
-            plugin,
+            plugin_assets,
+            workload_cfg.plugin,
             state.inventory,
             state.extravars,
             pending_reps,
@@ -357,7 +353,8 @@ class BenchmarkController:
 
         self._run_workload_execution(
             test_name,
-            plugin,
+            plugin_assets,
+            workload_cfg.plugin,
             state,
             pending_hosts,
             pending_reps,
@@ -382,24 +379,25 @@ class BenchmarkController:
     ) -> _RunFlags:
         return handle_stop_during_workloads(self, inventory, extravars, flags, ui_log)
 
-    def _get_plugin_or_skip(
+    def _get_plugin_assets(
         self,
         plugin_name: str,
         test_name: str,
         ui_log: Callable[[str], None],
         flags: _RunFlags,
-    ):
-        try:
-            return self.plugin_registry.get(plugin_name)
-        except Exception as exc:
-            ui_log(f"Failed to load plugin for {test_name}: {exc}")
-            flags.all_tests_success = False
-            return None
+    ) -> PluginAssetConfig | None:
+        assets = self.config.plugin_assets.get(plugin_name)
+        if assets is None:
+            ui_log(
+                f"No plugin assets found for {test_name} ({plugin_name}); skipping setup/teardown."
+            )
+        return assets
 
     def _run_workload_setup(
         self,
         test_name: str,
-        plugin: Any,
+        plugin_assets: PluginAssetConfig | None,
+        plugin_name: str,
         inventory: InventorySpec,
         extravars: Dict[str, Any],
         pending_reps: Dict[str, List[int]],
@@ -410,7 +408,8 @@ class BenchmarkController:
         run_workload_setup(
             self,
             test_name,
-            plugin,
+            plugin_assets,
+            plugin_name,
             inventory,
             extravars,
             pending_reps,
@@ -422,7 +421,8 @@ class BenchmarkController:
     def _run_workload_execution(
         self,
         test_name: str,
-        plugin: Any,
+        plugin_assets: PluginAssetConfig | None,
+        plugin_name: str,
         state: _RunState,
         pending_hosts: List[RemoteHostConfig],
         pending_reps: Dict[str, List[int]],
@@ -433,7 +433,8 @@ class BenchmarkController:
         run_workload_execution(
             self,
             test_name,
-            plugin,
+            plugin_assets,
+            plugin_name,
             state,
             pending_hosts,
             pending_reps,
@@ -481,14 +482,6 @@ class BenchmarkController:
             flags,
             ui_log,
         )
-
-    def _run_teardown_playbook(
-        self,
-        plugin: Any,
-        inventory: InventorySpec,
-        extravars: Dict[str, Any],
-    ) -> None:
-        run_teardown_playbook(self, plugin, inventory, extravars)
 
     def _run_global_teardown(
         self,

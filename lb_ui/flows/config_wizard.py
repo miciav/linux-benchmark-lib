@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from lb_controller.api import BenchmarkConfig, RemoteHostConfig
+from lb_app.api import BenchmarkConfig, RemoteHostConfig
 from lb_ui.tui.system.protocols import UI
 
 

@@ -10,15 +10,15 @@ from typing import Dict, List
 
 import pytest
 
-from lb_runner.models.config import (
+from lb_plugins.api import BaselineConfig
+from lb_runner.api import (
     BenchmarkConfig,
     MetricCollectorConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
 )
-from lb_runner.plugins.baseline.plugin import BaselineConfig
-from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
+from lb_controller.api import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController
 from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key

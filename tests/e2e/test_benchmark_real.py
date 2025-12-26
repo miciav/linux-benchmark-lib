@@ -14,18 +14,12 @@ import time
 
 import pytest
 
-from lb_runner.models.config import (
-    BenchmarkConfig,
-    MetricCollectorConfig,
-    WorkloadConfig,
-)
+from lb_runner.api import BenchmarkConfig, MetricCollectorConfig, WorkloadConfig
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.slow]
 
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
-from lb_runner.engine.runner import LocalRunner
-from lb_runner.plugin_system.builtin import builtin_plugins
-from lb_runner.plugin_system.registry import PluginRegistry
+from lb_plugins.api import PluginRegistry, StressNGConfig, builtin_plugins
+from lb_runner.api import LocalRunner
 
 
 class TestRealBenchmarkIntegration(unittest.TestCase):

@@ -5,8 +5,7 @@ from typing import Callable, List, Optional
 
 import typer
 
-from lb_analytics.engine.service import AnalyticsRequest
-from lb_controller.api import ConfigService, RunCatalogService
+from lb_app.api import AnalyticsRequest, ConfigService, RunCatalogService
 from lb_ui.tui.system.models import PickItem, TableModel
 
 

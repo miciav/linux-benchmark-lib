@@ -1,8 +1,8 @@
 import pytest
 from dataclasses import dataclass
 from typing import Any
-from lb_ui.tui.system.components.picker import _PickerApp
-from lb_ui.tui.system.models import PickItem
+from lb_ui.api import _PickerApp
+from lb_ui.api import PickItem
 
 pytestmark = pytest.mark.unit_ui
 

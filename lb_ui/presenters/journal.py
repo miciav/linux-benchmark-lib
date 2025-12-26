@@ -4,7 +4,7 @@ from __future__ import annotations
 
 
 from typing import Dict, List, Tuple
-from lb_controller.api import RunJournal, RunStatus, TaskState
+from lb_app.api import RunJournal, RunStatus, TaskState
 from lb_ui.tui.system.models import TableModel
 
 

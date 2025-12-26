@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional, Set
 
-from lb_controller.api import (
+from lb_app.api import (
     BenchmarkConfig,
     ConfigService,
     PluginRegistry,
@@ -32,6 +32,7 @@ def select_workloads_interactively(
 
     available_plugins = registry.available()
     items = []
+    missing_plugins: set[str] = set()
 
     intensities_catalog = [
         PickItem(id="user_defined", title="user_defined", description="Custom intensity"),
@@ -43,7 +44,11 @@ def select_workloads_interactively(
     # Prepare items for picker with variants as intensities
     for name, wl in sorted(cfg.workloads.items()):
         plugin_obj = available_plugins.get(wl.plugin)
-        description = getattr(plugin_obj, "description", "") if plugin_obj else ""
+        is_missing = plugin_obj is None
+        is_disabled = is_missing or not wl.enabled
+        if is_missing:
+            missing_plugins.add(wl.plugin)
+        description = getattr(plugin_obj, "description", "") if plugin_obj else "missing plugin"
         current_intensity = wl.intensity if wl.intensity else "user_defined"
         variant_list = []
         for variant in intensities_catalog:
@@ -60,6 +65,8 @@ def select_workloads_interactively(
                     tags=variant.tags,
                     search_blob=variant.search_blob or label,
                     preview=variant.preview,
+                    selected=wl.enabled and variant.id == current_intensity and not is_disabled,
+                    disabled=is_disabled,
                 )
             )
 
@@ -70,10 +77,26 @@ def select_workloads_interactively(
             payload=wl,
             variants=variant_list,
             search_blob=f"{name} {wl.plugin} {description}",
+            selected=wl.enabled and not is_disabled,
+            disabled=is_disabled,
         )
         items.append(item)
 
+    if missing_plugins:
+        missing_list = ", ".join(sorted(missing_plugins))
+        ui.present.warning(
+            f"Missing plugins (disabled in picker): {missing_list}. "
+            "Install them to enable selection."
+        )
+    elif items and all(item.disabled for item in items):
+        ui.present.warning(
+            "All workloads are disabled. Enable workloads first with "
+            "`lb plugin list --enable NAME`."
+        )
+
     selection = ui.picker.pick_many(items, title="Select Configured Workloads")
+    if selection is None:
+        return
     selected_names = set()
     intensities: Dict[str, str] = {}
 
@@ -92,7 +115,10 @@ def select_workloads_interactively(
             sys.exit(1)
 
     cfg_write, target, stale, _ = config_service.load_for_write(config, allow_create=True)
+    disabled_names = {item.id for item in items if item.disabled}
     for name, wl in cfg_write.workloads.items():
+        if name in disabled_names:
+            continue
         wl.enabled = name in selected_names
         if wl.enabled and name in intensities:
             wl.intensity = intensities[name]
@@ -121,10 +147,20 @@ def select_plugins_interactively(
     items = []
     for name, plugin in registry.available().items():
         desc = getattr(plugin, "description", "") or ""
-        items.append(PickItem(id=name, title=name, description=desc))
+        items.append(
+            PickItem(
+                id=name,
+                title=name,
+                description=desc,
+                selected=enabled_map.get(name, False),
+            )
+        )
     
     selection = ui.picker.pick_many(items, title="Select Workload Plugins")
-    
+
+    if selection is None:
+        ui.present.info("Selection cancelled.")
+        return None
     if not selection:
         ui.present.warning("Selection cancelled.")
         return None

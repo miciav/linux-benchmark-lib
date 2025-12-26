@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_ui.tui.system.components.dashboard import RichDashboard
-from lb_ui.tui.system.headless import HeadlessUI
-from lb_ui.tui.adapters.tui_adapter import TUIAdapter, ThreadedDashboardHandle
+from lb_ui.api import RichDashboard
+from lb_ui.api import HeadlessUI
+from lb_ui.api import TUIAdapter, ThreadedDashboardHandle
 from lb_controller.api import RunJournal
 
 

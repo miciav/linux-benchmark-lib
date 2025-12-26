@@ -6,7 +6,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable
 
-from lb_runner.models.config import BenchmarkConfig, RemoteHostConfig
+from lb_runner.api import BenchmarkConfig, RemoteHostConfig
+
+# Controller-local Ansible playbook root
+ANSIBLE_ROOT = Path(__file__).resolve().parent.parent / "ansible"
+PLAYBOOK_FILES = {
+    "setup_playbook": "setup.yml",
+    "run_playbook": "run_benchmark.yml",
+    "collect_playbook": "collect.yml",
+    "teardown_playbook": "teardown.yml",
+}
 
 
 def generate_run_id() -> str:
@@ -41,3 +50,14 @@ def prepare_per_host_dirs(
         host_dir.mkdir(parents=True, exist_ok=True)
         per_host[host.name] = host_dir
     return per_host
+
+
+def apply_playbook_defaults(config: BenchmarkConfig) -> None:
+    """Ensure remote_execution playbook paths point to controller Ansible assets."""
+    rex = config.remote_execution
+    for attr, fname in PLAYBOOK_FILES.items():
+        current = getattr(rex, attr)
+        if current is not None and Path(current).exists():
+            continue
+        candidate = ANSIBLE_ROOT / "playbooks" / fname
+        setattr(rex, attr, candidate)

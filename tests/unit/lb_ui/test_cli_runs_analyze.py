@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from lb_ui.cli.main import app
-from lb_controller.api import ConfigService
+from lb_ui.api import app
+from lb_app.api import ConfigService
 
 pytestmark = [pytest.mark.unit_ui]
 
@@ -17,9 +17,13 @@ pytestmark = [pytest.mark.unit_ui]
 def test_cli_runs_list_and_analyze(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     runner = CliRunner()
     # Avoid reading user-level config defaults (non-hermetic).
-    import lb_ui.cli as cli
+    import lb_ui.api as cli
 
-    monkeypatch.setattr(cli, "config_service", ConfigService(config_home=tmp_path / "config"))
+    monkeypatch.setattr(
+        cli.ctx_store,
+        "config_service",
+        ConfigService(config_home=tmp_path / "config"),
+    )
 
     output_root = tmp_path / "benchmark_results"
     run_root = output_root / "run-20240101-000000" / "host1" / "stress_ng"

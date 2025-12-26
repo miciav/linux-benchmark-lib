@@ -4,11 +4,11 @@ from pathlib import Path
 from unittest.mock import MagicMock, ANY, patch
 
 import pytest
-from lb_controller.engine.controller import BenchmarkController
-from lb_controller.engine.stops import StopState
-from lb_controller.models.types import ExecutionResult
-from lb_runner.models.config import BenchmarkConfig, RemoteHostConfig
-from lb_runner.engine.stop_token import StopToken
+from lb_controller.api import BenchmarkController
+from lb_controller.api import StopState
+from lb_controller.api import ExecutionResult
+from lb_runner.api import BenchmarkConfig, RemoteHostConfig
+from lb_runner.api import StopToken
 
 
 @pytest.fixture

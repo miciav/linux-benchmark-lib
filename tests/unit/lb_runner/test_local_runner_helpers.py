@@ -3,9 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
-from lb_runner.engine.runner import LocalRunner
-from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
+from lb_plugins.api import WorkloadIntensity, WorkloadPlugin
+from lb_runner.api import BenchmarkConfig, LocalRunner, WorkloadConfig
 
 
 class DummyPlugin(WorkloadPlugin):

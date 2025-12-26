@@ -17,7 +17,7 @@ class HeadlessUI(UI):
     
     # Configuration for automated responses
     next_pick_one: PickItem | None = None
-    next_pick_many: list[PickItem] = field(default_factory=list)
+    next_pick_many: list[PickItem] | None = field(default_factory=list)
     next_hierarchical_pick: SelectionNode | None = None
     next_hierarchical_pick_path: list[str] = field(default_factory=list)
     next_form_response: str = "default"
@@ -39,7 +39,7 @@ class _HeadlessPicker(Picker):
     def pick_one(self, items: Sequence[PickItem], *, title: str, query_hint: str = "") -> PickItem | None:
         return self._ui.next_pick_one
 
-    def pick_many(self, items: Sequence[PickItem], *, title: str, query_hint: str = "") -> list[PickItem]:
+    def pick_many(self, items: Sequence[PickItem], *, title: str, query_hint: str = "") -> list[PickItem] | None:
         return self._ui.next_pick_many
 
 class _HeadlessHierarchicalPicker(HierarchicalPicker):

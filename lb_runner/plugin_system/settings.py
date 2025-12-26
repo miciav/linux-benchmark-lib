@@ -11,15 +11,14 @@ from pydantic import BaseModel, ValidationError
 
 if TYPE_CHECKING:
     from lb_runner.models.config import BenchmarkConfig
-    from lb_runner.plugin_system.registry import PluginRegistry
+    from lb_plugins.api import PluginRegistry
 
 
 logger = logging.getLogger(__name__)
 
 
 def _default_registry() -> "PluginRegistry":
-    from lb_runner.plugin_system.builtin import builtin_plugins
-    from lb_runner.plugin_system.registry import PluginRegistry
+    from lb_plugins.api import PluginRegistry, builtin_plugins
 
     return PluginRegistry(builtin_plugins())
 

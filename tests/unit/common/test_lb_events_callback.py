@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 
-from lb_controller.ansible.callback_plugins.lb_events import (
+from lb_controller.api import (
     CallbackModule,
     _extract_lb_event,
 )

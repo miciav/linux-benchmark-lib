@@ -5,10 +5,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple, Optional
 
-from lb_app.api import ApplicationClient, DoctorService, TestService, UIAdapter
-from lb_analytics.engine.service import AnalyticsService
-from lb_common import configure_logging
-from lb_controller.api import ConfigService
+from lb_app.api import (
+    AnalyticsService,
+    ApplicationClient,
+    ConfigService,
+    DoctorService,
+    TestService,
+    UIAdapter,
+)
+from lb_common.api import configure_logging
 from lb_ui.tui.adapters.tui_adapter import TUIAdapter
 from lb_ui.tui.system.facade import TUI
 from lb_ui.tui.system.protocols import UI

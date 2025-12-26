@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from lb_analytics import DataHandler
+from lb_analytics.api import DataHandler
 
 import pytest
 

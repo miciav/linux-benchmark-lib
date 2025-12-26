@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import MagicMock
 import pytest
-from lb_runner.services.results import collect_metrics
+from lb_runner.api import collect_metrics
 
 @pytest.mark.unit_runner
 def test_collect_metrics_saves_only_to_rep_dir(tmp_path: Path):

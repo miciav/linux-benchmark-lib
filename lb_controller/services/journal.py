@@ -6,8 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
-from lb_runner.models.events import RunEvent
-from lb_runner.models.config import BenchmarkConfig
+from lb_runner.api import BenchmarkConfig, RunEvent
 
 
 class RunStatus:

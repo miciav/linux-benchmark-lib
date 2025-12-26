@@ -4,10 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from lb_common.api import RemoteHostSpec
 from lb_controller.api import ControllerState, RunExecutionSummary
-from lb_provisioner.models.types import ProvisionedNode, ProvisioningResult
-from lb_provisioner.services.utils import cleanup_provisioned_nodes
-from lb_runner.models.config import RemoteHostConfig
+from lb_provisioner.api import ProvisionedNode, ProvisioningResult
+from lb_provisioner.api import cleanup_provisioned_nodes
 
 
 class DummyPresenter:
@@ -36,7 +36,7 @@ def test_cleanup_skipped_when_not_authorized(tmp_path):
     destroyed: list[str] = []
     presenter = DummyPresenter()
     node = ProvisionedNode(
-        host=RemoteHostConfig(name="n1", address="127.0.0.1"),
+        host=RemoteHostSpec(name="n1", address="127.0.0.1"),
         destroy=lambda: destroyed.append("x"),
     )
     provisioning = ProvisioningResult(nodes=[node])
@@ -54,7 +54,7 @@ def test_cleanup_runs_when_authorized(tmp_path):
     destroyed: list[str] = []
     presenter = DummyPresenter()
     node = ProvisionedNode(
-        host=RemoteHostConfig(name="n1", address="127.0.0.1"),
+        host=RemoteHostSpec(name="n1", address="127.0.0.1"),
         destroy=lambda: destroyed.append("x"),
     )
     provisioning = ProvisioningResult(nodes=[node])

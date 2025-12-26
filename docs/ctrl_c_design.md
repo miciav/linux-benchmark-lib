@@ -2,7 +2,7 @@
 
 ## Thread and Component Model
 
-- **UI/main thread** drives the dashboard and installs a `SigintDoublePressHandler` through `lb_app.services.run_service.RunService`. It never exits on the first Ctrl+C while the controller thread is active; instead it posts notifications to a queue that the main loop drains.
+- **UI/main thread** drives the dashboard and installs a `SigintDoublePressHandler` through `lb_app.api.RunService`. It never exits on the first Ctrl+C while the controller thread is active; instead it posts notifications to a queue that the main loop drains.
 - **Controller worker thread** (`ControllerRunner`) owns orchestration and transitions a shared `ControllerStateMachine`.
 - **AnsibleRunnerExecutor** executes playbooks in subprocesses and exposes `interrupt()` + `is_running` for safe cancellation.
 - **lb_runner** emits progress/stop events; the controller consumes them for stop confirmation.

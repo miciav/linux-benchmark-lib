@@ -6,7 +6,7 @@ from typing import List, Optional, Callable
 
 import typer
 
-from lb_provisioner.models.types import MAX_NODES
+from lb_app.api import MAX_NODES
 from lb_ui.wiring.dependencies import UIContext
 from lb_ui.presenters.plan import build_run_plan_table
 from lb_ui.presenters.journal import build_journal_table
@@ -25,7 +25,7 @@ def register_run_command(
     ) -> None:
         """Load and render a completed run journal, with log hints."""
         try:
-            from lb_controller.api import RunJournal
+            from lb_app.api import RunJournal
             journal = RunJournal.load(journal_path)
         except Exception as exc:
             ctx.ui.present.warning(f"Could not read run journal at {journal_path}: {exc}")
@@ -119,7 +119,7 @@ def register_run_command(
         ),
     ) -> None:
         """Run workloads using Ansible on remote, Docker, or Multipass targets."""
-        from lb_common import configure_logging
+        from lb_common.api import configure_logging
 
         if not ctx.dev_mode and (docker or multipass):
             ctx.ui.present.error("--docker and --multipass are available only in dev mode.")
@@ -175,6 +175,7 @@ def register_run_command(
             selected_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
             if not selected_tests:
                 ctx.ui.present.error("No workloads selected to run.")
+                ctx.ui.present.info("Enable workloads first with `lb plugin list --enable NAME` or use `lb config select-workloads`.")
                 raise typer.Exit(1)
 
             run_request = RunRequest(

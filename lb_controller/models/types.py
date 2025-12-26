@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Protocol
 
 from lb_controller.models.state import ControllerState
 
-from lb_runner.models.config import RemoteHostConfig
+from lb_runner.api import RemoteHostConfig
 
 
 @dataclass

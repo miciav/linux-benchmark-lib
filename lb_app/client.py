@@ -6,17 +6,18 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from lb_app.interfaces import AppClient, UIHooks, RunRequest
-from lb_controller.api import ConfigService, RunJournal, create_registry
+from lb_app.services.config_service import ConfigService
+from lb_controller.api import BenchmarkConfig, RemoteHostConfig, RunJournal, WorkloadConfig
 from lb_app.services.run_service import RunService, RunContext
 from lb_app.services.run_service import RunResult
-from lb_common import configure_logging
-from lb_provisioner import (
+from lb_common.api import RemoteHostSpec, configure_logging
+from lb_provisioner.api import (
     ProvisioningService,
     ProvisioningMode,
     ProvisioningRequest,
     ProvisioningError,
 )
-from lb_runner.api import BenchmarkConfig, WorkloadConfig
+from lb_plugins.api import create_registry
 
 
 class ApplicationClient(AppClient):
@@ -51,7 +52,7 @@ class ApplicationClient(AppClient):
             request = ProvisioningRequest(
                 mode=ProvisioningMode.REMOTE,
                 count=len(config.remote_hosts),
-                remote_hosts=config.remote_hosts,
+                remote_hosts=[RemoteHostSpec.from_object(h) for h in config.remote_hosts],
             )
         elif mode is ProvisioningMode.DOCKER:
             request = ProvisioningRequest(
@@ -67,7 +68,18 @@ class ApplicationClient(AppClient):
                 state_dir=temp_dir,
             )
         result = self._provisioner.provision(request)
-        config.remote_hosts = [node.host for node in result.nodes]
+        config.remote_hosts = [
+            RemoteHostConfig(
+                name=node.host.name,
+                address=node.host.address,
+                port=node.host.port,
+                user=node.host.user,
+                become=node.host.become,
+                become_method=node.host.become_method,
+                vars=node.host.vars,
+            )
+            for node in result.nodes
+        ]
         config.remote_execution.enabled = True
         return config, result
 

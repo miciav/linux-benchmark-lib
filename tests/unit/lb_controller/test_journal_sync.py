@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from lb_controller.services.journal_sync import backfill_timings_from_results
-from lb_controller.services.journal import RunJournal, RunStatus
-from lb_runner.models.config import BenchmarkConfig, WorkloadConfig, RemoteHostConfig
+from lb_controller.api import backfill_timings_from_results
+from lb_controller.api import RunJournal, RunStatus
+from lb_runner.api import BenchmarkConfig, WorkloadConfig, RemoteHostConfig
 
 
 def _journal_for(workload: str = "stress_ng") -> tuple[RunJournal, BenchmarkConfig]:

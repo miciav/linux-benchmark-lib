@@ -2,8 +2,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 import pytest
-from lb_runner.models.config import BenchmarkConfig
-from lb_controller.services.paths import prepare_run_dirs
+from lb_runner.api import BenchmarkConfig
+from lb_controller.api import prepare_run_dirs
 
 @pytest.mark.unit_controller
 def test_prepare_run_dirs_does_not_create_report_and_export_dirs(tmp_path: Path):

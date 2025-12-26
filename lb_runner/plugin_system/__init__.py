@@ -1,16 +1,15 @@
-"""Core plugin system primitives (interfaces, registry, discovery)."""
+"""Runner-specific plugin setting helpers."""
 
-from .interface import WorkloadPlugin, WorkloadIntensity
-from .base_generator import BaseGenerator
-from .registry import PluginRegistry, CollectorPlugin, USER_PLUGIN_DIR
-from .builtin import builtin_plugins
+from .settings import (
+    apply_plugin_settings_defaults,
+    ensure_workloads_from_plugin_settings,
+    hydrate_plugin_settings,
+    populate_default_plugin_settings,
+)
 
 __all__ = [
-    "WorkloadPlugin",
-    "WorkloadIntensity",
-    "BaseGenerator",
-    "PluginRegistry",
-    "CollectorPlugin",
-    "USER_PLUGIN_DIR",
-    "builtin_plugins",
+    "apply_plugin_settings_defaults",
+    "ensure_workloads_from_plugin_settings",
+    "hydrate_plugin_settings",
+    "populate_default_plugin_settings",
 ]

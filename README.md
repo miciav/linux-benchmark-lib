@@ -25,7 +25,7 @@
   <a href="https://github.com/miciav/linux-benchmark-lib/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/miciav/linux-benchmark-lib" alt="License" />
   </a>
-  <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python versions" />
+  <img src="https://img.shields.io/badge/python-3.13%2B-blue" alt="Python versions" />
 </p>
 
 ## Highlights
@@ -109,12 +109,14 @@ bash scripts/switch_mode.sh dev
 
 ```
 linux-benchmark-lib/
-|-- lb_runner/        # Runner (plugins, collectors, local execution helpers)
+|-- lb_runner/        # Runner (collectors, local execution helpers)
 |-- lb_controller/    # Orchestration and journaling
 |-- lb_app/           # Stable API for CLI/UI integrations
 |-- lb_ui/            # CLI/TUI implementation
 |-- lb_analytics/     # Reporting and analytics
+|-- lb_plugins/       # Workload plugins and registry
 |-- lb_provisioner/   # Docker/Multipass helpers
+|-- lb_common/        # Shared API helpers
 |-- tests/            # Unit and integration tests
 |-- scripts/          # Helper scripts
 `-- pyproject.toml
@@ -122,7 +124,7 @@ linux-benchmark-lib/
 
 ## Logging policy
 
-- Configure logging via `lb_common.configure_logging()` in your entrypoint.
+- Configure logging via `lb_common.api.configure_logging()` in your entrypoint.
 - `lb_ui` configures logging automatically; `lb_runner` and `lb_controller` do not.
 - Keep stdout clean for `LB_EVENT` streaming when integrating custom UIs.
 

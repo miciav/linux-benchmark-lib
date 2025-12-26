@@ -2,7 +2,7 @@
 
 import pytest
 
-from lb_controller.engine.interrupts import (
+from lb_controller.api import (
     DoubleCtrlCStateMachine,
     RunInterruptState,
     SigintDecision,

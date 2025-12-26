@@ -43,7 +43,7 @@ def test_controller_is_importable_even_without_extra_optional_packages():
     import lb_controller  # noqa: F401
 
     assert hasattr(api, "BenchmarkController")
-    assert hasattr(api, "ConfigService")
+    assert not hasattr(api, "ConfigService")
     assert not hasattr(lb_controller, "BenchmarkController")
 
 

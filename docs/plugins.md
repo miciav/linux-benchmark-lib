@@ -8,7 +8,7 @@ Linux Benchmark Library exposes workloads as plugins. Built-in plugins are loade
 - `hpl`
 - `stream`
 
-Third-party plugins are installed into `lb_runner/plugins/_user` (override with `LB_USER_PLUGIN_DIR`).
+Third-party plugins are installed into `lb_plugins/plugins/_user` (override with `LB_USER_PLUGIN_DIR`).
 
 ### CLI workflow
 

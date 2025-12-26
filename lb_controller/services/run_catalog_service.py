@@ -7,24 +7,11 @@ This service provides a stable way for UI/CLI to discover available runs.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set
 
-
-@dataclass(frozen=True)
-class RunInfo:
-    """Lightweight metadata about a benchmark run."""
-
-    run_id: str
-    output_root: Path
-    report_root: Optional[Path]
-    data_export_root: Optional[Path]
-    hosts: Sequence[str]
-    workloads: Sequence[str]
-    created_at: Optional[datetime]
-    journal_path: Optional[Path]
+from lb_common.api import RunInfo
 
 
 class RunCatalogService:

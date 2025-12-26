@@ -7,7 +7,7 @@ from unittest.mock import Mock, call, patch, ANY
 import pytest
 
 from lb_controller.api import DoubleCtrlCStateMachine, SigintDoublePressHandler
-from lb_controller.engine.interrupts import RunInterruptState, SigintDecision
+from lb_controller.api import RunInterruptState, SigintDecision
 
 
 class TestDoubleCtrlCStateMachine:

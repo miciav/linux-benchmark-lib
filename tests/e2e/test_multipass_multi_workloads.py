@@ -4,22 +4,15 @@ from typing import Any
 
 import pytest
 
-from lb_runner.models.config import (
-    BenchmarkConfig,
-    RemoteExecutionConfig,
-    RemoteHostConfig,
-    WorkloadConfig,
-)
+from lb_plugins.api import DDConfig, FIOConfig, StressNGConfig
+from lb_runner.api import BenchmarkConfig, RemoteExecutionConfig, RemoteHostConfig, WorkloadConfig
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
 
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
-from lb_runner.plugins.dd.plugin import DDConfig
-from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
+from lb_controller.api import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController
 from tests.e2e.test_multipass_benchmark import multipass_vm
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
-from lb_runner.plugins.fio.plugin import FIOConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"

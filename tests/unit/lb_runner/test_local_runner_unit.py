@@ -5,10 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
-from lb_runner.engine.runner import LocalRunner
-from lb_runner.plugin_system.builtin import builtin_plugins
-from lb_runner.plugin_system.registry import PluginRegistry
+from lb_plugins.api import PluginRegistry, builtin_plugins
+from lb_runner.api import BenchmarkConfig, LocalRunner, WorkloadConfig
 
 pytestmark = pytest.mark.unit_runner
 
@@ -24,7 +22,7 @@ def test_local_runner_requires_registry(tmp_path):
     registry = PluginRegistry(builtin_plugins())
 
     runner = LocalRunner(cfg, registry=registry)
-    assert runner.plugin_registry is registry
+    assert runner.plugin_registry.get("stress_ng") is registry.get("stress_ng")
 
     with pytest.raises(TypeError):
         LocalRunner(cfg)  # type: ignore[misc]

@@ -7,7 +7,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, List, Optional
 
-from lb_runner.models.config import RemoteHostConfig
+from lb_common.api import RemoteHostSpec
 
 MAX_NODES = 2
 
@@ -26,7 +26,7 @@ class ProvisioningRequest:
 
     mode: ProvisioningMode
     count: int = 1
-    remote_hosts: Optional[List[RemoteHostConfig]] = None
+    remote_hosts: Optional[List[RemoteHostSpec]] = None
     docker_engine: str = "docker"
     docker_image: str = "ubuntu:24.04"
     multipass_image: str = "24.04"
@@ -37,7 +37,7 @@ class ProvisioningRequest:
 class ProvisionedNode:
     """Provisioned host plus a teardown hook."""
 
-    host: RemoteHostConfig
+    host: RemoteHostSpec
     destroy: Optional[Callable[[], None]] = None
 
     def teardown(self) -> None:

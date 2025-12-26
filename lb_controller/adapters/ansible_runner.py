@@ -14,10 +14,10 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from lb_controller.models.types import ExecutionResult, InventorySpec, RemoteExecutor
-from lb_runner.engine.stop_token import StopToken
+from lb_runner.api import StopToken
 
 logger = logging.getLogger(__name__)
-ANSIBLE_ROOT = Path(__file__).resolve().parent / "ansible"
+ANSIBLE_ROOT = Path(__file__).resolve().parent.parent / "ansible"
 
 
 class AnsibleRunnerExecutor(RemoteExecutor):

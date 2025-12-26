@@ -21,16 +21,15 @@ pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.sl
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 
-from lb_runner.models.config import (
+from lb_plugins.api import DDConfig, FIOConfig, StressNGConfig
+from lb_runner.api import (
     BenchmarkConfig,
     MetricCollectorConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
 )
-from lb_runner.plugins.dd.plugin import DDConfig
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
-from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
+from lb_controller.api import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController
 from tests.helpers.multipass import (
     ensure_ansible_available,
@@ -39,7 +38,6 @@ from tests.helpers.multipass import (
     make_test_ansible_env,
     stage_private_key,
 )
-from lb_runner.plugins.fio.plugin import FIOConfig
 
 # Constants
 VM_NAME_PREFIX = "benchmark-test-vm"

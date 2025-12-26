@@ -9,7 +9,7 @@ import tempfile
 import pytest
 from pydantic import ValidationError # Added ValidationError import
 
-from lb_runner.models.config import (
+from lb_runner.api import (
     BenchmarkConfig,
     MetricCollectorConfig,
     PerfConfig,
@@ -18,14 +18,16 @@ from lb_runner.models.config import (
 )
 # We need to import all plugin configs that BenchmarkConfig might try to load by default
 # This ensures they are registered with the PluginRegistry before BenchmarkConfig() is called
-from lb_runner.plugins.baseline.plugin import BaselineConfig
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
-from lb_runner.plugins.dd.plugin import DDConfig
-from lb_runner.plugins.fio.plugin import FIOConfig
-from lb_runner.plugins.geekbench.plugin import GeekbenchConfig
-from lb_runner.plugins.hpl.plugin import HPLConfig
-from lb_runner.plugins.stream.plugin import StreamConfig
-from lb_runner.plugins.yabs.plugin import YabsConfig
+from lb_plugins.api import (
+    BaselineConfig,
+    DDConfig,
+    FIOConfig,
+    GeekbenchConfig,
+    HPLConfig,
+    StreamConfig,
+    StressNGConfig,
+    YabsConfig,
+)
 
 pytestmark = pytest.mark.unit_runner
 
@@ -131,7 +133,7 @@ class TestBenchmarkConfig:
 
     def test_module_does_not_create_default_instance(self):
         """The module should not instantiate configs at import time."""
-        import lb_runner.models.config as bc
+        from lb_runner.api import config_module as bc
 
         assert not hasattr(bc, "default_config")
 

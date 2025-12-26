@@ -1,10 +1,8 @@
 import pytest
 
-from lb_app.services.run_service import RunService, RunContext, RunResult
-from lb_runner.models.config import BenchmarkConfig, WorkloadConfig, RemoteHostConfig
-from lb_runner.plugin_system.registry import PluginRegistry
-import lb_controller.engine.controller as controller_module
-import lb_app.services.run_service as run_service_module
+from lb_app.api import RunService, RunContext, RunResult, run_service_module
+from lb_plugins.api import PluginRegistry
+from lb_runner.api import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
 
 pytestmark = pytest.mark.unit_controller
@@ -50,7 +48,7 @@ def test_run_service_uses_controller_runner(monkeypatch):
 
     dummy_controller = DummyController()
     monkeypatch.setattr(
-        controller_module, "BenchmarkController", lambda *_args, **_kwargs: dummy_controller
+        run_service_module, "BenchmarkController", lambda *_args, **_kwargs: dummy_controller
     )
 
     run_called = {"flag": False}

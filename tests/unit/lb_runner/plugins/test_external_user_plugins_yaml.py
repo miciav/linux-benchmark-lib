@@ -10,9 +10,7 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from lb_runner.plugin_system.builtin import builtin_plugins
-from lb_runner.plugin_system.interface import BasePluginConfig
-from lb_runner.plugin_system.registry import PluginRegistry, USER_PLUGIN_DIR
+from lb_plugins.api import BasePluginConfig, PluginRegistry, USER_PLUGIN_DIR, builtin_plugins
 
 pytestmark = pytest.mark.unit_runner
 

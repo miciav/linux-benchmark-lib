@@ -14,7 +14,7 @@ from rich.table import Table
 
 # Ideally we should decouple this, but for now we reuse the domain objects
 try:
-    from lb_controller.api import RunJournal, RunStatus, TaskState
+        from lb_app.api import RunJournal, RunStatus, TaskState
 except ImportError:
     # Fallback for strict isolation if needed, but practically we need these
     class RunStatus:

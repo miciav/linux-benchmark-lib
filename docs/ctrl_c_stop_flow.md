@@ -9,7 +9,7 @@
 
 - Ansible subprocesses now run in their own session (`start_new_session=True`). A Ctrl+C in the UI no longer auto-terminates Ansible; the controller remains in charge.
 - `AnsibleRunnerExecutor.interrupt()` is idempotent and clears active process metadata; `is_running` reports in-flight state for diagnostics.
-- `lb_app.services.run_service.RunService` installs a double Ctrl+C handler:
+- `lb_app.api.RunService` installs a double Ctrl+C handler:
   - 1st Ctrl+C: logs a warning (\"Press Ctrl+C again to stop the execution\"), no stop is issued.
   - 2nd Ctrl+C: arms a stop via the controller's `StopToken`/state machine; the UI stays alive.
   - Further Ctrl+C while stopping are ignored; termination remains controller-driven.

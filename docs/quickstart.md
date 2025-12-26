@@ -42,4 +42,4 @@ summary = controller.run(["stress_ng"], run_id="demo-run")
 print(summary.per_host_output)
 ```
 
-For runner-only integrations, use `lb_runner.api` and `lb_runner.engine.runner.LocalRunner`.
+For runner-only integrations, use `lb_runner.api` and `lb_runner.api.LocalRunner`.

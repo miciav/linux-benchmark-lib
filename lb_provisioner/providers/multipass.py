@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 from typing import List
 
-from lb_runner.models.config import RemoteHostConfig
+from lb_common.api import RemoteHostSpec
 
 from lb_provisioner.models.types import (
     MAX_NODES,
@@ -51,7 +51,7 @@ class MultipassProvisioner:
             self._launch_vm(vm_name, request.multipass_image)
             ip = self._get_ip_address(vm_name)
             self._inject_ssh_key(vm_name, pub_path)
-            host = RemoteHostConfig(
+            host = RemoteHostSpec(
                 name=vm_name,
                 address=ip,
                 user="ubuntu",

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import List
 
-from lb_runner.models.config import RemoteHostConfig
-
 from lb_provisioner.models.types import MAX_NODES, ProvisionedNode, ProvisioningError, ProvisioningRequest
 
 

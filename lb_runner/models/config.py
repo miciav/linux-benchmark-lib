@@ -5,13 +5,11 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import lb_controller
 
 from pydantic import BaseModel, Field, model_validator  # Added Pydantic imports
 
-# --- Ansible Root Definition ---
-_CONTROLLER_ROOT = Path(lb_controller.__file__).resolve().parent
-ANSIBLE_ROOT = _CONTROLLER_ROOT / "ansible"
+from lb_common.api import PluginAssetConfig
+
 logger = logging.getLogger(__name__)
 
 # --- Pydantic Models for Configuration ---
@@ -98,44 +96,13 @@ class RemoteExecutionConfig(BaseModel):
     inventory_path: Optional[Path] = Field(default=None, description="Path to a custom Ansible inventory file")
     run_setup: bool = Field(default=True, description="Execute setup playbooks before tests")
     run_collect: bool = Field(default=True, description="Execute collection playbooks after tests")
-    setup_playbook: Path = Field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "setup.yml", description="Path to the Ansible setup playbook")
-    run_playbook: Path = Field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "run_benchmark.yml", description="Path to the Ansible run playbook")
-    collect_playbook: Path = Field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "collect.yml", description="Path to the Ansible collect playbook")
-    teardown_playbook: Path = Field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / "teardown.yml", description="Path to the Ansible teardown playbook")
+    setup_playbook: Optional[Path] = Field(default=None, description="Path to the Ansible setup playbook")
+    run_playbook: Optional[Path] = Field(default=None, description="Path to the Ansible run playbook")
+    collect_playbook: Optional[Path] = Field(default=None, description="Path to the Ansible collect playbook")
+    teardown_playbook: Optional[Path] = Field(default=None, description="Path to the Ansible teardown playbook")
     run_teardown: bool = Field(default=True, description="Execute teardown playbooks after tests")
     upgrade_pip: bool = Field(default=False, description="Upgrade pip inside the benchmark virtual environment during setup")
     use_container_fallback: bool = Field(default=False, description="Use container-based fallback for remote execution")
-
-    @model_validator(mode="after")
-    def _normalize_playbook_paths(self) -> 'RemoteExecutionConfig':
-        """Map legacy playbook paths to the current ansible root when needed."""
-        roots = [
-            ANSIBLE_ROOT,
-            Path(__file__).resolve().parent / "ansible", # Local ansible dir
-            Path(__file__).resolve().parent.parent / "lb_controller" / "ansible", # Controller ansible dir
-        ]
-        playbooks = {
-            "setup_playbook": "setup.yml",
-            "run_playbook": "run_benchmark.yml",
-            "collect_playbook": "collect.yml",
-            "teardown_playbook": "teardown.yml",
-        }
-        for attr, fname in playbooks.items():
-            path: Path = getattr(self, attr)
-            if path and path.exists():
-                continue # Already a valid path
-            
-            # Check if the default factory created a non-existent path
-            # (e.g. if ANSIBLE_ROOT points to a non-existent controller dir)
-            default_path = Field(default_factory=lambda: ANSIBLE_ROOT / "playbooks" / fname).default_factory()
-            if path == default_path and not path.exists():
-                # If it's the default path and it doesn't exist, try alternative roots
-                for root in roots:
-                    candidate = root / "playbooks" / fname
-                    if candidate.exists():
-                        setattr(self, attr, candidate)
-                        break
-        return self
 
 
 class WorkloadConfig(BaseModel):
@@ -164,6 +131,10 @@ class BenchmarkConfig(BaseModel):
 
     # Dynamic Plugin Settings (The new way: Pydantic models for specific plugin configs)
     plugin_settings: Dict[str, Any] = Field(default_factory=dict, description="Dictionary of plugin-specific Pydantic config models")
+    plugin_assets: Dict[str, PluginAssetConfig] = Field(
+        default_factory=dict,
+        description="Resolved plugin Ansible assets/extravars (from runner registry)",
+    )
 
     # Metric collector configuration
     collectors: MetricCollectorConfig = Field(default_factory=MetricCollectorConfig, description="Configuration for metric collectors")

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from lb_runner.plugin_system.registry import PluginRegistry
+from lb_plugins.api import PluginRegistry
 
 
 def _write_plugin_file(path: Path, name: str) -> None:

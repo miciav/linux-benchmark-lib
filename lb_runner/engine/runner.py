@@ -23,9 +23,10 @@ from lb_runner.services.storage import (
     workload_output_dir,
     write_system_info_artifacts,
 )
-from lb_runner.plugin_system.registry import PluginRegistry
-from lb_runner.plugin_system.interface import WorkloadPlugin
-from lb_runner.plugin_system.base_generator import BaseGenerator
+from lb_plugins.api import BaseGenerator, PluginRegistry, WorkloadPlugin
+from lb_runner.metric_collectors.builtin import builtin_collectors
+from lb_runner.metric_collectors.registry import CollectorRegistry
+from lb_runner.registry import RunnerRegistry
 from lb_runner.engine.execution import (
     StopRequested,
     cleanup_after_run,
@@ -61,10 +62,11 @@ class LocalRunner:
     def __init__(
         self,
         config: BenchmarkConfig,
-        registry: PluginRegistry,
+        registry: PluginRegistry | RunnerRegistry,
         progress_callback: Optional[Callable[[RunEvent], None]] = None,
         host_name: str | None = None,
         stop_token: StopToken | None = None,
+        collector_registry: CollectorRegistry | None = None,
     ):
         """
         Initialize the local runner.
@@ -75,7 +77,7 @@ class LocalRunner:
         self.config = config
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
-        self.plugin_registry = registry
+        self.plugin_registry = self._resolve_registry(registry, collector_registry)
         self._current_run_id: Optional[str] = None
         self._output_root: Optional[Path] = None
         self._data_export_root: Optional[Path] = None
@@ -83,6 +85,16 @@ class LocalRunner:
         self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
         self._progress = RunProgressEmitter(host=self._host_name, callback=progress_callback)
         self._stop_token = stop_token
+
+    @staticmethod
+    def _resolve_registry(
+        registry: PluginRegistry | RunnerRegistry,
+        collector_registry: CollectorRegistry | None,
+    ) -> RunnerRegistry | Any:
+        if hasattr(registry, "create_collectors") and hasattr(registry, "create_generator"):
+            return registry
+        collectors = collector_registry or CollectorRegistry(builtin_collectors())
+        return RunnerRegistry(registry, collectors)
         
     def collect_system_info(self) -> Dict[str, Any]:
         """

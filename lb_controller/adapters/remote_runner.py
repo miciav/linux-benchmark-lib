@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from typing import Any, Callable, Optional
 
-from lb_runner.engine.stop_token import StopToken
+from lb_runner.api import StopToken
 
 from lb_controller.models.state import ControllerState, ControllerStateMachine
 
