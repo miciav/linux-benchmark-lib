@@ -8,6 +8,5 @@ Stable interfaces used by the CLI/TUI layer.
 
 ## UI composition helpers
 
-::: lb_ui.dependencies.create_ui
-::: lb_ui.dependencies.create_services
-::: lb_ui.dependencies.load_dev_mode
+::: lb_ui.wiring.dependencies.UIContext
+::: lb_ui.wiring.dependencies.load_dev_mode
