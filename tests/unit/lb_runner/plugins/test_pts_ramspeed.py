@@ -1,18 +1,18 @@
 """Unit tests for the PTS ramspeed workload plugin."""
 
 import pytest
-from lb_runner.plugins.phoronix_test_suite.plugin import (
+from lb_plugins.api import (
     PhoronixConfig,
     PhoronixGenerator,
     PhoronixTestSuiteWorkloadPlugin,
-    get_plugins,
+    get_phoronix_plugins,
 )
 
 pytestmark = pytest.mark.unit_runner
 
 def test_pts_ramspeed_plugin_exists():
     """Verify that the ramspeed plugin is loaded from the YAML."""
-    plugins = get_plugins()
+    plugins = get_phoronix_plugins()
     ram_plugin = next((p for p in plugins if p.name == "pts_ramspeed"), None)
     
     assert ram_plugin is not None, "pts_ramspeed plugin not found"
@@ -22,7 +22,7 @@ def test_pts_ramspeed_plugin_exists():
 
 def test_pts_ramspeed_generator_config():
     """Verify the generator configuration for ramspeed."""
-    plugins = get_plugins()
+    plugins = get_phoronix_plugins()
     ram_plugin = next((p for p in plugins if p.name == "pts_ramspeed"), None)
     assert ram_plugin is not None
 

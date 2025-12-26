@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from lb_controller.api import ConfigService
+from lb_app.services.config_service import ConfigService
 from lb_app.ui_interfaces import UIAdapter, NoOpUIAdapter
 
 

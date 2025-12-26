@@ -1,18 +1,18 @@
 """Unit tests for the PTS gmpbench workload plugin."""
 
 import pytest
-from lb_runner.plugins.phoronix_test_suite.plugin import (
+from lb_plugins.api import (
     PhoronixConfig,
     PhoronixGenerator,
     PhoronixTestSuiteWorkloadPlugin,
-    get_plugins,
+    get_phoronix_plugins,
 )
 
 pytestmark = pytest.mark.unit_runner
 
 def test_pts_gmpbench_plugin_exists():
     """Verify that the gmpbench plugin is loaded from the YAML."""
-    plugins = get_plugins()
+    plugins = get_phoronix_plugins()
     gmp_plugin = next((p for p in plugins if p.name == "pts_gmpbench"), None)
     
     assert gmp_plugin is not None, "pts_gmpbench plugin not found"
@@ -22,7 +22,7 @@ def test_pts_gmpbench_plugin_exists():
 
 def test_pts_gmpbench_generator_config():
     """Verify the generator configuration for gmpbench."""
-    plugins = get_plugins()
+    plugins = get_phoronix_plugins()
     gmp_plugin = next((p for p in plugins if p.name == "pts_gmpbench"), None)
     assert gmp_plugin is not None
 

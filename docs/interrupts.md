@@ -13,7 +13,7 @@ This document describes the double-Ctrl+C interruption handling for remote bench
 The interrupt handling logic is separated into three layers:
 
 1. **State Machine (`DoubleCtrlCStateMachine`)**
-   - Pure logic component in `lb_controller/interrupts.py`.
+   - Pure logic component in `lb_controller/engine/interrupts.py`.
    - Tracks states: `RUNNING` -> `STOP_ARMED` -> `STOPPING` -> `FINISHED`.
    - Decides action: `WARN_ARM`, `REQUEST_STOP`, or `DELEGATE` (allow default/force kill).
 
@@ -23,10 +23,10 @@ The interrupt handling logic is separated into three layers:
    - Executes callbacks based on decision (`on_first_sigint`, `on_confirmed_sigint`).
 
 3. **Orchestration (`RunService`, `BenchmarkController`)**
-   - `lb_app.services.run_service.RunService` installs the handler and provides UI callbacks.
-   - `StopToken` in `lb_runner.stop_token` signals intent to stop across threads/processes.
-   - `BenchmarkController` and `ControllerRunner` observe the token and coordinate teardown.
-   - `AnsibleRunnerExecutor` interrupts active playbooks when a stop is requested.
+   - `lb_app.api.RunService` installs the handler and provides UI callbacks.
+   - `StopToken` in `lb_runner.api` signals intent to stop across threads/processes.
+   - `lb_controller.api.BenchmarkController` and `lb_controller.api.ControllerRunner` observe the token and coordinate teardown.
+   - `lb_controller.api.AnsibleRunnerExecutor` interrupts active playbooks when a stop is requested.
 
 ## Behavior
 
@@ -46,7 +46,7 @@ The interrupt handling logic is separated into three layers:
 
 ## Files
 
-- `lb_controller/interrupts.py`: state machine and handler.
+- `lb_controller/engine/interrupts.py`: state machine and handler.
 - `lb_app/services/run_service.py`: wiring to UI and controller.
-- `lb_controller/controller.py`: phase-aware stop logic.
-- `lb_controller/ansible_executor.py`: playbook interruption.
+- `lb_controller/engine/controller.py`: phase-aware stop logic.
+- `lb_controller/adapters/ansible_runner.py`: playbook interruption.

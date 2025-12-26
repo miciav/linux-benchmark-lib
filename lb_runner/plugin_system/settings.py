@@ -10,16 +10,15 @@ from typing import Any, TYPE_CHECKING
 from pydantic import BaseModel, ValidationError
 
 if TYPE_CHECKING:
-    from lb_runner.benchmark_config import BenchmarkConfig
-    from lb_runner.plugin_system.registry import PluginRegistry
+    from lb_runner.models.config import BenchmarkConfig
+    from lb_plugins.api import PluginRegistry
 
 
 logger = logging.getLogger(__name__)
 
 
 def _default_registry() -> "PluginRegistry":
-    from lb_runner.plugin_system.builtin import builtin_plugins
-    from lb_runner.plugin_system.registry import PluginRegistry
+    from lb_plugins.api import PluginRegistry, builtin_plugins
 
     return PluginRegistry(builtin_plugins())
 
@@ -103,7 +102,7 @@ def ensure_workloads_from_plugin_settings(
     if not config.plugin_settings:
         return
 
-    from lb_runner.benchmark_config import WorkloadConfig
+    from lb_runner.models.config import WorkloadConfig
 
     def _settings_to_options(settings: Any) -> Any:
         if isinstance(settings, BaseModel):

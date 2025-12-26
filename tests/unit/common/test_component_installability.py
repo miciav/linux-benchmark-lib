@@ -43,7 +43,7 @@ def test_controller_is_importable_even_without_extra_optional_packages():
     import lb_controller  # noqa: F401
 
     assert hasattr(api, "BenchmarkController")
-    assert hasattr(api, "ConfigService")
+    assert not hasattr(api, "ConfigService")
     assert not hasattr(lb_controller, "BenchmarkController")
 
 
@@ -52,8 +52,8 @@ def test_pyproject_lists_component_cli_scripts():
     data = tomllib.loads(Path("pyproject.toml").read_text())
     scripts = data.get("project", {}).get("scripts", {})
     expected = {
-        "lb": "lb_ui.cli:main",
-        "lb-ui": "lb_ui.cli:main",
+        "lb": "lb_ui.cli.main:main",
+        "lb-ui": "lb_ui.cli.main:main",
     }
     for name, target in expected.items():
         assert scripts.get(name) == target, f"{name} script missing or misconfigured"

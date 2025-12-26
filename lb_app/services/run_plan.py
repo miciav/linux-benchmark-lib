@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
-from lb_runner.api import BenchmarkConfig, PluginRegistry, WorkloadIntensity
+from lb_controller.api import BenchmarkConfig
+from lb_plugins.api import PluginRegistry, WorkloadIntensity
 
 
 def build_run_plan(

@@ -6,15 +6,15 @@ import threading
 import time
 from pathlib import Path
 
-from lb_controller.ansible_executor import AnsibleRunnerExecutor
+from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController
-from lb_runner.benchmark_config import (
+from lb_runner.api import (
     BenchmarkConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
+    StopToken,
     WorkloadConfig,
 )
-from lb_runner.stop_token import StopToken
 
 SCENARIO_ROOT = Path(__file__).resolve().parents[1]
 PLAYBOOK_ROOT = SCENARIO_ROOT / "playbooks"

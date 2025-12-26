@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 from textwrap import dedent
 
-from lb_common import configure_logging
+from lb_common.api import configure_logging
 
 def git_log(from_ref: str | None = None, to_ref: str = "HEAD") -> list[str]:
     """Return a list of commit subjects between refs."""

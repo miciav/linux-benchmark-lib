@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from lb_runner.plugins.fio.plugin import FIOPlugin
+from lb_plugins.api import FIOPlugin
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 

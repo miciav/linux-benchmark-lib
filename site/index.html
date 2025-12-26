@@ -16,7 +16,7 @@
         
       
       
-      <link rel="icon" href="assets/images/favicon.png">
+      <link rel="icon" href="img/lb_mark.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
     
     
@@ -26,6 +26,9 @@
     
     
       <link rel="stylesheet" href="assets/stylesheets/main.618322db.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -46,6 +49,8 @@
     
       <link rel="stylesheet" href="assets/_mkdocstrings.css">
     
+      <link rel="stylesheet" href="css/extra.css">
+    
     <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -55,7 +60,14 @@
   </head>
   
   
-    <body dir="ltr">
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="teal">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -64,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#home" class="md-skip">
+        <a href="#why-this-exists" class="md-skip">
           Skip to content
         </a>
       
@@ -80,8 +92,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="." title="Linux Benchmark Library" class="md-header__button md-logo" aria-label="Linux Benchmark Library" data-md-component="logo">
       
-  
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+  <img src="img/lb_mark.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -104,6 +115,18 @@
         </div>
       </div>
     </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="teal"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
     
     
       <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
@@ -203,17 +226,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="installation/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="installation/" class="md-tabs__link">
+          
   
   
     
   
-  Installazione
+  Getting Started
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -222,17 +248,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="quickstart/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="cli/" class="md-tabs__link">
+          
   
   
     
   
-  Quickstart
+  User Guide
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -241,17 +270,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="configuration/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="api/" class="md-tabs__link">
+          
   
   
     
   
-  Configurazione
+  API Reference
 
-      </a>
-    </li>
+        </a>
+      </li>
+    
   
 
       
@@ -260,55 +292,20 @@
   
   
   
-    <li class="md-tabs__item">
-      <a href="plugins/" class="md-tabs__link">
-        
+    
+    
+      <li class="md-tabs__item">
+        <a href="diagrams/" class="md-tabs__link">
+          
   
   
     
   
-  Workloads & Plugin
+  Architecture & Design
 
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="remote_execution/" class="md-tabs__link">
-        
-  
-  
+        </a>
+      </li>
     
-  
-  Remote Execution
-
-      </a>
-    </li>
-  
-
-      
-        
-  
-  
-  
-  
-    <li class="md-tabs__item">
-      <a href="cli/" class="md-tabs__link">
-        
-  
-  
-    
-  
-  CLI
-
-      </a>
-    </li>
   
 
       
@@ -355,8 +352,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="." title="Linux Benchmark Library" class="md-nav__button md-logo" aria-label="Linux Benchmark Library" data-md-component="logo">
       
-  
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+  <img src="img/lb_mark.png" alt="logo">
 
     </a>
     Linux Benchmark Library
@@ -388,8 +384,6 @@
       
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
-      
-        
       
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
@@ -433,8 +427,6 @@
   
   
   
-    
-  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -443,10 +435,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#why-this-exists" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
+        Why this exists
       
     </span>
   </a>
@@ -454,10 +446,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
+  <a href="#core-layers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Key Features
+        Core layers
       
     </span>
   </a>
@@ -465,193 +457,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#requirements" class="md-nav__link">
+  <a href="#where-to-go-next" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Requirements
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Requirements">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#required-external-software-target-nodes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Required External Software (Target Nodes)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Installation
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Installation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#mode-1-agent-lightweight" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Mode 1: Agent (Lightweight)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#mode-2-controller-full" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Mode 2: Controller (Full)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#development" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Development
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cli-lb" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CLI (lb)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="CLI (lb)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ui-layer" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        UI layer
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plugin-manifests-and-generated-assets" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Plugin manifests and generated assets
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick Start
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#project-layout" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Project Layout
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Configuration
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#output" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Output
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#diagrams-uml" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Diagrams (UML)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#contributing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Contributing
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#licenza" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Licenza
+        Where to go next
       
     </span>
   </a>
@@ -672,6 +481,64 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="installation/" class="md-nav__link">
         
@@ -680,7 +547,7 @@
   <span class="md-ellipsis">
     
   
-    Installazione
+    Installation
   
 
     
@@ -692,9 +559,10 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
@@ -719,9 +587,107 @@
     </li>
   
 
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
     
       
       
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
   
   
   
@@ -734,7 +700,7 @@
   <span class="md-ellipsis">
     
   
-    Configurazione
+    Configuration
   
 
     
@@ -746,9 +712,10 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
@@ -761,7 +728,7 @@
   <span class="md-ellipsis">
     
   
-    Workloads & Plugin
+    Workloads & Plugins
   
 
     
@@ -773,9 +740,10 @@
     </li>
   
 
-    
-      
-      
+              
+            
+              
+                
   
   
   
@@ -800,6 +768,14 @@
     </li>
   
 
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
     
       
       
@@ -807,15 +783,81 @@
   
   
   
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
-      <a href="cli/" class="md-nav__link">
+      <a href="api/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    CLI
+    Overview
   
 
     
@@ -824,6 +866,335 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Controller
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    App & UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/provisioner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provisioning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/analytics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analytics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture & Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture & Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="diagrams/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagrams
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="interrupts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interrupts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ctrl_c_design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ctrl+C Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ctrl_c_stop_flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ctrl+C Stop Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -872,8 +1243,6 @@
   
   
   
-    
-  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -882,10 +1251,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#why-this-exists" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
+        Why this exists
       
     </span>
   </a>
@@ -893,10 +1262,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
+  <a href="#core-layers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Key Features
+        Core layers
       
     </span>
   </a>
@@ -904,193 +1273,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#requirements" class="md-nav__link">
+  <a href="#where-to-go-next" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Requirements
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Requirements">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#required-external-software-target-nodes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Required External Software (Target Nodes)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Installation
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Installation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#mode-1-agent-lightweight" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Mode 1: Agent (Lightweight)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#mode-2-controller-full" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Mode 2: Controller (Full)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#development" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Development
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cli-lb" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CLI (lb)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="CLI (lb)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ui-layer" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        UI layer
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plugin-manifests-and-generated-assets" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Plugin manifests and generated assets
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick Start
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#project-layout" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Project Layout
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Configuration
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#output" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Output
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#diagrams-uml" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Diagrams (UML)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#contributing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Contributing
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#licenza" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Licenza
+        Where to go next
       
     </span>
   </a>
@@ -1115,202 +1301,100 @@
 
   
   
+    
+      
+    
+    <a href="https://github.com/miciav/linux-benchmark-lib/raw/master/docs/index.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
 
 
-<h1 id="home">Home<a class="headerlink" href="#home" title="Permanent link">&para;</a></h1>
-<p>A robust, configurable Python library for benchmarking Linux compute nodes.</p>
-<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>Run repeatable workloads and collect detailed system metrics under synthetic load. The library helps you understand performance variability across repetitions and workloads.
-It supports two operation modes:
-1. <strong>Agent/Runner</strong>: Lightweight installation for target nodes (local execution).
-2. <strong>Controller</strong>: Full orchestration layer for managing remote benchmarks (includes Ansible, plotting tools).
-3. <strong>UI/CLI</strong>: User interaction lives in <code>lb_ui</code> and talks only to the controller; the runner does not import or know about UI concerns.</p>
-<h2 id="key-features">Key Features<a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
+<div class="hero">
+  <div class="hero__content">
+    <p class="hero__eyebrow">Benchmark orchestration for Linux nodes</p>
+    <h1 class="hero__title">Linux Benchmark Library</h1>
+    <p class="hero__subtitle">
+      Run repeatable workloads, collect multi-level metrics, and generate reports with
+      a clean CLI and stable Python APIs.
+    </p>
+    <div class="hero__actions">
+      <a class="btn btn--primary" href="quickstart.md">Get started</a>
+      <a class="btn btn--ghost" href="api.md">API reference</a>
+    </div>
+  </div>
+  <div class="hero__panel">
+    <div class="hero__panel-title">Quick run</div>
+    <pre>lb config init -i
+lb plugin list --enable stress_ng
+lb run --remote --run-id demo-run</pre>
+    <p class="hero__panel-note">Provisioned runs are available in dev mode: <code>--docker</code> or <code>--multipass</code>.</p>
+  </div>
+</div>
+
+<h2 id="why-this-exists">Why this exists<a class="headerlink" href="#why-this-exists" title="Permanent link">&para;</a></h2>
+<div class="feature-grid">
+  <div class="feature-card">
+    <h3>Repeatable workloads</h3>
+    <p>Standardize load patterns and run them across hosts or provisioned targets.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Layered architecture</h3>
+    <p>Runner, controller, app, and UI are cleanly separated to keep coupling low.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Actionable artifacts</h3>
+    <p>Raw metrics, journals, reports, and exports are organized per run and host.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Extensible plugins</h3>
+    <p>Add new workloads via entry points and a user plugin directory.</p>
+  </div>
+</div>
+
+<h2 id="core-layers">Core layers<a class="headerlink" href="#core-layers" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lb_runner</code></td>
+<td>Execute workloads and collect metrics on a node.</td>
+</tr>
+<tr>
+<td><code>lb_controller</code></td>
+<td>Orchestrate remote runs via Ansible and manage state.</td>
+</tr>
+<tr>
+<td><code>lb_app</code></td>
+<td>Stable API for CLIs/UIs and integrations.</td>
+</tr>
+<tr>
+<td><code>lb_ui</code></td>
+<td>CLI/TUI implementation.</td>
+</tr>
+<tr>
+<td><code>lb_analytics</code></td>
+<td>Reporting and post-processing.</td>
+</tr>
+<tr>
+<td><code>lb_provisioner</code></td>
+<td>Docker/Multipass helpers for the CLI.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="where-to-go-next">Where to go next<a class="headerlink" href="#where-to-go-next" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Multi-level metrics</strong>: PSUtil, Linux CLI tools, perf events, optional eBPF</li>
-<li><strong>Plugin workloads</strong>: stress-ng, dd, fio, and HPL shipped as plugins, extensible via entry points</li>
-<li><strong>Data aggregation</strong>: Pandas DataFrames with metrics as index, repetitions as columns</li>
-<li><strong>Reporting</strong>: Text reports and plots (Controller only)</li>
-<li><strong>Centralized config</strong>: Typed dataclasses for all knobs</li>
-<li><strong>Remote execution</strong>: Python controller + Ansible Runner targeting remote hosts or <code>localhost</code></li>
+<li>Read the <a href="quickstart/">Quickstart</a> for CLI and Python examples.</li>
+<li>Use the <a href="cli/">CLI reference</a> for all commands.</li>
+<li>Browse the <a href="api/">API reference</a> for stable modules.</li>
+<li>Check <a href="diagrams/">Diagrams</a> for architecture visuals and release artifacts.</li>
 </ul>
-<h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Python 3.13+</li>
-<li>Linux for full functionality</li>
-<li>Root privileges for some features (perf, eBPF)</li>
-</ul>
-<h3 id="required-external-software-target-nodes">Required External Software (Target Nodes)<a class="headerlink" href="#required-external-software-target-nodes" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>sysstat</strong>: sar, vmstat, iostat, mpstat, pidstat</li>
-<li><strong>stress-ng</strong>: load generator</li>
-<li><strong>fio</strong>: advanced I/O testing</li>
-<li><strong>HPL</strong>: Linpack benchmark (optional)</li>
-<li><strong>perf</strong>: Linux profiling</li>
-<li><strong>bcc/eBPF tools</strong>: optional kernel-level metrics</li>
-</ul>
-<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Clone the repository:</li>
-</ol>
-<div class="codehilite"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>&lt;repository-url&gt;
-<span class="nb">cd</span><span class="w"> </span>linux-benchmark-lib
-</code></pre></div>
-
-<h3 id="mode-1-agent-lightweight">Mode 1: Agent (Lightweight)<a class="headerlink" href="#mode-1-agent-lightweight" title="Permanent link">&para;</a></h3>
-<p>Installs only the core dependencies for running benchmarks on a target node.</p>
-<div class="codehilite"><pre><span></span><code>uv<span class="w"> </span>sync
-<span class="c1"># Or install as a tool</span>
-uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>.
-</code></pre></div>
-
-<h3 id="mode-2-controller-full">Mode 2: Controller (Full)<a class="headerlink" href="#mode-2-controller-full" title="Permanent link">&para;</a></h3>
-<p>Installs the core plus orchestration tools (Ansible) and reporting libraries (Matplotlib, Seaborn).</p>
-<div class="codehilite"><pre><span></span><code>uv<span class="w"> </span>sync<span class="w"> </span>--extra<span class="w"> </span>controller
-<span class="c1"># Or install as a tool</span>
-uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;.[controller]&quot;</span>
-</code></pre></div>
-
-<h3 id="development">Development<a class="headerlink" href="#development" title="Permanent link">&para;</a></h3>
-<p>Installs all dependencies including test and linting tools.</p>
-<div class="codehilite"><pre><span></span><code>uv<span class="w"> </span>sync<span class="w"> </span>--all-extras<span class="w"> </span>--dev
-</code></pre></div>
-
-<p>Switch between modes quickly with the helper script:</p>
-<div class="codehilite"><pre><span></span><code>bash<span class="w"> </span>tools/switch_mode.sh<span class="w"> </span>base<span class="w">        </span><span class="c1"># core only</span>
-bash<span class="w"> </span>tools/switch_mode.sh<span class="w"> </span>controller<span class="w">  </span><span class="c1"># adds controller extra</span>
-bash<span class="w"> </span>tools/switch_mode.sh<span class="w"> </span>dev<span class="w">         </span><span class="c1"># dev + all extras</span>
-</code></pre></div>
-
-<h2 id="cli-lb">CLI (lb)<a class="headerlink" href="#cli-lb" title="Permanent link">&para;</a></h2>
-<p>See <code>CLI.md</code> for the full command reference. Highlights:
-- Config and defaults: <code>lb config init</code>, <code>lb config set-default</code>, <code>lb config edit</code>, <code>lb config workloads</code>, <code>lb plugin list --select/--enable/--disable NAME</code> (shows enabled state with checkmarks).
-- Discovery and run: <code>lb plugin list</code>, <code>lb hosts</code>, <code>lb run [tests...]</code> (follows config for local/remote unless overridden).
-- Interactive toggle: <code>lb plugin select</code> to enable/disable plugins with arrows + space; <code>lb config select-workloads</code> to toggle configured workloads the same way.
-- Install plugins from a path or git repo: <code>lb plugin install /path/to/sysbench_plugin.tar.gz</code> or <code>lb plugin install https://github.com/miciav/unixbench-lb-plugin.git</code>.
-- Third-party plugins are installed under <code>lb_runner/plugins/_user</code> when that directory is writable (e.g., in a repo checkout or remote runner tree), so moving the runner also moves installed plugins. If not writable, the installer falls back to <code>~/.config/lb/plugins</code>. You can override the location with <code>LB_USER_PLUGIN_DIR</code>.
-- Example (UnixBench from git): 
-  <code>bash
-  lb plugin install https://github.com/miciav/unixbench-lb-plugin.git
-  lb plugin list --enable unixbench</code>
-  Then set options in <code>benchmark_config.json</code> if needed:
-  <code>json
-  "workloads": {"unixbench": {"plugin": "unixbench", "enabled": true, "options": {"concurrency": 4}}}</code>
-- Health checks: <code>lb doctor controller</code>, <code>lb doctor local-tools</code>, <code>lb doctor multipass</code>, <code>lb doctor all</code>.
-- Integration helper: <code>lb test multipass --vm-count {1,2} [--multi-workloads]</code> (artifacts to <code>tests/results</code> by default).
-- Test helpers (<code>lb test ...</code>) are available in dev mode (create <code>.lb_dev_cli</code> or export <code>LB_ENABLE_TEST_CLI=1</code>).</p>
-<h3 id="ui-layer">UI layer<a class="headerlink" href="#ui-layer" title="Permanent link">&para;</a></h3>
-<ul>
-<li>The CLI/UI entrypoint is <code>python -m lb_ui.cli</code> (or the installed <code>lb</code> shim). Runner/controller modules no longer import UI.</li>
-<li>Progress bars and tables are text-friendly; headless output works in CI and when piping.</li>
-<li>Force headless output with <code>LB_HEADLESS_UI=1</code> when running under CI or when piping output.</li>
-<li>UI adapters live in <code>lb_ui/ui/*</code> and depend on controller-owned interfaces (<code>lb_controller.ui_interfaces</code>); the runner only emits events/logs.</li>
-</ul>
-<h3 id="plugin-manifests-and-generated-assets">Plugin manifests and generated assets<a class="headerlink" href="#plugin-manifests-and-generated-assets" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Each workload is self-contained in <code>lb_runner/plugins/&lt;name&gt;/</code>.</li>
-<li>Dependencies are defined in the plugin's Python class (<code>get_required_apt_packages</code>, etc.).</li>
-<li>A dedicated Dockerfile can be provided in the plugin directory for containerized execution.</li>
-</ul>
-<p>This updates the generated apt/pip install block in <code>Dockerfile</code> and rewrites <code>lb_controller/ansible/roles/workload_runner/tasks/plugins.generated.yml</code>.
-- Commit both the manifest and generated files so remote setup and the container stay in sync with available plugins.
-- See <code>docs/PLUGIN_DEVELOPMENT.md</code> for a full plugin authoring guide (WorkloadPlugin interface, manifests, packaging, git installs).
-- HPL plugin: vedi <code>lb_runner/plugins/hpl/README.md</code> per note su packaging <code>.deb</code>, build VM/Docker e test <code>xhpl</code>.</p>
-<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
-<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">lb_runner.benchmark_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">BenchmarkConfig</span><span class="p">,</span> <span class="n">RemoteHostConfig</span><span class="p">,</span> <span class="n">RemoteExecutionConfig</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lb_controller.controller</span><span class="w"> </span><span class="kn">import</span> <span class="n">BenchmarkController</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lb_runner.local_runner</span><span class="w"> </span><span class="kn">import</span> <span class="n">LocalRunner</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lb_runner.plugin_system.builtin</span><span class="w"> </span><span class="kn">import</span> <span class="n">builtin_plugins</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lb_runner.plugin_system.registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">PluginRegistry</span>
-
-<span class="c1"># Create a configuration</span>
-<span class="n">config</span> <span class="o">=</span> <span class="n">BenchmarkConfig</span><span class="p">(</span>
-    <span class="n">repetitions</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
-    <span class="n">test_duration_seconds</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span>
-    <span class="n">metrics_interval_seconds</span><span class="o">=</span><span class="mf">1.0</span>
-<span class="p">)</span>
-
-<span class="c1"># Local execution (Agent Mode)</span>
-<span class="n">registry</span> <span class="o">=</span> <span class="n">PluginRegistry</span><span class="p">(</span><span class="n">builtin_plugins</span><span class="p">())</span>
-<span class="n">runner</span> <span class="o">=</span> <span class="n">LocalRunner</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">registry</span><span class="p">)</span>
-<span class="n">runner</span><span class="o">.</span><span class="n">run_benchmark</span><span class="p">(</span><span class="s2">&quot;stress_ng&quot;</span><span class="p">)</span>
-
-<span class="c1"># Remote execution (Controller Mode)</span>
-<span class="c1"># Requires &#39;controller&#39; extra installed</span>
-<span class="n">remote_config</span> <span class="o">=</span> <span class="n">BenchmarkConfig</span><span class="p">(</span>
-    <span class="n">remote_hosts</span><span class="o">=</span><span class="p">[</span><span class="n">RemoteHostConfig</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;node1&quot;</span><span class="p">,</span> <span class="n">address</span><span class="o">=</span><span class="s2">&quot;192.168.1.10&quot;</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="s2">&quot;ubuntu&quot;</span><span class="p">)],</span>
-    <span class="n">remote_execution</span><span class="o">=</span><span class="n">RemoteExecutionConfig</span><span class="p">(</span><span class="n">enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
-<span class="p">)</span>
-<span class="c1"># Use distinct, non-empty `name` values per host; they become per-host output dirs.</span>
-<span class="n">controller</span> <span class="o">=</span> <span class="n">BenchmarkController</span><span class="p">(</span><span class="n">remote_config</span><span class="p">)</span>
-<span class="n">summary</span> <span class="o">=</span> <span class="n">controller</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s2">&quot;stress_ng&quot;</span><span class="p">],</span> <span class="n">run_id</span><span class="o">=</span><span class="s2">&quot;demo-run&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">summary</span><span class="o">.</span><span class="n">per_host_output</span><span class="p">)</span>
-</code></pre></div>
-
-<h2 id="project-layout">Project Layout<a class="headerlink" href="#project-layout" title="Permanent link">&para;</a></h2>
-<div class="codehilite"><pre><span></span><code><span class="n">linux</span><span class="o">-</span><span class="n">benchmark</span><span class="o">-</span><span class="n">lib</span><span class="o">/</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">lb_runner</span><span class="o">/</span><span class="w">           </span><span class="c1"># Runner (plugins, collectors, local runner, events)</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">lb_controller</span><span class="o">/</span><span class="w">       </span><span class="c1"># Orchestration (services, ansible, journal, data_handler)</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">lb_ui</span><span class="o">/</span><span class="w">               </span><span class="c1"># CLI/UI (Typer app, adapters, reporter)</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">tests</span><span class="o">/</span><span class="w">               </span><span class="c1"># Unit and integration tests</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">tools</span><span class="o">/</span><span class="w">               </span><span class="c1"># Helper scripts (mode switching, etc.)</span>
-<span class="err">└──</span><span class="w"> </span><span class="n">pyproject</span><span class="o">.</span><span class="n">toml</span><span class="w">       </span><span class="c1"># Project configuration (Core + Extras)</span>
-</code></pre></div>
-
-<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
-<p>All knobs are defined in <code>BenchmarkConfig</code>:</p>
-<div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lb_runner.benchmark_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">BenchmarkConfig</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">lb_runner.plugins.stress_ng.plugin</span><span class="w"> </span><span class="kn">import</span> <span class="n">StressNGConfig</span>
-
-<span class="n">config</span> <span class="o">=</span> <span class="n">BenchmarkConfig</span><span class="p">(</span>
-    <span class="n">repetitions</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
-    <span class="n">test_duration_seconds</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span>
-    <span class="n">metrics_interval_seconds</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
-    <span class="n">plugin_settings</span><span class="o">=</span><span class="p">{</span>
-        <span class="s2">&quot;stress_ng&quot;</span><span class="p">:</span> <span class="n">StressNGConfig</span><span class="p">(</span>
-            <span class="n">cpu_workers</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
-            <span class="n">vm_workers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
-            <span class="n">vm_bytes</span><span class="o">=</span><span class="s2">&quot;2G&quot;</span><span class="p">,</span>
-        <span class="p">)</span>
-    <span class="p">},</span>
-<span class="p">)</span>
-
-<span class="n">config</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;my_config.json&quot;</span><span class="p">))</span>
-<span class="n">config</span> <span class="o">=</span> <span class="n">BenchmarkConfig</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;my_config.json&quot;</span><span class="p">))</span>
-</code></pre></div>
-
-<h2 id="output">Output<a class="headerlink" href="#output" title="Permanent link">&para;</a></h2>
-<p>Results are written to three directories:</p>
-<ul>
-<li><code>benchmark_results/</code>: raw metric data</li>
-<li><code>reports/</code>: text reports and plots (via analytics)</li>
-<li><code>data_exports/</code>: aggregated CSV/JSON (generated on demand via <code>lb analyze</code>)</li>
-<li>In remote mode results are split by <code>run_id/host</code> (e.g., <code>benchmark_results/run-YYYYmmdd-HHMMSS/node1/...</code>).</li>
-</ul>
-<h2 id="diagrams-uml">Diagrams (UML)<a class="headerlink" href="#diagrams-uml" title="Permanent link">&para;</a></h2>
-<p>The repository ships an action that generates UML class/package diagrams on each release.<br />
-To regenerate them locally (requires Graphviz installed):</p>
-<div class="codehilite"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;pylint==3.3.1&quot;</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span>docs/diagrams
-pyreverse<span class="w"> </span>-o<span class="w"> </span>png<span class="w"> </span>-p<span class="w"> </span>linux-benchmark<span class="w"> </span>lb_runner<span class="w"> </span>lb_controller<span class="w"> </span>lb_ui<span class="w"> </span>-S
-mv<span class="w"> </span>classes*.png<span class="w"> </span>docs/diagrams/classes.png
-mv<span class="w"> </span>packages*.png<span class="w"> </span>docs/diagrams/packages.png
-pyreverse<span class="w"> </span>-o<span class="w"> </span>puml<span class="w"> </span>-p<span class="w"> </span>linux-benchmark<span class="w"> </span>lb_runner<span class="w"> </span>lb_controller<span class="w"> </span>lb_ui<span class="w"> </span>-S
-mv<span class="w"> </span>classes*.puml<span class="w"> </span>docs/diagrams/classes.puml
-mv<span class="w"> </span>packages*.puml<span class="w"> </span>docs/diagrams/packages.puml
-</code></pre></div>
-
-<h2 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Fork the project</li>
-<li>Create a feature branch (<code>git checkout -b feature/AmazingFeature</code>)</li>
-<li>Commit your changes (<code>git commit -m 'Add some AmazingFeature'</code>)</li>
-<li>Push the branch (<code>git push origin feature/AmazingFeature</code>)</li>
-<li>Open a Pull Request</li>
-</ol>
-<h2 id="licenza">Licenza<a class="headerlink" href="#licenza" title="Permanent link">&para;</a></h2>
-<p>Distribuito sotto licenza MIT. Vedi <code>LICENSE</code> per maggiori informazioni.</p>
 
 
 
@@ -1360,7 +1444,7 @@ mv<span class="w"> </span>packages*.puml<span class="w"> </span>docs/diagrams/pa
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.tabs", "navigation.sections", "content.code.copy"], "search": "assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.tabs", "navigation.sections", "navigation.instant", "navigation.indexes", "content.code.copy", "content.action.view"], "search": "assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="assets/javascripts/bundle.e71a0d61.min.js"></script>

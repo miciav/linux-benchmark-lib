@@ -2,7 +2,7 @@
 
 import pytest
 
-from lb_controller.lifecycle import RunLifecycle, RunPhase, StopStage
+from lb_controller.api import RunLifecycle, RunPhase, StopStage
 
 pytestmark = pytest.mark.unit_controller
 

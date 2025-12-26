@@ -1,22 +1,24 @@
+import platform
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-import lb_runner.plugins.geekbench.plugin as gb_mod
+from lb_plugins.api import GeekbenchConfig, GeekbenchGenerator, GeekbenchPlugin
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
 
 
 def test_geekbench_defaults():
-    cfg = gb_mod.GeekbenchConfig()
-    plugin = gb_mod.PLUGIN
+    cfg = GeekbenchConfig()
+    plugin = GeekbenchPlugin()
     assert plugin.name == "geekbench"
     assert plugin.description
     gen = plugin.create_generator(cfg)
-    assert isinstance(gen, gb_mod.GeekbenchGenerator)
+    assert isinstance(gen, GeekbenchGenerator)
     assert cfg.version == "6.3.0"
     assert cfg.skip_cleanup is True
     assert cfg.extra_args == []
@@ -24,7 +26,7 @@ def test_geekbench_defaults():
 
 
 def test_geekbench_required_packages_and_paths():
-    plugin = gb_mod.PLUGIN
+    plugin = GeekbenchPlugin()
     pkgs = plugin.get_required_apt_packages()
     for pkg in ("curl", "wget", "tar", "ca-certificates", "sysstat"):
         assert pkg in pkgs
@@ -44,7 +46,7 @@ def test_geekbench_generator_builds_command(monkeypatch, tmp_path):
     archive_path = workdir / "Geekbench-6.3.0-Linux.tar.gz"
     archive_path.touch()
 
-    cfg = gb_mod.GeekbenchConfig(
+    cfg = GeekbenchConfig(
         output_dir=output_dir,
         workdir=workdir,
         license_key="ABC-123",
@@ -53,10 +55,10 @@ def test_geekbench_generator_builds_command(monkeypatch, tmp_path):
         skip_cleanup=False,
         debug=True,
     )
-    gen = gb_mod.GeekbenchGenerator(cfg)
+    gen = GeekbenchGenerator(cfg)
 
     monkeypatch.setattr(gen, "_validate_environment", lambda: True)
-    monkeypatch.setattr(gb_mod.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
     monkeypatch.setattr(gen, "_prepare_geekbench", lambda: (exec_path, archive_path, exec_path.parent))
 
     calls: list[list[str]] = []
@@ -101,8 +103,8 @@ plugins:
     extra_args: ["--foo"]
 """.lstrip()
     )
-    cfg = gb_mod.PLUGIN.load_config_from_file(cfg_path)
-    assert isinstance(cfg, gb_mod.GeekbenchConfig)
+    cfg = GeekbenchPlugin().load_config_from_file(cfg_path)
+    assert isinstance(cfg, GeekbenchConfig)
     assert cfg.max_retries == 2
     assert cfg.tags == ["common"]
     assert cfg.run_gpu is True
@@ -123,7 +125,7 @@ plugins:
     also_unknown: "x"
 """.lstrip()
     )
-    cfg = gb_mod.PLUGIN.load_config_from_file(cfg_path)
+    cfg = GeekbenchPlugin().load_config_from_file(cfg_path)
     assert cfg.max_retries == 1
 
 
@@ -137,14 +139,14 @@ plugins:
 """.lstrip()
     )
     with pytest.raises(ValidationError):
-        gb_mod.PLUGIN.load_config_from_file(cfg_path)
+        GeekbenchPlugin().load_config_from_file(cfg_path)
 
 
 def test_geekbench_download_detects_bad_archive(monkeypatch, tmp_path):
     """A non-gzip download should raise and not leave artifacts behind."""
     workdir = tmp_path / "work"
-    cfg = gb_mod.GeekbenchConfig(workdir=workdir)
-    gen = gb_mod.GeekbenchGenerator(cfg)
+    cfg = GeekbenchConfig(workdir=workdir)
+    gen = GeekbenchGenerator(cfg)
 
     bad_tmp = tmp_path / "fake_download"
 
@@ -165,8 +167,8 @@ def test_geekbench_download_detects_bad_archive(monkeypatch, tmp_path):
         bad_tmp.write_text("<html>redirect</html>")
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
-    monkeypatch.setattr(gb_mod.tempfile, "NamedTemporaryFile", fake_tmpfile)
-    monkeypatch.setattr(gb_mod.subprocess, "run", fake_run)
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", fake_tmpfile)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     with pytest.raises(RuntimeError, match="gzip"):
         gen._prepare_geekbench()

@@ -5,10 +5,14 @@ from dataclasses import dataclass
 import importlib.metadata
 import pytest
 
-from lb_runner.plugin_system import registry as registry_mod
-from lb_runner.plugin_system.registry import PluginRegistry, resolve_user_plugin_dir
-from lb_runner.plugin_system.interface import WorkloadPlugin
-from lb_runner.plugin_system.base_generator import BaseGenerator
+from lb_plugins.api import (
+    BaseGenerator,
+    PluginRegistry,
+    WorkloadPlugin,
+    get_builtin_plugin_root,
+    resolve_user_plugin_dir,
+    set_builtin_plugin_root,
+)
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
@@ -99,11 +103,14 @@ def test_resolve_user_plugin_dir_prefers_builtin_root(monkeypatch, tmp_path):
     """User plugins live under package plugins/_user by default."""
     builtin_root = tmp_path / "builtin_plugins"
     monkeypatch.delenv("LB_USER_PLUGIN_DIR", raising=False)
-    monkeypatch.setattr(registry_mod, "BUILTIN_PLUGIN_ROOT", builtin_root)
-
-    resolved = resolve_user_plugin_dir()
-    assert resolved == (builtin_root / "_user").resolve()
-    assert resolved.exists()
+    original_root = get_builtin_plugin_root()
+    try:
+        set_builtin_plugin_root(builtin_root)
+        resolved = resolve_user_plugin_dir()
+        assert resolved == (builtin_root / "_user").resolve()
+        assert resolved.exists()
+    finally:
+        set_builtin_plugin_root(original_root)
 
 
 def test_registry_loads_user_module_get_plugins(monkeypatch, tmp_path):
@@ -113,7 +120,7 @@ def test_registry_loads_user_module_get_plugins(monkeypatch, tmp_path):
     plugin_file = tmp_path / "multi.py"
     plugin_file.write_text(
         """
-from lb_runner.plugin_system.interface import WorkloadPlugin, BasePluginConfig
+from lb_plugins.api import WorkloadPlugin, BasePluginConfig
 
 
 class P1(WorkloadPlugin):
@@ -160,7 +167,7 @@ def test_registry_loads_user_module_plugins_list(monkeypatch, tmp_path):
     plugin_file = tmp_path / "multi_list.py"
     plugin_file.write_text(
         """
-from lb_runner.plugin_system.interface import WorkloadPlugin, BasePluginConfig
+from lb_plugins.api import WorkloadPlugin, BasePluginConfig
 
 
 class P1(WorkloadPlugin):

@@ -6,21 +6,19 @@ from typing import Type
 
 import pytest
 
-from lb_runner.benchmark_config import BenchmarkConfig
-from lb_controller.services import plugin_service as plugin_service_mod
+from lb_runner.api import BenchmarkConfig
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
-from lb_controller.api import ConfigService, PluginInstaller, create_registry
-from lb_runner.plugin_system.interface import WorkloadPlugin
-from lb_runner.plugin_system.base_generator import BaseGenerator
+from lb_app.api import ConfigService
+from lb_plugins.api import PluginInstaller
 
 # Dummy plugin content to be written to files
 DUMMY_PLUGIN_CONTENT = """
 from dataclasses import dataclass
 from typing import Type
-from lb_runner.plugin_system.interface import WorkloadPlugin
-from lb_runner.plugin_system.base_generator import BaseGenerator
+
+from lb_plugins.api import BaseGenerator, WorkloadPlugin
 
 @dataclass
 class DummyConfig:

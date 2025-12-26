@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lb_controller.stop_coordinator import StopCoordinator, StopState
-from lb_runner.events import RunEvent
+from lb_controller.api import StopCoordinator, StopState
+from lb_runner.api import RunEvent
 
 
 @pytest.fixture

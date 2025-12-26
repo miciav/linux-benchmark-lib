@@ -2,7 +2,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 
-from lb_controller.services.run_catalog_service import RunCatalogService
+from lb_controller.api import RunCatalogService
 
 
 def _write_journal(path: Path, tasks, created_at: str = "2024-01-01T00:00:00") -> None:

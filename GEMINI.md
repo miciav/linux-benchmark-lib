@@ -74,5 +74,5 @@ uv run pytest -m tui
 ## File Structure Highlights
 *   `pyproject.toml`: Dependency and build configuration.
 *   `lb_runner/benchmark_config.py`: Configuration dataclasses.
-*   `lb_runner/plugins/`: Workload plugin implementations.
+*   `lb_plugins/plugins/`: Workload plugin implementations.
 *   `lb_controller/ansible/`: Ansible playbooks and roles.

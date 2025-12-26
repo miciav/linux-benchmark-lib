@@ -15,8 +15,12 @@ from pathlib import Path
 
 import pytest
 
-from lb_controller.api import PluginInstaller, create_registry
-from lb_controller.services import plugin_service as plugin_service_mod
+from lb_plugins.api import (
+    PluginInstaller,
+    create_registry,
+    reset_registry_cache,
+    set_user_plugin_dir,
+)
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_generic, pytest.mark.inter_plugins, pytest.mark.slow]
 
@@ -26,13 +30,9 @@ DEFAULT_E2E_GIT_PLUGIN_URL = "https://github.com/miciav/sysbench-plugin.git"
 def _patch_plugin_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Point user plugin dir to a temporary location."""
     plugin_dir = tmp_path / "plugins"
-    monkeypatch.setenv("LB_USER_PLUGIN_DIR", str(plugin_dir))
-    monkeypatch.setattr(plugin_service_mod, "USER_PLUGIN_DIR", plugin_dir)
-    import lb_runner.plugin_system.registry as registry_mod
-
-    monkeypatch.setattr(registry_mod, "USER_PLUGIN_DIR", plugin_dir)
-    monkeypatch.setattr(create_registry.__globals__["registry"], "USER_PLUGIN_DIR", plugin_dir)
     plugin_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("LB_USER_PLUGIN_DIR", str(plugin_dir))
+    set_user_plugin_dir(plugin_dir)
     return plugin_dir
 
 
@@ -57,7 +57,7 @@ def test_e2e_install_plugin_from_git_url(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
     _patch_plugin_dir(monkeypatch, tmp_path)
     # Ensure any cached registry doesn't mask changes.
-    plugin_service_mod._REGISTRY_CACHE = None
+    reset_registry_cache()
 
     baseline_registry = create_registry(refresh=True)
     baseline_plugins = set(baseline_registry.available(load_entrypoints=True).keys())
@@ -69,7 +69,7 @@ def test_e2e_install_plugin_from_git_url(monkeypatch: pytest.MonkeyPatch, tmp_pa
     try:
         installed_name = installer.install(url, force=True)
 
-        plugin_service_mod._REGISTRY_CACHE = None
+        reset_registry_cache()
         new_registry = create_registry(refresh=True)
         new_plugins = set(new_registry.available(load_entrypoints=True).keys())
 

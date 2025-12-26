@@ -5,9 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
-from lb_runner.local_runner import LocalRunner
-from lb_runner.plugin_system.interface import WorkloadPlugin
+from lb_plugins.api import WorkloadPlugin
+from lb_runner.api import BenchmarkConfig, LocalRunner, WorkloadConfig
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 

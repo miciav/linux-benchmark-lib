@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 import pytest
 
-from lb_runner.benchmark_config import (
+from lb_runner.api import (
     BenchmarkConfig,
     MetricCollectorConfig,
     PerfConfig,
@@ -10,8 +10,8 @@ from lb_runner.benchmark_config import (
 
 pytestmark = [pytest.mark.inter_generic, pytest.mark.slow]
 
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
-from lb_runner.local_runner import LocalRunner
+from lb_plugins.api import StressNGConfig
+from lb_runner.api import LocalRunner
 
 def test_run_stress_ng_benchmark(tmp_path, mocker):
     """
@@ -19,7 +19,7 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     Simulates the workload generator and collectors.
     """
     # --- Setup Mocks ---
-    mock_cleanup = mocker.patch('lb_runner.local_runner.LocalRunner._pre_test_cleanup')
+    mock_cleanup = mocker.patch('lb_runner.api.LocalRunner._pre_test_cleanup')
 
     mock_gen_instance = MagicMock()
     mock_gen_instance.get_result.return_value = {"status": "success"}

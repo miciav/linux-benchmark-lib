@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
-from lb_runner.benchmark_config import RemoteHostConfig
-from lb_runner.plugin_system.interface import WorkloadPlugin
+from lb_common.api import PluginAssetConfig
+from lb_runner.api import RemoteHostConfig
 
 if TYPE_CHECKING:
     from ..controller import AnsibleRunnerExecutor, InventorySpec
@@ -76,15 +76,16 @@ class SetupService:
 
     def provision_workload(
         self,
-        plugin: WorkloadPlugin,
+        plugin_assets: PluginAssetConfig | None,
+        plugin_name: str,
         target_hosts: Optional[List[RemoteHostConfig]] = None,
     ) -> bool:
         """
         Run the setup playbook for a specific workload plugin.
         """
-        playbook = plugin.get_ansible_setup_path()
+        playbook = plugin_assets.setup_playbook if plugin_assets else None
         if not playbook:
-            logger.debug(f"No setup playbook for plugin {plugin.name}")
+            logger.debug("No setup playbook for plugin %s", plugin_name)
             return True
 
         inventory = (
@@ -94,14 +95,10 @@ class SetupService:
         )
 
         extravars: Dict[str, Any] = {}
-        try:
-            extravars.update(plugin.get_ansible_setup_extravars())
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.debug(
-                "Failed to compute setup extravars for %s: %s", plugin.name, exc
-            )
+        if plugin_assets:
+            extravars.update(plugin_assets.setup_extravars)
 
-        logger.info(f"Running setup for {plugin.name}...")
+        logger.info("Running setup for %s...", plugin_name)
         result = self.executor.run_playbook(
             playbook, inventory=inventory, extravars=extravars or None
         )
@@ -109,13 +106,14 @@ class SetupService:
 
     def teardown_workload(
         self,
-        plugin: WorkloadPlugin,
+        plugin_assets: PluginAssetConfig | None,
+        plugin_name: str,
         target_hosts: Optional[List[RemoteHostConfig]] = None,
     ) -> bool:
         """
         Run the teardown playbook for a specific workload plugin.
         """
-        playbook = plugin.get_ansible_teardown_path()
+        playbook = plugin_assets.teardown_playbook if plugin_assets else None
         if not playbook:
             return True
 
@@ -126,14 +124,10 @@ class SetupService:
         )
 
         extravars: Dict[str, Any] = {}
-        try:
-            extravars.update(plugin.get_ansible_teardown_extravars())
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.debug(
-                "Failed to compute teardown extravars for %s: %s", plugin.name, exc
-            )
+        if plugin_assets:
+            extravars.update(plugin_assets.teardown_extravars)
 
-        logger.info(f"Running teardown for {plugin.name}...")
+        logger.info("Running teardown for %s...", plugin_name)
         result = self.executor.run_playbook(
             playbook,
             inventory=inventory,

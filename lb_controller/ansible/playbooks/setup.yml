@@ -86,7 +86,7 @@
         cmd: >-
           tar -czf {{ hostvars['localhost'].lb_src_archive_path }}
           -C {{ lb_src_root }}
-          lb_app lb_analytics lb_common lb_controller lb_provisioner lb_runner lb_ui
+          lb_app lb_analytics lb_common lb_controller lb_plugins lb_provisioner lb_runner lb_ui
           pyproject.toml README.md uv.lock
       delegate_to: localhost
       changed_when: true

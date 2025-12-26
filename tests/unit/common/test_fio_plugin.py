@@ -2,7 +2,7 @@
 
 import pytest
 
-from lb_runner.plugins.fio.plugin import FIOConfig, FIOGenerator
+from lb_plugins.api import FIOConfig, FIOGenerator
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 

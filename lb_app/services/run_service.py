@@ -8,9 +8,10 @@ import queue
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from lb_runner.api import BenchmarkConfig, PluginRegistry
-from lb_runner.stop_token import StopToken
+from lb_controller.api import BenchmarkConfig, StopToken
+from lb_plugins.api import PluginRegistry, apply_plugin_assets, create_registry
 from lb_controller.api import (
+    BenchmarkController,
     ControllerRunner,
     ControllerStateMachine,
     DoubleCtrlCStateMachine,
@@ -19,6 +20,7 @@ from lb_controller.api import (
     RunStatus,
     SigintDoublePressHandler,
     pending_exists,
+    apply_playbook_defaults,
 )
 from lb_app.ui_interfaces import UIAdapter, DashboardHandle, NoOpDashboardHandle
 
@@ -175,6 +177,7 @@ class RunService:
         cfg, resolved = self._load_or_default_config(
             config_service, config_path, ui_adapter, preloaded_config
         )
+        apply_playbook_defaults(cfg)
         self._apply_setup_overrides(
             cfg, setup, repetitions, intensity, ui_adapter, debug
         )
@@ -199,8 +202,12 @@ class RunService:
     ) -> tuple[BenchmarkConfig, Optional[Path]]:
         """Load config from disk or return a provided instance with UI feedback."""
         if preloaded_config is not None:
+            if not preloaded_config.plugin_assets:
+                apply_plugin_assets(preloaded_config, create_registry())
             return preloaded_config, config_path
         cfg, resolved, stale = config_service.load_for_read(config_path)
+        if not cfg.plugin_assets:
+            apply_plugin_assets(cfg, create_registry())
         if ui_adapter:
             if stale:
                 ui_adapter.show_warning(f"Saved default config not found: {stale}")
@@ -297,10 +304,9 @@ class RunService:
         emit_timing: bool = True,
     ) -> RunResult:
         """Execute a remote run using the controller with journal integration."""
-        from lb_controller.api import (
-            BenchmarkController,
-        )  # Runtime import to break circular dependency
-
+        apply_playbook_defaults(context.config)
+        if not context.config.plugin_assets:
+            apply_plugin_assets(context.config, context.registry)
         session = self._prepare_remote_session(context, run_id, ui_adapter, stop_token)
 
         if not session.stop_token.should_stop() and not pending_exists(

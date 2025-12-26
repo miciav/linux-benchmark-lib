@@ -5,10 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from lb_runner.plugins.dd.plugin import DDConfig, DDPlugin
-from lb_runner.plugins.fio.plugin import FIOConfig, FIOPlugin
-from lb_runner.plugins.hpl.plugin import HPLConfig, HPLPlugin
-from lb_runner.plugins.stream.plugin import StreamConfig, StreamPlugin
+from lb_plugins.api import (
+    DDConfig,
+    DDPlugin,
+    FIOConfig,
+    FIOPlugin,
+    HPLConfig,
+    HPLPlugin,
+    StreamConfig,
+    StreamPlugin,
+)
 
 
 pytestmark = pytest.mark.unit_runner

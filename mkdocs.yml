@@ -20,12 +20,14 @@ extra_css:
   - css/extra.css
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - Quickstart: quickstart.md
-  - Configuration: configuration.md
-  - Workloads & Plugins: plugins.md
-  - Remote Execution: remote_execution.md
-  - CLI: cli.md
+  - Getting Started:
+      - Installation: installation.md
+      - Quickstart: quickstart.md
+  - User Guide:
+      - CLI Reference: cli.md
+      - Configuration: configuration.md
+      - Workloads & Plugins: plugins.md
+      - Remote Execution: remote_execution.md
   - API Reference:
       - Overview: api.md
       - Runner: reference/runner.md
@@ -33,8 +35,8 @@ nav:
       - App & UI: reference/app.md
       - Provisioning: reference/provisioner.md
       - Analytics: reference/analytics.md
-  - Diagrams: diagrams.md
-  - Design:
+  - Architecture & Design:
+      - Diagrams: diagrams.md
       - Interrupts: interrupts.md
       - Ctrl+C Design: ctrl_c_design.md
       - Ctrl+C Stop Flow: ctrl_c_stop_flow.md
@@ -55,6 +57,9 @@ plugins:
             show_signature: true
             separate_signature: true
             show_if_no_docstring: true
+            merge_init_into_class: true
+            show_category_heading: true
+            show_symbol_type: true
             members_order: "alphabetical"
             filters:
               - "!^_"

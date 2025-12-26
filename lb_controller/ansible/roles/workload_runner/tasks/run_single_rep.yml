@@ -36,10 +36,8 @@
         import time
         from pathlib import Path
 
-        from lb_runner.benchmark_config import BenchmarkConfig
-        from lb_runner.local_runner import LocalRunner
-        from lb_controller.services.plugin_service import create_registry
-        from lb_runner.stop_token import StopToken
+        from lb_plugins.api import create_registry
+        from lb_runner.api import BenchmarkConfig, LocalRunner, StopToken
 
         cfg_path = Path("{{ workload_runner_workdir }}/benchmark_config.generated.json")
         cfg = BenchmarkConfig.from_dict(json.loads(cfg_path.read_text()))

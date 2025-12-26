@@ -7,13 +7,13 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pydantic import ValidationError # Added ValidationError import
-from lb_runner.plugin_system.interface import WorkloadIntensity
-from lb_runner.plugins.baseline.plugin import (
+from pydantic import ValidationError  # Added ValidationError import
+from lb_plugins.api import (
+    BASELINE_PLUGIN,
     BaselineConfig,
     BaselineGenerator,
     BaselinePlugin,
-    PLUGIN,
+    WorkloadIntensity,
 )
 
 pytestmark = pytest.mark.unit_runner
@@ -43,41 +43,41 @@ class TestBaselineConfig:
 
 class TestBaselinePlugin:
     def test_metadata(self):
-        assert PLUGIN.name == "baseline"
-        assert "Idle workload" in PLUGIN.description
-        assert PLUGIN.config_cls == BaselineConfig
+        assert BASELINE_PLUGIN.name == "baseline"
+        assert "Idle workload" in BASELINE_PLUGIN.description
+        assert BASELINE_PLUGIN.config_cls == BaselineConfig
 
     def test_factory(self):
         config = BaselineConfig(duration=5)
-        generator = PLUGIN.create_generator(config)
+        generator = BASELINE_PLUGIN.create_generator(config)
         assert isinstance(generator, BaselineGenerator)
         assert generator.config.duration == 5
         assert generator.config.max_retries == 0 # Ensure inherited fields are present
 
     def test_presets(self):
-        low = PLUGIN.get_preset_config(WorkloadIntensity.LOW)
+        low = BASELINE_PLUGIN.get_preset_config(WorkloadIntensity.LOW)
         assert low.duration == 30
         assert low.max_retries == 0 # Inherited default still applies for presets
 
-        medium = PLUGIN.get_preset_config(WorkloadIntensity.MEDIUM)
+        medium = BASELINE_PLUGIN.get_preset_config(WorkloadIntensity.MEDIUM)
         assert medium.duration == 60
 
-        high = PLUGIN.get_preset_config(WorkloadIntensity.HIGH)
+        high = BASELINE_PLUGIN.get_preset_config(WorkloadIntensity.HIGH)
         assert high.duration == 300
 
-        unknown = PLUGIN.get_preset_config(WorkloadIntensity.USER_DEFINED)
+        unknown = BASELINE_PLUGIN.get_preset_config(WorkloadIntensity.USER_DEFINED)
         assert unknown is None
 
     def test_requirements(self):
-        assert PLUGIN.get_required_apt_packages() == []
-        assert PLUGIN.get_required_local_tools() == []
+        assert BASELINE_PLUGIN.get_required_apt_packages() == []
+        assert BASELINE_PLUGIN.get_required_local_tools() == []
 
 
 class TestBaselineConfigLoading:
     def test_load_config_from_file_empty(self, tmp_path):
         config_file = tmp_path / "config.yaml"
         config_file.write_text("")
-        loaded_config = PLUGIN.load_config_from_file(config_file)
+        loaded_config = BASELINE_PLUGIN.load_config_from_file(config_file)
         assert isinstance(loaded_config, BaselineConfig)
         assert loaded_config.duration == 60
         assert loaded_config.max_retries == 0
@@ -90,7 +90,7 @@ common:
   max_retries: 5
   tags: ["common-tag"]
 """)
-        loaded_config = PLUGIN.load_config_from_file(config_file)
+        loaded_config = BASELINE_PLUGIN.load_config_from_file(config_file)
         assert isinstance(loaded_config, BaselineConfig)
         assert loaded_config.duration == 60  # From BaselineConfig default
         assert loaded_config.max_retries == 5  # From common
@@ -104,7 +104,7 @@ plugins:
     duration: 120
     timeout_buffer: 50
 """)
-        loaded_config = PLUGIN.load_config_from_file(config_file)
+        loaded_config = BASELINE_PLUGIN.load_config_from_file(config_file)
         assert isinstance(loaded_config, BaselineConfig)
         assert loaded_config.duration == 120  # From plugin specific
         assert loaded_config.max_retries == 0  # From BasePluginConfig default
@@ -122,7 +122,7 @@ plugins:
     max_retries: 10 # Plugin-specific overrides common
     tags: ["baseline-tag"] # Plugin-specific overrides common
 """)
-        loaded_config = PLUGIN.load_config_from_file(config_file)
+        loaded_config = BASELINE_PLUGIN.load_config_from_file(config_file)
         assert isinstance(loaded_config, BaselineConfig)
         assert loaded_config.duration == 120
         assert loaded_config.max_retries == 10
@@ -136,12 +136,12 @@ plugins:
     duration: 0 # Invalid duration (must be gt 0)
 """)
         with pytest.raises(ValidationError):
-            PLUGIN.load_config_from_file(config_file)
+            BASELINE_PLUGIN.load_config_from_file(config_file)
 
     def test_load_config_from_file_not_found(self, tmp_path):
         non_existent_file = tmp_path / "non_existent_config.yaml"
         with pytest.raises(FileNotFoundError):
-            PLUGIN.load_config_from_file(non_existent_file)
+            BASELINE_PLUGIN.load_config_from_file(non_existent_file)
 
 
 class TestBaselineGenerator:

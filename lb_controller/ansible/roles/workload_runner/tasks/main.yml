@@ -39,7 +39,7 @@
   ansible.builtin.shell: |
     set -e
     export PYTHONUNBUFFERED=1
-    "{{ workload_runner_uv_bin }}" run python -m lb_runner.system_info \
+    "{{ workload_runner_uv_bin }}" run python -m lb_runner.services.system_info \
       --json "{{ workload_runner_output_dir | default('/tmp') }}/system_info.json" \
       --csv "{{ workload_runner_output_dir | default('/tmp') }}/system_info.csv"
   args:

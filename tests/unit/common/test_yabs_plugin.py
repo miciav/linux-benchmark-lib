@@ -1,29 +1,30 @@
 import os
+import shutil
 import subprocess
-from pathlib import Path
+import tempfile
 
 import pytest
 
-import lb_runner.plugins.yabs.plugin as yabs_mod
+from lb_plugins.api import YabsConfig, YabsGenerator, YabsPlugin
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
 
 
 def test_yabs_defaults():
-    cfg = yabs_mod.YabsConfig()
-    plugin = yabs_mod.PLUGIN
+    cfg = YabsConfig()
+    plugin = YabsPlugin()
     assert plugin.name == "yabs"
     assert plugin.description
     gen = plugin.create_generator(cfg)
-    assert isinstance(gen, yabs_mod.YabsGenerator)
+    assert isinstance(gen, YabsGenerator)
     assert cfg.skip_geekbench is True
     assert cfg.skip_disk is False
     assert cfg.skip_network is False
 
 
 def test_yabs_required_packages():
-    plugin = yabs_mod.PLUGIN
+    plugin = YabsPlugin()
     pkgs = plugin.get_required_apt_packages()
     for required in ("curl", "wget", "fio", "iperf3", "bc", "tar"):
         assert required in pkgs
@@ -32,14 +33,14 @@ def test_yabs_required_packages():
 
 
 def test_yabs_paths_exist():
-    plugin = yabs_mod.PLUGIN
+    plugin = YabsPlugin()
     setup = plugin.get_ansible_setup_path()
     assert setup and setup.exists()
 
 
 def test_yabs_generator_builds_command(monkeypatch, tmp_path):
-    cfg = yabs_mod.YabsConfig(skip_disk=True, skip_network=True, skip_geekbench=True, output_dir=tmp_path)
-    gen = yabs_mod.YabsGenerator(cfg)
+    cfg = YabsConfig(skip_disk=True, skip_network=True, skip_geekbench=True, output_dir=tmp_path)
+    gen = YabsGenerator(cfg)
 
     calls = []
 
@@ -54,11 +55,9 @@ def test_yabs_generator_builds_command(monkeypatch, tmp_path):
         os.write(fd, b"#!/bin/bash\necho ok\n")
         return fd, str(p)
 
-    monkeypatch.setattr(yabs_mod.tempfile, "mkstemp", fake_mkstemp)
-    monkeypatch.setattr(yabs_mod, "subprocess", yabs_mod.subprocess)
-    monkeypatch.setattr(yabs_mod.subprocess, "run", fake_run)
-    monkeypatch.setattr(yabs_mod, "shutil", yabs_mod.shutil)
-    monkeypatch.setattr(yabs_mod.shutil, "which", lambda _: "/usr/bin/tool")
+    monkeypatch.setattr(tempfile, "mkstemp", fake_mkstemp)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/tool")
 
     gen._run_command()
     # First call downloads script, second runs yabs

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lb_provisioner.types import ProvisionedNode, ProvisioningResult
+from lb_provisioner.api import ProvisionedNode, ProvisioningResult
 
 
 @pytest.fixture

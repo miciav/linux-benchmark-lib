@@ -1,6 +1,6 @@
 import pandas as pd
 
-from lb_analytics.aggregators.collectors import aggregate_cli, aggregate_psutil
+from lb_analytics.api import aggregate_cli, aggregate_psutil
 
 import pytest
 

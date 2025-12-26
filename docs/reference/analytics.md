@@ -2,6 +2,6 @@
 
 Services for running post-processing on stored benchmark runs.
 
-::: lb_analytics.analytics_service.AnalyticsService
-::: lb_analytics.analytics_service.AnalyticsRequest
+::: lb_analytics.engine.service.AnalyticsService
+::: lb_analytics.engine.service.AnalyticsRequest
 

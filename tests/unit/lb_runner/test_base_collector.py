@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from lb_runner.metric_collectors._base_collector import BaseCollector
+from lb_runner.api import BaseCollector
 
 import pytest
 

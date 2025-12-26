@@ -1,25 +1,45 @@
 """Stable runner API surface."""
 
-from lb_runner.benchmark_config import (
+from lb_runner.models.config import (
     BenchmarkConfig,
+    MetricCollectorConfig,
+    PerfConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
 )
-from lb_runner.events import RunEvent, StdoutEmitter
-from lb_runner.plugin_system.base_generator import BaseGenerator
-from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
-from lb_runner.plugin_system.registry import PluginRegistry
+from lb_runner.models import config as config_module
+from lb_runner.models.events import RunEvent, StdoutEmitter
+from lb_runner.engine.runner import LocalRunner
+from lb_runner.engine.stop_token import StopToken
+from lb_runner.metric_collectors._base_collector import BaseCollector
+from lb_runner.metric_collectors.cli_collector import aggregate_cli
+from lb_runner.services.log_handler import LBEventLogHandler
+from lb_runner.services.results import collect_metrics
+from lb_runner.services import storage as storage_module
+from lb_runner.services import system_info as system_info_module
+from lb_runner.services.storage import ensure_run_dirs, workload_output_dir
+from lb_runner.services.system_info_io import write_outputs
 
 __all__ = [
     "BenchmarkConfig",
+    "MetricCollectorConfig",
+    "PerfConfig",
     "RemoteExecutionConfig",
     "RemoteHostConfig",
     "WorkloadConfig",
-    "BaseGenerator",
-    "WorkloadIntensity",
-    "WorkloadPlugin",
-    "PluginRegistry",
+    "BaseCollector",
     "RunEvent",
     "StdoutEmitter",
+    "LocalRunner",
+    "LBEventLogHandler",
+    "collect_metrics",
+    "aggregate_cli",
+    "ensure_run_dirs",
+    "write_outputs",
+    "config_module",
+    "storage_module",
+    "system_info_module",
+    "StopToken",
+    "workload_output_dir",
 ]

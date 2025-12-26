@@ -8,7 +8,8 @@ import shutil
 from typing import List, Tuple, Optional
 
 from lb_app.services.doctor_types import DoctorCheckGroup, DoctorCheckItem, DoctorReport
-from lb_controller.api import ConfigService, create_registry
+from lb_app.services.config_service import ConfigService
+from lb_plugins.api import create_registry
 
 
 class DoctorService:

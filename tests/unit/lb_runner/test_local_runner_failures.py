@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lb_runner.benchmark_config import BenchmarkConfig, WorkloadConfig
-from lb_runner.local_runner import LocalRunner
+from lb_runner.api import BenchmarkConfig, WorkloadConfig
+from lb_runner.api import LocalRunner
 
 
 pytestmark = pytest.mark.unit_runner
@@ -51,8 +51,8 @@ def test_system_info_write_failure_is_ignored(mocker, tmp_path):
     )
     registry = MagicMock()
     registry.create_collectors.return_value = []
-    mocker.patch("lb_runner.system_info.collect_system_info").return_value = MagicMock(to_dict=lambda: {})
-    mocker.patch("lb_runner.output_helpers.write_system_info_artifacts", side_effect=RuntimeError("fail"))
+    mocker.patch("lb_runner.api.system_info_module.collect_system_info").return_value = MagicMock(to_dict=lambda: {})
+    mocker.patch("lb_runner.api.storage_module.write_system_info_artifacts", side_effect=RuntimeError("fail"))
     registry.create_generator.return_value = MagicMock(_is_running=False, stop=lambda: None, get_result=lambda: {})
 
     runner = LocalRunner(cfg, registry=registry)
@@ -78,7 +78,8 @@ def test_mock_generator_without_flag_exits_promptly(monkeypatch, tmp_path):
     def fake_sleep(seconds: int) -> None:
         sleep_calls.append(seconds)
 
-    monkeypatch.setattr("lb_runner.local_runner.time.sleep", fake_sleep)
+    monkeypatch.setattr("lb_runner.engine.execution.time.sleep", fake_sleep)
+    monkeypatch.setattr("lb_runner.engine.runner.time.sleep", fake_sleep)
 
     generator = MagicMock()
     generator.get_result.return_value = {"returncode": 0}

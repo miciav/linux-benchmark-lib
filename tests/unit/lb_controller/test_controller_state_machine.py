@@ -1,6 +1,6 @@
 import pytest
 
-from lb_controller.controller_state import ControllerState, ControllerStateMachine
+from lb_controller.api import ControllerState, ControllerStateMachine
 
 
 pytestmark = pytest.mark.unit_controller
