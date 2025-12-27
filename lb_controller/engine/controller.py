@@ -84,6 +84,11 @@ class BenchmarkController:
         state_machine: ControllerStateMachine | None = None,
     ):
         self.config = config
+        from lb_controller.services.paths import apply_playbook_defaults
+        from lb_plugins.api import apply_plugin_assets, create_registry
+        apply_playbook_defaults(self.config)
+        if not self.config.plugin_assets:
+            apply_plugin_assets(self.config, create_registry())
         self.output_formatter = output_formatter
         self.stop_token = stop_token
         self._stop_timeout_s = stop_timeout_s

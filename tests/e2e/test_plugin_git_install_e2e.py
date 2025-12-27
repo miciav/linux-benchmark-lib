@@ -24,7 +24,13 @@ from lb_plugins.api import (
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_generic, pytest.mark.inter_plugins, pytest.mark.slow]
 
-DEFAULT_E2E_GIT_PLUGIN_URL = "https://github.com/miciav/sysbench-plugin.git"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+LOCAL_SYSBENCH_REPO = REPO_ROOT / "lb_plugins" / "plugins" / "_user" / "sysbench-plugin"
+DEFAULT_E2E_GIT_PLUGIN_URL = (
+    f"file://{LOCAL_SYSBENCH_REPO.resolve()}"
+    if (LOCAL_SYSBENCH_REPO / ".git").exists()
+    else "https://github.com/miciav/sysbench-plugin.git"
+)
 
 
 def _patch_plugin_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
@@ -38,7 +44,16 @@ def _patch_plugin_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 
 def test_e2e_install_plugin_from_git_url(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Install a plugin from git and ensure it is discoverable."""
-    url = DEFAULT_E2E_GIT_PLUGIN_URL
+    url = os.environ.get("LB_E2E_GIT_PLUGIN_URL", DEFAULT_E2E_GIT_PLUGIN_URL)
+    if url.startswith("file://"):
+        repo_path = Path(url[len("file://") :])
+        plugin_path = repo_path / "lb_sysbench_plugin" / "plugin.py"
+        if plugin_path.exists():
+            text = plugin_path.read_text()
+            if "lb_runner.plugin_system" in text:
+                pytest.fail(
+                    "sysbench plugin repo uses legacy imports; update to lb_plugins.*"
+                )
     if shutil.which("git") is None:
         pytest.skip("git is required for this test")
     # Skip safely when network access to GitHub is unavailable.

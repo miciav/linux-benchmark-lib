@@ -162,7 +162,7 @@ class BenchmarkConfig(BaseModel):
 
         apply_plugin_settings_defaults(self)
         self._validate_remote_hosts_unique() # Renamed to call the Pydantic validator
-        # remote_execution handles its own path normalization via model_validator
+        # Remote execution playbook defaults are applied by controller services.
         return self
 
     def ensure_output_dirs(self) -> None:
