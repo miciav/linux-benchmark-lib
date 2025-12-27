@@ -94,6 +94,7 @@ class CallbackModule(CallbackBase):
         self._handle_result(result, status_override="skipped")
 
     def v2_playbook_on_task_start(self, task, is_conditional=False):  # type: ignore[override]
+        _ = is_conditional
         task_id = getattr(task, "_uuid", None)
         if task_id is None:
             return

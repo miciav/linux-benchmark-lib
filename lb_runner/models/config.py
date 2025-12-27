@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, model_validator  # Added Pydantic imports
+from pydantic import BaseModel, Field, model_validator
 
-from lb_common.api import PluginAssetConfig
-
-logger = logging.getLogger(__name__)
+from lb_plugins.api import PluginAssetConfig
 
 # --- Pydantic Models for Configuration ---
 
@@ -155,15 +152,6 @@ class BenchmarkConfig(BaseModel):
     influxdb_token: str = Field(default="", description="InfluxDB API Token")
     influxdb_org: str = Field(default="benchmark", description="InfluxDB Organization")
     influxdb_bucket: str = Field(default="performance", description="InfluxDB Bucket")
-
-    @model_validator(mode="after")
-    def _post_init_validation(self) -> 'BenchmarkConfig':
-        from lb_runner.plugin_system.settings import apply_plugin_settings_defaults
-
-        apply_plugin_settings_defaults(self)
-        self._validate_remote_hosts_unique() # Renamed to call the Pydantic validator
-        # Remote execution playbook defaults are applied by controller services.
-        return self
 
     def ensure_output_dirs(self) -> None:
         """Ensures all configured output directories exist."""

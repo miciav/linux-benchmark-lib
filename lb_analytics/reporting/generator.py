@@ -6,8 +6,6 @@ This module creates textual and graphical reports from aggregated benchmark data
 
 import logging
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 from pathlib import Path
 from typing import Dict
 
@@ -69,6 +67,15 @@ class Reporter:
             test_name: Name of the test
         """
         logger.info(f"Generating graphical report for {test_name}")
+
+        try:
+            import matplotlib.pyplot as plt
+            import seaborn as sns
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError(
+                "matplotlib and seaborn are required for graphical reports. "
+                "Install the controller/dev extras to enable plotting."
+            ) from exc
 
         plt.figure(figsize=(12, 8))
         sns.boxplot(data=aggregated_df.transpose())

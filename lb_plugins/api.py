@@ -11,12 +11,21 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, Optional, Protocol, Union
 
-from lb_common.api import PluginAssetConfig
 from lb_plugins import registry as registry_module
 from lb_plugins.base_generator import BaseGenerator
 from lb_plugins.builtin import builtin_plugins
 from lb_plugins.interface import BasePluginConfig, WorkloadIntensity, WorkloadPlugin
+from lb_plugins.plugin_assets import PluginAssetConfig
 from lb_plugins.registry import PluginRegistry, resolve_user_plugin_dir
+from lb_plugins.settings import (
+    SupportsPluginSettings,
+    SupportsWorkloads,
+    WorkloadFactory,
+    apply_plugin_settings_defaults,
+    ensure_workloads_from_plugin_settings,
+    hydrate_plugin_settings,
+    populate_default_plugin_settings,
+)
 from lb_plugins.table import build_plugin_table
 from lb_plugins.plugins.baseline.plugin import (
     BaselineConfig,
@@ -318,6 +327,10 @@ __all__ = [
     "plugin_metadata",
     "build_plugin_table",
     "apply_plugin_assets",
+    "apply_plugin_settings_defaults",
+    "ensure_workloads_from_plugin_settings",
+    "hydrate_plugin_settings",
+    "populate_default_plugin_settings",
     "reset_registry_cache",
     "set_builtin_plugin_root",
     "get_builtin_plugin_root",
@@ -326,6 +339,10 @@ __all__ = [
     "USER_PLUGIN_DIR",
     "builtin_plugins",
     "SupportsPluginAssets",
+    "SupportsPluginSettings",
+    "SupportsWorkloads",
+    "WorkloadFactory",
+    "PluginAssetConfig",
     "BaselineConfig",
     "BaselineGenerator",
     "BaselinePlugin",

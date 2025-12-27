@@ -5,31 +5,46 @@ from __future__ import annotations
 import logging
 from dataclasses import asdict, is_dataclass
 from inspect import isclass
-from typing import Any, TYPE_CHECKING
+from typing import Any, Dict, Protocol
 
 from pydantic import BaseModel, ValidationError
 
-if TYPE_CHECKING:
-    from lb_runner.models.config import BenchmarkConfig
-    from lb_plugins.api import PluginRegistry
-
+from lb_plugins.builtin import builtin_plugins
+from lb_plugins.registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
 
 
-def _default_registry() -> "PluginRegistry":
-    from lb_plugins.api import PluginRegistry, builtin_plugins
+class SupportsPluginSettings(Protocol):
+    """Minimal interface for configs that store plugin settings."""
 
+    plugin_settings: Dict[str, Any]
+
+
+class SupportsWorkloads(Protocol):
+    """Minimal interface for configs that store workloads."""
+
+    workloads: Dict[str, Any]
+
+
+class WorkloadFactory(Protocol):
+    """Factory for workload config objects."""
+
+    def __call__(self, *, plugin: str, enabled: bool, options: Dict[str, Any]) -> Any:
+        ...
+
+
+def _default_registry() -> PluginRegistry:
     return PluginRegistry(builtin_plugins())
 
 
-def _resolve_registry(registry: "PluginRegistry | None") -> "PluginRegistry":
+def _resolve_registry(registry: PluginRegistry | None) -> PluginRegistry:
     return registry or _default_registry()
 
 
 def hydrate_plugin_settings(
-    config: "BenchmarkConfig",
-    registry: "PluginRegistry | None" = None,
+    config: SupportsPluginSettings,
+    registry: PluginRegistry | None = None,
 ) -> None:
     """
     Convert plugin_settings dicts into their respective Pydantic models.
@@ -62,8 +77,8 @@ def hydrate_plugin_settings(
 
 
 def populate_default_plugin_settings(
-    config: "BenchmarkConfig",
-    registry: "PluginRegistry | None" = None,
+    config: SupportsPluginSettings,
+    registry: PluginRegistry | None = None,
     load_entrypoints: bool = False,
     allow_dataclasses: bool = False,
 ) -> set[str]:
@@ -94,15 +109,14 @@ def populate_default_plugin_settings(
 
 
 def ensure_workloads_from_plugin_settings(
-    config: "BenchmarkConfig",
+    config: SupportsPluginSettings & SupportsWorkloads,
+    workload_factory: WorkloadFactory,
     dump_mode: str | None = None,
     convert_dataclasses: bool = False,
 ) -> None:
     """Populate workloads dict from plugin_settings if not explicitly defined."""
     if not config.plugin_settings:
         return
-
-    from lb_runner.models.config import WorkloadConfig
 
     def _settings_to_options(settings: Any) -> Any:
         if isinstance(settings, BaseModel):
@@ -115,26 +129,36 @@ def ensure_workloads_from_plugin_settings(
 
     for name, settings in config.plugin_settings.items():
         if name not in config.workloads:
-            config.workloads[name] = WorkloadConfig(
+            config.workloads[name] = workload_factory(
                 plugin=name,
                 enabled=False,
                 options=_settings_to_options(settings),
             )
         else:
             cfg = config.workloads[name]
-            if not cfg.options:
+            if not getattr(cfg, "options", None):
                 cfg.options = _settings_to_options(settings)
 
 
 def apply_plugin_settings_defaults(
-    config: "BenchmarkConfig",
-    registry: "PluginRegistry | None" = None,
+    config: SupportsPluginSettings & SupportsWorkloads,
+    registry: PluginRegistry | None = None,
     load_entrypoints: bool = False,
+    workload_factory: WorkloadFactory | None = None,
+    dump_mode: str | None = None,
+    convert_dataclasses: bool = False,
 ) -> None:
-    """Hydrate and backfill plugin-related settings on a BenchmarkConfig."""
+    """Hydrate and backfill plugin-related settings on a config object."""
     hydrate_plugin_settings(config, registry=registry)
     if not config.plugin_settings:
         populate_default_plugin_settings(
             config, registry=registry, load_entrypoints=load_entrypoints
         )
-    ensure_workloads_from_plugin_settings(config)
+    if workload_factory is None:
+        raise ValueError("workload_factory is required to backfill workloads")
+    ensure_workloads_from_plugin_settings(
+        config,
+        workload_factory=workload_factory,
+        dump_mode=dump_mode,
+        convert_dataclasses=convert_dataclasses,
+    )

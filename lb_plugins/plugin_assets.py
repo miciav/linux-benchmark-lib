@@ -1,4 +1,4 @@
-"""Shared plugin asset metadata models."""
+"""Plugin asset metadata models."""
 
 from __future__ import annotations
 

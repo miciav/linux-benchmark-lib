@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from lb_common.api import PluginAssetConfig
+from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import BenchmarkConfig, RemoteHostConfig, RunEvent, StopToken
 
 from lb_controller.models.state import ControllerState, ControllerStateMachine

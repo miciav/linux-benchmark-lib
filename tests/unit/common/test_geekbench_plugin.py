@@ -63,6 +63,8 @@ def test_geekbench_generator_builds_command(monkeypatch, tmp_path):
 
     calls: list[list[str]] = []
     def fake_exec(cmd, env=None, cwd=None):
+        assert env is not None
+        assert cwd is not None
         calls.append(cmd)
         # Simulate Geekbench creating the JSON export when requested.
         if "--export-json" in cmd:

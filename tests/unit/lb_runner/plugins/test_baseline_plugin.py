@@ -7,16 +7,16 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pydantic import ValidationError  # Added ValidationError import
+from pydantic import ValidationError
 from lb_plugins.api import (
     BASELINE_PLUGIN,
     BaselineConfig,
     BaselineGenerator,
-    BaselinePlugin,
     WorkloadIntensity,
 )
 
 pytestmark = pytest.mark.unit_runner
+
 
 class TestBaselineConfig:
     def test_defaults(self):

@@ -11,7 +11,7 @@ from lb_controller.services.journal import RunStatus
 from lb_controller.services.journal_sync import backfill_timings_from_results, update_all_reps
 from lb_controller.engine.lifecycle import RunPhase
 from lb_controller.models.types import ExecutionResult, InventorySpec
-from lb_common.api import PluginAssetConfig
+from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import RemoteHostConfig
 
 if TYPE_CHECKING:
