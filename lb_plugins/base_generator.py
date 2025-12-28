@@ -226,7 +226,6 @@ class CommandGenerator(BaseGenerator):
             self._result = {"error": str(exc), "returncode": -2}
         finally:
             self._process = None
-            self._is_running = False
 
     def _stop_workload(self) -> None:
         proc = self._process

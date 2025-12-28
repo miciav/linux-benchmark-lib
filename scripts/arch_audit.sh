@@ -121,21 +121,78 @@ except Exception as e:
 
 # Try multiple ways to get Project depending on grimp version
 Project = getattr(grimp, 'Project', None)
+project_error = None
 if Project is None:
     try:
         from grimp.adaptors.project import Project  # type: ignore
     except Exception as e:
-        print('Could not locate Project in grimp.')
-        print('Installed grimp version:', getattr(grimp, '__version__', 'unknown'))
-        print('Error:', e)
-        sys.exit(0)
+        project_error = e
+        Project = None
+
+def _print_cycles(cycles):
+    print(f'Import cycles in {target}: {len(cycles)}')
+    for c in list(cycles)[:200]:
+        print('  - ' + ' -> '.join(c))
+
 
 try:
-    p = Project(root)
-    cycles = p.find_import_cycles(target)
-    print(f'Import cycles in {target}: {len(cycles)}')
-    for c in cycles[:200]:
-        print('  - ' + ' -> '.join(c))
+    if Project is not None:
+        p = Project(root)
+        cycles = p.find_import_cycles(target)
+        _print_cycles(cycles)
+    else:
+        if project_error:
+            print('Project API not found in grimp; falling back to build_graph.')
+            print('Installed grimp version:', getattr(grimp, '__version__', 'unknown'))
+            print('Error:', project_error)
+        graph = grimp.build_graph(target)
+        modules = sorted(graph.modules)
+        module_set = set(modules)
+        adjacency = {
+            mod: sorted(
+                m
+                for m in graph.find_modules_directly_imported_by(mod)
+                if m in module_set
+            )
+            for mod in modules
+        }
+
+        cycles = set()
+        visited = set()
+
+        def _normalize_cycle(path):
+            if len(path) > 1 and path[0] == path[-1]:
+                path = path[:-1]
+            if not path:
+                return tuple()
+            min_index = min(range(len(path)), key=lambda i: path[i])
+            rotated = path[min_index:] + path[:min_index]
+            return tuple(rotated)
+
+        def _dfs(node, stack, visiting):
+            visiting.add(node)
+            stack.append(node)
+            for neighbor in adjacency.get(node, []):
+                if neighbor in visiting:
+                    idx = stack.index(neighbor)
+                    cycle = stack[idx:] + [neighbor]
+                    normalized = _normalize_cycle(cycle)
+                    if normalized:
+                        cycles.add(normalized)
+                elif neighbor not in visited:
+                    _dfs(neighbor, stack, visiting)
+            stack.pop()
+            visiting.remove(node)
+            visited.add(node)
+
+        for mod in modules:
+            if mod not in visited:
+                _dfs(mod, [], set())
+
+        formatted = []
+        for cycle in sorted(cycles):
+            formatted.append(list(cycle) + [cycle[0]])
+        _print_cycles(formatted)
 except Exception as e:
     print('Error while computing cycles:', e)
 PY

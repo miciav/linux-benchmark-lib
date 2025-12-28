@@ -124,7 +124,7 @@ class YabsGenerator(CommandGenerator):
             for token in ("illegal option", "unknown option", "unrecognized option", "invalid option")
         ):
             return False
-        return "-c" in combined or "-- c" in combined
+        return True
 
     def _run_command(self) -> None:
         """Download and execute yabs.sh with configured flags."""

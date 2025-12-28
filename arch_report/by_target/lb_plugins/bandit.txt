@@ -1,0 +1,601 @@
+Run started:2025-12-28 10:09:12.852688+00:00
+
+Test results:
+>> Issue: [B202:tarfile_unsafe_members] tarfile.extractall used without any validation. Please check and discard dangerous members.
+   Severity: High   Confidence: High
+   CWE: CWE-22 (https://cwe.mitre.org/data/definitions/22.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b202_tarfile_unsafe_members.html
+   Location: lb_plugins/api.py:219:20
+218	                with zipfile.ZipFile(archive_path, "r") as zip_ref:
+219	                    zip_ref.extractall(tmp_path)
+220	            else:
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/api.py:265:8
+264	    def _install_from_git(self, url: str, force: bool) -> str:
+265	        import subprocess
+266	
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/api.py:273:12
+272	                cmd.insert(2, "--depth=1")
+273	            subprocess.run(cmd, check=True, capture_output=True)
+274	            return self._install_directory(tmp_path, force)
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/base_generator.py:9:0
+8	import logging
+9	import subprocess
+10	import threading
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/base_generator.py:208:28
+207	        try:
+208	            self._process = subprocess.Popen(cmd, **self._popen_kwargs())
+209	            stdout, stderr = self._consume_process_output(self._process)
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/plugins/dd/plugin.py:9:0
+8	import platform
+9	import subprocess
+10	from pathlib import Path
+
+--------------------------------------------------
+>> Issue: [B108:hardcoded_tmp_directory] Probable insecure usage of temp file/directory.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-377 (https://cwe.mitre.org/data/definitions/377.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b108_hardcoded_tmp_directory.html
+   Location: lb_plugins/plugins/dd/plugin.py:25:33
+24	    if_path: str = Field(default="/dev/zero", description="Input file path")
+25	    of_path: str = Field(default="/tmp/lb_dd_test", description="Output file path")
+26	    bs: str = Field(default="1M", description="Block size for reads/writes (e.g., 1M, 4k)")
+
+--------------------------------------------------
+>> Issue: [B108:hardcoded_tmp_directory] Probable insecure usage of temp file/directory.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-377 (https://cwe.mitre.org/data/definitions/377.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b108_hardcoded_tmp_directory.html
+   Location: lb_plugins/plugins/dd/plugin.py:122:23
+121	        output_path = Path(self.config.of_path).resolve()
+122	        tmp_dir = Path("/tmp").resolve()
+123	        if output_path.exists() and output_path.is_relative_to(tmp_dir):
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b607_start_process_with_partial_path.html
+   Location: lb_plugins/plugins/dd/plugin.py:138:21
+137	        try:
+138	            result = subprocess.run(["which", "dd"], capture_output=True, text=True)
+139	            if result.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/dd/plugin.py:138:21
+137	        try:
+138	            result = subprocess.run(["which", "dd"], capture_output=True, text=True)
+139	            if result.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/plugins/fio/plugin.py:9:0
+8	import logging
+9	import subprocess
+10	from pathlib import Path
+
+--------------------------------------------------
+>> Issue: [B108:hardcoded_tmp_directory] Probable insecure usage of temp file/directory.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-377 (https://cwe.mitre.org/data/definitions/377.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b108_hardcoded_tmp_directory.html
+   Location: lb_plugins/plugins/fio/plugin.py:32:35
+31	    size: str = Field(default="1G", description="Total size of the I/O for each job")
+32	    directory: str = Field(default="/tmp", description="Directory to store test files")
+33	    name: str = Field(default="benchmark", description="Name of the FIO job")
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b607_start_process_with_partial_path.html
+   Location: lb_plugins/plugins/fio/plugin.py:117:21
+116	        try:
+117	            result = subprocess.run(
+118	                ["which", "fio"],
+119	                capture_output=True,
+120	                text=True
+121	            )
+122	            return result.returncode == 0
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/fio/plugin.py:117:21
+116	        try:
+117	            result = subprocess.run(
+118	                ["which", "fio"],
+119	                capture_output=True,
+120	                text=True
+121	            )
+122	            return result.returncode == 0
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/plugins/geekbench/plugin.py:16:0
+15	import shutil
+16	import subprocess
+17	import tarfile
+
+--------------------------------------------------
+>> Issue: [B108:hardcoded_tmp_directory] Probable insecure usage of temp file/directory.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-377 (https://cwe.mitre.org/data/definitions/377.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b108_hardcoded_tmp_directory.html
+   Location: lb_plugins/plugins/geekbench/plugin.py:53:42
+52	    workdir: Path = Field(default=Path("/opt/geekbench"))
+53	    output_dir: Path = Field(default=Path("/tmp"))
+54	    license_key: str | None = Field(default=None)
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_plugins/plugins/geekbench/plugin.py:144:12
+143	                self._log_path.write_text((stdout or "") + "\n" + (stderr or ""))
+144	            except Exception:  # pragma: no cover - best effort
+145	                pass
+146	            self._result["log_path"] = str(self._log_path)
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_plugins/plugins/geekbench/plugin.py:215:16
+214	                    shutil.rmtree(extract_dir, ignore_errors=True)
+215	                except Exception:  # pragma: no cover - best effort
+216	                    pass
+217	            if not self.config.skip_cleanup and archive_path:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/geekbench/plugin.py:270:20
+269	        dl_cmd = ["curl", "-fL", "--retry", "3", "--retry-delay", "1", "-sS", "-o", str(tmp_path), url]
+270	        completed = subprocess.run(dl_cmd, check=False, capture_output=True, text=True)
+271	        if completed.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B202:tarfile_unsafe_members] tarfile.extractall used without any validation. Please check and discard dangerous members.
+   Severity: High   Confidence: High
+   CWE: CWE-22 (https://cwe.mitre.org/data/definitions/22.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b202_tarfile_unsafe_members.html
+   Location: lb_plugins/plugins/geekbench/plugin.py:315:16
+314	            with tarfile.open(archive_path, "r:gz") as tar:
+315	                tar.extractall(path=self.config.workdir)
+316	        except Exception as exc:
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_plugins/plugins/geekbench/plugin.py:337:16
+336	                    proc.kill()
+337	                except Exception:
+338	                    pass
+339	        self._process = None
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/plugins/hpl/plugin.py:11:0
+10	import shutil
+11	import subprocess
+12	from pathlib import Path
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_plugins/plugins/hpl/plugin.py:249:20
+248	                            logger.error(msg)
+249	                    except Exception:
+250	                        pass
+251	
+
+--------------------------------------------------
+>> Issue: [B112:try_except_continue] Try, Except, Continue detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b112_try_except_continue.html
+   Location: lb_plugins/plugins/hpl/plugin.py:302:16
+301	                    )
+302	                except Exception:
+303	                    continue
+304	                continue
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:15:0
+14	import signal
+15	import subprocess
+16	import time
+
+--------------------------------------------------
+>> Issue: [B112:try_except_continue] Try, Except, Continue detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b112_try_except_continue.html
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:135:12
+134	                content = candidate.read_text(errors="ignore").lower()
+135	            except Exception:
+136	                continue
+137	            if "<configured>true</configured>" in content:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:155:14
+154	        answers = "Y\nN\nN\nN\nN\nN\nN\n"
+155	        res = subprocess.run(
+156	            [self.binary, "batch-setup"],
+157	            env=env,
+158	            text=True,
+159	            input=answers,
+160	            stdout=subprocess.PIPE,
+161	            stderr=subprocess.STDOUT,
+162	            check=False,
+163	        )
+164	        if res.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b607_start_process_with_partial_path.html
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:200:25
+199	            ]
+200	            update_res = subprocess.run(
+201	                ["apt-get", "update"],
+202	                env=env,
+203	                text=True,
+204	                stdout=subprocess.PIPE,
+205	                stderr=subprocess.STDOUT,
+206	                check=False,
+207	            )
+208	            if update_res.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:200:25
+199	            ]
+200	            update_res = subprocess.run(
+201	                ["apt-get", "update"],
+202	                env=env,
+203	                text=True,
+204	                stdout=subprocess.PIPE,
+205	                stderr=subprocess.STDOUT,
+206	                check=False,
+207	            )
+208	            if update_res.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:210:18
+209	                raise RuntimeError(f"APT update failed for PTS deps: {update_res.stdout}".strip())
+210	            res = subprocess.run(
+211	                install_cmd,
+212	                env=env,
+213	                text=True,
+214	                stdout=subprocess.PIPE,
+215	                stderr=subprocess.STDOUT,
+216	                check=False,
+217	            )
+218	            if res.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:226:19
+225	        def _run(cmd: List[str]) -> subprocess.CompletedProcess[str]:
+226	            return subprocess.run(
+227	                cmd,
+228	                env=env,
+229	                text=True,
+230	                stdin=subprocess.DEVNULL,
+231	                stdout=subprocess.PIPE,
+232	                stderr=subprocess.STDOUT,
+233	                check=False,
+234	            )
+235	
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:280:28
+279	            logger.info("Running PTS command: %s", " ".join(cmd_to_run))
+280	            self._process = subprocess.Popen(
+281	                cmd_to_run,
+282	                stdout=subprocess.PIPE,
+283	                stderr=subprocess.STDOUT,
+284	                stdin=subprocess.PIPE,
+285	                text=True,
+286	                bufsize=1,
+287	                env=env,
+288	                start_new_session=True,
+289	            )
+290	            assert self._process.stdout is not None
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:290:12
+289	            )
+290	            assert self._process.stdout is not None
+291	            assert self._process.stdin is not None
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:291:12
+290	            assert self._process.stdout is not None
+291	            assert self._process.stdin is not None
+292	            output_lines: List[str] = []
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:310:24
+309	                            menu_responses += 1
+310	                        except Exception:
+311	                            pass
+312	            rc = self._process.wait()
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_plugins/plugins/phoronix_test_suite/plugin.py:409:16
+408	                    proc.kill()
+409	                except Exception:
+410	                    pass
+411	
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/plugins/stream/plugin.py:16:0
+15	import shutil
+16	import subprocess
+17	from pathlib import Path
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/stream/plugin.py:155:17
+154	        logger.info("Compiling tuned STREAM: %s", " ".join(cmd))
+155	        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+156	        if result.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/plugins/stress_ng/plugin.py:7:0
+6	import logging
+7	import subprocess
+8	from pathlib import Path
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b607_start_process_with_partial_path.html
+   Location: lb_plugins/plugins/stress_ng/plugin.py:72:21
+71	        try:
+72	            result = subprocess.run(["which", "stress-ng"], capture_output=True, text=True)
+73	            return result.returncode == 0
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/stress_ng/plugin.py:72:21
+71	        try:
+72	            result = subprocess.run(["which", "stress-ng"], capture_output=True, text=True)
+73	            return result.returncode == 0
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/plugins/sysbench/plugin.py:13:0
+12	import shutil
+13	import subprocess
+14	from pathlib import Path
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b607_start_process_with_partial_path.html
+   Location: lb_plugins/plugins/sysbench/plugin.py:83:21
+82	        try:
+83	            result = subprocess.run(
+84	                ["sysbench", "--version"], capture_output=True, text=True
+85	            )
+86	            return result.returncode == 0
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/sysbench/plugin.py:83:21
+82	        try:
+83	            result = subprocess.run(
+84	                ["sysbench", "--version"], capture_output=True, text=True
+85	            )
+86	            return result.returncode == 0
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/plugins/unixbench/plugin.py:11:0
+10	import os
+11	import subprocess
+12	from pathlib import Path
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: lb_plugins/plugins/yabs/plugin.py:15:0
+14	import shutil
+15	import subprocess
+16	import tempfile
+
+--------------------------------------------------
+>> Issue: [B108:hardcoded_tmp_directory] Probable insecure usage of temp file/directory.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-377 (https://cwe.mitre.org/data/definitions/377.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b108_hardcoded_tmp_directory.html
+   Location: lb_plugins/plugins/yabs/plugin.py:38:42
+37	    skip_cleanup: bool = Field(default=True, description="Skip temporary file cleanup")
+38	    output_dir: Path = Field(default=Path("/tmp"), description="Directory for YABS log files")
+39	    extra_args: List[str] = Field(default_factory=list, description="Additional arguments to pass to yabs.sh")
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_plugins/plugins/yabs/plugin.py:189:16
+188	                    script_path.unlink()
+189	                except Exception:
+190	                    pass
+191	            self._is_running = False
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_plugins/plugins/yabs/plugin.py:195:20
+194	        """Run a command and raise on failure."""
+195	        completed = subprocess.run(cmd, check=False, capture_output=True, text=True)
+196	        if completed.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_plugins/registry.py:40:8
+39	            path.mkdir(parents=True, exist_ok=True)
+40	        except Exception:
+41	            # Directory creation may fail for read-only locations; caller handles.
+42	            pass
+43	        return path
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_plugins/registry.py:48:4
+47	        candidate.mkdir(parents=True, exist_ok=True)
+48	    except Exception:
+49	        pass
+50	    return candidate
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 4199
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 44
+		Medium: 5
+		High: 2
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 5
+		High: 46
+Files skipped (0):

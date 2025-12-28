@@ -1,0 +1,446 @@
+{
+    "__main__": {
+        "bacon": 0,
+        "imports": [
+            "lb_ui",
+            "lb_ui.api",
+            "lb_ui.cli",
+            "lb_ui.cli.commands",
+            "lb_ui.cli.commands.config",
+            "lb_ui.cli.commands.doctor",
+            "lb_ui.cli.commands.plugin",
+            "lb_ui.cli.commands.run",
+            "lb_ui.cli.commands.runs",
+            "lb_ui.cli.commands.test",
+            "lb_ui.cli.main",
+            "lb_ui.flows",
+            "lb_ui.flows.config_wizard",
+            "lb_ui.flows.selection",
+            "lb_ui.presenters",
+            "lb_ui.presenters.doctor",
+            "lb_ui.presenters.journal",
+            "lb_ui.presenters.plan",
+            "lb_ui.presenters.viewmodels",
+            "lb_ui.tui",
+            "lb_ui.tui.adapters",
+            "lb_ui.tui.adapters.tui_adapter"
+        ],
+        "name": "__main__",
+        "path": null
+    },
+    "lb_app": {
+        "bacon": 2,
+        "imported_by": [
+            "lb_app.api",
+            "lb_ui.cli.commands.config",
+            "lb_ui.cli.commands.plugin",
+            "lb_ui.cli.commands.run",
+            "lb_ui.cli.commands.runs",
+            "lb_ui.flows.config_wizard",
+            "lb_ui.flows.selection",
+            "lb_ui.presenters.doctor",
+            "lb_ui.presenters.journal",
+            "lb_ui.presenters.viewmodels",
+            "lb_ui.tui.adapters.tui_adapter"
+        ],
+        "name": "lb_app",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_app/__init__.py"
+    },
+    "lb_app.api": {
+        "bacon": 2,
+        "imported_by": [
+            "lb_ui.cli.commands.config",
+            "lb_ui.cli.commands.plugin",
+            "lb_ui.cli.commands.run",
+            "lb_ui.cli.commands.runs",
+            "lb_ui.flows.config_wizard",
+            "lb_ui.flows.selection",
+            "lb_ui.presenters.doctor",
+            "lb_ui.presenters.journal",
+            "lb_ui.presenters.viewmodels",
+            "lb_ui.tui.adapters.tui_adapter"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_common",
+            "lb_common.api"
+        ],
+        "name": "lb_app.api",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_app/api.py"
+    },
+    "lb_common": {
+        "bacon": 2,
+        "imported_by": [
+            "lb_app.api",
+            "lb_common",
+            "lb_common.api",
+            "lb_ui",
+            "lb_ui.cli.commands.run"
+        ],
+        "imports": [
+            "lb_common",
+            "lb_common.api"
+        ],
+        "name": "lb_common",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_common/__init__.py"
+    },
+    "lb_common.api": {
+        "bacon": 2,
+        "imported_by": [
+            "lb_app.api",
+            "lb_common",
+            "lb_ui",
+            "lb_ui.cli.commands.run"
+        ],
+        "imports": [
+            "lb_common"
+        ],
+        "name": "lb_common.api",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_common/api.py"
+    },
+    "lb_ui": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.api",
+            "lb_ui.cli.commands.config",
+            "lb_ui.cli.commands.doctor",
+            "lb_ui.cli.commands.plugin",
+            "lb_ui.cli.commands.run",
+            "lb_ui.cli.main",
+            "lb_ui.tui",
+            "lb_ui.tui.adapters"
+        ],
+        "imports": [
+            "lb_common",
+            "lb_common.api"
+        ],
+        "name": "lb_ui",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/__init__.py"
+    },
+    "lb_ui.api": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__"
+        ],
+        "imports": [
+            "lb_ui",
+            "lb_ui.cli",
+            "lb_ui.cli.commands",
+            "lb_ui.cli.commands.plugin",
+            "lb_ui.cli.main",
+            "lb_ui.presenters",
+            "lb_ui.presenters.journal",
+            "lb_ui.presenters.plan",
+            "lb_ui.tui",
+            "lb_ui.tui.adapters",
+            "lb_ui.tui.adapters.tui_adapter"
+        ],
+        "name": "lb_ui.api",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/api.py"
+    },
+    "lb_ui.cli": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.api",
+            "lb_ui.cli.main"
+        ],
+        "imports": [
+            "lb_ui.cli.main"
+        ],
+        "name": "lb_ui.cli",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/cli/__init__.py"
+    },
+    "lb_ui.cli.commands": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.api",
+            "lb_ui.cli.main"
+        ],
+        "name": "lb_ui.cli.commands",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/cli/commands/__init__.py"
+    },
+    "lb_ui.cli.commands.config": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.cli.main"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_app.api",
+            "lb_ui",
+            "lb_ui.flows",
+            "lb_ui.flows.config_wizard",
+            "lb_ui.flows.selection",
+            "typer"
+        ],
+        "name": "lb_ui.cli.commands.config",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/cli/commands/config.py"
+    },
+    "lb_ui.cli.commands.doctor": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.cli.main"
+        ],
+        "imports": [
+            "lb_ui",
+            "lb_ui.presenters",
+            "lb_ui.presenters.doctor",
+            "typer"
+        ],
+        "name": "lb_ui.cli.commands.doctor",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/cli/commands/doctor.py"
+    },
+    "lb_ui.cli.commands.plugin": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.api",
+            "lb_ui.cli.main"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_app.api",
+            "lb_ui",
+            "lb_ui.flows",
+            "lb_ui.flows.selection",
+            "typer"
+        ],
+        "name": "lb_ui.cli.commands.plugin",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/cli/commands/plugin.py"
+    },
+    "lb_ui.cli.commands.run": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.cli.main"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_app.api",
+            "lb_common",
+            "lb_common.api",
+            "lb_ui",
+            "lb_ui.presenters",
+            "lb_ui.presenters.journal",
+            "lb_ui.presenters.plan",
+            "typer"
+        ],
+        "name": "lb_ui.cli.commands.run",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/cli/commands/run.py"
+    },
+    "lb_ui.cli.commands.runs": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.cli.main"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_app.api",
+            "typer"
+        ],
+        "name": "lb_ui.cli.commands.runs",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/cli/commands/runs.py"
+    },
+    "lb_ui.cli.commands.test": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.cli.main"
+        ],
+        "imports": [
+            "typer"
+        ],
+        "name": "lb_ui.cli.commands.test",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/cli/commands/test.py"
+    },
+    "lb_ui.cli.main": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.api",
+            "lb_ui.cli"
+        ],
+        "imports": [
+            "lb_ui",
+            "lb_ui.cli",
+            "lb_ui.cli.commands",
+            "lb_ui.cli.commands.config",
+            "lb_ui.cli.commands.doctor",
+            "lb_ui.cli.commands.plugin",
+            "lb_ui.cli.commands.run",
+            "lb_ui.cli.commands.runs",
+            "lb_ui.cli.commands.test",
+            "lb_ui.tui",
+            "typer"
+        ],
+        "name": "lb_ui.cli.main",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/cli/main.py"
+    },
+    "lb_ui.flows": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.cli.commands.config",
+            "lb_ui.cli.commands.plugin"
+        ],
+        "name": "lb_ui.flows",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/flows/__init__.py"
+    },
+    "lb_ui.flows.config_wizard": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.cli.commands.config"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_app.api"
+        ],
+        "name": "lb_ui.flows.config_wizard",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/flows/config_wizard.py"
+    },
+    "lb_ui.flows.selection": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.cli.commands.config",
+            "lb_ui.cli.commands.plugin"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_app.api"
+        ],
+        "name": "lb_ui.flows.selection",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/flows/selection.py"
+    },
+    "lb_ui.presenters": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.api",
+            "lb_ui.cli.commands.doctor",
+            "lb_ui.cli.commands.run"
+        ],
+        "name": "lb_ui.presenters",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/presenters/__init__.py"
+    },
+    "lb_ui.presenters.doctor": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.cli.commands.doctor"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_app.api"
+        ],
+        "name": "lb_ui.presenters.doctor",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/presenters/doctor.py"
+    },
+    "lb_ui.presenters.journal": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.api",
+            "lb_ui.cli.commands.run"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_app.api"
+        ],
+        "name": "lb_ui.presenters.journal",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/presenters/journal.py"
+    },
+    "lb_ui.presenters.plan": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.api",
+            "lb_ui.cli.commands.run"
+        ],
+        "name": "lb_ui.presenters.plan",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/presenters/plan.py"
+    },
+    "lb_ui.presenters.viewmodels": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_app.api"
+        ],
+        "name": "lb_ui.presenters.viewmodels",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/presenters/viewmodels.py"
+    },
+    "lb_ui.tui": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.api",
+            "lb_ui.cli.main",
+            "lb_ui.tui",
+            "lb_ui.tui.adapters"
+        ],
+        "imports": [
+            "lb_ui",
+            "lb_ui.tui"
+        ],
+        "name": "lb_ui.tui",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/tui/__init__.py"
+    },
+    "lb_ui.tui.adapters": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.api",
+            "lb_ui.tui.adapters"
+        ],
+        "imports": [
+            "lb_ui",
+            "lb_ui.tui",
+            "lb_ui.tui.adapters",
+            "lb_ui.tui.adapters.tui_adapter"
+        ],
+        "name": "lb_ui.tui.adapters",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/tui/adapters/__init__.py"
+    },
+    "lb_ui.tui.adapters.tui_adapter": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_ui.api",
+            "lb_ui.tui.adapters"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_app.api"
+        ],
+        "name": "lb_ui.tui.adapters.tui_adapter",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_ui/tui/adapters/tui_adapter.py"
+    },
+    "typer": {
+        "bacon": 2,
+        "imported_by": [
+            "lb_ui.cli.commands.config",
+            "lb_ui.cli.commands.doctor",
+            "lb_ui.cli.commands.plugin",
+            "lb_ui.cli.commands.run",
+            "lb_ui.cli.commands.runs",
+            "lb_ui.cli.commands.test",
+            "lb_ui.cli.main",
+            "typer"
+        ],
+        "imports": [
+            "typer"
+        ],
+        "name": "typer",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/.venv/lib/python3.13/site-packages/typer/__init__.py"
+    }
+}
