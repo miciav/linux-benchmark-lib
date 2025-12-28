@@ -135,6 +135,7 @@ class RunService:
         resume: Optional[str] = None,
         stop_file: Optional[Path] = None,
         execution_mode: str = "remote",
+        node_count: int | None = None,
     ) -> RunContext:
         """Compute the run context and registry."""
         registry = self._registry_factory()
@@ -151,6 +152,7 @@ class RunService:
             resume_latest=resume == "latest",
             stop_file=stop_file,
             execution_mode=execution_mode,
+            node_count=node_count,
         )
 
     def create_session(
@@ -167,6 +169,7 @@ class RunService:
         setup: bool = True,
         stop_file: Optional[Path] = None,
         execution_mode: str = "remote",
+        node_count: int | None = None,
         preloaded_config: BenchmarkConfig | None = None,
     ) -> RunContext:
         """
@@ -190,6 +193,7 @@ class RunService:
             resume=resume,
             stop_file=stop_file,
             execution_mode=execution_mode,
+            node_count=node_count,
         )
         return context
 
@@ -750,6 +754,16 @@ class RunService:
             journal, journal_path, run_identifier = self._initialize_new_journal(
                 context, run_id
             )
+
+        if journal.metadata is not None:
+            journal.metadata.setdefault("execution_mode", context.execution_mode)
+            node_count = context.node_count
+            if node_count is None:
+                if context.execution_mode in ("docker", "multipass"):
+                    node_count = max(1, len(context.config.remote_hosts or []))
+                else:
+                    node_count = len(context.config.remote_hosts or []) or 1
+            journal.metadata.setdefault("node_count", node_count)
 
         # Persist the initial state so resume is possible even if execution aborts early
         journal_path.parent.mkdir(parents=True, exist_ok=True)

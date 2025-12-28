@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Dict
 
+import pandas as pd
 
-def aggregate_psutil(df) -> Dict[str, float]:
+
+def aggregate_psutil(df: pd.DataFrame | None) -> Dict[str, float]:
     """
     Aggregate metrics collected by PSUtilCollector.
 
@@ -54,7 +56,7 @@ def aggregate_psutil(df) -> Dict[str, float]:
     return summary
 
 
-def aggregate_cli(df) -> Dict[str, float]:
+def aggregate_cli(df: pd.DataFrame | None) -> Dict[str, float]:
     """
     Aggregate metrics collected by CLICollector.
 

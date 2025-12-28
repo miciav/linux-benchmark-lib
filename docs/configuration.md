@@ -40,6 +40,31 @@ config = BenchmarkConfig.load(Path("benchmark_config.json"))
 
 - `workloads` is the primary map of workload names to configuration.
 - `plugin_settings` can hold typed Pydantic configs for plugins; it is optional.
+- `plugin_assets` is populated from the plugin registry and captures setup/teardown playbooks plus extravars.
 - `output_dir`, `report_dir`, and `data_export_dir` control where artifacts are written.
 - `remote_execution.enabled` controls whether the controller uses Ansible to run workloads.
 - `remote_execution.upgrade_pip` toggles the pip upgrade step during global setup.
+- `workloads.<name>.intensity` accepts `low`, `medium`, `high`, or `user_defined`.
+
+### Plugin settings vs workloads
+
+`workloads` drives execution and can include ad-hoc `options`. `plugin_settings` is
+the typed, validated config model for a plugin. The config service will hydrate
+`plugin_settings` and backfill `workloads` when missing.
+
+Example:
+
+```json
+"plugin_settings": {
+  "fio": {
+    "job_count": 4,
+    "block_size": "4k"
+  }
+},
+"workloads": {
+  "fio": {
+    "plugin": "fio",
+    "enabled": true
+  }
+}
+```

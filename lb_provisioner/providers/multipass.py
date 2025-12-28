@@ -38,13 +38,18 @@ class MultipassProvisioner:
         if not shutil.which("multipass"):
             raise ProvisioningError("Multipass CLI not found in PATH")
 
-        count = max(1, min(request.count, MAX_NODES))
+        if request.node_names:
+            names = list(request.node_names)
+            count = len(names)
+        else:
+            names = []
+            count = max(1, min(request.count, MAX_NODES))
         nodes: List[ProvisionedNode] = []
         state_root = request.state_dir or self.base_state_dir
         state_root.mkdir(parents=True, exist_ok=True)
 
-        for _ in range(count):
-            vm_name = f"lb-worker-{uuid.uuid4().hex[:8]}"
+        for idx in range(count):
+            vm_name = names[idx] if names else f"lb-worker-{uuid.uuid4().hex[:8]}"
             key_path = state_root / f"{vm_name}_id_rsa"
             pub_path = state_root / f"{vm_name}_id_rsa.pub"
             self._generate_ephemeral_keys(key_path)

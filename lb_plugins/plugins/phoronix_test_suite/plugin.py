@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
 import yaml
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from ...base_generator import CommandGenerator
 from ...interface import BasePluginConfig, WorkloadPlugin
@@ -77,11 +77,13 @@ class PhoronixConfig(BasePluginConfig):
 
     batch_mode: bool = Field(
         default=True,
-        description="Prefer batch-* PTS commands to avoid interactive prompts.",
+        description="Batch mode is required for PTS workloads (non-batch is unsupported).",
     )
     install_system_packages: bool = Field(
         default=True,
-        description="When running as root, install required APT packages before executing PTS.",
+        description=(
+            "Deprecated for execution: installs run in the setup phase, not during workload runs."
+        ),
     )
     timeout_seconds: int = Field(
         default=0,
@@ -92,6 +94,12 @@ class PhoronixConfig(BasePluginConfig):
         default_factory=list,
         description="Additional arguments appended to the PTS command.",
     )
+
+    @model_validator(mode="after")
+    def _require_batch_mode(self) -> "PhoronixConfig":
+        if not self.batch_mode:
+            raise ValueError("PTS workloads require batch mode (batch_mode=True).")
+        return self
 
 
 class PhoronixGenerator(CommandGenerator):
@@ -138,112 +146,90 @@ class PhoronixGenerator(CommandGenerator):
                 return True
         return False
 
-    def _ensure_batch_setup(self, env: Dict[str, str]) -> None:
+    def _require_batch_setup(self, env: Dict[str, str]) -> None:
         pts_user_path = env.get("PTS_USER_PATH_OVERRIDE", "")
         if not pts_user_path:
             return
-        if not self.config.batch_mode:
-            return
         if self._is_batch_configured(pts_user_path):
             return
-
-        # Configure batch mode explicitly to avoid:
-        # - result uploads to OpenBenchmarking.org
-        # - interactive prompts for identifiers/descriptions
-        # - running all test combinations
-        answers = "Y\nN\nN\nN\nN\nN\nN\n"
-        res = subprocess.run(
-            [self.binary, "batch-setup"],
-            env=env,
-            text=True,
-            input=answers,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=False,
+        raise RuntimeError(
+            "PTS batch mode is not configured. Run the plugin setup phase or "
+            "`phoronix-test-suite batch-setup` before executing workloads."
         )
+
+    def _is_profile_installed(self, env: Dict[str, str]) -> bool:
+        pts_user_path = env.get("PTS_USER_PATH_OVERRIDE", "")
+        if pts_user_path:
+            base = Path(pts_user_path)
+            candidates = [
+                base / "test-profiles" / "pts" / self.profile / "test-definition.xml",
+                base / "test-profiles" / self.profile / "test-definition.xml",
+            ]
+            if any(path.exists() for path in candidates):
+                return True
+        try:
+            res = subprocess.run(
+                [self.binary, "list-installed-tests"],
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+        except Exception:
+            return False
         if res.returncode != 0:
-            raise RuntimeError(f"PTS batch-setup failed: {res.stdout}".strip())
-        if not self._is_batch_configured(pts_user_path):
+            return False
+        profile = self.profile.strip().lower()
+        for line in (res.stdout or "").splitlines():
+            if profile and profile in line.lower():
+                return True
+        return False
+
+    def _check_system_packages(self, env: Dict[str, str]) -> None:
+        if not self.system_packages:
+            return
+        if shutil.which("dpkg-query") is None:
+            return
+        missing: list[str] = []
+        for pkg in sorted(set(self.system_packages)):
+            res = subprocess.run(
+                ["dpkg-query", "-W", "-f=${Status}", pkg],
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            if res.returncode != 0 or "install ok installed" not in (res.stdout or ""):
+                missing.append(pkg)
+        if missing:
             raise RuntimeError(
-                "PTS batch mode is still not configured after batch-setup. "
-                "Try running `phoronix-test-suite batch-setup` manually."
+                "Missing system packages for PTS profile "
+                f"'{self.profile}': {', '.join(missing)}. "
+                "Run the plugin setup phase before executing workloads."
             )
 
     def prepare(self) -> None:
         """
-        Best-effort profile install before collectors start.
+        Validate that setup ran before workload execution.
 
-        Container runs execute with `--no-setup`, so we must ensure the PTS profile
-        is installed here to avoid interactive prompts during `benchmark`.
+        Installations must happen in the setup phase, not during workload runs.
         """
         pts_user_path = _ensure_trailing_sep(self.home_root)
         Path(pts_user_path).mkdir(parents=True, exist_ok=True)
         if not self._validate_environment():
             raise RuntimeError(f"Missing required tool: {self.binary}")
 
-        if (
-            self.config.install_system_packages
-            and os.geteuid() == 0
-            and shutil.which("apt-get") is not None
-            and self.system_packages
-        ):
-            env = os.environ.copy()
-            env["DEBIAN_FRONTEND"] = "noninteractive"
-            env["PTS_USER_PATH_OVERRIDE"] = pts_user_path
-            install_cmd = [
-                "apt-get",
-                "install",
-                "-y",
-                "--no-install-recommends",
-                *sorted(set(self.system_packages)),
-            ]
-            update_res = subprocess.run(
-                ["apt-get", "update"],
-                env=env,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
-            if update_res.returncode != 0:
-                raise RuntimeError(f"APT update failed for PTS deps: {update_res.stdout}".strip())
-            res = subprocess.run(
-                install_cmd,
-                env=env,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
-            if res.returncode != 0:
-                raise RuntimeError(f"APT install failed for PTS deps: {res.stdout}".strip())
-
         env = os.environ.copy()
         env["PTS_USER_PATH_OVERRIDE"] = pts_user_path
-        self._ensure_batch_setup(env)
-
-        def _run(cmd: List[str]) -> subprocess.CompletedProcess[str]:
-            return subprocess.run(
-                cmd,
-                env=env,
-                text=True,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=False,
+        self._require_batch_setup(env)
+        self._check_system_packages(env)
+        if not self._is_profile_installed(env):
+            raise RuntimeError(
+                f"PTS profile '{self.profile}' is not installed. "
+                "Run the plugin setup phase before executing workloads."
             )
-
-        cmds = [
-            [self.binary, "batch-install", self.profile, *self.profile_args],
-            [self.binary, "install", self.profile, *self.profile_args],
-        ]
-        last = None
-        for cmd in cmds:
-            last = _run(cmd)
-            if last.returncode == 0:
-                return
-        out = (last.stdout if last else "") or ""
-        raise RuntimeError(f"PTS profile install failed for '{self.profile}': {out}".strip())
 
     def _build_command_for(self, subcommand: str) -> List[str]:
         cmd = [self.binary, subcommand, self.profile]
@@ -252,16 +238,20 @@ class PhoronixGenerator(CommandGenerator):
         return cmd
 
     def _build_command(self) -> List[str]:
-        subcommand = "batch-benchmark" if self.config.batch_mode else "benchmark"
-        return self._build_command_for(subcommand)
+        return self._build_command_for("batch-benchmark")
 
     def _run_command(self) -> None:
         start = time.time()
         env = os.environ.copy()
         pts_user_path = _ensure_trailing_sep(self.home_root)
         env["PTS_USER_PATH_OVERRIDE"] = pts_user_path
-        # Ensure batch mode is configured even if `prepare()` was skipped.
-        self._ensure_batch_setup(env)
+        self._require_batch_setup(env)
+        self._check_system_packages(env)
+        if not self._is_profile_installed(env):
+            raise RuntimeError(
+                f"PTS profile '{self.profile}' is not installed. "
+                "Run the plugin setup phase before executing workloads."
+            )
         results_root = Path(pts_user_path) / "test-results"
         before: set[str] = set()
         try:
@@ -270,10 +260,7 @@ class PhoronixGenerator(CommandGenerator):
         except Exception:
             before = set()
 
-        cmd = self._build_command_for(
-            "batch-benchmark" if self.config.batch_mode else "benchmark"
-        )
-        cmd_fallback = self._build_command_for("benchmark")
+        cmd = self._build_command_for("batch-benchmark")
 
         def _run(cmd_to_run: List[str]) -> tuple[int, str]:
             logger.info("Running PTS command: %s", " ".join(cmd_to_run))
@@ -314,18 +301,6 @@ class PhoronixGenerator(CommandGenerator):
 
         try:
             rc, out = _run(cmd)
-            # If batch mode is not supported or not configured, fall back to benchmark.
-            if rc != 0 and self.config.batch_mode and any(
-                token in out.lower()
-                for token in (
-                    "unknown command",
-                    "invalid command",
-                    "not a supported command",
-                    "the batch mode must first be configured",
-                )
-            ):
-                rc, out = _run(cmd_fallback)
-
             output_lower = out.lower()
             if (
                 "[problem]" in output_lower

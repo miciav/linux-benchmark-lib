@@ -36,6 +36,7 @@ class RunContext:
     resume_latest: bool = False
     stop_file: Path | None = None
     execution_mode: str = "remote"
+    node_count: int | None = None
 
 
 @dataclass

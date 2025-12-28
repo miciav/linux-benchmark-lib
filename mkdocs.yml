@@ -47,7 +47,7 @@ plugins:
       default_handler: python
       handlers:
         python:
-          paths: [lb_runner, lb_controller, lb_app, lb_ui, lb_analytics]
+          paths: [lb_runner, lb_controller, lb_app, lb_ui, lb_analytics, lb_plugins]
           options:
             docstring_style: google
             show_object_full_path: false
@@ -75,3 +75,5 @@ markdown_extensions:
   - pymdownx.tabbed
   - toc:
       permalink: true
+hooks:
+  - docs/mkdocs_hooks.py

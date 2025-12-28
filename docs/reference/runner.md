@@ -14,6 +14,17 @@ Entry points for running workloads locally and working with the plugin system.
 
 ::: lb_plugins.api.PluginRegistry
 
+## Plugin interface
+
+::: lb_plugins.interface.WorkloadPlugin
+::: lb_plugins.interface.BasePluginConfig
+::: lb_plugins.interface.SimpleWorkloadPlugin
+::: lb_plugins.interface.WorkloadIntensity
+
+## Plugin assets
+
+::: lb_plugins.plugin_assets.PluginAssetConfig
+
 ## Configuration models
 
 ::: lb_runner.models.config.BenchmarkConfig

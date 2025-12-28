@@ -57,4 +57,5 @@ lb run --remote --run-id demo-run</pre>
 - Read the [Quickstart](quickstart.md) for CLI and Python examples.
 - Use the [CLI reference](cli.md) for all commands.
 - Browse the [API reference](api.md) for stable modules.
+- Review [Workloads & Plugins](plugins.md) for plugin interface details.
 - Check [Diagrams](diagrams.md) for architecture visuals and release artifacts.

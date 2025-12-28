@@ -27,6 +27,7 @@ class ProvisioningRequest:
     mode: ProvisioningMode
     count: int = 1
     remote_hosts: Optional[List[RemoteHostSpec]] = None
+    node_names: Optional[List[str]] = None
     docker_engine: str = "docker"
     docker_image: str = "ubuntu:24.04"
     multipass_image: str = "24.04"

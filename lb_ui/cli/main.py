@@ -20,6 +20,7 @@ from lb_ui.cli.commands.config import create_config_app
 from lb_ui.cli.commands.doctor import create_doctor_app
 from lb_ui.cli.commands.plugin import create_plugin_app
 from lb_ui.cli.commands.runs import create_runs_app, register_analyze_command
+from lb_ui.cli.commands.resume import register_resume_command
 from lb_ui.cli.commands.test import create_test_app
 from lb_ui.cli.commands.run import register_run_command
 
@@ -71,6 +72,7 @@ def entry(
 
 
 register_analyze_command(app, ctx_store)
+register_resume_command(app, ctx_store)
 
 
 app.add_typer(config_app, name="config")

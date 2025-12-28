@@ -29,11 +29,13 @@ Order used by commands that need a config:
   Dev-only: provision containers and run via Ansible (requires `.lb_dev_cli` or `LB_ENABLE_TEST_CLI=1`).
 - `lb run ... --multipass [--nodes N]`
   Dev-only: provision Multipass VMs and run via Ansible (requires `.lb_dev_cli` or `LB_ENABLE_TEST_CLI=1`).
+- `lb resume [RUN_ID] [-c FILE] [--root PATH] [--remote/--no-remote] [--docker|--multipass]`
+  Resume a previous run; without RUN_ID, pick interactively from `benchmark_results/`.
 - `lb runs list [--root PATH] [-c FILE]` / `lb runs show RUN_ID [--root PATH] [-c FILE]`
   Inspect stored runs under `benchmark_results/`.
-- `lb analyze [RUN_ID] [--root PATH] [--workload NAME] [--host NAME]`
-  Run analytics on an existing run (currently `aggregate`).
-- `lb plugin ...` / `lb plugins ...`
+- `lb analyze [RUN_ID] [--kind aggregate] [--root PATH] [--workload NAME] [--host NAME]`
+  Run analytics on an existing run.
+- `lb plugin ...`
   Inspect and manage workload plugins.
 - `lb config ...`
   Create and manage benchmark configuration files.
@@ -44,10 +46,10 @@ Order used by commands that need a config:
 
 ## Plugin management (`lb plugin ...`)
 
-- `lb plugin list|ls [--select] [--enable NAME | --disable NAME] [-c FILE] [--set-default]`
+- `lb plugin list [--select] [--enable NAME | --disable NAME] [-c FILE] [--set-default]`
 - `lb plugin select [-c FILE] [--set-default]`
-- `lb plugin install PATH|URL [--manifest FILE] [--force]`
-- `lb plugin uninstall NAME [--purge-config/--keep-config] [-c FILE]`
+
+Running `lb plugin` with no subcommand is equivalent to `lb plugin list`.
 
 ## Config management (`lb config ...`)
 
@@ -77,4 +79,5 @@ Order used by commands that need a config:
 - `LB_ENABLE_TEST_CLI=1` enables `lb test` and provisioning flags in the CLI.
 - `LB_USER_PLUGIN_DIR` overrides the user plugin install directory.
 - `LB_STOP_FILE` sets a stop sentinel path if `--stop-file` is omitted.
+- `LB_SUPPRESS_SUMMARY` suppresses the end-of-run summary table.
 - `LB_TEST_RESULTS_DIR`, `LB_MULTIPASS_VM_COUNT` customize test helpers.

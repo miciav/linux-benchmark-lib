@@ -75,3 +75,6 @@ Thumbs.db
 test_key
 test_key.pub
 .lb_dev_cli
+
+# MkDocs build output
+site/

@@ -506,7 +506,10 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setattr(
         cli.app_client,
         "_provision",
-        lambda config, execution_mode, node_count, docker_engine=None: (config, None),
+        lambda config, execution_mode, node_count, docker_engine=None, resume=None: (
+            config,
+            None,
+        ),
     )
 
 
@@ -629,7 +632,10 @@ def test_run_command_allows_repetition_override(monkeypatch: pytest.MonkeyPatch,
     monkeypatch.setattr(
         cli.app_client,
         "_provision",
-        lambda config, execution_mode, node_count, docker_engine=None: (config, None),
+        lambda config, execution_mode, node_count, docker_engine=None, resume=None: (
+            config,
+            None,
+        ),
     )
 
 
@@ -708,6 +714,7 @@ def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatc
 
 
     cfg = BenchmarkConfig()
+    cfg.workloads["stress_ng"] = WorkloadConfig(plugin="stress_ng", enabled=False)
 
 
     cfg_path = tmp_path / "myconfig.json"
@@ -1239,7 +1246,10 @@ def test_run_command_saves_ui_stream_log(monkeypatch: pytest.MonkeyPatch, tmp_pa
     monkeypatch.setattr(
         cli.app_client,
         "_provision",
-        lambda config, execution_mode, node_count, docker_engine=None: (config, None),
+        lambda config, execution_mode, node_count, docker_engine=None, resume=None: (
+            config,
+            None,
+        ),
     )
 
     result = runner.invoke(

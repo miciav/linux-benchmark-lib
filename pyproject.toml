@@ -1,6 +1,6 @@
 [project]
 name = "linux-benchmark-lib"
-version = "0.51.0"
+version = "0.60.0"
 description = "A robust and configurable Python library for benchmarking Linux computational node performance"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -46,6 +46,10 @@ docs = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.26",
+    "rich>=13.7.0",
+    "typer>=0.12.5",
+    "rapidfuzz>=3.0.0",
+    "prompt_toolkit>=3.0.0",
 ]
 
 

@@ -8,6 +8,7 @@ reaching into private internals.
 - **App & UI**: Application client plus UI wiring helpers.
 - **Provisioning**: helpers to clean up provisioned nodes safely.
 - **Analytics**: post-processing of stored runs.
+- **Plugins**: workload interface and registry (see Workloads & Plugins for details).
 
 Use the navigation to open each section, or jump directly:
 

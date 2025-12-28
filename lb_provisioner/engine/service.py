@@ -40,7 +40,8 @@ class ProvisioningService:
 
     def provision(self, request: ProvisioningRequest) -> ProvisioningResult:
         """Provision resources according to the request."""
-        self._enforce_limits(request.count)
+        effective_count = len(request.node_names) if request.node_names else request.count
+        self._enforce_limits(effective_count)
         self._assert_ui_caller()
 
         if request.mode is ProvisioningMode.REMOTE:

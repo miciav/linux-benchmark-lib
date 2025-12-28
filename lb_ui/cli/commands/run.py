@@ -90,8 +90,8 @@ def register_run_command(
             "--multipass",
             help="Provision Multipass VMs (Ubuntu 24.04) and run benchmarks on them.",
         ),
-        node_count: int = typer.Option(
-            1,
+        node_count: Optional[int] = typer.Option(
+            None,
             "--nodes",
             "--multipass-vm-count",
             help="Number of containers/VMs to provision (max 2).",
@@ -139,10 +139,10 @@ def register_run_command(
             configure_logging(debug=True, force=True)
             ctx.ui.present.info("Debug logging enabled")
 
-        if node_count < 1:
+        if node_count is not None and node_count < 1:
             ctx.ui.present.error("Node count must be at least 1.")
             raise typer.Exit(1)
-        if node_count > MAX_NODES:
+        if node_count is not None and node_count > MAX_NODES:
             ctx.ui.present.error(f"Maximum supported nodes is {MAX_NODES}.")
             raise typer.Exit(1)
 
@@ -166,7 +166,104 @@ def register_run_command(
 
         cfg.ensure_output_dirs()
 
-        execution_mode = "docker" if docker else "multipass" if multipass else "remote"
+        def _explicit_execution_mode() -> Optional[str]:
+            if docker:
+                return "docker"
+            if multipass:
+                return "multipass"
+            if remote is not None:
+                return "remote"
+            return None
+
+        def _load_resume_journal_path() -> Path | None:
+            journal_path = None
+            if resume == "latest":
+                candidates = []
+                for child in cfg.output_dir.iterdir():
+                    if not child.is_dir():
+                        continue
+                    candidate = child / "run_journal.json"
+                    if candidate.exists():
+                        candidates.append(candidate)
+                if candidates:
+                    journal_path = max(candidates, key=lambda p: p.stat().st_mtime)
+            elif resume:
+                journal_path = cfg.output_dir / resume / "run_journal.json"
+            return journal_path if journal_path and journal_path.exists() else None
+
+        def _resolve_resume_execution_mode() -> str:
+            journal_path = _load_resume_journal_path()
+            if journal_path is None:
+                ctx.ui.present.warning(
+                    "Resume requires execution mode; journal not found."
+                )
+                ctx.ui.present.error(
+                    "Specify --docker, --multipass, or --remote to resume."
+                )
+                raise typer.Exit(1)
+
+            from lb_app.api import RunJournal
+            journal = RunJournal.load(journal_path)
+            mode = (journal.metadata or {}).get("execution_mode")
+            if not mode:
+                ctx.ui.present.warning(
+                    "Resume journal has no execution mode metadata."
+                )
+                ctx.ui.present.error(
+                    "Specify --docker, --multipass, or --remote to resume."
+                )
+                raise typer.Exit(1)
+            return str(mode).lower()
+
+        def _resolve_resume_node_count() -> int:
+            journal_path = _load_resume_journal_path()
+            if journal_path is None:
+                ctx.ui.present.warning(
+                    "Resume requires node count; journal not found."
+                )
+                ctx.ui.present.error(
+                    "Specify --nodes to resume docker or multipass runs."
+                )
+                raise typer.Exit(1)
+            from lb_app.api import RunJournal
+            journal = RunJournal.load(journal_path)
+            count = (journal.metadata or {}).get("node_count")
+            if not count:
+                ctx.ui.present.warning(
+                    "Resume journal has no node count metadata."
+                )
+                ctx.ui.present.error(
+                    "Specify --nodes to resume docker or multipass runs."
+                )
+                raise typer.Exit(1)
+            return int(count)
+
+        explicit_mode = _explicit_execution_mode()
+        if resume and explicit_mode is None:
+            execution_mode = _resolve_resume_execution_mode()
+            ctx.ui.present.info(
+                f"Using execution mode from journal: {execution_mode}"
+            )
+        else:
+            execution_mode = explicit_mode or "remote"
+
+        resolved_node_count = node_count
+        if execution_mode in ("docker", "multipass"):
+            if resolved_node_count is None and resume:
+                resolved_node_count = _resolve_resume_node_count()
+                ctx.ui.present.info(
+                    f"Using node count from journal: {resolved_node_count}"
+                )
+            if resolved_node_count is None:
+                resolved_node_count = 1
+            if resolved_node_count < 1:
+                ctx.ui.present.error("Node count must be at least 1.")
+                raise typer.Exit(1)
+            if resolved_node_count > MAX_NODES:
+                ctx.ui.present.error(f"Maximum supported nodes is {MAX_NODES}.")
+                raise typer.Exit(1)
+        else:
+            resolved_node_count = len(cfg.remote_hosts or []) or 1
 
         result = None
         try:
@@ -189,7 +286,7 @@ def register_run_command(
                 stop_file=stop_file_resolved,
                 execution_mode=execution_mode,
                 repetitions=repetitions,
-                node_count=node_count,
+                node_count=resolved_node_count,
                 docker_engine=docker_engine,
                 ui_adapter=ctx.ui_adapter,
             )
