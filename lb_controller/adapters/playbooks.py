@@ -4,30 +4,28 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional
 
+from lb_controller.engine.controller_protocols import ControllerProtocol
 from lb_controller.models.state import ControllerState
 from lb_controller.services.journal import RunStatus
 from lb_controller.services.journal_sync import backfill_timings_from_results, update_all_reps
 from lb_controller.engine.lifecycle import RunPhase
-from lb_controller.models.types import ExecutionResult, InventorySpec
-from lb_common.api import PluginAssetConfig
+from lb_controller.engine.run_state import RunFlags, RunState
+from lb_controller.models.types import ExecutionResult, InventorySpec, RunExecutionSummary
+from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import RemoteHostConfig
-
-if TYPE_CHECKING:
-    from lb_controller.engine.controller import BenchmarkController, _RunFlags, _RunState
-    from lb_controller.models.types import RunExecutionSummary
 
 logger = logging.getLogger(__name__)
 
 
 def run_global_setup(
-    controller: "BenchmarkController",
-    state: "_RunState",
+    controller: ControllerProtocol,
+    state: RunState,
     phases: Dict[str, ExecutionResult],
-    flags: "_RunFlags",
+    flags: RunFlags,
     ui_log: Callable[[str], None],
-) -> "RunExecutionSummary | None":
+) -> RunExecutionSummary | None:
     """Run the global setup playbook and return early summary when needed."""
     if controller._stop_requested():
         ui_log("Stop requested before setup; arming stop and skipping workloads.")
@@ -73,7 +71,7 @@ def run_global_setup(
 
 
 def run_workload_setup(
-    controller: "BenchmarkController",
+    controller: ControllerProtocol,
     test_name: str,
     plugin_assets: PluginAssetConfig | None,
     plugin_name: str,
@@ -81,12 +79,15 @@ def run_workload_setup(
     extravars: Dict[str, Any],
     pending_reps: Dict[str, List[int]],
     phases: Dict[str, ExecutionResult],
-    flags: "_RunFlags",
+    flags: RunFlags,
     ui_log: Callable[[str], None],
 ) -> None:
     """Execute per-workload setup playbook."""
     setup_pb = plugin_assets.setup_playbook if plugin_assets else None
     if not setup_pb:
+        phases[f"setup_{test_name}"] = ExecutionResult(
+            rc=0, status="skipped", stats={}
+        )
         return
     ui_log(f"Setup: {test_name} ({plugin_name})")
     if controller.output_formatter:
@@ -108,15 +109,15 @@ def run_workload_setup(
 
 
 def run_workload_execution(
-    controller: "BenchmarkController",
+    controller: ControllerProtocol,
     test_name: str,
     plugin_assets: PluginAssetConfig | None,
     plugin_name: str,
-    state: "_RunState",
+    state: RunState,
     pending_hosts: List[RemoteHostConfig],
     pending_reps: Dict[str, List[int]],
     phases: Dict[str, ExecutionResult],
-    flags: "_RunFlags",
+    flags: RunFlags,
     ui_log: Callable[[str], None],
 ) -> None:
     """Execute run/collect/teardown for a workload."""
@@ -144,13 +145,13 @@ def run_workload_execution(
 
 
 def execute_run_playbook(
-    controller: "BenchmarkController",
+    controller: ControllerProtocol,
     test_name: str,
     pending_hosts: List[RemoteHostConfig],
     pending_reps: Dict[str, List[int]],
-    state: "_RunState",
+    state: RunState,
     phases: Dict[str, ExecutionResult],
-    flags: "_RunFlags",
+    flags: RunFlags,
     ui_log: Callable[[str], None],
 ) -> None:
     """Run the workload execution playbook and update journal status."""
@@ -200,12 +201,12 @@ def execute_run_playbook(
 
 
 def handle_collect_phase(
-    controller: "BenchmarkController",
+    controller: ControllerProtocol,
     test_name: str,
     pending_hosts: List[RemoteHostConfig],
-    state: "_RunState",
+    state: RunState,
     phases: Dict[str, ExecutionResult],
-    flags: "_RunFlags",
+    flags: RunFlags,
     ui_log: Callable[[str], None],
 ) -> None:
     """Execute the collect playbook and backfill timings."""
@@ -266,7 +267,7 @@ def handle_collect_phase(
 
 
 def run_teardown_playbook(
-    controller: "BenchmarkController",
+    controller: ControllerProtocol,
     plugin_assets: PluginAssetConfig | None,
     plugin_name: str,
     inventory: InventorySpec,
@@ -288,10 +289,10 @@ def run_teardown_playbook(
 
 
 def run_global_teardown(
-    controller: "BenchmarkController",
-    state: "_RunState",
+    controller: ControllerProtocol,
+    state: RunState,
     phases: Dict[str, ExecutionResult],
-    flags: "_RunFlags",
+    flags: RunFlags,
     ui_log: Callable[[str], None],
 ) -> None:
     """Execute global teardown playbook if enabled."""
@@ -342,7 +343,7 @@ def run_global_teardown(
 
 
 def run_for_hosts(
-    controller: "BenchmarkController",
+    controller: ControllerProtocol,
     playbook_path: Path,
     base_inventory: InventorySpec,
     hosts: List[RemoteHostConfig],

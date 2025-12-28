@@ -5,23 +5,22 @@ from __future__ import annotations
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, TYPE_CHECKING
+from typing import Any, Callable, Dict
 
+from lb_controller.engine.controller_protocols import ControllerProtocol
+from lb_controller.engine.run_state import RunFlags
 from lb_controller.models.state import ControllerState
 from lb_controller.engine.stops import StopState
 from lb_controller.models.types import InventorySpec
 
-if TYPE_CHECKING:
-    from lb_controller.engine.controller import BenchmarkController, _RunFlags
-
 
 def handle_stop_during_workloads(
-    controller: "BenchmarkController",
+    controller: ControllerProtocol,
     inventory: InventorySpec,
     extravars: Dict[str, Any],
-    flags: "_RunFlags",
+    flags: RunFlags,
     ui_log: Callable[[str], None],
-) -> "_RunFlags":
+) -> RunFlags:
     """Arm stop state and execute the stop protocol."""
     controller.lifecycle.arm_stop()
     controller.lifecycle.mark_waiting_runners()
@@ -38,7 +37,7 @@ def handle_stop_during_workloads(
 
 
 def handle_stop_protocol(
-    controller: "BenchmarkController",
+    controller: ControllerProtocol,
     inventory: InventorySpec,
     extravars: Dict[str, Any],
     log_fn: Callable[[str], None],

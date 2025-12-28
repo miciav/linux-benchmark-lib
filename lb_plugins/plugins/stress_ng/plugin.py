@@ -5,18 +5,17 @@ Modular plugin version.
 
 import logging
 import subprocess
-# Removed from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional
 
-from pydantic import Field # Added pydantic Field
+from pydantic import Field
 
-from ...base_generator import BaseGenerator
-from ...interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
+from ...base_generator import CommandGenerator, CommandSpec
+from ...interface import WorkloadIntensity, SimpleWorkloadPlugin, BasePluginConfig
 
 logger = logging.getLogger(__name__)
 
-class StressNGConfig(BasePluginConfig): # Now inherits from BasePluginConfig
+class StressNGConfig(BasePluginConfig):
     """Configuration for stress-ng workload generator."""
     
     cpu_workers: int = Field(default=0, ge=0, description="0 means use all available CPUs")
@@ -30,31 +29,49 @@ class StressNGConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     debug: bool = Field(default=False)
 
 
-class StressNGGenerator(BaseGenerator):
+class _StressNGCommandBuilder:
+    def build(self, config: StressNGConfig) -> CommandSpec:
+        cmd = ["stress-ng"]
+        if config.cpu_workers > 0:
+            cmd.extend(["--cpu", str(config.cpu_workers)])
+            cmd.extend(["--cpu-method", config.cpu_method])
+        if config.vm_workers > 0:
+            cmd.extend(["--vm", str(config.vm_workers)])
+            cmd.extend(["--vm-bytes", config.vm_bytes])
+        if config.io_workers > 0:
+            cmd.extend(["--io", str(config.io_workers)])
+        cmd.extend(["--timeout", f"{config.timeout}s"])
+        if config.metrics_brief:
+            cmd.append("--metrics-brief")
+        if config.debug:
+            cmd.append("--verbose")
+        cmd.extend(config.extra_args)
+        return CommandSpec(cmd=cmd)
+
+
+class StressNGGenerator(CommandGenerator):
     """Workload generator using stress-ng."""
     
     def __init__(self, config: StressNGConfig, name: str = "StressNGGenerator"):
-        super().__init__(name)
-        self.config = config
-        self._process: Optional[subprocess.Popen] = None
+        self._command_builder = _StressNGCommandBuilder()
+        super().__init__(name, config, command_builder=self._command_builder)
         
     def _build_command(self) -> List[str]:
-        cmd = ["stress-ng"]
-        if self.config.cpu_workers > 0:
-            cmd.extend(["--cpu", str(self.config.cpu_workers)])
-            cmd.extend(["--cpu-method", self.config.cpu_method])
-        if self.config.vm_workers > 0:
-            cmd.extend(["--vm", str(self.config.vm_workers)])
-            cmd.extend(["--vm-bytes", self.config.vm_bytes])
-        if self.config.io_workers > 0:
-            cmd.extend(["--io", str(self.config.io_workers)])
-        cmd.extend(["--timeout", f"{self.config.timeout}s"])
-        if self.config.metrics_brief:
-            cmd.append("--metrics-brief")
-        if self.config.debug:
-            cmd.append("--verbose")
-        cmd.extend(self.config.extra_args)
-        return cmd
+        return self._command_builder.build(self.config).cmd
+
+    def _popen_kwargs(self) -> dict[str, Any]:
+        return {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "text": True,
+            "bufsize": 1,
+        }
+
+    def _consume_process_output(
+        self, proc: subprocess.Popen[str]
+    ) -> tuple[str, str]:
+        stdout, _ = proc.communicate(timeout=self._timeout_seconds())
+        return stdout or "", ""
     
     def _validate_environment(self) -> bool:
         try:
@@ -63,86 +80,30 @@ class StressNGGenerator(BaseGenerator):
         except Exception as e:
             logger.error(f"Error checking for stress-ng: {e}")
             return False
-    
-    def _run_command(self) -> None:
-        cmd = self._build_command()
-        logger.info(f"Running command: {' '.join(cmd)}")
-        try:
-            # Merge stderr into stdout to capture everything in one stream
-            self._process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+
+    def _log_failure(
+        self, returncode: int, stdout: str, stderr: str, cmd: list[str]
+    ) -> None:
+        output = stdout or stderr
+        if output:
+            logger.error(
+                "stress-ng failed with return code %s. Output: %s", returncode, output
             )
-            
-            output_lines = []
-            safety_timeout = self.config.timeout + self.config.timeout_buffer # Use inherited timeout_buffer
-            
-            # Simple streaming loop (timeout handling is tricky here without select, 
-            # but stress-ng handles its own timeout usually)
-            while True:
-                line = self._process.stdout.readline()
-                if not line and self._process.poll() is not None:
-                    break
-                if line:
-                    # Using print to ensure output goes to stdout even from subprocess
-                    # This might be captured by the runner depending on its implementation
-                    print(line, end='', flush=True) 
-                    output_lines.append(line)
-            
-            # Wait for the process to complete, with an additional safety timeout
-            self._process.wait(timeout=safety_timeout)
-            stdout = "".join(output_lines)
-            stderr = "" # Merged, if stderr was redirected to stdout
-
-            self._result = {
-                "stdout": stdout,
-                "stderr": stderr,
-                "returncode": self._process.returncode,
-                "command": " ".join(cmd),
-                "max_retries": self.config.max_retries, # Example of using inherited field
-                "tags": self.config.tags # Example of using inherited field
-            }
-            if self._process.returncode != 0:
-                logger.error(f"stress-ng failed with return code {self._process.returncode}. Output: {stdout}")
-        except subprocess.TimeoutExpired:
-            logger.error(f"stress-ng timed out after {safety_timeout} seconds. Terminating process.")
-            self._result = {"error": f"Timeout after {safety_timeout}s", "returncode": -1}
-            self._stop_workload() # Ensure the process is killed
-        except Exception as e:
-            logger.error(f"Error running stress-ng: {e}")
-            self._result = {"error": str(e), "returncode": -2}
-        finally:
-            self._process = None
-            self._is_running = False
-    
-    def _stop_workload(self) -> None:
-        proc = self._process
-        if proc and proc.poll() is None:
-            logger.info(f"Terminating stress-ng process {proc.pid}")
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                logger.warning(f"stress-ng process {proc.pid} did not terminate gracefully, killing.")
-                proc.kill()
+        else:
+            logger.error("stress-ng failed with return code %s", returncode)
 
 
-class StressNGPlugin(WorkloadPlugin):
+class StressNGPlugin(SimpleWorkloadPlugin):
     """Plugin definition for StressNG."""
-    
-    @property
-    def name(self) -> str:
-        return "stress_ng"
 
-    @property
-    def description(self) -> str:
-        return "CPU/IO/memory stress via stress-ng"
-
-    @property
-    def config_cls(self) -> Type[StressNGConfig]:
-        return StressNGConfig
-
-    def create_generator(self, config: StressNGConfig) -> StressNGGenerator:
-        return StressNGGenerator(config)
+    NAME = "stress_ng"
+    DESCRIPTION = "CPU/IO/memory stress via stress-ng"
+    CONFIG_CLS = StressNGConfig
+    GENERATOR_CLS = StressNGGenerator
+    REQUIRED_APT_PACKAGES = ["stress-ng"]
+    REQUIRED_LOCAL_TOOLS = ["stress-ng"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
+    TEARDOWN_PLAYBOOK = Path(__file__).parent / "ansible" / "teardown.yml"
     
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[StressNGConfig]:
         if level == WorkloadIntensity.LOW:
@@ -172,20 +133,6 @@ class StressNGPlugin(WorkloadPlugin):
                 timeout=120
             )
         return None
-
-    def get_required_apt_packages(self) -> List[str]:
-        return ["stress-ng"]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["stress-ng"]
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        path = Path(__file__).parent / "ansible" / "setup.yml"
-        return path if path.exists() else None
-
-    def get_ansible_teardown_path(self) -> Optional[Path]:
-        path = Path(__file__).parent / "ansible" / "teardown.yml"
-        return path if path.exists() else None
 
 # Exposed Plugin Instance
 PLUGIN = StressNGPlugin()

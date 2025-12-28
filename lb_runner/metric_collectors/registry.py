@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import importlib.metadata
 import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, Optional
 
+from lb_common.entrypoints import discover_entrypoints, load_pending_entrypoints
 from lb_runner.metric_collectors._base_collector import BaseCollector
 from lb_runner.models.config import BenchmarkConfig
 
@@ -31,7 +31,7 @@ class CollectorRegistry:
 
     def __init__(self, plugins: Optional[Iterable[Any]] = None) -> None:
         self._collectors: Dict[str, CollectorPlugin] = {}
-        self._pending_entrypoints: Dict[str, importlib.metadata.EntryPoint] = {}
+        self._pending_entrypoints: Dict[str, Any] = {}
         if plugins:
             for plugin in plugins:
                 self.register(plugin)
@@ -67,31 +67,10 @@ class CollectorRegistry:
 
     def _discover_entrypoint_plugins(self) -> None:
         """Collect entry points without importing them. Loaded on demand."""
-        try:
-            eps = importlib.metadata.entry_points().select(group=ENTRYPOINT_GROUP)
-        except Exception:
-            eps = []
-        for entry_point in eps:
-            self._pending_entrypoints.setdefault(entry_point.name, entry_point)
+        self._pending_entrypoints = discover_entrypoints([ENTRYPOINT_GROUP])
 
     def _load_pending_entrypoints(self) -> None:
         """Load all pending entry-point plugins."""
-        for name in list(self._pending_entrypoints.keys()):
-            entry_point = self._pending_entrypoints.pop(name, None)
-            if not entry_point:
-                continue
-            try:
-                plugin = entry_point.load()
-                self.register(plugin)
-            except ImportError as exc:
-                logger.debug(
-                    "Skipping collector entry point %s due to missing dependency: %s",
-                    entry_point.name,
-                    exc,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Failed to load collector entry point %s: %s",
-                    entry_point.name,
-                    exc,
-                )
+        load_pending_entrypoints(
+            self._pending_entrypoints, self.register, label="collector entry point"
+        )

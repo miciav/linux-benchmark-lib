@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import pytest
 from typer.testing import CliRunner
 
-from lb_runner.api import BenchmarkConfig
+from lb_runner.api import BenchmarkConfig, WorkloadConfig
 
 @dataclass
 class MockDoctorReport:
@@ -29,6 +29,13 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
             del sys.modules[mod]
     cli = importlib.import_module("lb_ui.api")
     return cli
+
+
+def _ensure_workload_enabled(cfg: BenchmarkConfig, name: str) -> None:
+    if name not in cfg.workloads:
+        cfg.workloads[name] = WorkloadConfig(plugin=name, enabled=True)
+        return
+    cfg.workloads[name].enabled = True
 
 
 @pytest.mark.unit_ui
@@ -458,10 +465,7 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     # Ensure at least one workload is enabled so run does not exit early
 
 
-    if "stress_ng" in cfg.workloads:
-
-
-        cfg.workloads["stress_ng"].enabled = True
+    _ensure_workload_enabled(cfg, "stress_ng")
 
 
     cfg_path = tmp_path / "cfg.json"
@@ -584,10 +588,7 @@ def test_run_command_allows_repetition_override(monkeypatch: pytest.MonkeyPatch,
     cfg = BenchmarkConfig()
 
 
-    if "stress_ng" in cfg.workloads:
-
-
-        cfg.workloads["stress_ng"].enabled = True
+    _ensure_workload_enabled(cfg, "stress_ng")
 
 
     cfg_path = tmp_path / "cfg.json"
@@ -1210,8 +1211,7 @@ def test_run_command_saves_ui_stream_log(monkeypatch: pytest.MonkeyPatch, tmp_pa
     cfg.output_dir = output_dir
     cfg.report_dir = report_dir
     cfg.data_export_dir = export_dir
-    if "stress_ng" in cfg.workloads:
-        cfg.workloads["stress_ng"].enabled = True
+    _ensure_workload_enabled(cfg, "stress_ng")
     cfg_path = tmp_path / "cfg.json"
     cfg.save(cfg_path)
 

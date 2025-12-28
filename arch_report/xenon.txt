@@ -1,0 +1,9 @@
+ERROR:xenon:block "lb_runner/metric_collectors/cli_collector.py:36 _collect_metrics" has a rank of C
+ERROR:xenon:block "lb_runner/metric_collectors/cli_collector.py:92 _parse_sar" has a rank of C
+ERROR:xenon:block "lb_runner/metric_collectors/aggregators.py:8 aggregate_psutil" has a rank of C
+ERROR:xenon:block "lb_runner/services/results.py:90 merge_results" has a rank of C
+ERROR:xenon:block "lb_runner/services/system_info.py:148 to_csv_rows" has a rank of D
+ERROR:xenon:block "lb_runner/services/system_info.py:287 _collect_nics" has a rank of C
+ERROR:xenon:block "lb_runner/services/system_info.py:112 SystemInfo" has a rank of C
+ERROR:xenon:block "lb_runner/services/system_info.py:186 _collect_cpu" has a rank of C
+ERROR:xenon:block "lb_runner/services/system_info.py:246 _collect_disks" has a rank of C

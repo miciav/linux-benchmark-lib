@@ -15,12 +15,12 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional
 
 from pydantic import Field
 
-from ...base_generator import BaseGenerator
-from ...interface import BasePluginConfig, WorkloadIntensity, WorkloadPlugin
+from ...base_generator import CommandGenerator
+from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
 
 logger = logging.getLogger(__name__)
 
@@ -74,13 +74,11 @@ class StreamConfig(BasePluginConfig):
     )
 
 
-class StreamGenerator(BaseGenerator):
+class StreamGenerator(CommandGenerator):
     """Generates and runs STREAM workload."""
 
     def __init__(self, config: StreamConfig, name: str = "StreamGenerator") -> None:
-        super().__init__(name)
-        self.config = config
-        self._process: Optional[subprocess.Popen[str]] = None
+        super().__init__(name, config)
 
         if self.config.workspace_dir:
             self.workspace = Path(self.config.workspace_dir).expanduser()
@@ -211,57 +209,54 @@ class StreamGenerator(BaseGenerator):
         cmd.append(str(self.stream_path))
         return cmd
 
-    def _run_command(self) -> None:
-        try:
-            if not self._ensure_binary():
-                return
+    def _popen_kwargs(self) -> dict[str, Any]:
+        return {
+            "cwd": self.working_dir,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "env": self._launcher_env(),
+        }
 
-            cmd = self._build_command()
-            logger.info("Running: %s", " ".join(cmd))
+    def _timeout_seconds(self) -> Optional[int]:
+        return self.config.expected_runtime_seconds + self.config.timeout_buffer
 
-            self._process = subprocess.Popen(
-                cmd,
-                cwd=self.working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                env=self._launcher_env(),
-            )
-
-            timeout_s = self.config.expected_runtime_seconds + self.config.timeout_buffer
-            stdout, stderr = self._process.communicate(timeout=timeout_s)
-            metrics = self._parse_output(stdout or "")
-
-            self._result = {
-                "returncode": self._process.returncode,
-                "stdout": stdout or "",
-                "stderr": stderr or "",
-                "command": " ".join(cmd),
+    def _build_result(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> dict[str, Any]:
+        metrics = self._parse_output(stdout or "")
+        result = super()._build_result(cmd, stdout, stderr, returncode)
+        result.update(
+            {
                 "stream_version": STREAM_VERSION,
                 "upstream_commit": UPSTREAM_COMMIT,
                 "stream_array_size": self.config.stream_array_size,
                 "ntimes": self.config.ntimes,
                 "threads": self.config.threads,
-                "max_retries": self.config.max_retries,
-                "tags": self.config.tags,
                 **metrics,
             }
+        )
+        return result
 
-            if self._process.returncode != 0 and "error" not in self._result:
-                self._result["error"] = f"STREAM exited with return code {self._process.returncode}"
+    def _after_run(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> None:
+        if returncode not in (None, 0) and "error" not in self._result:
+            self._result["error"] = f"STREAM exited with return code {returncode}"
 
-        except subprocess.TimeoutExpired:
-            logger.error("STREAM timed out; terminating process")
-            if self._process:
-                self._process.kill()
-                self._process.wait()
-            self._result = {"error": f"Timeout after {timeout_s}s", "returncode": -1}
-        except Exception as exc:
-            logger.error("Execution error: %s", exc)
-            self._result = {"error": str(exc), "returncode": -2}
-        finally:
-            self._process = None
+    def _run_command(self) -> None:
+        if not self._ensure_binary():
             self._is_running = False
+            return
+        super()._run_command()
 
     def _parse_output(self, output: str) -> dict[str, Any]:
         metrics: dict[str, Any] = {}
@@ -305,23 +300,16 @@ class StreamGenerator(BaseGenerator):
         self._process = None
 
 
-class StreamPlugin(WorkloadPlugin):
+class StreamPlugin(SimpleWorkloadPlugin):
     """STREAM Plugin definition."""
 
-    @property
-    def name(self) -> str:
-        return "stream"
-
-    @property
-    def description(self) -> str:
-        return "STREAM 5.10 memory bandwidth benchmark (OpenMP)"
-
-    @property
-    def config_cls(self) -> Type[StreamConfig]:
-        return StreamConfig
-
-    def create_generator(self, config: StreamConfig) -> StreamGenerator:
-        return StreamGenerator(config)
+    NAME = "stream"
+    DESCRIPTION = "STREAM 5.10 memory bandwidth benchmark (OpenMP)"
+    CONFIG_CLS = StreamConfig
+    GENERATOR_CLS = StreamGenerator
+    REQUIRED_APT_PACKAGES = ["libgomp1", "gcc", "make", "numactl"]
+    REQUIRED_LOCAL_TOOLS = ["gcc", "numactl"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[StreamConfig]:
         import multiprocessing
@@ -335,15 +323,6 @@ class StreamPlugin(WorkloadPlugin):
         if level == WorkloadIntensity.HIGH:
             return StreamConfig(threads=cpu_count, stream_array_size=20_000_000, ntimes=20)
         return None
-
-    def get_required_apt_packages(self) -> List[str]:
-        return ["libgomp1", "gcc", "make", "numactl"]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["gcc", "numactl"]
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "ansible" / "setup.yml"
 
     def export_results_to_csv(
         self,

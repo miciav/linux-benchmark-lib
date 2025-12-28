@@ -12,6 +12,7 @@ BOUNDARIES = {
     "lb_app": "lb_app/api.py",
     "lb_controller": "lb_controller/api.py",
     "lb_runner": "lb_runner/api.py",
+    "lb_plugins": "lb_plugins/api.py",
 }
 
 SKIP_DIRS = {
@@ -28,8 +29,8 @@ SKIP_DIRS = {
     "tests",  # allow tests to poke internal modules
 }
 
-FROM_RE = re.compile(r"from\s+(lb_app|lb_controller|lb_runner)\.(\w+)")
-IMPORT_RE = re.compile(r"import\s+(lb_app|lb_controller|lb_runner)\.(\w+)")
+FROM_RE = re.compile(r"from\s+(lb_app|lb_controller|lb_runner|lb_plugins)\.(\w+)")
+IMPORT_RE = re.compile(r"import\s+(lb_app|lb_controller|lb_runner|lb_plugins)\.(\w+)")
 
 
 def iter_py_files():

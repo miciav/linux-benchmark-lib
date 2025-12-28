@@ -7,19 +7,18 @@ import logging
 import os
 import platform
 import subprocess
-# Removed from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Type, Any
+from typing import Any, List, Optional
 
-from pydantic import Field # Added pydantic Field
+from pydantic import Field
 
-from ...interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig # Imported BasePluginConfig
-from ...base_generator import BaseGenerator
+from ...interface import SimpleWorkloadPlugin, WorkloadIntensity, BasePluginConfig
+from ...base_generator import CommandGenerator, CommandSpec
 
 logger = logging.getLogger(__name__)
 
 
-class DDConfig(BasePluginConfig): # Now inherits from BasePluginConfig
+class DDConfig(BasePluginConfig):
     """Configuration for dd workload."""
 
     if_path: str = Field(default="/dev/zero", description="Input file path")
@@ -32,7 +31,39 @@ class DDConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     debug: bool = Field(default=False, description="Enable debug logging")
 
 
-class DDGenerator(BaseGenerator):
+class _DDCommandBuilder:
+    def build(self, config: DDConfig) -> CommandSpec:
+        cmd = ["dd"]
+        is_macos = platform.system() == "Darwin"
+
+        cmd.append(f"if={config.if_path}")
+        cmd.append(f"of={config.of_path}")
+        cmd.append(f"bs={config.bs}")
+
+        if config.count is not None:
+            cmd.append(f"count={config.count}")
+
+        conv = config.conv
+        oflag = config.oflag
+
+        if is_macos:
+            if oflag == "direct":
+                logger.debug("Ignoring 'oflag=direct' on macOS (not supported by BSD dd)")
+                oflag = None
+            if conv == "fdatasync":
+                logger.debug("Mapping 'conv=fdatasync' to 'conv=sync' on macOS")
+                conv = "sync"
+
+        if conv:
+            cmd.append(f"conv={conv}")
+        if oflag:
+            cmd.append(f"oflag={oflag}")
+
+        cmd.append("status=progress")
+        return CommandSpec(cmd=cmd)
+
+
+class DDGenerator(CommandGenerator):
     """Workload generator using dd command."""
 
     def __init__(self, config: DDConfig, name: str = "DDGenerator"):
@@ -43,51 +74,52 @@ class DDGenerator(BaseGenerator):
             config: Configuration for dd
             name: Name of the generator
         """
-        super().__init__(name)
-        self.config = config
-        self._process: Optional[subprocess.Popen] = None
+        self._command_builder = _DDCommandBuilder()
+        super().__init__(name, config, command_builder=self._command_builder)
 
     def _build_command(self) -> List[str]:
-        """
-        Build the dd command from configuration.
+        return self._command_builder.build(self.config).cmd
 
-        Returns:
-            List of command arguments
-        """
-        cmd = ["dd"]
-        is_macos = platform.system() == "Darwin"
+    def _popen_kwargs(self) -> dict[str, Any]:
+        return {"stdout": subprocess.DEVNULL, "stderr": subprocess.PIPE, "text": True}
 
-        cmd.append(f"if={self.config.if_path}")
-        cmd.append(f"of={self.config.of_path}")
-        cmd.append(f"bs={self.config.bs}")
+    def _consume_process_output(
+        self, proc: subprocess.Popen[str]
+    ) -> tuple[str, str]:
+        stdout, stderr = proc.communicate(timeout=self._timeout_seconds())
+        return stdout or "", stderr or ""
 
-        if self.config.count is not None:
-            cmd.append(f"count={self.config.count}")
+    def _log_command(self, cmd: list[str]) -> None:
+        if self.config.debug:
+            logger.info("Running command (DEBUG): %s", " ".join(cmd))
+        else:
+            logger.info("Running command: %s", " ".join(cmd))
 
-        # Platform-specific adjustments
-        conv = self.config.conv
-        oflag = self.config.oflag
+    def _log_failure(
+        self, returncode: int, stdout: str, stderr: str, cmd: list[str]
+    ) -> None:
+        logger.error("dd failed with return code %s", returncode)
+        if stderr:
+            logger.error("stderr: %s", stderr)
 
-        if is_macos:
-            # BSD dd on macOS usually does not support 'oflag=direct' or 'conv=fdatasync'
-            if oflag == "direct":
-                logger.debug("Ignoring 'oflag=direct' on macOS (not supported by BSD dd)")
-                oflag = None
-            
-            if conv == "fdatasync":
-                logger.debug("Mapping 'conv=fdatasync' to 'conv=sync' on macOS")
-                conv = "sync"
-        
-        if conv:
-            cmd.append(f"conv={conv}")
+    def _after_run(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> None:
+        if self.config.debug and stderr:
+            logger.info("dd stderr output:\n%s", stderr)
 
-        if oflag:
-            cmd.append(f"oflag={oflag}")
-
-        # status=progress is supported on recent macOS versions
-        cmd.append("status=progress")
-
-        return cmd
+        output_path = Path(self.config.of_path).resolve()
+        tmp_dir = Path("/tmp").resolve()
+        if output_path.exists() and output_path.is_relative_to(tmp_dir):
+            try:
+                output_path.unlink()
+                logger.info("Cleaned up test file: %s", output_path)
+            except OSError as exc:
+                logger.warning("Failed to clean up test file: %s", exc)
 
     def _validate_environment(self) -> bool:
         """
@@ -126,92 +158,17 @@ class DDGenerator(BaseGenerator):
 
         return True
 
-    def _run_command(self) -> None:
-        """Run dd with configured parameters."""
-        cmd = self._build_command()
-        if self.config.debug:
-            logger.info("Running command (DEBUG): %s", " ".join(cmd))
-        else:
-            logger.info("Running command: %s", " ".join(cmd))
 
-        try:
-            self._process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-
-            stdout, stderr = self._process.communicate(timeout=self.config.timeout + self.config.timeout_buffer) # Add safety timeout
-
-            self._result = {
-                "stdout": stdout or "",
-                "stderr": stderr or "",
-                "returncode": self._process.returncode,
-                "command": " ".join(cmd),
-                "max_retries": self.config.max_retries, # Add inherited field
-                "tags": self.config.tags # Add inherited field
-            }
-
-            if self.config.debug and stderr:
-                logger.info("dd stderr output:\n%s", stderr)
-
-            if self._process.returncode != 0:
-                logger.error("dd failed with return code %s", self._process.returncode)
-                logger.error("stderr: %s", stderr)
-
-            output_path = Path(self.config.of_path).resolve()
-            tmp_dir = Path("/tmp").resolve()
-            if output_path.exists() and output_path.is_relative_to(tmp_dir):
-                try:
-                    output_path.unlink()
-                    logger.info("Cleaned up test file: %s", output_path)
-                except OSError as exc:
-                    logger.warning("Failed to clean up test file: %s", exc)
-
-        except subprocess.TimeoutExpired:
-            logger.error(f"dd timed out after {self.config.timeout + self.config.timeout_buffer} seconds. Terminating process.")
-            self._process.kill()
-            self._process.wait()
-            self._result = {"error": f"Timeout after {self.config.timeout + self.config.timeout_buffer}s", "returncode": -1}
-        except Exception as exc:
-            logger.error("Error running dd: %s", exc)
-            self._result = {"error": str(exc), "returncode": -2}
-        finally:
-            self._process = None
-            self._is_running = False
-
-    def _stop_workload(self) -> None:
-        """Stop dd process."""
-        proc = self._process
-        if proc and proc.poll() is None:
-            logger.info("Terminating dd process")
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                logger.warning("Force killing dd process")
-                proc.kill()
-                proc.wait()
-
-
-class DDPlugin(WorkloadPlugin):
+class DDPlugin(SimpleWorkloadPlugin):
     """Plugin definition for dd."""
 
-    @property
-    def name(self) -> str:
-        return "dd"
-
-    @property
-    def description(self) -> str:
-        return "Sequential disk I/O via dd"
-
-    @property
-    def config_cls(self) -> Type[DDConfig]:
-        return DDConfig
-
-    def create_generator(self, config: DDConfig) -> DDGenerator: # Type hint updated
-        return DDGenerator(config)
+    NAME = "dd"
+    DESCRIPTION = "Sequential disk I/O via dd"
+    CONFIG_CLS = DDConfig
+    GENERATOR_CLS = DDGenerator
+    REQUIRED_APT_PACKAGES = ["coreutils"]
+    REQUIRED_LOCAL_TOOLS = ["dd"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[DDConfig]:
         if level == WorkloadIntensity.LOW:
@@ -233,18 +190,6 @@ class DDPlugin(WorkloadPlugin):
                 oflag="direct",
                 conv="fdatasync"
             )
-        return None
-
-    def get_required_apt_packages(self) -> List[str]:
-        return ["coreutils"]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["dd"]
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "ansible" / "setup.yml"
-
-    def get_ansible_teardown_path(self) -> Optional[Path]:
         return None
 
 

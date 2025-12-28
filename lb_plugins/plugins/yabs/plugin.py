@@ -14,21 +14,19 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-import re
-# Removed from dataclasses import dataclass, field
-from typing import List, Optional, Type, Any
+from typing import Any, List, Optional
 
-from pydantic import Field, model_validator # Added pydantic Field, model_validator
+from pydantic import Field
 
-from ...interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig # Imported BasePluginConfig
-from ...base_generator import BaseGenerator
+from ...interface import SimpleWorkloadPlugin, WorkloadIntensity, BasePluginConfig
+from ...base_generator import CommandGenerator, CommandSpec
 
 logger = logging.getLogger(__name__)
 
 YABS_URL = "https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh"
 
 
-class YabsConfig(BasePluginConfig): # Now inherits from BasePluginConfig
+class YabsConfig(BasePluginConfig):
     """Configuration for the YABS workload."""
 
     script_url: str = Field(default=YABS_URL, description="URL to the YABS script")
@@ -45,13 +43,35 @@ class YabsConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     # Removed __post_init__ as Pydantic handles Path conversion
 
 
-class YabsGenerator(BaseGenerator):
+class _YabsCommandBuilder:
+    def __init__(self, script_path: Path):
+        self._script_path = script_path
+
+    def build(self, config: YabsConfig, include_skip_cleanup: bool = True) -> CommandSpec:
+        args: list[str] = [str(self._script_path)]
+        if config.skip_disk:
+            args.append("-f")  # skip fio
+        if config.skip_network:
+            args.append("-i")  # skip iperf
+        if config.skip_geekbench:
+            args.append("-g")  # skip geekbench
+        if include_skip_cleanup and config.skip_cleanup:
+            args.append("-c")  # skip cleanup (not supported by all upstream revisions)
+        if config.extra_args:
+            args.extend(config.extra_args)
+        return CommandSpec(cmd=args)
+
+
+class YabsGenerator(CommandGenerator):
     """Generator that runs the upstream yabs.sh script."""
 
     def __init__(self, config: YabsConfig):
-        super().__init__("YabsGenerator")
-        self.config = config
-        self._process: Optional[subprocess.CompletedProcess[str]] = None
+        super().__init__("YabsGenerator", config)
+        self._current_args: list[str] = []
+        self._env: dict[str, str] = {}
+        self._log_path: Optional[Path] = None
+        self._command_builder: _YabsCommandBuilder | None = None
+        self._include_skip_cleanup = True
         # self.expected_runtime_seconds now comes directly from config.expected_runtime_seconds
 
 
@@ -71,6 +91,79 @@ class YabsGenerator(BaseGenerator):
             return False
         return True
 
+    def _build_command(self) -> list[str]:
+        if self._command_builder is None:
+            return list(self._current_args)
+        return self._command_builder.build(
+            self.config, include_skip_cleanup=self._include_skip_cleanup
+        ).cmd
+
+    def _popen_kwargs(self) -> dict[str, Any]:
+        return {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "env": self._env,
+        }
+
+    def _build_command_spec(self) -> CommandSpec:
+        if self._command_builder is None:
+            return super()._build_command_spec()
+        spec = self._command_builder.build(
+            self.config, include_skip_cleanup=self._include_skip_cleanup
+        )
+        if not spec.popen_kwargs:
+            spec.popen_kwargs = self._popen_kwargs()
+        if spec.timeout_seconds is None:
+            spec.timeout_seconds = self._timeout_seconds()
+        self._current_args = list(spec.cmd)
+        return spec
+
+    def _timeout_seconds(self) -> Optional[int]:
+        return self.config.expected_runtime_seconds + self.config.timeout_buffer
+
+    def _log_command(self, cmd: list[str]) -> None:
+        if self.config.debug:
+            logger.info("Running YABS command (configured): %s", " ".join(cmd))
+        else:
+            logger.info("Running YABS command: %s", " ".join(cmd))
+
+    def _after_run(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> None:
+        if not self._log_path:
+            return
+        try:
+            self._log_path.write_text((stdout or "") + "\n" + (stderr or ""))
+        except Exception as exc:  # pragma: no cover - best effort
+            logger.debug("Failed to write yabs log: %s", exc)
+        self._result["log_path"] = str(self._log_path)
+
+    def _should_retry_without_cleanup(self) -> bool:
+        if not self.config.skip_cleanup:
+            return False
+        if "-c" not in self._current_args:
+            return False
+        if not isinstance(self._result, dict):
+            return False
+        if self._result.get("returncode") in (None, 0):
+            return False
+        stderr = self._result.get("stderr") or ""
+        stdout = self._result.get("stdout") or ""
+        if not isinstance(stderr, str) or not isinstance(stdout, str):
+            return False
+        combined = f"{stdout}\n{stderr}".lower()
+        if not any(
+            token in combined
+            for token in ("illegal option", "unknown option", "unrecognized option", "invalid option")
+        ):
+            return False
+        return True
+
     def _run_command(self) -> None:
         """Download and execute yabs.sh with configured flags."""
         if not self._validate_environment():
@@ -79,7 +172,6 @@ class YabsGenerator(BaseGenerator):
             return
 
         script_path: Optional[Path] = None
-        timeout_s = self.config.expected_runtime_seconds + self.config.timeout_buffer
         try:
             # Download script to a temp location
             fd, path_str = tempfile.mkstemp(prefix="yabs-", suffix=".sh")
@@ -97,70 +189,21 @@ class YabsGenerator(BaseGenerator):
                     )
             script_path.chmod(0o755)
 
-            def _build_args(include_skip_cleanup: bool) -> list[str]:
-                args: list[str] = [str(script_path)]
-                if self.config.skip_disk:
-                    args.append("-f")  # skip fio
-                if self.config.skip_network:
-                    args.append("-i")  # skip iperf
-                if self.config.skip_geekbench:
-                    args.append("-g")  # skip geekbench
-                if include_skip_cleanup and self.config.skip_cleanup:
-                    args.append("-c")  # skip cleanup (not supported by all upstream revisions)
-                if self.config.extra_args:
-                    args.extend(self.config.extra_args)
-                return args
-
-            env = os.environ.copy()
+            self._env = os.environ.copy()
             # Prevent interactive prompts
-            env.setdefault("YABS_NONINTERACTIVE", "1")
+            self._env.setdefault("YABS_NONINTERACTIVE", "1")
+            self._log_path = self.config.output_dir / "yabs.log"
+            self._command_builder = _YabsCommandBuilder(script_path)
 
-            if self.config.debug:
-                logger.info("Running YABS command (configured): %s", " ".join(_build_args(True)))
+            self._include_skip_cleanup = True
+            super()._run_command()
 
-            def _run_yabs(args: list[str]) -> subprocess.CompletedProcess[str]:
-                return subprocess.run(
-                    args,
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                    env=env,
-                    timeout=timeout_s,
+            if self._should_retry_without_cleanup():
+                logger.info(
+                    "YABS script does not support -c; retrying without skip_cleanup flag"
                 )
-
-            args = _build_args(True)
-            run = _run_yabs(args)
-            stderr = (run.stderr or "").lower()
-            if (
-                run.returncode != 0
-                and self.config.skip_cleanup
-                and "-c" in args
-                and ("illegal option" in stderr and "-- c" in stderr)
-            ):
-                # Some pinned upstream revisions don't support -c; retry without it.
-                logger.info("YABS script does not support -c; retrying without skip_cleanup flag")
-                args = _build_args(False)
-                run = _run_yabs(args)
-            self._process = run # Store the CompletedProcess object
-
-            log_path = self.config.output_dir / "yabs.log"
-            try:
-                log_path.write_text((run.stdout or "") + "\n" + (run.stderr or ""))
-            except Exception as exc:  # pragma: no cover - best effort
-                logger.debug("Failed to write yabs log: %s", exc)
-
-            self._result = {
-                "stdout": run.stdout or "",
-                "stderr": run.stderr or "",
-                "returncode": run.returncode,
-                "command": " ".join(args),
-                "log_path": str(log_path),
-                "max_retries": self.config.max_retries, # Add inherited field
-                "tags": self.config.tags # Add inherited field
-            }
-        except subprocess.TimeoutExpired:
-            logger.error(f"YABS timed out after {timeout_s} seconds. Script might still be running or was forcefully killed.")
-            self._result = {"error": f"Timeout after {timeout_s}s", "returncode": -1}
+                self._include_skip_cleanup = False
+                super()._run_command()
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("YABS execution error: %s", exc)
             self._result = {"error": str(exc), "returncode": -2}
@@ -180,31 +223,17 @@ class YabsGenerator(BaseGenerator):
                 f"{error_message}: rc={completed.returncode}, stderr={completed.stderr}"
             )
 
-    def _stop_workload(self) -> None:
-        """YABS runs to completion; nothing to stop mid-flight."""
-        # YABS is a shell script, hard to stop gracefully.
-        # It's intended to run to completion or timeout.
-        logger.info("YABS runs to completion; no specific stop logic implemented.")
-        return
 
-
-class YabsPlugin(WorkloadPlugin):
+class YabsPlugin(SimpleWorkloadPlugin):
     """Plugin wrapper for YABS."""
 
-    @property
-    def name(self) -> str:
-        return "yabs"
-
-    @property
-    def description(self) -> str:
-        return "Yet Another Bench Script (CPU/disk/network)"
-
-    @property
-    def config_cls(self) -> Type[YabsConfig]:
-        return YabsConfig
-
-    def create_generator(self, config: YabsConfig) -> YabsGenerator: # Type hint updated
-        return YabsGenerator(config)
+    NAME = "yabs"
+    DESCRIPTION = "Yet Another Bench Script (CPU/disk/network)"
+    CONFIG_CLS = YabsConfig
+    GENERATOR_CLS = YabsGenerator
+    REQUIRED_APT_PACKAGES = ["curl", "wget", "fio", "iperf3", "bc", "tar"]
+    REQUIRED_LOCAL_TOOLS = ["bash", "curl", "wget"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[YabsConfig]:
         # Intensities map to which portions we run; Geekbench remains skipped by default.
@@ -233,19 +262,6 @@ class YabsPlugin(WorkloadPlugin):
                 skip_geekbench=True,
                 skip_cleanup=False,
             )
-        return None
-
-    def get_required_apt_packages(self) -> List[str]:
-        # YABS uses curl/wget, fio, iperf3, tar, bc.
-        return ["curl", "wget", "fio", "iperf3", "bc", "tar"]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["bash", "curl", "wget"]
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "ansible" / "setup.yml"
-
-    def get_ansible_teardown_path(self) -> Optional[Path]:
         return None
 
     def export_results_to_csv(

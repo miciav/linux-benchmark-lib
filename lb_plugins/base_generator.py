@@ -5,10 +5,11 @@ This module defines the common interface that all workload generators must imple
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
-import threading
+from dataclasses import dataclass, field
 import logging
-from pathlib import Path
+import subprocess
+import threading
+from typing import Any, Optional, Protocol
 
 
 logger = logging.getLogger(__name__)
@@ -134,3 +135,162 @@ class BaseGenerator(ABC):
             The result obtained from the workload generation
         """
         return self._result
+
+
+@dataclass
+class CommandSpec:
+    """Command execution specification."""
+
+    cmd: list[str]
+    popen_kwargs: dict[str, Any] = field(default_factory=dict)
+    timeout_seconds: Optional[int] = None
+
+
+class CommandSpecBuilder(Protocol):
+    """Strategy interface for building command specs."""
+
+    def build(self, config: Any) -> CommandSpec:
+        ...
+
+
+class ResultParser(Protocol):
+    """Strategy interface for parsing command results."""
+
+    def parse(self, result: dict[str, Any]) -> dict[str, Any]:
+        ...
+
+
+class CommandGenerator(BaseGenerator):
+    """Base class for command-driven workload generators."""
+
+    def __init__(
+        self,
+        name: str,
+        config: Any,
+        *,
+        command_builder: CommandSpecBuilder | None = None,
+        result_parser: ResultParser | None = None,
+    ):
+        super().__init__(name)
+        self.config = config
+        self._process: Optional[subprocess.Popen[str]] = None
+        self._command_builder = command_builder
+        self._result_parser = result_parser
+        self._active_timeout: Optional[int] = None
+
+    @abstractmethod
+    def _build_command(self) -> list[str]:
+        """Return the command to execute."""
+        raise NotImplementedError
+
+    def _popen_kwargs(self) -> dict[str, Any]:
+        return {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "text": True}
+
+    def _timeout_seconds(self) -> Optional[int]:
+        if self._active_timeout is not None:
+            return self._active_timeout
+        timeout = getattr(self.config, "timeout", None)
+        if timeout is None:
+            return None
+        return timeout + int(getattr(self.config, "timeout_buffer", 0))
+
+    def _log_command(self, cmd: list[str]) -> None:
+        logger.info("Running command: %s", " ".join(cmd))
+
+    def _consume_process_output(
+        self, proc: subprocess.Popen[str]
+    ) -> tuple[str, str]:
+        stdout, stderr = proc.communicate(timeout=self._timeout_seconds())
+        return stdout or "", stderr or ""
+
+    def _build_result(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "stdout": stdout,
+            "stderr": stderr,
+            "returncode": returncode,
+            "command": " ".join(cmd),
+        }
+        if hasattr(self.config, "max_retries"):
+            result["max_retries"] = self.config.max_retries
+        if hasattr(self.config, "tags"):
+            result["tags"] = self.config.tags
+        return result
+
+    def _log_failure(
+        self, returncode: int, stdout: str, stderr: str, cmd: list[str]
+    ) -> None:
+        logger.error("%s failed with return code %s", self.name, returncode)
+
+    def _after_run(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> None:
+        return None
+
+    def _build_command_spec(self) -> CommandSpec:
+        if self._command_builder is not None:
+            spec = self._command_builder.build(self.config)
+        else:
+            spec = CommandSpec(cmd=self._build_command())
+
+        base_kwargs = self._popen_kwargs()
+        if spec.popen_kwargs:
+            base_kwargs.update(spec.popen_kwargs)
+        spec.popen_kwargs = base_kwargs
+
+        if spec.timeout_seconds is None:
+            spec.timeout_seconds = self._timeout_seconds()
+        return spec
+
+    def _run_command(self) -> None:
+        spec = self._build_command_spec()
+        cmd = spec.cmd
+        self._log_command(cmd)
+
+        try:
+            self._active_timeout = spec.timeout_seconds
+            self._process = subprocess.Popen(cmd, **spec.popen_kwargs)
+            stdout, stderr = self._consume_process_output(self._process)
+            returncode = self._process.returncode
+            self._result = self._build_result(cmd, stdout, stderr, returncode)
+            if returncode not in (None, 0):
+                self._log_failure(returncode, stdout, stderr, cmd)
+            self._after_run(cmd, stdout, stderr, returncode)
+            if self._result_parser and isinstance(self._result, dict):
+                self._result = self._result_parser.parse(self._result)
+        except subprocess.TimeoutExpired:
+            timeout = self._timeout_seconds()
+            logger.error(
+                "%s timed out after %s seconds. Terminating process.",
+                self.name,
+                timeout,
+            )
+            self._result = {"error": f"Timeout after {timeout}s", "returncode": -1}
+            self._stop_workload()
+        except Exception as exc:
+            logger.error("Error running %s: %s", self.name, exc)
+            self._result = {"error": str(exc), "returncode": -2}
+        finally:
+            self._process = None
+            self._active_timeout = None
+
+    def _stop_workload(self) -> None:
+        proc = self._process
+        if proc and proc.poll() is None:
+            logger.info("Terminating %s process", self.name)
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                logger.warning("Force killing %s process", self.name)
+                proc.kill()
+                proc.wait()

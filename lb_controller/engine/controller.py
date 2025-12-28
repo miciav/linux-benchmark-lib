@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from lb_common.api import PluginAssetConfig
+from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import BenchmarkConfig, RemoteHostConfig, RunEvent, StopToken
 
 from lb_controller.models.state import ControllerState, ControllerStateMachine
@@ -29,6 +28,7 @@ from lb_controller.adapters.playbooks import (
     run_workload_setup,
 )
 from lb_controller.engine.stop_logic import handle_stop_during_workloads, handle_stop_protocol
+from lb_controller.engine.run_state import RunFlags, RunState
 from lb_controller.services.paths import generate_run_id, prepare_per_host_dirs, prepare_run_dirs
 from lb_controller.engine.stops import StopCoordinator
 from lb_controller.engine.lifecycle import RunLifecycle, RunPhase
@@ -41,32 +41,6 @@ from lb_controller.models.types import (
 from lb_controller.models.pending import pending_hosts_for, pending_repetitions
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class _RunState:
-    """Internal container for a controller run."""
-
-    resolved_run_id: str
-    inventory: InventorySpec
-    target_reps: int
-    output_root: Path
-    report_root: Path
-    data_export_root: Path
-    per_host_output: Dict[str, Path]
-    active_journal: RunJournal
-    journal_file: Path
-    extravars: Dict[str, Any]
-    test_types: List[str]
-
-
-@dataclass
-class _RunFlags:
-    """Mutable flags tracking stop/progress outcomes."""
-
-    all_tests_success: bool = True
-    stop_successful: bool = True
-    stop_protocol_attempted: bool = False
 
 
 class BenchmarkController:
@@ -84,6 +58,11 @@ class BenchmarkController:
         state_machine: ControllerStateMachine | None = None,
     ):
         self.config = config
+        from lb_controller.services.paths import apply_playbook_defaults
+        from lb_plugins.api import apply_plugin_assets, create_registry
+        apply_playbook_defaults(self.config)
+        if not self.config.plugin_assets:
+            apply_plugin_assets(self.config, create_registry())
         self.output_formatter = output_formatter
         self.stop_token = stop_token
         self._stop_timeout_s = stop_timeout_s
@@ -100,6 +79,7 @@ class BenchmarkController:
         # Use event stream as the source of truth; avoid mass RUNNING/COMPLETED updates.
         self._use_progress_stream = True
         self.coordinator: Optional[StopCoordinator] = None
+        self._resume_requested = False
 
     def on_event(self, event: RunEvent) -> None:
         """Process an event for stop coordination."""
@@ -159,9 +139,10 @@ class BenchmarkController:
             raise ValueError("At least one remote host must be configured.")
         if resume and journal is None:
             raise ValueError("Resume requested without a journal instance.")
+        self._resume_requested = resume
 
         phases: Dict[str, ExecutionResult] = {}
-        flags = _RunFlags()
+        flags = RunFlags()
         state = self._prepare_run_state(test_types, run_id, journal, journal_path)
 
         def ui_log(msg: str) -> None:
@@ -195,7 +176,7 @@ class BenchmarkController:
         run_id: Optional[str],
         journal: Optional[RunJournal],
         journal_path: Optional[Path],
-    ) -> _RunState:
+    ) -> RunState:
         resolved_run_id = (
             journal.run_id if journal is not None else run_id or generate_run_id()
         )
@@ -258,7 +239,7 @@ class BenchmarkController:
             "repetition_index": 0,
         }
 
-        return _RunState(
+        return RunState(
             resolved_run_id=resolved_run_id,
             inventory=inventory,
             target_reps=target_reps,
@@ -274,20 +255,20 @@ class BenchmarkController:
 
     def _run_global_setup(
         self,
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> RunExecutionSummary | None:
         return run_global_setup(self, state, phases, flags, ui_log)
 
     def _run_workloads(
         self,
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
-    ) -> _RunFlags:
+    ) -> RunFlags:
         self.lifecycle.start_phase(RunPhase.WORKLOADS)
         for test_name in state.test_types:
             if self._stop_requested():
@@ -303,9 +284,9 @@ class BenchmarkController:
     def _process_single_workload(
         self,
         test_name: str,
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> bool:
         workload_cfg = self.config.workloads.get(test_name)
@@ -314,7 +295,11 @@ class BenchmarkController:
             return True
 
         pending_hosts = pending_hosts_for(
-            state.active_journal, state.target_reps, test_name, self.config.remote_hosts
+            state.active_journal,
+            state.target_reps,
+            test_name,
+            self.config.remote_hosts,
+            allow_skipped=self._resume_requested,
         )
         if not pending_hosts:
             ui_log(f"All repetitions already completed for {test_name}, skipping.")
@@ -329,7 +314,11 @@ class BenchmarkController:
             return False
 
         pending_reps = pending_repetitions(
-            state.active_journal, state.target_reps, pending_hosts, test_name
+            state.active_journal,
+            state.target_reps,
+            pending_hosts,
+            test_name,
+            allow_skipped=self._resume_requested,
         )
 
         self._run_workload_setup(
@@ -374,9 +363,9 @@ class BenchmarkController:
         self,
         inventory: InventorySpec,
         extravars: Dict[str, Any],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
-    ) -> _RunFlags:
+    ) -> RunFlags:
         return handle_stop_during_workloads(self, inventory, extravars, flags, ui_log)
 
     def _get_plugin_assets(
@@ -384,7 +373,7 @@ class BenchmarkController:
         plugin_name: str,
         test_name: str,
         ui_log: Callable[[str], None],
-        flags: _RunFlags,
+        flags: RunFlags,
     ) -> PluginAssetConfig | None:
         assets = self.config.plugin_assets.get(plugin_name)
         if assets is None:
@@ -402,7 +391,7 @@ class BenchmarkController:
         extravars: Dict[str, Any],
         pending_reps: Dict[str, List[int]],
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> None:
         run_workload_setup(
@@ -423,11 +412,11 @@ class BenchmarkController:
         test_name: str,
         plugin_assets: PluginAssetConfig | None,
         plugin_name: str,
-        state: _RunState,
+        state: RunState,
         pending_hosts: List[RemoteHostConfig],
         pending_reps: Dict[str, List[int]],
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> None:
         run_workload_execution(
@@ -448,9 +437,9 @@ class BenchmarkController:
         test_name: str,
         pending_hosts: List[RemoteHostConfig],
         pending_reps: Dict[str, List[int]],
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> None:
         execute_run_playbook(
@@ -468,9 +457,9 @@ class BenchmarkController:
         self,
         test_name: str,
         pending_hosts: List[RemoteHostConfig],
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> None:
         handle_collect_phase(
@@ -485,18 +474,18 @@ class BenchmarkController:
 
     def _run_global_teardown(
         self,
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> None:
         run_global_teardown(self, state, phases, flags, ui_log)
 
     def _build_summary(
         self,
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         success_override: Optional[bool] = None,
     ) -> RunExecutionSummary:
         if self._stop_requested():

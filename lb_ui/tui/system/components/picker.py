@@ -113,12 +113,9 @@ class _TwoLevelPicker:
         if not query:
             return children
         if _HAS_RAPIDFUZZ:
-            matches = process.extract(
-                query,
-                [(c.search_blob(), c) for c in children],
-                scorer=fuzz.WRatio,
-            )
-            return [m[0][1] for m in matches]
+            blobs = [c.search_blob() for c in children]
+            matches = process.extract(query, blobs, scorer=fuzz.WRatio)
+            return [children[m[2]] for m in matches if len(m) > 2]
         lower = query.lower()
         return [c for c in children if lower in c.search_blob().lower()]
 
@@ -311,12 +308,9 @@ class _TwoLevelMultiPicker:
         if not query:
             return children
         if _HAS_RAPIDFUZZ:
-            matches = process.extract(
-                query,
-                [(c.search_blob(), c) for c in children],
-                scorer=fuzz.WRatio,
-            )
-            return [m[0][1] for m in matches]
+            blobs = [c.search_blob() for c in children]
+            matches = process.extract(query, blobs, scorer=fuzz.WRatio)
+            return [children[m[2]] for m in matches if len(m) > 2]
         lower = query.lower()
         return [c for c in children if lower in c.search_blob().lower()]
 

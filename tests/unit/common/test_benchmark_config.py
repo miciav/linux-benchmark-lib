@@ -7,47 +7,45 @@ from pathlib import Path
 import tempfile
 
 import pytest
-from pydantic import ValidationError # Added ValidationError import
+from pydantic import ValidationError
 
-from lb_runner.api import (
-    BenchmarkConfig,
-    MetricCollectorConfig,
-    PerfConfig,
-    RemoteHostConfig,
-    WorkloadConfig,
-)
-# We need to import all plugin configs that BenchmarkConfig might try to load by default
-# This ensures they are registered with the PluginRegistry before BenchmarkConfig() is called
+from lb_runner.api import BenchmarkConfig, PerfConfig, RemoteHostConfig, WorkloadConfig
 from lb_plugins.api import (
     BaselineConfig,
-    DDConfig,
-    FIOConfig,
-    GeekbenchConfig,
-    HPLConfig,
-    StreamConfig,
     StressNGConfig,
-    YabsConfig,
+    apply_plugin_settings_defaults,
+    create_registry,
 )
 
 pytestmark = pytest.mark.unit_runner
 
+
+
 class TestBenchmarkConfig:
     """Test cases for BenchmarkConfig class."""
-    
+
     def test_default_config_creation(self):
         """Test creating a config with default values."""
         config = BenchmarkConfig()
-        
+
         assert config.repetitions == 3
         assert config.test_duration_seconds == 3600
         assert config.metrics_interval_seconds == 1.0
+        assert config.plugin_settings == {}
+        assert config.workloads == {}
+
+        apply_plugin_settings_defaults(
+            config,
+            registry=create_registry(),
+            workload_factory=WorkloadConfig,
+        )
         # Assert specific default plugins are present and are Pydantic models
         assert isinstance(config.plugin_settings["stress_ng"], StressNGConfig)
         assert isinstance(config.plugin_settings["baseline"], BaselineConfig)
         assert "stress_ng" in config.workloads
         assert config.workloads["stress_ng"].plugin == "stress_ng"
-        assert config.workloads["stress_ng"].enabled is False # Default is False for auto-populated workloads
-        
+        assert config.workloads["stress_ng"].enabled is False
+
     def test_custom_config_creation(self):
         """Test creating a config with custom values."""
         config = BenchmarkConfig(
@@ -55,12 +53,17 @@ class TestBenchmarkConfig:
             test_duration_seconds=120,
             plugin_settings={"stress_ng": StressNGConfig(cpu_workers=4)},
         )
-        
+
         assert config.repetitions == 5
         assert config.test_duration_seconds == 120
         assert config.plugin_settings["stress_ng"].cpu_workers == 4
-        assert config.workloads["stress_ng"].options["cpu_workers"] == 4 # Options are raw dict
-        
+        apply_plugin_settings_defaults(
+            config,
+            registry=create_registry(),
+            workload_factory=WorkloadConfig,
+        )
+        assert config.workloads["stress_ng"].options["cpu_workers"] == 4
+
     def test_config_directories_creation(self):
         """Test that output directories are created."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -75,23 +78,23 @@ class TestBenchmarkConfig:
             assert config.output_dir.exists()
             assert config.report_dir.exists()
             assert config.data_export_dir.exists()
-            
+
     def test_config_to_json(self):
         """Test converting config to JSON."""
         config = BenchmarkConfig(repetitions=7)
-        json_str = config.model_dump_json(indent=2) # Use Pydantic's method
-        
+        json_str = config.model_dump_json(indent=2)
+
         data = json.loads(json_str)
         assert data["repetitions"] == 7
-        assert "stress_ng" in data["plugin_settings"]
+        assert data["plugin_settings"] == {}
         assert "collectors" in data
         assert "workloads" in data
-        
+
     def test_config_save_load(self):
         """Test saving and loading config."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             config_path = Path(f.name)
-            
+
         try:
             # Create and save config
             config = BenchmarkConfig(
@@ -100,24 +103,29 @@ class TestBenchmarkConfig:
                 plugin_settings={"stress_ng": StressNGConfig(cpu_workers=8)},
             )
             config.save(config_path)
-            
+
             # Load config
             loaded_config = BenchmarkConfig.load(config_path)
-            
+
             assert loaded_config.repetitions == 10
             assert loaded_config.test_duration_seconds == 90
+            apply_plugin_settings_defaults(
+                loaded_config,
+                registry=create_registry(),
+                workload_factory=WorkloadConfig,
+            )
             # Loaded plugin_settings should be Pydantic models
             assert isinstance(loaded_config.plugin_settings["stress_ng"], StressNGConfig)
             assert loaded_config.plugin_settings["stress_ng"].cpu_workers == 8
             # Workload options should also reflect this
             assert loaded_config.workloads["stress_ng"].options["cpu_workers"] == 8
-            
+
         finally:
             config_path.unlink()
 
     def test_remote_hosts_require_name(self):
         """Remote hosts must have a non-empty name."""
-        with pytest.raises(ValidationError): # Changed to ValidationError
+        with pytest.raises(ValidationError):
             BenchmarkConfig(
                 remote_hosts=[
                     RemoteHostConfig(name="   ", address="192.168.0.1"),
@@ -128,7 +136,7 @@ class TestBenchmarkConfig:
         """Remote host names must be unique."""
         host_a = RemoteHostConfig(name="node1", address="10.0.0.1")
         host_b = RemoteHostConfig(name="node1", address="10.0.0.2")
-        with pytest.raises(ValueError): # This validation is in BenchmarkConfig's model_validator
+        with pytest.raises(ValueError):
             BenchmarkConfig(remote_hosts=[host_a, host_b])
 
     def test_module_does_not_create_default_instance(self):
@@ -140,25 +148,30 @@ class TestBenchmarkConfig:
     def test_workloads_use_single_config_class(self):
         """Ensure workloads are instances of the declared WorkloadConfig."""
         config = BenchmarkConfig()
+        apply_plugin_settings_defaults(
+            config,
+            registry=create_registry(),
+            workload_factory=WorkloadConfig,
+        )
         assert all(isinstance(wl, WorkloadConfig) for wl in config.workloads.values())
 
-        round_trip = BenchmarkConfig.model_validate(config.model_dump()) # Use Pydantic's methods
+        round_trip = BenchmarkConfig.model_validate(config.model_dump())
         assert all(isinstance(wl, WorkloadConfig) for wl in round_trip.workloads.values())
 
 
 class TestStressNGConfig:
     """Test cases for StressNGConfig class."""
-    
+
     def test_default_values(self):
         """Test default StressNGConfig values."""
         config = StressNGConfig()
-        
+
         assert config.cpu_workers == 0
         assert config.cpu_method == "all"
         assert config.vm_workers == 1
         assert config.vm_bytes == "1G"
         assert config.timeout == 60
-        
+
     def test_custom_values(self):
         """Test custom StressNGConfig values."""
         config = StressNGConfig(
@@ -167,7 +180,7 @@ class TestStressNGConfig:
             vm_bytes="2G",
             extra_args=["--verbose"]
         )
-        
+
         assert config.cpu_workers == 4
         assert config.cpu_method == "matrixprod"
         assert config.vm_bytes == "2G"
@@ -176,20 +189,20 @@ class TestStressNGConfig:
 
 class TestPerfConfig:
     """Test cases for PerfConfig class."""
-    
+
     def test_default_events(self):
         """Test default perf events."""
         config = PerfConfig()
-        
+
         assert "cpu-cycles" in config.events
         assert "instructions" in config.events
         assert "cache-misses" in config.events
         assert config.interval_ms == 1000
-        
+
     def test_custom_events(self):
         """Test custom perf events."""
         custom_events = ["cpu-clock", "page-faults"]
         config = PerfConfig(events=custom_events, interval_ms=500)
-        
+
         assert config.events == custom_events
         assert config.interval_ms == 500

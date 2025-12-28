@@ -185,3 +185,57 @@ class WorkloadPlugin(ABC):
         csv_path = output_dir / f"{test_name}_plugin.csv"
         df.to_csv(csv_path, index=False)
         return [csv_path]
+
+
+class SimpleWorkloadPlugin(WorkloadPlugin):
+    """Lightweight plugin base that relies on class attributes."""
+
+    NAME: str = ""
+    DESCRIPTION: str = ""
+    CONFIG_CLS: Type[BasePluginConfig] = BasePluginConfig
+    GENERATOR_CLS: Any = None
+    REQUIRED_APT_PACKAGES: List[str] = []
+    REQUIRED_PIP_PACKAGES: List[str] = []
+    REQUIRED_LOCAL_TOOLS: List[str] = []
+    SETUP_PLAYBOOK: Optional[Path] = None
+    TEARDOWN_PLAYBOOK: Optional[Path] = None
+
+    @property
+    def name(self) -> str:
+        if not self.NAME:
+            raise NotImplementedError("SimpleWorkloadPlugin.NAME must be set")
+        return self.NAME
+
+    @property
+    def description(self) -> str:
+        return self.DESCRIPTION
+
+    @property
+    def config_cls(self) -> Type[BasePluginConfig]:
+        if not self.CONFIG_CLS:
+            raise NotImplementedError("SimpleWorkloadPlugin.CONFIG_CLS must be set")
+        return self.CONFIG_CLS
+
+    def create_generator(self, config: BasePluginConfig) -> Any:
+        if self.GENERATOR_CLS is None:
+            raise NotImplementedError("SimpleWorkloadPlugin.GENERATOR_CLS must be set")
+        return self.GENERATOR_CLS(config)
+
+    def get_required_apt_packages(self) -> List[str]:
+        return list(self.REQUIRED_APT_PACKAGES)
+
+    def get_required_pip_packages(self) -> List[str]:
+        return list(self.REQUIRED_PIP_PACKAGES)
+
+    def get_required_local_tools(self) -> List[str]:
+        return list(self.REQUIRED_LOCAL_TOOLS)
+
+    def get_ansible_setup_path(self) -> Optional[Path]:
+        if self.SETUP_PLAYBOOK and self.SETUP_PLAYBOOK.exists():
+            return self.SETUP_PLAYBOOK
+        return None
+
+    def get_ansible_teardown_path(self) -> Optional[Path]:
+        if self.TEARDOWN_PLAYBOOK and self.TEARDOWN_PLAYBOOK.exists():
+            return self.TEARDOWN_PLAYBOOK
+        return None

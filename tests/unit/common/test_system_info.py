@@ -8,9 +8,88 @@ from pathlib import Path
 import pytest
 
 from lb_runner.api import system_info_module as sysinfo, write_outputs
+from lb_runner.services import system_info_collectors as collectors
 from lb_app.api import summarize_system_info
 
 pytestmark = [pytest.mark.unit_runner]
+
+def test_system_info_to_dict_shape() -> None:
+    info = sysinfo.SystemInfo(
+        host="node1",
+        timestamp="2024-01-01T00:00:00Z",
+        os={"name": "TestOS"},
+        kernel={"release": "6.1"},
+        platform={"system": "Linux"},
+        python={"version": "3.13"},
+        cpu={"cores": 8},
+        memory={"total": "1024"},
+        disks=[sysinfo.DiskInfo(name="sda", size_bytes=1)],
+        nics=[sysinfo.NicInfo(name="eth0", up=True)],
+        pci=[sysinfo.PciDevice(slot="0000:00:1f.2", cls="Class")],
+        smart=[sysinfo.SmartStatus(device="/dev/sda", health="PASSED")],
+        modules=[sysinfo.KernelModule(name="kmod", size=1)],
+        services=[sysinfo.SystemService(name="svc", state="running")],
+        fingerprint="abc123",
+    )
+
+    payload = info.to_dict()
+    expected_keys = {
+        "host",
+        "timestamp",
+        "fingerprint",
+        "os",
+        "kernel",
+        "platform",
+        "python",
+        "cpu",
+        "memory",
+        "disks",
+        "nics",
+        "pci",
+        "smart",
+        "modules",
+        "services",
+    }
+    assert set(payload.keys()) == expected_keys
+    assert payload["host"] == "node1"
+    assert payload["fingerprint"] == "abc123"
+    assert payload["disks"][0]["name"] == "sda"
+    assert payload["nics"][0]["name"] == "eth0"
+    assert payload["pci"][0]["slot"] == "0000:00:1f.2"
+    assert payload["smart"][0]["device"] == "/dev/sda"
+    assert payload["modules"][0]["name"] == "kmod"
+    assert payload["services"][0]["name"] == "svc"
+
+
+def test_system_info_to_csv_rows_shape() -> None:
+    info = sysinfo.SystemInfo(
+        host="node1",
+        timestamp="2024-01-01T00:00:00Z",
+        os={"name": "TestOS"},
+        kernel={"release": "6.1"},
+        platform={"system": "Linux"},
+        python={"version": "3.13"},
+        cpu={"cores": 8},
+        memory={"total": "1024"},
+        disks=[sysinfo.DiskInfo(name="sda", size_bytes=1)],
+        nics=[sysinfo.NicInfo(name="eth0", up=True)],
+        pci=[sysinfo.PciDevice(slot="0000:00:1f.2", cls="Class")],
+        smart=[sysinfo.SmartStatus(device="/dev/sda", health="PASSED")],
+        modules=[sysinfo.KernelModule(name="kmod", size=1)],
+        services=[sysinfo.SystemService(name="svc", state="running")],
+        fingerprint="abc123",
+    )
+
+    rows = info.to_csv_rows()
+    assert rows
+    assert all(set(row.keys()) == {"category", "name", "value"} for row in rows)
+    assert len(rows) == 14
+    assert any(row["category"] == "disk" and row["name"] == "sda" for row in rows)
+    assert any(row["category"] == "nic" and row["name"] == "eth0" for row in rows)
+    assert any(row["category"] == "pci" and row["name"] == "0000:00:1f.2" for row in rows)
+    assert any(row["category"] == "smart" and row["name"] == "/dev/sda" for row in rows)
+    assert any(row["category"] == "module" and row["name"] == "kmod" for row in rows)
+    assert any(row["category"] == "service" and row["name"] == "svc" for row in rows)
 
 
 def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
@@ -33,9 +112,9 @@ def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
             processor="x86",
         ),
     )
-    monkeypatch.setattr(sysinfo, "psutil", None)
+    monkeypatch.setattr(collectors, "psutil", None)
     monkeypatch.setattr(
-        sysinfo,
+        collectors,
         "_json_output",
         lambda *args, **kwargs: {
             "blockdevices": [
@@ -64,8 +143,8 @@ def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
             )
         return ""
 
-    monkeypatch.setattr(sysinfo, "_run", _fake_run)
-    monkeypatch.setattr(sysinfo.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(collectors, "_run", _fake_run)
+    monkeypatch.setattr(collectors.shutil, "which", lambda name: f"/usr/bin/{name}")
 
     # Mock new collectors
     monkeypatch.setattr(

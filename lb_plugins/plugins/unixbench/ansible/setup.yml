@@ -1,0 +1,66 @@
+---
+- name: Build UnixBench from source
+  hosts: all
+  become: true
+  tasks:
+    - name: Install build dependencies
+      apt:
+        name:
+          - build-essential
+          - libx11-dev
+          - libgl1-mesa-dev
+          - libxext-dev
+          - sysvinit-utils
+          - mesa-utils
+          - locales
+          - wget
+        state: present
+        update_cache: true
+
+    - name: Ensure build workspace exists
+      file:
+        path: /tmp/unixbench-src
+        state: directory
+        mode: "0755"
+
+    - name: Download UnixBench tarball
+      get_url:
+        url: https://github.com/kdlucas/byte-unixbench/archive/refs/tags/v5.1.3.tar.gz
+        dest: /tmp/unixbench-src/UnixBench5.1.3.tgz
+        mode: "0644"
+
+    - name: Extract UnixBench
+      unarchive:
+        src: /tmp/unixbench-src/UnixBench5.1.3.tgz
+        dest: /tmp/unixbench-src
+        remote_src: true
+
+    - name: Build UnixBench
+      ansible.builtin.command:
+        cmd: make
+        chdir: /tmp/unixbench-src/byte-unixbench-5.1.3/UnixBench
+        creates: /tmp/unixbench-src/byte-unixbench-5.1.3/UnixBench/Run
+
+    - name: Install UnixBench to /opt/UnixBench
+      command: mv /tmp/unixbench-src/byte-unixbench-5.1.3/UnixBench /opt/UnixBench
+      args:
+        creates: /opt/UnixBench/Run
+
+    - name: Ensure en_US.UTF-8 locale exists
+      command: locale-gen en_US.UTF-8
+      args:
+        creates: /usr/lib/locale/en_US.utf8
+
+    - name: Ensure 3dinfo stub exists (if not provided by mesa-utils)
+      copy:
+        dest: /usr/local/bin/3dinfo
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          exit 0
+      when: ansible_facts.os_family == "Debian" and (ansible_facts.packages.get('mesa-utils') is not defined)
+
+    - name: Cleanup build directory
+      file:
+        path: /tmp/unixbench-src
+        state: absent

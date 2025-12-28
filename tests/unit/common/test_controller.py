@@ -211,6 +211,32 @@ def test_controller_merges_plugin_extravars_into_setup(tmp_path: Path) -> None:
     assert teardown_calls[0]["extravars"]["pts_profile"] == "build-linux-kernel"
 
 
+def test_controller_summary_includes_run_outputs(tmp_path: Path) -> None:
+    config = BenchmarkConfig(
+        output_dir=tmp_path / "out",
+        report_dir=tmp_path / "rep",
+        data_export_dir=tmp_path / "exp",
+        remote_hosts=[RemoteHostConfig(name="node1", address="127.0.0.1")],
+    )
+    config.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
+    config.repetitions = 1
+    config.remote_execution.run_setup = False
+    config.remote_execution.run_collect = False
+    config.remote_execution.run_teardown = False
+    _prepare_controller_config(config)
+
+    executor = DummyExecutor()
+    controller = BenchmarkController(config, executor=executor)
+
+    run_id = "run-characterization"
+    summary = controller.run(test_types=["stress_ng"], run_id=run_id)
+
+    assert summary.success
+    assert summary.run_id == run_id
+    assert "node1" in summary.per_host_output
+    assert summary.per_host_output["node1"].exists()
+
+
 def test_controller_runs_teardown_even_after_stop_requested(tmp_path: Path) -> None:
     """Stop requests should still allow plugin/global teardown to execute exactly once."""
     config = BenchmarkConfig(

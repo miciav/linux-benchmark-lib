@@ -1,53 +1,20 @@
-"""
-Registry and discovery utilities for workload plugins.
-"""
+"""Registry utilities for workload plugins."""
 
 from __future__ import annotations
 
-import importlib.metadata
 import logging
-import os
-from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
+from lb_plugins import discovery as discovery_module
 from .base_generator import BaseGenerator
-from .entrypoints import discover_entrypoints, load_entrypoint, load_pending_entrypoints
 from .interface import WorkloadPlugin as IWorkloadPlugin
-from .user_plugins import load_plugins_from_dir
 
 
 logger = logging.getLogger(__name__)
-ENTRYPOINT_GROUP = "linux_benchmark.workloads"
-BUILTIN_PLUGIN_ROOT = Path(__file__).resolve().parent / "plugins"
-
-
-def resolve_user_plugin_dir() -> Path:
-    """
-    Determine where third-party/user plugins should be installed and loaded from.
-
-    Preference order:
-    1) `LB_USER_PLUGIN_DIR` env override (if set).
-    2) `<package>/plugins/_user` (portable with runner tree).
-    """
-    override = os.environ.get("LB_USER_PLUGIN_DIR")
-    if override:
-        path = Path(override).expanduser().resolve()
-        try:
-            path.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            # Directory creation may fail for read-only locations; caller handles.
-            pass
-        return path
-
-    candidate = BUILTIN_PLUGIN_ROOT / "_user"
-    try:
-        candidate.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
-    return candidate
-
-
-USER_PLUGIN_DIR = resolve_user_plugin_dir()
+ENTRYPOINT_GROUP = discovery_module.ENTRYPOINT_GROUP
+BUILTIN_PLUGIN_ROOT = discovery_module.BUILTIN_PLUGIN_ROOT
+USER_PLUGIN_DIR = discovery_module.USER_PLUGIN_DIR
+resolve_user_plugin_dir = discovery_module.resolve_user_plugin_dir
 
 
 class PluginRegistry:
@@ -55,7 +22,7 @@ class PluginRegistry:
 
     def __init__(self, plugins: Optional[Iterable[Any]] = None):
         self._workloads: Dict[str, IWorkloadPlugin] = {}
-        self._pending_entrypoints: Dict[str, importlib.metadata.EntryPoint] = {}
+        self._pending_entrypoints: Dict[str, Any] = {}
         if plugins:
             for plugin in plugins:
                 self.register(plugin)
@@ -113,19 +80,21 @@ class PluginRegistry:
 
     def _discover_entrypoint_plugins(self) -> None:
         """Collect entry points without importing them. Loaded on demand."""
-        self._pending_entrypoints = discover_entrypoints([ENTRYPOINT_GROUP])
+        self._pending_entrypoints = discovery_module.discover_entrypoint_plugins()
 
     def _load_pending_entrypoints(self) -> None:
         """Load all pending entry-point plugins."""
-        load_pending_entrypoints(self._pending_entrypoints, self.register)
+        discovery_module.load_pending_entrypoint_plugins(
+            self._pending_entrypoints, self.register
+        )
 
     def _load_entrypoint(self, name: str) -> None:
         """Load a single entry-point plugin by name if pending."""
         entry_point = self._pending_entrypoints.pop(name, None)
         if not entry_point:
             return
-        load_entrypoint(entry_point, self.register)
+        discovery_module.load_entrypoint_plugin(entry_point, self.register)
 
     def _load_user_plugins(self) -> None:
         """Load python plugins from user plugin directories."""
-        load_plugins_from_dir(resolve_user_plugin_dir(), self.register)
+        discovery_module.load_user_plugins(self.register, resolve_user_plugin_dir())

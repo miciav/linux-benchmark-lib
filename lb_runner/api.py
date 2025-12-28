@@ -14,6 +14,7 @@ from lb_runner.engine.runner import LocalRunner
 from lb_runner.engine.stop_token import StopToken
 from lb_runner.metric_collectors._base_collector import BaseCollector
 from lb_runner.metric_collectors.cli_collector import aggregate_cli
+from lb_runner.registry import RunnerRegistry
 from lb_runner.services.log_handler import LBEventLogHandler
 from lb_runner.services.results import collect_metrics
 from lb_runner.services import storage as storage_module
@@ -42,4 +43,5 @@ __all__ = [
     "system_info_module",
     "StopToken",
     "workload_output_dir",
+    "RunnerRegistry",
 ]

@@ -1,0 +1,3 @@
+ROOT=/Users/micheleciavotta/Downloads/linux-benchmark-lib
+OUT=/Users/micheleciavotta/Downloads/linux-benchmark-lib/arch_report
+TARGET=lb_runner

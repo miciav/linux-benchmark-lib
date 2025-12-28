@@ -2,7 +2,9 @@ from typing import Sequence, ContextManager, Any, IO
 from dataclasses import dataclass, field
 from contextlib import nullcontext
 
-from lb_ui.tui.system.protocols import UI, Picker, TablePresenter, Presenter, Form, Progress, Dashboard, DashboardFactory, HierarchicalPicker
+from lb_ui.tui.system.components.dashboard_adapter import DashboardAdapter
+from lb_ui.tui.system.components.presenter_base import PresenterBase, PresenterSink
+from lb_ui.tui.system.protocols import UI, Picker, TablePresenter, Form, Progress, Dashboard, DashboardFactory, HierarchicalPicker
 from lb_ui.tui.system.models import TableModel, PickItem, SelectionNode
 
 @dataclass
@@ -96,27 +98,27 @@ class _HeadlessTablePresenter(TablePresenter):
     def show(self, table: TableModel) -> None:
         self._ui.recorded_tables.append(RecordedTable(table))
 
-class _HeadlessPresenter(Presenter):
-    def __init__(self, ui: HeadlessUI):
+class _HeadlessPresenterSink(PresenterSink):
+    def __init__(self, ui: HeadlessUI) -> None:
         self._ui = ui
 
-    def info(self, message: str) -> None:
-        self._ui.recorded_messages.append(f"INFO: {message}")
-    
-    def warning(self, message: str) -> None:
-        self._ui.recorded_messages.append(f"WARNING: {message}")
-    
-    def error(self, message: str) -> None:
-        self._ui.recorded_messages.append(f"ERROR: {message}")
-    
-    def success(self, message: str) -> None:
-        self._ui.recorded_messages.append(f"SUCCESS: {message}")
-    
-    def panel(self, message: str, title: str | None = None, border_style: str | None = None) -> None:
+    def emit(self, level: str, message: str) -> None:
+        self._ui.recorded_messages.append(f"{level.upper()}: {message}")
+
+    def emit_panel(
+        self,
+        message: str,
+        title: str | None,
+        border_style: str | None,
+    ) -> None:
         self._ui.recorded_messages.append(f"PANEL: {title} - {message}")
 
-    def rule(self, title: str) -> None:
+    def emit_rule(self, title: str) -> None:
         self._ui.recorded_messages.append(f"RULE: {title}")
+
+class _HeadlessPresenter(PresenterBase):
+    def __init__(self, ui: HeadlessUI) -> None:
+        super().__init__(_HeadlessPresenterSink(ui))
 
 class _HeadlessForm(Form):
     def __init__(self, ui: HeadlessUI):
@@ -136,8 +138,8 @@ class _HeadlessProgress(Progress):
         self._ui.recorded_messages.append(f"STATUS: {message}")
         return nullcontext()
 
-class _HeadlessDashboard(Dashboard):
-    def __init__(self, ui: HeadlessUI):
+class _HeadlessDashboardSink(Dashboard):
+    def __init__(self, ui: HeadlessUI) -> None:
         self._ui = ui
 
     def live(self) -> ContextManager[None]:
@@ -173,4 +175,4 @@ class _HeadlessDashboardFactory(DashboardFactory):
         ui_log_file: IO[str] | None = None,
     ) -> Dashboard:
         self._ui.recorded_messages.append(f"DASHBOARD: create(plan={len(plan)} items)")
-        return _HeadlessDashboard(self._ui)
+        return DashboardAdapter(_HeadlessDashboardSink(self._ui))

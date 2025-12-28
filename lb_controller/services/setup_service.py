@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
-from lb_common.api import PluginAssetConfig
+from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import RemoteHostConfig
 
 if TYPE_CHECKING:
