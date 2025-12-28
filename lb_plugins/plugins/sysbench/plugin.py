@@ -12,12 +12,12 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional
 
 from pydantic import Field
 
 from ...base_generator import CommandGenerator
-from ...interface import BasePluginConfig, WorkloadIntensity, WorkloadPlugin
+from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
 
 logger = logging.getLogger(__name__)
 
@@ -98,20 +98,15 @@ class SysbenchGenerator(CommandGenerator):
             logger.error("sysbench failed with return code %s", returncode)
 
 
-class SysbenchPlugin(WorkloadPlugin):
+class SysbenchPlugin(SimpleWorkloadPlugin):
     """Plugin definition for sysbench."""
 
-    @property
-    def name(self) -> str:
-        return "sysbench"
-
-    @property
-    def description(self) -> str:
-        return "CPU micro-benchmark via sysbench"
-
-    @property
-    def config_cls(self) -> Type[SysbenchConfig]:
-        return SysbenchConfig
+    NAME = "sysbench"
+    DESCRIPTION = "CPU micro-benchmark via sysbench"
+    CONFIG_CLS = SysbenchConfig
+    REQUIRED_APT_PACKAGES = ["sysbench"]
+    REQUIRED_LOCAL_TOOLS = ["sysbench"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
 
     def create_generator(self, config: SysbenchConfig | dict) -> SysbenchGenerator:
         if isinstance(config, dict):
@@ -140,18 +135,8 @@ class SysbenchPlugin(WorkloadPlugin):
             )
         return None
 
-    def get_required_apt_packages(self) -> List[str]:
-        return ["sysbench"]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["sysbench"]
-
     def get_dockerfile_path(self) -> Optional[Path]:
         path = Path(__file__).parent / "Dockerfile"
-        return path if path.exists() else None
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        path = Path(__file__).parent / "ansible" / "setup.yml"
         return path if path.exists() else None
 
     def get_ansible_teardown_path(self) -> Optional[Path]:

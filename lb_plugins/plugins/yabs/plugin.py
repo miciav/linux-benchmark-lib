@@ -14,11 +14,11 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional
 
 from pydantic import Field
 
-from ...interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig
+from ...interface import SimpleWorkloadPlugin, WorkloadIntensity, BasePluginConfig
 from ...base_generator import CommandGenerator
 
 logger = logging.getLogger(__name__)
@@ -199,23 +199,16 @@ class YabsGenerator(CommandGenerator):
             )
 
 
-class YabsPlugin(WorkloadPlugin):
+class YabsPlugin(SimpleWorkloadPlugin):
     """Plugin wrapper for YABS."""
 
-    @property
-    def name(self) -> str:
-        return "yabs"
-
-    @property
-    def description(self) -> str:
-        return "Yet Another Bench Script (CPU/disk/network)"
-
-    @property
-    def config_cls(self) -> Type[YabsConfig]:
-        return YabsConfig
-
-    def create_generator(self, config: YabsConfig) -> YabsGenerator: # Type hint updated
-        return YabsGenerator(config)
+    NAME = "yabs"
+    DESCRIPTION = "Yet Another Bench Script (CPU/disk/network)"
+    CONFIG_CLS = YabsConfig
+    GENERATOR_CLS = YabsGenerator
+    REQUIRED_APT_PACKAGES = ["curl", "wget", "fio", "iperf3", "bc", "tar"]
+    REQUIRED_LOCAL_TOOLS = ["bash", "curl", "wget"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[YabsConfig]:
         # Intensities map to which portions we run; Geekbench remains skipped by default.
@@ -244,19 +237,6 @@ class YabsPlugin(WorkloadPlugin):
                 skip_geekbench=True,
                 skip_cleanup=False,
             )
-        return None
-
-    def get_required_apt_packages(self) -> List[str]:
-        # YABS uses curl/wget, fio, iperf3, tar, bc.
-        return ["curl", "wget", "fio", "iperf3", "bc", "tar"]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["bash", "curl", "wget"]
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "ansible" / "setup.yml"
-
-    def get_ansible_teardown_path(self) -> Optional[Path]:
         return None
 
     def export_results_to_csv(

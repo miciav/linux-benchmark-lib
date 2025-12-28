@@ -8,12 +8,12 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
 from ...base_generator import CommandGenerator
-from ...interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig
+from ...interface import WorkloadIntensity, SimpleWorkloadPlugin, BasePluginConfig
 
 
 logger = logging.getLogger(__name__)
@@ -225,23 +225,16 @@ class FIOGenerator(CommandGenerator):
             logger.error("stderr: %s", stderr)
 
 
-class FIOPlugin(WorkloadPlugin):
+class FIOPlugin(SimpleWorkloadPlugin):
     """Plugin definition for FIO."""
-    
-    @property
-    def name(self) -> str:
-        return "fio"
 
-    @property
-    def description(self) -> str:
-        return "Flexible disk I/O via fio"
-
-    @property
-    def config_cls(self) -> Type[FIOConfig]:
-        return FIOConfig
-
-    def create_generator(self, config: FIOConfig) -> FIOGenerator:
-        return FIOGenerator(config)
+    NAME = "fio"
+    DESCRIPTION = "Flexible disk I/O via fio"
+    CONFIG_CLS = FIOConfig
+    GENERATOR_CLS = FIOGenerator
+    REQUIRED_APT_PACKAGES = ["fio"]
+    REQUIRED_LOCAL_TOOLS = ["fio"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
     
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[FIOConfig]:
         if level == WorkloadIntensity.LOW:
@@ -269,12 +262,6 @@ class FIOPlugin(WorkloadPlugin):
                 runtime=120
             )
         return None
-
-    def get_required_apt_packages(self) -> List[str]:
-        return ["fio"]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["fio"]
 
     def export_results_to_csv(
         self,
@@ -315,9 +302,6 @@ class FIOPlugin(WorkloadPlugin):
 
         pd.DataFrame(rows).to_csv(csv_path, index=False)
         return [csv_path]
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "ansible" / "setup.yml"
 
 
 PLUGIN = FIOPlugin()

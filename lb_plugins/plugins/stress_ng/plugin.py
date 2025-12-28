@@ -6,12 +6,12 @@ Modular plugin version.
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional
 
 from pydantic import Field
 
 from ...base_generator import CommandGenerator
-from ...interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig
+from ...interface import WorkloadIntensity, SimpleWorkloadPlugin, BasePluginConfig
 
 logger = logging.getLogger(__name__)
 
@@ -87,23 +87,17 @@ class StressNGGenerator(CommandGenerator):
             logger.error("stress-ng failed with return code %s", returncode)
 
 
-class StressNGPlugin(WorkloadPlugin):
+class StressNGPlugin(SimpleWorkloadPlugin):
     """Plugin definition for StressNG."""
-    
-    @property
-    def name(self) -> str:
-        return "stress_ng"
 
-    @property
-    def description(self) -> str:
-        return "CPU/IO/memory stress via stress-ng"
-
-    @property
-    def config_cls(self) -> Type[StressNGConfig]:
-        return StressNGConfig
-
-    def create_generator(self, config: StressNGConfig) -> StressNGGenerator:
-        return StressNGGenerator(config)
+    NAME = "stress_ng"
+    DESCRIPTION = "CPU/IO/memory stress via stress-ng"
+    CONFIG_CLS = StressNGConfig
+    GENERATOR_CLS = StressNGGenerator
+    REQUIRED_APT_PACKAGES = ["stress-ng"]
+    REQUIRED_LOCAL_TOOLS = ["stress-ng"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
+    TEARDOWN_PLAYBOOK = Path(__file__).parent / "ansible" / "teardown.yml"
     
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[StressNGConfig]:
         if level == WorkloadIntensity.LOW:
@@ -133,20 +127,6 @@ class StressNGPlugin(WorkloadPlugin):
                 timeout=120
             )
         return None
-
-    def get_required_apt_packages(self) -> List[str]:
-        return ["stress-ng"]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["stress-ng"]
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        path = Path(__file__).parent / "ansible" / "setup.yml"
-        return path if path.exists() else None
-
-    def get_ansible_teardown_path(self) -> Optional[Path]:
-        path = Path(__file__).parent / "ansible" / "teardown.yml"
-        return path if path.exists() else None
 
 # Exposed Plugin Instance
 PLUGIN = StressNGPlugin()

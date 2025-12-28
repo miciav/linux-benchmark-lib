@@ -15,12 +15,12 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional
 
 from pydantic import Field
 
 from ...base_generator import CommandGenerator
-from ...interface import BasePluginConfig, WorkloadIntensity, WorkloadPlugin
+from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
 
 logger = logging.getLogger(__name__)
 
@@ -300,23 +300,16 @@ class StreamGenerator(CommandGenerator):
         self._process = None
 
 
-class StreamPlugin(WorkloadPlugin):
+class StreamPlugin(SimpleWorkloadPlugin):
     """STREAM Plugin definition."""
 
-    @property
-    def name(self) -> str:
-        return "stream"
-
-    @property
-    def description(self) -> str:
-        return "STREAM 5.10 memory bandwidth benchmark (OpenMP)"
-
-    @property
-    def config_cls(self) -> Type[StreamConfig]:
-        return StreamConfig
-
-    def create_generator(self, config: StreamConfig) -> StreamGenerator:
-        return StreamGenerator(config)
+    NAME = "stream"
+    DESCRIPTION = "STREAM 5.10 memory bandwidth benchmark (OpenMP)"
+    CONFIG_CLS = StreamConfig
+    GENERATOR_CLS = StreamGenerator
+    REQUIRED_APT_PACKAGES = ["libgomp1", "gcc", "make", "numactl"]
+    REQUIRED_LOCAL_TOOLS = ["gcc", "numactl"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[StreamConfig]:
         import multiprocessing
@@ -330,15 +323,6 @@ class StreamPlugin(WorkloadPlugin):
         if level == WorkloadIntensity.HIGH:
             return StreamConfig(threads=cpu_count, stream_array_size=20_000_000, ntimes=20)
         return None
-
-    def get_required_apt_packages(self) -> List[str]:
-        return ["libgomp1", "gcc", "make", "numactl"]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["gcc", "numactl"]
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "ansible" / "setup.yml"
 
     def export_results_to_csv(
         self,

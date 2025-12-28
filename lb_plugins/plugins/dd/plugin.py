@@ -8,11 +8,11 @@ import os
 import platform
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional
 
 from pydantic import Field
 
-from ...interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig
+from ...interface import SimpleWorkloadPlugin, WorkloadIntensity, BasePluginConfig
 from ...base_generator import CommandGenerator
 
 logger = logging.getLogger(__name__)
@@ -165,23 +165,16 @@ class DDGenerator(CommandGenerator):
         return True
 
 
-class DDPlugin(WorkloadPlugin):
+class DDPlugin(SimpleWorkloadPlugin):
     """Plugin definition for dd."""
 
-    @property
-    def name(self) -> str:
-        return "dd"
-
-    @property
-    def description(self) -> str:
-        return "Sequential disk I/O via dd"
-
-    @property
-    def config_cls(self) -> Type[DDConfig]:
-        return DDConfig
-
-    def create_generator(self, config: DDConfig) -> DDGenerator: # Type hint updated
-        return DDGenerator(config)
+    NAME = "dd"
+    DESCRIPTION = "Sequential disk I/O via dd"
+    CONFIG_CLS = DDConfig
+    GENERATOR_CLS = DDGenerator
+    REQUIRED_APT_PACKAGES = ["coreutils"]
+    REQUIRED_LOCAL_TOOLS = ["dd"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[DDConfig]:
         if level == WorkloadIntensity.LOW:
@@ -203,18 +196,6 @@ class DDPlugin(WorkloadPlugin):
                 oflag="direct",
                 conv="fdatasync"
             )
-        return None
-
-    def get_required_apt_packages(self) -> List[str]:
-        return ["coreutils"]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["dd"]
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "ansible" / "setup.yml"
-
-    def get_ansible_teardown_path(self) -> Optional[Path]:
         return None
 
 

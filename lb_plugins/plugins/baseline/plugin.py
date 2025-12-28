@@ -8,12 +8,12 @@ import threading
 import time
 # Removed from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Optional
 
 from pydantic import Field # Added pydantic Field
 
 from ...base_generator import BaseGenerator
-from ...interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
+from ...interface import WorkloadIntensity, SimpleWorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
 
 logger = logging.getLogger(__name__)
 
@@ -59,23 +59,15 @@ class BaselineGenerator(BaseGenerator):
         self._stop_event.set()
 
 
-class BaselinePlugin(WorkloadPlugin):
+class BaselinePlugin(SimpleWorkloadPlugin):
     """Plugin definition for Baseline (Idle)."""
-    
-    @property
-    def name(self) -> str:
-        return "baseline"
 
-    @property
-    def description(self) -> str:
-        return "Idle workload to measure system baseline performance"
-
-    @property
-    def config_cls(self) -> Type[BaselineConfig]:
-        return BaselineConfig
-
-    def create_generator(self, config: BaselineConfig) -> BaselineGenerator:
-        return BaselineGenerator(config)
+    NAME = "baseline"
+    DESCRIPTION = "Idle workload to measure system baseline performance"
+    CONFIG_CLS = BaselineConfig
+    GENERATOR_CLS = BaselineGenerator
+    REQUIRED_APT_PACKAGES: list[str] = []
+    REQUIRED_LOCAL_TOOLS: list[str] = []
     
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[BaselineConfig]:
         if level == WorkloadIntensity.LOW:
@@ -85,12 +77,6 @@ class BaselinePlugin(WorkloadPlugin):
         elif level == WorkloadIntensity.HIGH:
             return BaselineConfig(duration=300)
         return None
-
-    def get_required_apt_packages(self) -> List[str]:
-        return []
-
-    def get_required_local_tools(self) -> List[str]:
-        return []
 
 # Exposed Plugin Instance
 PLUGIN = BaselinePlugin()

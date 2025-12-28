@@ -12,7 +12,12 @@ from lb_plugins import registry as registry_module
 from lb_plugins.base_generator import BaseGenerator, CommandGenerator
 from lb_plugins.builtin import builtin_plugins
 from lb_plugins.discovery import resolve_user_plugin_dir
-from lb_plugins.interface import BasePluginConfig, WorkloadIntensity, WorkloadPlugin
+from lb_plugins.interface import (
+    BasePluginConfig,
+    SimpleWorkloadPlugin,
+    WorkloadIntensity,
+    WorkloadPlugin,
+)
 from lb_plugins.installer import PluginInstaller
 from lb_plugins.plugin_assets import PluginAssetConfig
 from lb_plugins.registry import PluginRegistry
@@ -178,6 +183,7 @@ __all__ = [
     "BasePluginConfig",
     "WorkloadIntensity",
     "WorkloadPlugin",
+    "SimpleWorkloadPlugin",
     "PluginRegistry",
     "PluginInstaller",
     "create_registry",

@@ -10,12 +10,12 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional
 
 from pydantic import Field
 
 from ...base_generator import CommandGenerator
-from ...interface import BasePluginConfig, WorkloadIntensity, WorkloadPlugin
+from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
 
 
 logger = logging.getLogger(__name__)
@@ -85,20 +85,21 @@ class UnixBenchGenerator(CommandGenerator):
             logger.error("UnixBench failed with return code %s", returncode)
 
 
-class UnixBenchPlugin(WorkloadPlugin):
+class UnixBenchPlugin(SimpleWorkloadPlugin):
     """Plugin definition for UnixBench."""
 
-    @property
-    def name(self) -> str:
-        return "unixbench"
-
-    @property
-    def description(self) -> str:
-        return "UnixBench micro-benchmark suite built from source"
-
-    @property
-    def config_cls(self) -> Type[UnixBenchConfig]:
-        return UnixBenchConfig
+    NAME = "unixbench"
+    DESCRIPTION = "UnixBench micro-benchmark suite built from source"
+    CONFIG_CLS = UnixBenchConfig
+    REQUIRED_APT_PACKAGES = [
+        "build-essential",
+        "libx11-dev",
+        "libgl1-mesa-dev",
+        "libxext-dev",
+        "wget",
+    ]
+    REQUIRED_LOCAL_TOOLS = ["make", "gcc", "wget"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
 
     def create_generator(self, config: UnixBenchConfig | dict) -> UnixBenchGenerator:
         if isinstance(config, dict):
@@ -115,19 +116,9 @@ class UnixBenchPlugin(WorkloadPlugin):
             return UnixBenchConfig(threads=max(2, cpu_count), iterations=2)
         return None
 
-    def get_required_apt_packages(self) -> List[str]:
-        # Build deps; UnixBench itself is built from source
-        return ["build-essential", "libx11-dev", "libgl1-mesa-dev", "libxext-dev", "wget"]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["make", "gcc", "wget"]
-
     def get_dockerfile_path(self) -> Optional[Path]:
         path = Path(__file__).parent / "Dockerfile"
         return path if path.exists() else None
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "ansible" / "setup.yml"
 
 
 PLUGIN = UnixBenchPlugin()
