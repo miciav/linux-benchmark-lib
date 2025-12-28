@@ -49,3 +49,8 @@ workloads:
     tags: ["pts", "memory", "ram"]
     apt_packages:
       - build-essential
+
+  - profile: blosc
+    expected_runtime_seconds: 300
+    description: "PTS: Blosc compression"
+    tags: ["pts", "compression", "cpu"]
