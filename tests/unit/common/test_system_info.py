@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from lb_runner.api import system_info_module as sysinfo, write_outputs
+from lb_runner.services import system_info_collectors as collectors
 from lb_app.api import summarize_system_info
 
 pytestmark = [pytest.mark.unit_runner]
@@ -111,9 +112,9 @@ def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
             processor="x86",
         ),
     )
-    monkeypatch.setattr(sysinfo, "psutil", None)
+    monkeypatch.setattr(collectors, "psutil", None)
     monkeypatch.setattr(
-        sysinfo,
+        collectors,
         "_json_output",
         lambda *args, **kwargs: {
             "blockdevices": [
@@ -142,8 +143,8 @@ def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
             )
         return ""
 
-    monkeypatch.setattr(sysinfo, "_run", _fake_run)
-    monkeypatch.setattr(sysinfo.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(collectors, "_run", _fake_run)
+    monkeypatch.setattr(collectors.shutil, "which", lambda name: f"/usr/bin/{name}")
 
     # Mock new collectors
     monkeypatch.setattr(
