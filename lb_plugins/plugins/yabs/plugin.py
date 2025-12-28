@@ -115,10 +115,16 @@ class YabsGenerator(CommandGenerator):
         if self._result.get("returncode") in (None, 0):
             return False
         stderr = self._result.get("stderr") or ""
-        if not isinstance(stderr, str):
+        stdout = self._result.get("stdout") or ""
+        if not isinstance(stderr, str) or not isinstance(stdout, str):
             return False
-        stderr_lower = stderr.lower()
-        return "illegal option" in stderr_lower and "-- c" in stderr_lower
+        combined = f"{stdout}\n{stderr}".lower()
+        if not any(
+            token in combined
+            for token in ("illegal option", "unknown option", "unrecognized option", "invalid option")
+        ):
+            return False
+        return "-c" in combined or "-- c" in combined
 
     def _run_command(self) -> None:
         """Download and execute yabs.sh with configured flags."""
