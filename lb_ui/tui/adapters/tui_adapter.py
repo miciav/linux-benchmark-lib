@@ -1,10 +1,9 @@
 from typing import Any, IO, Sequence
 from contextlib import contextmanager, AbstractContextManager
-import threading
-import queue
 
 from lb_app.api import UIAdapter, DashboardHandle, ProgressHandle
-from lb_ui.tui.system.protocols import UI
+from lb_ui.tui.system.components.dashboard_adapter import DashboardAdapter
+from lb_ui.tui.system.protocols import UI, Dashboard
 from lb_ui.tui.system.models import TableModel, PickItem
 
 class TUIAdapter(UIAdapter):
@@ -77,60 +76,8 @@ class _NoOpDashboardHandle(DashboardHandle):
     def mark_event(self, source: str) -> None: pass
 
 
-class ThreadedDashboardHandle(DashboardHandle):
-    """Run the dashboard rendering loop in its own thread, consuming queued events."""
+class ThreadedDashboardHandle(DashboardAdapter):
+    """Run the dashboard rendering loop in its own thread."""
 
-    def __init__(self, inner: DashboardHandle):
-        self._inner = inner
-        self._queue: queue.Queue[tuple[str, tuple, dict] | None] = queue.Queue()
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
-
-    @contextmanager
-    def live(self) -> AbstractContextManager[None]:
-        self._stop.clear()
-        self._thread = threading.Thread(target=self._run, name="lb-dashboard-thread", daemon=True)
-        self._thread.start()
-        try:
-            yield self
-        finally:
-            self._stop.set()
-            self._queue.put(None)
-            if self._thread:
-                self._thread.join(timeout=2)
-                self._thread = None
-
-    def _run(self) -> None:
-        with self._inner.live():
-            while not self._stop.is_set():
-                try:
-                    item = self._queue.get(timeout=0.1)
-                except queue.Empty:
-                    continue
-                if item is None:
-                    break
-                method, args, kwargs = item
-                try:
-                    getattr(self._inner, method)(*args, **kwargs)
-                    if method != "refresh":
-                        self._inner.refresh()
-                except Exception:
-                    continue
-
-    def add_log(self, line: str) -> None:
-        self._queue.put(("add_log", (line,), {}))
-
-    def refresh(self) -> None:
-        self._queue.put(("refresh", tuple(), {}))
-
-    def mark_event(self, source: str) -> None:
-        self._queue.put(("mark_event", (source,), {}))
-
-    def set_warning(self, message: str, ttl: float = 10.0) -> None:
-        self._queue.put(("set_warning", (message,), {"ttl": ttl}))
-
-    def clear_warning(self) -> None:
-        self._queue.put(("clear_warning", tuple(), {}))
-
-    def set_controller_state(self, state: str) -> None:
-        self._queue.put(("set_controller_state", (state,), {}))
+    def __init__(self, inner: Dashboard):
+        super().__init__(inner, threaded=True)
