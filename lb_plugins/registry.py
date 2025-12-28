@@ -4,14 +4,17 @@ Registry and discovery utilities for workload plugins.
 
 from __future__ import annotations
 
-import importlib.metadata
 import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
+from lb_common.entrypoints import (
+    discover_entrypoints,
+    load_entrypoint,
+    load_pending_entrypoints,
+)
 from .base_generator import BaseGenerator
-from .entrypoints import discover_entrypoints, load_entrypoint, load_pending_entrypoints
 from .interface import WorkloadPlugin as IWorkloadPlugin
 from .user_plugins import load_plugins_from_dir
 
@@ -117,14 +120,16 @@ class PluginRegistry:
 
     def _load_pending_entrypoints(self) -> None:
         """Load all pending entry-point plugins."""
-        load_pending_entrypoints(self._pending_entrypoints, self.register)
+        load_pending_entrypoints(
+            self._pending_entrypoints, self.register, label="plugin entry point"
+        )
 
     def _load_entrypoint(self, name: str) -> None:
         """Load a single entry-point plugin by name if pending."""
         entry_point = self._pending_entrypoints.pop(name, None)
         if not entry_point:
             return
-        load_entrypoint(entry_point, self.register)
+        load_entrypoint(entry_point, self.register, label="plugin entry point")
 
     def _load_user_plugins(self) -> None:
         """Load python plugins from user plugin directories."""

@@ -1,4 +1,4 @@
-"""Entry-point discovery and loading helpers for plugins."""
+"""Entry-point discovery and loading helpers shared across registries."""
 
 from __future__ import annotations
 
@@ -28,32 +28,30 @@ def discover_entrypoints(
 def load_entrypoint(
     entry_point: importlib.metadata.EntryPoint,
     register: Callable[[Any], None],
+    *,
+    label: str = "entry point",
 ) -> None:
-    """Load a single entry-point plugin by name if pending."""
+    """Load a single entry-point plugin/collector."""
     try:
         plugin = entry_point.load()
         register(plugin)
     except ImportError as exc:
         logger.debug(
-            "Skipping plugin entry point %s due to missing dependency: %s",
-            entry_point.name,
-            exc,
+            "Skipping %s %s due to missing dependency: %s", label, entry_point.name, exc
         )
     except Exception as exc:
-        logger.warning(
-            "Failed to load plugin entry point %s: %s",
-            entry_point.name,
-            exc,
-        )
+        logger.warning("Failed to load %s %s: %s", label, entry_point.name, exc)
 
 
 def load_pending_entrypoints(
     pending: dict[str, importlib.metadata.EntryPoint],
     register: Callable[[Any], None],
+    *,
+    label: str = "entry point",
 ) -> None:
-    """Load all pending entry-point plugins."""
+    """Load all pending entry-point plugins/collectors."""
     for name in list(pending.keys()):
         entry_point = pending.pop(name, None)
         if not entry_point:
             continue
-        load_entrypoint(entry_point, register)
+        load_entrypoint(entry_point, register, label=label)
