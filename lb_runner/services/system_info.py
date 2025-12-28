@@ -7,12 +7,15 @@ provisioned by Ansible.
 
 from __future__ import annotations
 
+import argparse
 import platform
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from lb_runner.services import system_info_collectors as collectors
+from lb_runner.services.system_info_io import write_outputs
 from lb_runner.services.system_info_types import (
     DiskInfo,
     KernelModule,
@@ -100,10 +103,15 @@ def collect_system_info() -> SystemInfo:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Backwards-compatible CLI entrypoint (delegates to system_info_cli)."""
-    from lb_runner.services.system_info_cli import main as cli_main
+    """CLI entrypoint for system information collection."""
+    parser = argparse.ArgumentParser(description="Collect system information into JSON/CSV.")
+    parser.add_argument("--json", type=Path, help="Path to write JSON output")
+    parser.add_argument("--csv", type=Path, help="Path to write CSV output (flattened)")
+    args = parser.parse_args(argv)
 
-    return cli_main(argv)
+    info = collect_system_info()
+    write_outputs(info, args.json, args.csv)
+    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover

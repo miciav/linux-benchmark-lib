@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
@@ -29,6 +28,7 @@ from lb_controller.adapters.playbooks import (
     run_workload_setup,
 )
 from lb_controller.engine.stop_logic import handle_stop_during_workloads, handle_stop_protocol
+from lb_controller.engine.run_state import RunFlags, RunState
 from lb_controller.services.paths import generate_run_id, prepare_per_host_dirs, prepare_run_dirs
 from lb_controller.engine.stops import StopCoordinator
 from lb_controller.engine.lifecycle import RunLifecycle, RunPhase
@@ -41,32 +41,6 @@ from lb_controller.models.types import (
 from lb_controller.models.pending import pending_hosts_for, pending_repetitions
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class _RunState:
-    """Internal container for a controller run."""
-
-    resolved_run_id: str
-    inventory: InventorySpec
-    target_reps: int
-    output_root: Path
-    report_root: Path
-    data_export_root: Path
-    per_host_output: Dict[str, Path]
-    active_journal: RunJournal
-    journal_file: Path
-    extravars: Dict[str, Any]
-    test_types: List[str]
-
-
-@dataclass
-class _RunFlags:
-    """Mutable flags tracking stop/progress outcomes."""
-
-    all_tests_success: bool = True
-    stop_successful: bool = True
-    stop_protocol_attempted: bool = False
 
 
 class BenchmarkController:
@@ -166,7 +140,7 @@ class BenchmarkController:
             raise ValueError("Resume requested without a journal instance.")
 
         phases: Dict[str, ExecutionResult] = {}
-        flags = _RunFlags()
+        flags = RunFlags()
         state = self._prepare_run_state(test_types, run_id, journal, journal_path)
 
         def ui_log(msg: str) -> None:
@@ -200,7 +174,7 @@ class BenchmarkController:
         run_id: Optional[str],
         journal: Optional[RunJournal],
         journal_path: Optional[Path],
-    ) -> _RunState:
+    ) -> RunState:
         resolved_run_id = (
             journal.run_id if journal is not None else run_id or generate_run_id()
         )
@@ -263,7 +237,7 @@ class BenchmarkController:
             "repetition_index": 0,
         }
 
-        return _RunState(
+        return RunState(
             resolved_run_id=resolved_run_id,
             inventory=inventory,
             target_reps=target_reps,
@@ -279,20 +253,20 @@ class BenchmarkController:
 
     def _run_global_setup(
         self,
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> RunExecutionSummary | None:
         return run_global_setup(self, state, phases, flags, ui_log)
 
     def _run_workloads(
         self,
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
-    ) -> _RunFlags:
+    ) -> RunFlags:
         self.lifecycle.start_phase(RunPhase.WORKLOADS)
         for test_name in state.test_types:
             if self._stop_requested():
@@ -308,9 +282,9 @@ class BenchmarkController:
     def _process_single_workload(
         self,
         test_name: str,
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> bool:
         workload_cfg = self.config.workloads.get(test_name)
@@ -379,9 +353,9 @@ class BenchmarkController:
         self,
         inventory: InventorySpec,
         extravars: Dict[str, Any],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
-    ) -> _RunFlags:
+    ) -> RunFlags:
         return handle_stop_during_workloads(self, inventory, extravars, flags, ui_log)
 
     def _get_plugin_assets(
@@ -389,7 +363,7 @@ class BenchmarkController:
         plugin_name: str,
         test_name: str,
         ui_log: Callable[[str], None],
-        flags: _RunFlags,
+        flags: RunFlags,
     ) -> PluginAssetConfig | None:
         assets = self.config.plugin_assets.get(plugin_name)
         if assets is None:
@@ -407,7 +381,7 @@ class BenchmarkController:
         extravars: Dict[str, Any],
         pending_reps: Dict[str, List[int]],
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> None:
         run_workload_setup(
@@ -428,11 +402,11 @@ class BenchmarkController:
         test_name: str,
         plugin_assets: PluginAssetConfig | None,
         plugin_name: str,
-        state: _RunState,
+        state: RunState,
         pending_hosts: List[RemoteHostConfig],
         pending_reps: Dict[str, List[int]],
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> None:
         run_workload_execution(
@@ -453,9 +427,9 @@ class BenchmarkController:
         test_name: str,
         pending_hosts: List[RemoteHostConfig],
         pending_reps: Dict[str, List[int]],
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> None:
         execute_run_playbook(
@@ -473,9 +447,9 @@ class BenchmarkController:
         self,
         test_name: str,
         pending_hosts: List[RemoteHostConfig],
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> None:
         handle_collect_phase(
@@ -490,18 +464,18 @@ class BenchmarkController:
 
     def _run_global_teardown(
         self,
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> None:
         run_global_teardown(self, state, phases, flags, ui_log)
 
     def _build_summary(
         self,
-        state: _RunState,
+        state: RunState,
         phases: Dict[str, ExecutionResult],
-        flags: _RunFlags,
+        flags: RunFlags,
         success_override: Optional[bool] = None,
     ) -> RunExecutionSummary:
         if self._stop_requested():

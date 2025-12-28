@@ -6,7 +6,7 @@ import csv
 import json
 from pathlib import Path
 
-from lb_runner.services.system_info import SystemInfo
+from lb_runner.services.system_info_types import SystemInfo
 
 
 def write_outputs(info: SystemInfo, json_path: Path | None, csv_path: Path | None) -> None:
