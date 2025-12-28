@@ -33,14 +33,14 @@ from lb_plugins.plugins.baseline.plugin import (
     BaselinePlugin,
     PLUGIN as BASELINE_PLUGIN,
 )
-from lb_plugins.plugins.dd.plugin import DDConfig, DDPlugin
+from lb_plugins.plugins.dd.plugin import DDConfig, DDGenerator, DDPlugin
 from lb_plugins.plugins.fio.plugin import FIOConfig, FIOGenerator, FIOPlugin
 from lb_plugins.plugins.geekbench.plugin import (
     GeekbenchConfig,
     GeekbenchGenerator,
     GeekbenchPlugin,
 )
-from lb_plugins.plugins.hpl.plugin import HPLConfig, HPLPlugin
+from lb_plugins.plugins.hpl.plugin import HPLConfig, HPLGenerator, HPLPlugin
 from lb_plugins.plugins.phoronix_test_suite.plugin import (
     PhoronixConfig,
     PhoronixGenerator,
@@ -54,7 +54,11 @@ from lb_plugins.plugins.stream.plugin import (
     StreamGenerator,
     StreamPlugin,
 )
-from lb_plugins.plugins.stress_ng.plugin import StressNGConfig
+from lb_plugins.plugins.stress_ng.plugin import (
+    StressNGConfig,
+    StressNGGenerator,
+    StressNGPlugin,
+)
 from lb_plugins.plugins.sysbench.plugin import (
     SysbenchConfig,
     SysbenchGenerator,
@@ -359,10 +363,13 @@ __all__ = [
     "BaselinePlugin",
     "BASELINE_PLUGIN",
     "StressNGConfig",
+    "StressNGGenerator",
+    "StressNGPlugin",
     "SysbenchConfig",
     "SysbenchGenerator",
     "SysbenchPlugin",
     "DDConfig",
+    "DDGenerator",
     "DDPlugin",
     "FIOConfig",
     "FIOGenerator",
@@ -371,6 +378,7 @@ __all__ = [
     "GeekbenchGenerator",
     "GeekbenchPlugin",
     "HPLConfig",
+    "HPLGenerator",
     "HPLPlugin",
     "StreamConfig",
     "StreamGenerator",
