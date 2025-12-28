@@ -122,7 +122,14 @@ class RunJournal:
         if error:
             task.error = error
 
-    def should_run(self, host: str, workload: str, rep: int) -> bool:
+    def should_run(
+        self,
+        host: str,
+        workload: str,
+        rep: int,
+        *,
+        allow_skipped: bool = False,
+    ) -> bool:
         """
         Determines if a task should be executed.
         Returns True if task is PENDING or FAILED (and we want to retry).
@@ -130,6 +137,8 @@ class RunJournal:
         """
         task = self.get_task(host, workload, rep)
         if task:
+            if allow_skipped:
+                return task.status != RunStatus.COMPLETED
             return task.status not in (RunStatus.COMPLETED, RunStatus.SKIPPED)
         # If task not found, it's technically new, so run it (though this shouldn't happen if initialized correctly)
         return True

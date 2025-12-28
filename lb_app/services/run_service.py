@@ -314,6 +314,7 @@ class RunService:
             context.target_tests,
             context.config.remote_hosts or [],
             context.config.repetitions,
+            allow_skipped=session.resume_requested,
         ):
             return self._short_circuit_empty_run(context, session, ui_adapter)
 
@@ -801,7 +802,7 @@ class RunService:
         host_name: str,
     ) -> RunJournal:
         """Construct a RunJournal from existing *_results.json artifacts when missing."""
-        return build_journal_from_results(run_id, context, host_name)
+        return build_journal_from_results(run_id, context, [host_name])
 
     @staticmethod
     def _find_latest_journal(config: BenchmarkConfig) -> Path | None:

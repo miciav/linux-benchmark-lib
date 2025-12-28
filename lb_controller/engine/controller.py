@@ -79,6 +79,7 @@ class BenchmarkController:
         # Use event stream as the source of truth; avoid mass RUNNING/COMPLETED updates.
         self._use_progress_stream = True
         self.coordinator: Optional[StopCoordinator] = None
+        self._resume_requested = False
 
     def on_event(self, event: RunEvent) -> None:
         """Process an event for stop coordination."""
@@ -138,6 +139,7 @@ class BenchmarkController:
             raise ValueError("At least one remote host must be configured.")
         if resume and journal is None:
             raise ValueError("Resume requested without a journal instance.")
+        self._resume_requested = resume
 
         phases: Dict[str, ExecutionResult] = {}
         flags = RunFlags()
@@ -293,7 +295,11 @@ class BenchmarkController:
             return True
 
         pending_hosts = pending_hosts_for(
-            state.active_journal, state.target_reps, test_name, self.config.remote_hosts
+            state.active_journal,
+            state.target_reps,
+            test_name,
+            self.config.remote_hosts,
+            allow_skipped=self._resume_requested,
         )
         if not pending_hosts:
             ui_log(f"All repetitions already completed for {test_name}, skipping.")
@@ -308,7 +314,11 @@ class BenchmarkController:
             return False
 
         pending_reps = pending_repetitions(
-            state.active_journal, state.target_reps, pending_hosts, test_name
+            state.active_journal,
+            state.target_reps,
+            pending_hosts,
+            test_name,
+            allow_skipped=self._resume_requested,
         )
 
         self._run_workload_setup(

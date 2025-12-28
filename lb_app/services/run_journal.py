@@ -19,8 +19,37 @@ def load_resume_journal(
     context: RunContext, run_id: str | None
 ) -> tuple[RunJournal, Path, str]:
     """Load an existing journal and reconcile configuration for resume."""
-    journal_path = resolve_resume_path(context)
-    journal = RunJournal.load(journal_path)
+    journal_path: Path | None = None
+    run_identifier: str | None = None
+
+    if context.resume_latest:
+        journal_path = find_latest_journal(context.config)
+        if journal_path is not None:
+            run_identifier = journal_path.parent.name
+        else:
+            latest = find_latest_results_run(context.config)
+            if latest is None:
+                raise ValueError("No previous run found to resume.")
+            run_identifier, journal_path = latest
+    else:
+        run_identifier = context.resume_from
+        if not run_identifier:
+            raise ValueError("Resume requested without a run identifier.")
+        journal_path = context.config.output_dir / run_identifier / "run_journal.json"
+
+    if run_identifier is None:
+        raise ValueError("Resume requested without a run identifier.")
+
+    if journal_path.exists():
+        journal = RunJournal.load(journal_path)
+    else:
+        run_root = journal_path.parent
+        if not results_exist_for_run(run_root):
+            raise ValueError("Resume journal missing and no results were found to rebuild it.")
+        journal = build_journal_from_results(run_identifier, context)
+        run_root.mkdir(parents=True, exist_ok=True)
+        journal.save(journal_path)
+
     rehydrate_resume_config(context, journal)
     ensure_resume_tasks(context, journal)
     if run_id and run_id != journal.run_id:
@@ -92,18 +121,23 @@ def initialize_new_journal(
 def build_journal_from_results(
     run_id: str,
     context: RunContext,
-    host_name: str,
+    host_names: list[str] | None = None,
 ) -> RunJournal:
     """Construct a RunJournal from existing *_results.json artifacts."""
     journal = RunJournal.initialize(run_id, context.config, context.target_tests)
     output_root = context.config.output_dir / run_id
-    for test_name in context.target_tests:
-        results_file = find_results_file(output_root, test_name)
-        if not results_file:
-            continue
-        entries = load_results_entries(results_file)
-        for entry in entries:
-            apply_result_entry(journal, host_name, test_name, entry)
+    hosts = host_names or _resolve_host_names(context)
+    for host_name in hosts:
+        host_root = output_root / host_name
+        if not host_root.exists():
+            host_root = output_root
+        for test_name in context.target_tests:
+            results_file = find_results_file(host_root, test_name)
+            if not results_file:
+                continue
+            entries = load_results_entries(results_file)
+            for entry in entries:
+                apply_result_entry(journal, host_name, test_name, entry)
     return journal
 
 
@@ -200,8 +234,78 @@ def find_latest_journal(config: BenchmarkConfig) -> Path | None:
             candidates.append(candidate)
     if not candidates:
         return None
-    candidates.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    candidates.sort(key=_journal_sort_key, reverse=True)
     return candidates[0]
+
+
+def find_latest_results_run(config: BenchmarkConfig) -> tuple[str, Path] | None:
+    """Return the most recent run directory that contains results files."""
+    root = config.output_dir
+    if not root.exists():
+        return None
+    latest: tuple[float, Path] | None = None
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        mtime = _latest_results_mtime(child)
+        if mtime is None:
+            continue
+        if latest is None or mtime > latest[0]:
+            latest = (mtime, child)
+    if latest is None:
+        return None
+    run_dir = latest[1]
+    return run_dir.name, run_dir / "run_journal.json"
+
+
+def results_exist_for_run(run_root: Path) -> bool:
+    """Return True when any *_results.json exists under the run root."""
+    try:
+        next(run_root.rglob("*_results.json"))
+        return True
+    except StopIteration:
+        return False
+
+
+def _resolve_host_names(context: RunContext) -> list[str]:
+    hosts = (
+        context.config.remote_hosts
+        if getattr(context.config, "remote_hosts", None)
+        else [SimpleNamespace(name="localhost")]
+    )
+    return [host.name for host in hosts]
+
+
+def _latest_results_mtime(run_root: Path) -> float | None:
+    latest: float | None = None
+    for path in run_root.rglob("*_results.json"):
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+        if latest is None or mtime > latest:
+            latest = mtime
+    return latest
+
+
+def _journal_sort_key(path: Path) -> float:
+    run_id = path.parent.name
+    ts = _parse_run_id(run_id)
+    if ts is not None:
+        return ts.timestamp()
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def _parse_run_id(run_id: str) -> datetime | None:
+    if not run_id.startswith("run-"):
+        return None
+    try:
+        return datetime.strptime(run_id[4:], "%Y%m%d-%H%M%S")
+    except ValueError:
+        return None
 
 
 def generate_run_id() -> str:
