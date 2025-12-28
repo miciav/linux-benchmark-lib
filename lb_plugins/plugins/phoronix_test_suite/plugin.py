@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
 import yaml
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from ...base_generator import CommandGenerator
 from ...interface import BasePluginConfig, WorkloadPlugin
@@ -77,7 +77,7 @@ class PhoronixConfig(BasePluginConfig):
 
     batch_mode: bool = Field(
         default=True,
-        description="Prefer batch-* PTS commands to avoid interactive prompts.",
+        description="Batch mode is required for PTS workloads (non-batch is unsupported).",
     )
     install_system_packages: bool = Field(
         default=True,
@@ -94,6 +94,12 @@ class PhoronixConfig(BasePluginConfig):
         default_factory=list,
         description="Additional arguments appended to the PTS command.",
     )
+
+    @model_validator(mode="after")
+    def _require_batch_mode(self) -> "PhoronixConfig":
+        if not self.batch_mode:
+            raise ValueError("PTS workloads require batch mode (batch_mode=True).")
+        return self
 
 
 class PhoronixGenerator(CommandGenerator):
@@ -143,8 +149,6 @@ class PhoronixGenerator(CommandGenerator):
     def _require_batch_setup(self, env: Dict[str, str]) -> None:
         pts_user_path = env.get("PTS_USER_PATH_OVERRIDE", "")
         if not pts_user_path:
-            return
-        if not self.config.batch_mode:
             return
         if self._is_batch_configured(pts_user_path):
             return
@@ -234,8 +238,7 @@ class PhoronixGenerator(CommandGenerator):
         return cmd
 
     def _build_command(self) -> List[str]:
-        subcommand = "batch-benchmark" if self.config.batch_mode else "benchmark"
-        return self._build_command_for(subcommand)
+        return self._build_command_for("batch-benchmark")
 
     def _run_command(self) -> None:
         start = time.time()
@@ -257,10 +260,7 @@ class PhoronixGenerator(CommandGenerator):
         except Exception:
             before = set()
 
-        cmd = self._build_command_for(
-            "batch-benchmark" if self.config.batch_mode else "benchmark"
-        )
-        cmd_fallback = self._build_command_for("benchmark")
+        cmd = self._build_command_for("batch-benchmark")
 
         def _run(cmd_to_run: List[str]) -> tuple[int, str]:
             logger.info("Running PTS command: %s", " ".join(cmd_to_run))
@@ -301,18 +301,6 @@ class PhoronixGenerator(CommandGenerator):
 
         try:
             rc, out = _run(cmd)
-            # If batch mode is not supported or not configured, fall back to benchmark.
-            if rc != 0 and self.config.batch_mode and any(
-                token in out.lower()
-                for token in (
-                    "unknown command",
-                    "invalid command",
-                    "not a supported command",
-                    "the batch mode must first be configured",
-                )
-            ):
-                rc, out = _run(cmd_fallback)
-
             output_lower = out.lower()
             if (
                 "[problem]" in output_lower
