@@ -928,41 +928,12 @@ wheels = [
 ]
 
 [[package]]
-name = "influxdb-client"
-version = "1.49.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "certifi" },
-    { name = "python-dateutil" },
-    { name = "reactivex" },
-    { name = "setuptools" },
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/2a/f3/9c418215cf399529175ed5b198d15a21c2e29f28d90932107634b375c9ee/influxdb_client-1.49.0.tar.gz", hash = "sha256:4a53a218adef6ac9458bfbd31fa08c76194f70310c6b4e01f53d804bd2c48e03", size = 397572, upload-time = "2025-05-22T11:21:41.835Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/9f/edbcec167e143466f681bbd41abe9dc3d3a5a3587f4ab735a5072ef93725/influxdb_client-1.49.0-py3-none-any.whl", hash = "sha256:b3a688f02cdf18e17ec08ef35bee489fdb90e4e5969bd0a8dd1a8657a66d892b", size = 746306, upload-time = "2025-05-22T11:21:39.888Z" },
-]
-
-[[package]]
 name = "iniconfig"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
-]
-
-[[package]]
-name = "inquirerpy"
-version = "0.3.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pfzy" },
-    { name = "prompt-toolkit" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/64/73/7570847b9da026e07053da3bbe2ac7ea6cde6bb2cbd3c7a5a950fa0ae40b/InquirerPy-0.3.4.tar.gz", hash = "sha256:89d2ada0111f337483cb41ae31073108b2ec1e618a49d7110b0d7ade89fc197e", size = 44431, upload-time = "2022-06-27T23:11:20.598Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ce/ff/3b59672c47c6284e8005b42e84ceba13864aa0f39f067c973d1af02f5d91/InquirerPy-0.3.4-py3-none-any.whl", hash = "sha256:c65fdfbac1fa00e3ee4fb10679f4d3ed7a012abf4833910e63c295827fe2a7d4", size = 67677, upload-time = "2022-06-27T23:11:17.723Z" },
 ]
 
 [[package]]
@@ -1172,14 +1143,12 @@ dependencies = [
 controller = [
     { name = "ansible-core" },
     { name = "ansible-runner" },
-    { name = "influxdb-client" },
     { name = "matplotlib" },
     { name = "seaborn" },
 ]
 dev = [
     { name = "ansible-core" },
     { name = "flake8-cognitive-complexity" },
-    { name = "inquirerpy" },
     { name = "molecule" },
     { name = "molecule-plugins" },
     { name = "prompt-toolkit" },
@@ -1195,7 +1164,6 @@ docs = [
     { name = "mkdocstrings", extra = ["python"] },
 ]
 ui = [
-    { name = "inquirerpy" },
     { name = "prompt-toolkit" },
     { name = "rapidfuzz" },
     { name = "rich" },
@@ -1214,7 +1182,6 @@ dev = [
     { name = "flake8-tidy-imports" },
     { name = "grimp" },
     { name = "import-linter" },
-    { name = "inquirerpy" },
     { name = "lizard" },
     { name = "mypy" },
     { name = "pip-audit" },
@@ -1243,9 +1210,6 @@ requires-dist = [
     { name = "ansible-core", marker = "extra == 'dev'", specifier = ">=2.15.0" },
     { name = "ansible-runner", marker = "extra == 'controller'", specifier = ">=2.4.0" },
     { name = "flake8-cognitive-complexity", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-    { name = "influxdb-client", marker = "extra == 'controller'", specifier = ">=1.36.0" },
-    { name = "inquirerpy", marker = "extra == 'dev'", specifier = ">=0.3.4" },
-    { name = "inquirerpy", marker = "extra == 'ui'", specifier = ">=0.3.4" },
     { name = "jc", specifier = ">=1.25.0" },
     { name = "matplotlib", marker = "extra == 'controller'", specifier = ">=3.7.0" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
@@ -1285,7 +1249,6 @@ dev = [
     { name = "flake8-tidy-imports", specifier = ">=4.12.0" },
     { name = "grimp", specifier = ">=3.14" },
     { name = "import-linter", specifier = ">=2.9" },
-    { name = "inquirerpy", specifier = ">=0.3.4" },
     { name = "lizard", specifier = ">=1.19.0" },
     { name = "mypy", specifier = ">=1.0.0" },
     { name = "pip-audit", specifier = ">=2.9.0" },
@@ -2038,15 +2001,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pfzy"
-version = "0.3.4"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d9/5a/32b50c077c86bfccc7bed4881c5a2b823518f5450a30e639db5d3711952e/pfzy-0.3.4.tar.gz", hash = "sha256:717ea765dd10b63618e7298b2d98efd819e0b30cd5905c9707223dceeb94b3f1", size = 8396, upload-time = "2022-01-28T02:26:17.946Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8c/d7/8ff98376b1acc4503253b685ea09981697385ce344d4e3935c2af49e044d/pfzy-0.3.4-py3-none-any.whl", hash = "sha256:5f50d5b2b3207fa72e7ec0ef08372ef652685470974a107d0d4999fc5a903a96", size = 8537, upload-time = "2022-01-28T02:26:16.047Z" },
-]
-
-[[package]]
 name = "pillow"
 version = "12.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2637,18 +2591,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a1/d1/5ab148e03f7e6ec8cd220ccf7af74d3aaa4de26dd96df58936beb7cba820/rapidfuzz-3.14.3-cp314-cp314t-win32.whl", hash = "sha256:7ccbf68100c170e9a0581accbe9291850936711548c6688ce3bfb897b8c589ad", size = 1793465, upload-time = "2025-11-01T11:54:35.331Z" },
     { url = "https://files.pythonhosted.org/packages/cd/97/433b2d98e97abd9fff1c470a109b311669f44cdec8d0d5aa250aceaed1fb/rapidfuzz-3.14.3-cp314-cp314t-win_amd64.whl", hash = "sha256:9ec02e62ae765a318d6de38df609c57fc6dacc65c0ed1fd489036834fd8a620c", size = 1623491, upload-time = "2025-11-01T11:54:38.085Z" },
     { url = "https://files.pythonhosted.org/packages/e2/f6/e2176eb94f94892441bce3ddc514c179facb65db245e7ce3356965595b19/rapidfuzz-3.14.3-cp314-cp314t-win_arm64.whl", hash = "sha256:e805e52322ae29aa945baf7168b6c898120fbc16d2b8f940b658a5e9e3999253", size = 851487, upload-time = "2025-11-01T11:54:40.176Z" },
-]
-
-[[package]]
-name = "reactivex"
-version = "4.1.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b6/af/38a4b62468e4c5bd50acf511d86fe62e65a466aa6abb55b1d59a4a9e57f3/reactivex-4.1.0.tar.gz", hash = "sha256:c7499e3c802bccaa20839b3e17355a7d939573fded3f38ba3d4796278a169a3d", size = 113482, upload-time = "2025-11-05T21:44:24.557Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ba/9e/3c2f5d3abb6c5d82f7696e1e3c69b7279049e928596ce82ed25ca97a08f3/reactivex-4.1.0-py3-none-any.whl", hash = "sha256:485750ec8d9b34bcc8ff4318971d234dc4f595058a1b4435a74aefef4b2bc9bd", size = 218588, upload-time = "2025-11-05T21:44:23.015Z" },
 ]
 
 [[package]]
