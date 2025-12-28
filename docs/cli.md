@@ -29,6 +29,8 @@ Order used by commands that need a config:
   Dev-only: provision containers and run via Ansible (requires `.lb_dev_cli` or `LB_ENABLE_TEST_CLI=1`).
 - `lb run ... --multipass [--nodes N]`
   Dev-only: provision Multipass VMs and run via Ansible (requires `.lb_dev_cli` or `LB_ENABLE_TEST_CLI=1`).
+- `lb resume [RUN_ID] [-c FILE] [--root PATH] [--remote/--no-remote] [--docker|--multipass]`
+  Resume a previous run; without RUN_ID, pick interactively from `benchmark_results/`.
 - `lb runs list [--root PATH] [-c FILE]` / `lb runs show RUN_ID [--root PATH] [-c FILE]`
   Inspect stored runs under `benchmark_results/`.
 - `lb analyze [RUN_ID] [--kind aggregate] [--root PATH] [--workload NAME] [--host NAME]`

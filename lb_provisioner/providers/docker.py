@@ -32,12 +32,20 @@ class DockerProvisioner:
         if not shutil.which(engine):
             raise ProvisioningError(f"{engine} not found in PATH")
 
-        count = max(1, min(request.count, MAX_NODES))
+        if request.node_names:
+            names = list(request.node_names)
+            count = len(names)
+        else:
+            names = []
+            count = max(1, min(request.count, MAX_NODES))
         state_root = request.state_dir or Path("/tmp/lb_docker_keys")
         state_root.mkdir(parents=True, exist_ok=True)
         nodes: List[ProvisionedNode] = []
         for idx in range(count):
-            name = f"lb-docker-{uuid.uuid4().hex[:8]}-{idx}"
+            if names:
+                name = names[idx]
+            else:
+                name = f"lb-docker-{uuid.uuid4().hex[:8]}-{idx}"
             key_path = state_root / f"{name}_id_rsa"
             pub_path = state_root / f"{name}_id_rsa.pub"
             self._generate_ssh_keypair(key_path)

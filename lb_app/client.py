@@ -45,9 +45,30 @@ class ApplicationClient(AppClient):
     def get_run_plan(self, config: BenchmarkConfig, tests: Sequence[str], execution_mode: str = "remote"):
         return self._run_service.get_run_plan(config, list(tests), execution_mode=execution_mode)
 
-    def _provision(self, config: BenchmarkConfig, execution_mode: str, node_count: int, docker_engine: str | None = None):
+    def _provision(
+        self,
+        config: BenchmarkConfig,
+        execution_mode: str,
+        node_count: int,
+        *,
+        docker_engine: str | None = None,
+        resume: str | None = None,
+    ):
         """Provision nodes according to execution mode; returns updated config and provisioner result."""
         mode = ProvisioningMode(execution_mode)
+        node_names = None
+        if resume and mode in (ProvisioningMode.DOCKER, ProvisioningMode.MULTIPASS):
+            node_names = self._resume_node_names(config, resume)
+            if not node_names:
+                raise ProvisioningError(
+                    "Unable to determine previous container/VM names for resume; "
+                    "ensure the run journal or host directories are available."
+                )
+            if node_count != len(node_names):
+                raise ProvisioningError(
+                    "Resume node count does not match original run; "
+                    "use --nodes to match the previous run."
+                )
         if mode is ProvisioningMode.REMOTE:
             request = ProvisioningRequest(
                 mode=ProvisioningMode.REMOTE,
@@ -58,6 +79,7 @@ class ApplicationClient(AppClient):
             request = ProvisioningRequest(
                 mode=ProvisioningMode.DOCKER,
                 count=node_count,
+                node_names=node_names,
                 docker_engine=docker_engine or "docker",
             )
         else:
@@ -65,6 +87,7 @@ class ApplicationClient(AppClient):
             request = ProvisioningRequest(
                 mode=ProvisioningMode.MULTIPASS,
                 count=node_count,
+                node_names=node_names,
                 state_dir=temp_dir,
             )
         result = self._provisioner.provision(request)
@@ -82,6 +105,49 @@ class ApplicationClient(AppClient):
         ]
         config.remote_execution.enabled = True
         return config, result
+
+    @staticmethod
+    def _resume_node_names(config: BenchmarkConfig, resume: str) -> list[str] | None:
+        from lb_app.services.run_journal import (
+            find_latest_journal,
+            find_latest_results_run,
+        )
+
+        run_root = None
+        journal_path = None
+        if resume == "latest":
+            journal_path = find_latest_journal(config)
+            if journal_path is not None:
+                run_root = journal_path.parent
+            else:
+                latest = find_latest_results_run(config)
+                if latest:
+                    journal_path = latest[1]
+                    run_root = journal_path.parent
+        else:
+            run_root = config.output_dir / resume
+            journal_path = run_root / "run_journal.json"
+
+        if journal_path is not None and journal_path.exists():
+            try:
+                journal = RunJournal.load(journal_path)
+            except Exception:
+                journal = None
+            if journal is not None:
+                names = sorted(
+                    {task.host for task in journal.tasks.values() if task.host}
+                )
+                if names:
+                    return names
+
+        if run_root is not None and run_root.exists():
+            names = sorted(
+                entry.name
+                for entry in run_root.iterdir()
+                if entry.is_dir() and not entry.name.startswith("_")
+            )
+            return names or None
+        return None
 
     def start_run(self, request: RunRequest, hooks: UIHooks) -> RunResult | None:
         cfg = request.config
@@ -105,6 +171,7 @@ class ApplicationClient(AppClient):
             setup=request.setup,
             stop_file=request.stop_file,
             execution_mode=request.execution_mode,
+            node_count=request.node_count,
             preloaded_config=cfg,
         )
 
@@ -115,7 +182,8 @@ class ApplicationClient(AppClient):
                 cfg,
                 request.execution_mode,
                 request.node_count,
-                request.docker_engine,
+                docker_engine=request.docker_engine,
+                resume=request.resume,
             )
         except ProvisioningError as exc:
             hooks.on_warning(f"Provisioning failed: {exc}", ttl=5)
