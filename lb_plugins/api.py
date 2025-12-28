@@ -9,7 +9,13 @@ from typing import Any, Dict, Optional, Protocol
 
 from lb_plugins import discovery as discovery_module
 from lb_plugins import registry as registry_module
-from lb_plugins.base_generator import BaseGenerator, CommandGenerator
+from lb_plugins.base_generator import (
+    BaseGenerator,
+    CommandGenerator,
+    CommandSpec,
+    CommandSpecBuilder,
+    ResultParser,
+)
 from lb_plugins.builtin import builtin_plugins
 from lb_plugins.discovery import resolve_user_plugin_dir
 from lb_plugins.interface import (
@@ -180,6 +186,9 @@ def apply_plugin_assets(
 __all__ = [
     "BaseGenerator",
     "CommandGenerator",
+    "CommandSpec",
+    "CommandSpecBuilder",
+    "ResultParser",
     "BasePluginConfig",
     "WorkloadIntensity",
     "WorkloadPlugin",

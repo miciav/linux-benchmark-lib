@@ -19,7 +19,7 @@ from typing import Any, List, Optional
 from pydantic import Field
 
 from ...interface import SimpleWorkloadPlugin, WorkloadIntensity, BasePluginConfig
-from ...base_generator import CommandGenerator
+from ...base_generator import CommandGenerator, CommandSpec
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,25 @@ class YabsConfig(BasePluginConfig):
     # Removed __post_init__ as Pydantic handles Path conversion
 
 
+class _YabsCommandBuilder:
+    def __init__(self, script_path: Path):
+        self._script_path = script_path
+
+    def build(self, config: YabsConfig, include_skip_cleanup: bool = True) -> CommandSpec:
+        args: list[str] = [str(self._script_path)]
+        if config.skip_disk:
+            args.append("-f")  # skip fio
+        if config.skip_network:
+            args.append("-i")  # skip iperf
+        if config.skip_geekbench:
+            args.append("-g")  # skip geekbench
+        if include_skip_cleanup and config.skip_cleanup:
+            args.append("-c")  # skip cleanup (not supported by all upstream revisions)
+        if config.extra_args:
+            args.extend(config.extra_args)
+        return CommandSpec(cmd=args)
+
+
 class YabsGenerator(CommandGenerator):
     """Generator that runs the upstream yabs.sh script."""
 
@@ -51,6 +70,8 @@ class YabsGenerator(CommandGenerator):
         self._current_args: list[str] = []
         self._env: dict[str, str] = {}
         self._log_path: Optional[Path] = None
+        self._command_builder: _YabsCommandBuilder | None = None
+        self._include_skip_cleanup = True
         # self.expected_runtime_seconds now comes directly from config.expected_runtime_seconds
 
 
@@ -71,7 +92,11 @@ class YabsGenerator(CommandGenerator):
         return True
 
     def _build_command(self) -> list[str]:
-        return list(self._current_args)
+        if self._command_builder is None:
+            return list(self._current_args)
+        return self._command_builder.build(
+            self.config, include_skip_cleanup=self._include_skip_cleanup
+        ).cmd
 
     def _popen_kwargs(self) -> dict[str, Any]:
         return {
@@ -80,6 +105,19 @@ class YabsGenerator(CommandGenerator):
             "text": True,
             "env": self._env,
         }
+
+    def _build_command_spec(self) -> CommandSpec:
+        if self._command_builder is None:
+            return super()._build_command_spec()
+        spec = self._command_builder.build(
+            self.config, include_skip_cleanup=self._include_skip_cleanup
+        )
+        if not spec.popen_kwargs:
+            spec.popen_kwargs = self._popen_kwargs()
+        if spec.timeout_seconds is None:
+            spec.timeout_seconds = self._timeout_seconds()
+        self._current_args = list(spec.cmd)
+        return spec
 
     def _timeout_seconds(self) -> Optional[int]:
         return self.config.expected_runtime_seconds + self.config.timeout_buffer
@@ -151,33 +189,20 @@ class YabsGenerator(CommandGenerator):
                     )
             script_path.chmod(0o755)
 
-            def _build_args(include_skip_cleanup: bool) -> list[str]:
-                args: list[str] = [str(script_path)]
-                if self.config.skip_disk:
-                    args.append("-f")  # skip fio
-                if self.config.skip_network:
-                    args.append("-i")  # skip iperf
-                if self.config.skip_geekbench:
-                    args.append("-g")  # skip geekbench
-                if include_skip_cleanup and self.config.skip_cleanup:
-                    args.append("-c")  # skip cleanup (not supported by all upstream revisions)
-                if self.config.extra_args:
-                    args.extend(self.config.extra_args)
-                return args
-
             self._env = os.environ.copy()
             # Prevent interactive prompts
             self._env.setdefault("YABS_NONINTERACTIVE", "1")
             self._log_path = self.config.output_dir / "yabs.log"
+            self._command_builder = _YabsCommandBuilder(script_path)
 
-            self._current_args = _build_args(True)
+            self._include_skip_cleanup = True
             super()._run_command()
 
             if self._should_retry_without_cleanup():
                 logger.info(
                     "YABS script does not support -c; retrying without skip_cleanup flag"
                 )
-                self._current_args = _build_args(False)
+                self._include_skip_cleanup = False
                 super()._run_command()
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("YABS execution error: %s", exc)

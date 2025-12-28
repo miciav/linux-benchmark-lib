@@ -13,7 +13,7 @@ from typing import Any, List, Optional
 from pydantic import Field
 
 from ...interface import SimpleWorkloadPlugin, WorkloadIntensity, BasePluginConfig
-from ...base_generator import CommandGenerator
+from ...base_generator import CommandGenerator, CommandSpec
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,38 @@ class DDConfig(BasePluginConfig):
     debug: bool = Field(default=False, description="Enable debug logging")
 
 
+class _DDCommandBuilder:
+    def build(self, config: DDConfig) -> CommandSpec:
+        cmd = ["dd"]
+        is_macos = platform.system() == "Darwin"
+
+        cmd.append(f"if={config.if_path}")
+        cmd.append(f"of={config.of_path}")
+        cmd.append(f"bs={config.bs}")
+
+        if config.count is not None:
+            cmd.append(f"count={config.count}")
+
+        conv = config.conv
+        oflag = config.oflag
+
+        if is_macos:
+            if oflag == "direct":
+                logger.debug("Ignoring 'oflag=direct' on macOS (not supported by BSD dd)")
+                oflag = None
+            if conv == "fdatasync":
+                logger.debug("Mapping 'conv=fdatasync' to 'conv=sync' on macOS")
+                conv = "sync"
+
+        if conv:
+            cmd.append(f"conv={conv}")
+        if oflag:
+            cmd.append(f"oflag={oflag}")
+
+        cmd.append("status=progress")
+        return CommandSpec(cmd=cmd)
+
+
 class DDGenerator(CommandGenerator):
     """Workload generator using dd command."""
 
@@ -42,49 +74,11 @@ class DDGenerator(CommandGenerator):
             config: Configuration for dd
             name: Name of the generator
         """
-        super().__init__(name, config)
+        self._command_builder = _DDCommandBuilder()
+        super().__init__(name, config, command_builder=self._command_builder)
 
     def _build_command(self) -> List[str]:
-        """
-        Build the dd command from configuration.
-
-        Returns:
-            List of command arguments
-        """
-        cmd = ["dd"]
-        is_macos = platform.system() == "Darwin"
-
-        cmd.append(f"if={self.config.if_path}")
-        cmd.append(f"of={self.config.of_path}")
-        cmd.append(f"bs={self.config.bs}")
-
-        if self.config.count is not None:
-            cmd.append(f"count={self.config.count}")
-
-        # Platform-specific adjustments
-        conv = self.config.conv
-        oflag = self.config.oflag
-
-        if is_macos:
-            # BSD dd on macOS usually does not support 'oflag=direct' or 'conv=fdatasync'
-            if oflag == "direct":
-                logger.debug("Ignoring 'oflag=direct' on macOS (not supported by BSD dd)")
-                oflag = None
-            
-            if conv == "fdatasync":
-                logger.debug("Mapping 'conv=fdatasync' to 'conv=sync' on macOS")
-                conv = "sync"
-        
-        if conv:
-            cmd.append(f"conv={conv}")
-
-        if oflag:
-            cmd.append(f"oflag={oflag}")
-
-        # status=progress is supported on recent macOS versions
-        cmd.append("status=progress")
-
-        return cmd
+        return self._command_builder.build(self.config).cmd
 
     def _popen_kwargs(self) -> dict[str, Any]:
         return {"stdout": subprocess.DEVNULL, "stderr": subprocess.PIPE, "text": True}

@@ -10,7 +10,7 @@ from typing import Any, List, Optional
 
 from pydantic import Field
 
-from ...base_generator import CommandGenerator
+from ...base_generator import CommandGenerator, CommandSpec
 from ...interface import WorkloadIntensity, SimpleWorkloadPlugin, BasePluginConfig
 
 logger = logging.getLogger(__name__)
@@ -29,29 +29,35 @@ class StressNGConfig(BasePluginConfig):
     debug: bool = Field(default=False)
 
 
+class _StressNGCommandBuilder:
+    def build(self, config: StressNGConfig) -> CommandSpec:
+        cmd = ["stress-ng"]
+        if config.cpu_workers > 0:
+            cmd.extend(["--cpu", str(config.cpu_workers)])
+            cmd.extend(["--cpu-method", config.cpu_method])
+        if config.vm_workers > 0:
+            cmd.extend(["--vm", str(config.vm_workers)])
+            cmd.extend(["--vm-bytes", config.vm_bytes])
+        if config.io_workers > 0:
+            cmd.extend(["--io", str(config.io_workers)])
+        cmd.extend(["--timeout", f"{config.timeout}s"])
+        if config.metrics_brief:
+            cmd.append("--metrics-brief")
+        if config.debug:
+            cmd.append("--verbose")
+        cmd.extend(config.extra_args)
+        return CommandSpec(cmd=cmd)
+
+
 class StressNGGenerator(CommandGenerator):
     """Workload generator using stress-ng."""
     
     def __init__(self, config: StressNGConfig, name: str = "StressNGGenerator"):
-        super().__init__(name, config)
+        self._command_builder = _StressNGCommandBuilder()
+        super().__init__(name, config, command_builder=self._command_builder)
         
     def _build_command(self) -> List[str]:
-        cmd = ["stress-ng"]
-        if self.config.cpu_workers > 0:
-            cmd.extend(["--cpu", str(self.config.cpu_workers)])
-            cmd.extend(["--cpu-method", self.config.cpu_method])
-        if self.config.vm_workers > 0:
-            cmd.extend(["--vm", str(self.config.vm_workers)])
-            cmd.extend(["--vm-bytes", self.config.vm_bytes])
-        if self.config.io_workers > 0:
-            cmd.extend(["--io", str(self.config.io_workers)])
-        cmd.extend(["--timeout", f"{self.config.timeout}s"])
-        if self.config.metrics_brief:
-            cmd.append("--metrics-brief")
-        if self.config.debug:
-            cmd.append("--verbose")
-        cmd.extend(self.config.extra_args)
-        return cmd
+        return self._command_builder.build(self.config).cmd
 
     def _popen_kwargs(self) -> dict[str, Any]:
         return {

@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 from pydantic import Field
 
 from ...interface import BasePluginConfig, WorkloadPlugin, WorkloadIntensity
-from ...base_generator import CommandGenerator
+from ...base_generator import CommandGenerator, CommandSpec
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +60,35 @@ class GeekbenchConfig(BasePluginConfig):
     debug: bool = Field(default=False)
 
 
+class _GeekbenchCommandBuilder:
+    def __init__(self, generator: "GeekbenchGenerator"):
+        self._generator = generator
+
+    def build(self, config: GeekbenchConfig) -> CommandSpec:
+        executable = self._generator._executable
+        if not executable:
+            raise RuntimeError("Geekbench executable not prepared")
+
+        cmd: List[str] = [str(executable)]
+        if config.license_key:
+            cmd.extend(["--unlock", config.license_key])
+        if config.run_gpu:
+            cmd.append("--compute")
+        if self._generator._use_export_flag and self._generator._export_path:
+            cmd.extend(["--export-json", str(self._generator._export_path)])
+        else:
+            cmd.append("--cpu")
+        if config.extra_args:
+            cmd.extend(config.extra_args)
+        return CommandSpec(cmd=cmd)
+
+
 class GeekbenchGenerator(CommandGenerator):
     """Generator that runs Geekbench CPU benchmark."""
 
     def __init__(self, config: GeekbenchConfig):
-        super().__init__("GeekbenchGenerator", config)
+        self._command_builder = _GeekbenchCommandBuilder(self)
+        super().__init__("GeekbenchGenerator", config, command_builder=self._command_builder)
         self._download_ready: bool = False
         self._download_error: Optional[str] = None
         self._export_supported: bool = True
@@ -99,21 +123,7 @@ class GeekbenchGenerator(CommandGenerator):
         return True
 
     def _build_command(self) -> list[str]:
-        if not self._executable:
-            raise RuntimeError("Geekbench executable not prepared")
-
-        cmd: List[str] = [str(self._executable)]
-        if self.config.license_key:
-            cmd.extend(["--unlock", self.config.license_key])
-        if self.config.run_gpu:
-            cmd.append("--compute")
-        if self._use_export_flag and self._export_path:
-            cmd.extend(["--export-json", str(self._export_path)])
-        else:
-            cmd.append("--cpu")
-        if self.config.extra_args:
-            cmd.extend(self.config.extra_args)
-        return cmd
+        return self._command_builder.build(self.config).cmd
 
     def _popen_kwargs(self) -> dict[str, Any]:
         return {

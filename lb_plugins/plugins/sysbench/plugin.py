@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -16,7 +17,7 @@ from typing import Any, List, Optional
 
 from pydantic import Field
 
-from ...base_generator import CommandGenerator
+from ...base_generator import CommandGenerator, CommandSpec
 from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
 
 logger = logging.getLogger(__name__)
@@ -42,27 +43,59 @@ class SysbenchConfig(BasePluginConfig):
     debug: bool = Field(default=False)
 
 
+class _SysbenchCommandBuilder:
+    def build(self, config: SysbenchConfig) -> CommandSpec:
+        cmd: List[str] = ["sysbench", config.test]
+        cmd.append(f"--threads={config.threads}")
+        cmd.append(f"--time={config.time}")
+        if config.max_requests is not None:
+            cmd.append(f"--events={config.max_requests}")
+        if config.rate is not None:
+            cmd.append(f"--rate={config.rate}")
+        if config.test == "cpu":
+            cmd.append(f"--cpu-max-prime={config.cpu_max_prime}")
+        if config.debug:
+            cmd.append("--verbosity=3")
+        cmd.extend(config.extra_args)
+        cmd.append("run")
+        return CommandSpec(cmd=cmd)
+
+
+class _SysbenchResultParser:
+    def parse(self, result: dict[str, Any]) -> dict[str, Any]:
+        stdout = result.get("stdout") or ""
+        if not isinstance(stdout, str):
+            return result
+        events_match = re.search(r"events per second:\\s*([0-9.]+)", stdout, re.I)
+        if events_match:
+            try:
+                result["events_per_second"] = float(events_match.group(1))
+            except ValueError:
+                pass
+        total_match = re.search(r"total time:\\s*([0-9.]+)s", stdout, re.I)
+        if total_match:
+            try:
+                result["total_time_seconds"] = float(total_match.group(1))
+            except ValueError:
+                pass
+        return result
+
+
 class SysbenchGenerator(CommandGenerator):
     """Run sysbench as a workload generator."""
 
     def __init__(self, config: SysbenchConfig, name: str = "SysbenchGenerator"):
-        super().__init__(name, config)
+        self._command_builder = _SysbenchCommandBuilder()
+        self._result_parser = _SysbenchResultParser()
+        super().__init__(
+            name,
+            config,
+            command_builder=self._command_builder,
+            result_parser=self._result_parser,
+        )
 
     def _build_command(self) -> List[str]:
-        cmd: List[str] = ["sysbench", self.config.test]
-        cmd.append(f"--threads={self.config.threads}")
-        cmd.append(f"--time={self.config.time}")
-        if self.config.max_requests is not None:
-            cmd.append(f"--events={self.config.max_requests}")
-        if self.config.rate is not None:
-            cmd.append(f"--rate={self.config.rate}")
-        if self.config.test == "cpu":
-            cmd.append(f"--cpu-max-prime={self.config.cpu_max_prime}")
-        if self.config.debug:
-            cmd.append("--verbosity=3")
-        cmd.extend(self.config.extra_args)
-        cmd.append("run")
-        return cmd
+        return self._command_builder.build(self.config).cmd
 
     def _popen_kwargs(self) -> dict[str, Any]:
         return {

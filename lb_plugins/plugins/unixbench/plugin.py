@@ -14,7 +14,7 @@ from typing import Any, List, Optional
 
 from pydantic import Field
 
-from ...base_generator import CommandGenerator
+from ...base_generator import CommandGenerator, CommandSpec
 from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
 
 
@@ -32,22 +32,28 @@ class UnixBenchConfig(BasePluginConfig):
     debug: bool = Field(default=False)
 
 
+class _UnixBenchCommandBuilder:
+    def build(self, config: UnixBenchConfig) -> CommandSpec:
+        cmd: List[str] = ["./Run"]
+        cmd.extend(["-c", str(config.threads)])
+        cmd.extend(["-i", str(config.iterations)])
+        if config.tests:
+            cmd.extend(config.tests)
+        if config.debug:
+            cmd.append("--verbose")
+        cmd.extend(config.extra_args)
+        return CommandSpec(cmd=cmd)
+
+
 class UnixBenchGenerator(CommandGenerator):
     """Run UnixBench as a workload generator."""
 
     def __init__(self, config: UnixBenchConfig, name: str = "UnixBenchGenerator"):
-        super().__init__(name, config)
+        self._command_builder = _UnixBenchCommandBuilder()
+        super().__init__(name, config, command_builder=self._command_builder)
 
     def _build_command(self) -> List[str]:
-        cmd: List[str] = ["./Run"]
-        cmd.extend(["-c", str(self.config.threads)])
-        cmd.extend(["-i", str(self.config.iterations)])
-        if self.config.tests:
-            cmd.extend(self.config.tests)
-        if self.config.debug:
-            cmd.append("--verbose")
-        cmd.extend(self.config.extra_args)
-        return cmd
+        return self._command_builder.build(self.config).cmd
 
     def _popen_kwargs(self) -> dict[str, Any]:
         return {
