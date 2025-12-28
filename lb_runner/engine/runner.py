@@ -18,8 +18,6 @@ from typing import Any, Dict, List, Optional, Callable
 from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
 from lb_runner.services.log_handler import LBEventLogHandler
 from lb_runner.services.storage import (
-    ensure_run_dirs,
-    ensure_runner_log,
     workload_output_dir,
     write_system_info_artifacts,
 )
@@ -29,28 +27,18 @@ from lb_runner.metric_collectors.registry import CollectorRegistry
 from lb_runner.registry import RunnerRegistry
 from lb_runner.engine.execution import (
     StopRequested,
-    cleanup_after_run,
+    generator_running,
     pre_test_cleanup,
     prepare_generator,
     resolve_duration,
-    start_collectors,
     wait_for_generator,
 )
 from lb_runner.engine.progress import RunProgressEmitter
-from lb_runner.engine.planning import (
-    generate_run_id,
-    resolve_config_input,
-    resolve_workload,
-    select_repetitions,
-)
-from lb_runner.services.results import (
-    build_rep_result,
-    collect_metrics,
-    export_plugin_results,
-    merge_results,
-    persist_rep_result,
-    persist_results,
-)
+from lb_runner.engine.planning import RunPlanner
+from lb_runner.engine.run_scope import RunScopeManager
+from lb_runner.services.collector_coordinator import CollectorCoordinator
+from lb_runner.services.result_persister import ResultPersister
+from lb_runner.services.results import build_rep_result
 from lb_runner.engine.stop_token import StopToken
 from lb_runner.services import system_info
 logger = logging.getLogger(__name__)
@@ -78,10 +66,19 @@ class LocalRunner:
         self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = self._resolve_registry(registry, collector_registry)
+        workloads = getattr(self.config, "workloads", {})
+        repetitions = getattr(self.config, "repetitions", 1)
+        self._planner = RunPlanner(
+            workloads=workloads,
+            repetitions=repetitions,
+            logger=logger,
+        )
+        self._scope_manager = RunScopeManager(self.config, logger)
+        self._collector_coordinator = CollectorCoordinator(self.plugin_registry)
+        self._result_persister = ResultPersister()
         self._current_run_id: Optional[str] = None
         self._output_root: Optional[Path] = None
         self._data_export_root: Optional[Path] = None
-        self._log_file_handler_attached: bool = False
         self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
         self._progress = RunProgressEmitter(host=self._host_name, callback=progress_callback)
         self._stop_token = stop_token
@@ -123,16 +120,7 @@ class LocalRunner:
         base = self._output_root or self.config.output_dir
         path = workload_output_dir(base, workload, ensure=True)
         return path
-    
-    def _setup_collectors(self) -> List[Any]:
-        """
-        Set up metric collectors based on configuration.
-        
-        Returns:
-            List of collector instances
-        """
-        return self.plugin_registry.create_collectors(self.config)
-    
+
     def _run_single_test(
         self,
         test_name: str,
@@ -154,7 +142,7 @@ class LocalRunner:
         """
         logger.info(f"Running test '{test_name}' - Repetition {repetition}")
         workload_dir, rep_dir = self._prepare_workload_dirs(test_name, repetition)
-        collectors = self._setup_collectors()
+        collectors = self._collector_coordinator.create_collectors(self.config)
         duration = self._resolve_duration(generator)
         log_handler = self._attach_event_logger(
             test_name, repetition, total_repetitions
@@ -225,7 +213,7 @@ class LocalRunner:
             raise StopRequested("Stopped by user")
 
         self._prepare_generator(generator)
-        self._start_collectors(collectors)
+        self._collector_coordinator.start(collectors, logger)
 
         test_start_time = datetime.now()
         generator.start()
@@ -239,9 +227,6 @@ class LocalRunner:
 
     def _prepare_generator(self, generator: Any) -> None:
         prepare_generator(generator, self.config.warmup_seconds, logger)
-
-    def _start_collectors(self, collectors: list[Any]) -> None:
-        start_collectors(collectors, logger)
 
     def _wait_for_generator(
         self,
@@ -263,7 +248,14 @@ class LocalRunner:
     def _cleanup_after_run(
         self, generator: Any, collectors: list[Any], generator_started: bool = True
     ) -> None:
-        cleanup_after_run(generator, collectors, logger, generator_started=generator_started)
+        if generator_started and hasattr(generator, "stop"):
+            try:
+                if generator_running(generator):
+                    logger.info("Stopping generator due to error or interruption...")
+                generator.stop()
+            except Exception as exc:
+                logger.error("Failed to stop generator during cleanup: %s", exc)
+        self._collector_coordinator.stop(collectors, logger)
 
     def _finalize_single_test(
         self,
@@ -294,28 +286,11 @@ class LocalRunner:
             total_repetitions,
             "done" if result["success"] else "failed",
         )
-        self._collect_metrics(
+        self._collector_coordinator.collect(
             collectors, workload_dir, rep_dir, test_name, repetition, result
         )
-        self._persist_rep_result(rep_dir, result)
+        self._result_persister.persist_rep_result(rep_dir, result)
         return result
-
-    def _collect_metrics(
-        self,
-        collectors: list[Any],
-        workload_dir: Path,
-        rep_dir: Path,
-        test_name: str,
-        repetition: int,
-        result: Dict[str, Any],
-    ) -> None:
-        collect_metrics(
-            collectors, workload_dir, rep_dir, test_name, repetition, result
-        )
-
-    @staticmethod
-    def _persist_rep_result(rep_dir: Path, result: Dict[str, Any]) -> None:
-        persist_rep_result(rep_dir, result)
     
     def _pre_test_cleanup(self) -> None:
         pre_test_cleanup(logger)
@@ -343,11 +318,11 @@ class LocalRunner:
         if self.config.collect_system_info and not self.system_info:
             self.collect_system_info()
 
-        workload_cfg = self._resolve_workload(test_type)
+        workload_cfg = self._planner.resolve_workload(test_type)
         plugin: WorkloadPlugin = self.plugin_registry.get(workload_cfg.plugin)
 
         total_reps = total_repetitions or self.config.repetitions
-        reps = self._select_repetitions(repetition_override, pending_reps)
+        reps = self._planner.select_repetitions(repetition_override, pending_reps)
 
         success_overall = True
         for idx, rep in enumerate(reps):
@@ -371,23 +346,12 @@ class LocalRunner:
         return success_overall
 
     def _prepare_run_scope(self, run_id: str | None) -> None:
-        run_identifier = run_id or self._generate_run_id()
-        self._current_run_id = run_identifier
-        self._output_root, self._data_export_root, _ = ensure_run_dirs(
-            self.config, run_identifier
-        )
-        self._progress.set_run_id(run_identifier)
-        if not self._log_file_handler_attached and self._output_root:
-            self._log_file_handler_attached = ensure_runner_log(
-                self._output_root, logger
-            )
-
-    def _select_repetitions(
-        self, repetition_override: int | None, pending_reps: List[int] | None
-    ) -> List[int]:
-        return select_repetitions(
-            self.config.repetitions, repetition_override, pending_reps
-        )
+        scope = self._scope_manager.prepare(run_id)
+        self._current_run_id = scope.run_id
+        self._output_root = scope.output_root
+        self._data_export_root = scope.data_export_root
+        self._progress.set_run_id(scope.run_id)
+        self._result_persister.set_run_id(scope.run_id)
 
     def _run_single_repetition(
         self,
@@ -403,7 +367,7 @@ class LocalRunner:
             return False
 
         logger.info("Starting repetition %s/%s", repetition, total_reps)
-        config_input = self._resolve_config_input(workload_cfg, plugin)
+        config_input = self._planner.resolve_config_input(workload_cfg, plugin)
 
         try:
             generator = self.plugin_registry.create_generator(
@@ -430,11 +394,6 @@ class LocalRunner:
             self._emit_progress(test_type, repetition, total_reps, "failed")
             return False
 
-    def _resolve_config_input(
-        self, workload_cfg: WorkloadConfig, plugin: WorkloadPlugin
-    ) -> Any:
-        return resolve_config_input(workload_cfg, plugin, logger)
-
     def _cleanup_generator(
         self, generator: BaseGenerator, test_type: str, repetition: int
     ) -> None:
@@ -445,36 +404,19 @@ class LocalRunner:
                 "Generator cleanup failed for %s rep %s: %s", test_type, repetition, exc
             )
     
-    def _process_results(self, test_name: str, results: List[Dict[str, Any]], plugin: WorkloadPlugin | None = None) -> None:
+    def _process_results(
+        self,
+        test_name: str,
+        results: List[Dict[str, Any]],
+        plugin: WorkloadPlugin | None = None,
+    ) -> None:
         """Process and save test results."""
         target_root = self._workload_output_dir(test_name)
-        results_file = target_root / f"{test_name}_results.json"
-
-        merged_results = self._merge_results(results_file, results)
-        self._persist_results(results_file, merged_results)
-        self._export_plugin_results(plugin, merged_results, target_root, test_name)
-
-    def _merge_results(
-        self, results_file: Path, new_results: List[Dict[str, Any]]
-    ) -> list[dict[str, Any]]:
-        return merge_results(results_file, new_results)
-
-    def _persist_results(self, results_file: Path, merged_results: list[dict[str, Any]]) -> None:
-        persist_results(results_file, merged_results)
-    
-    def _export_plugin_results(
-        self,
-        plugin: WorkloadPlugin | None,
-        merged_results: list[dict[str, Any]],
-        target_root: Path,
-        test_name: str,
-    ) -> None:
-        export_plugin_results(
-            plugin,
-            merged_results,
-            target_root,
-            test_name,
-            self._current_run_id or "",
+        self._result_persister.process_results(
+            plugin=plugin,
+            results=results,
+            target_root=target_root,
+            test_name=test_name,
         )
 
     def _emit_progress(
@@ -483,18 +425,9 @@ class LocalRunner:
         """Notify progress callback and stdout marker for remote parsing."""
         self._progress.emit(test_name, repetition, total_repetitions, status)
 
-    def _resolve_workload(self, name: str) -> WorkloadConfig:
-        """Return the workload configuration ensuring it is enabled."""
-        return resolve_workload(name, self.config.workloads)
-
-    @staticmethod
-    def _generate_run_id() -> str:
-        """Generate a timestamp-based run id."""
-        return generate_run_id()
-    
     def run_all_benchmarks(self) -> None:
         """Run all configured benchmark tests."""
-        run_id = self._generate_run_id()
+        run_id = self._planner.generate_run_id()
         for test_name, workload in self.config.workloads.items():
             if not workload.enabled:
                 logger.info("Skipping disabled workload '%s'", test_name)

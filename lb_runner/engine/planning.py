@@ -67,3 +67,35 @@ def resolve_config_input(
                 workload_cfg.intensity,
             )
     return config_input
+
+
+class RunPlanner:
+    """Provide run planning helpers bound to a configuration snapshot."""
+
+    def __init__(
+        self,
+        workloads: dict[str, WorkloadConfig],
+        repetitions: int,
+        logger: logging.Logger,
+    ) -> None:
+        self._workloads = workloads
+        self._repetitions = repetitions
+        self._logger = logger
+
+    def generate_run_id(self) -> str:
+        return generate_run_id()
+
+    def select_repetitions(
+        self, repetition_override: int | None, pending_reps: list[int] | None
+    ) -> list[int]:
+        return select_repetitions(
+            self._repetitions, repetition_override, pending_reps
+        )
+
+    def resolve_workload(self, name: str) -> WorkloadConfig:
+        return resolve_workload(name, self._workloads)
+
+    def resolve_config_input(
+        self, workload_cfg: WorkloadConfig, plugin: WorkloadPlugin
+    ) -> Any:
+        return resolve_config_input(workload_cfg, plugin, self._logger)
