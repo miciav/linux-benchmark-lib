@@ -76,6 +76,7 @@ print(summary.per_host_output)
 
 - Docs site: https://miciav.github.io/linux-benchmark-lib/
 - API reference: https://miciav.github.io/linux-benchmark-lib/api/
+- Workloads & plugins: https://miciav.github.io/linux-benchmark-lib/plugins/
 - Diagrams: https://miciav.github.io/linux-benchmark-lib/diagrams/
 - Diagram assets are generated on release builds and attached to the release and workflow artifacts.
 

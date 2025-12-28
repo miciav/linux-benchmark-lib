@@ -30,6 +30,18 @@ lb run --remote
 
 Use `--remote/--no-remote` to override the config for a single run (local execution is not supported by the CLI).
 
+### Setup, collect, teardown
+
+`remote_execution` controls the global playbooks:
+
+- `run_setup`: global setup before workloads
+- `run_collect`: collection after workloads
+- `run_teardown`: teardown after workloads
+
+Plugins can also provide per-workload setup/teardown playbooks via the plugin
+interface (`get_ansible_setup_path`, `get_ansible_teardown_path`). These assets are
+resolved into `config.plugin_assets` and executed around each workload.
+
 ### Provisioned targets (dev-only)
 
 The CLI can provision ephemeral nodes for testing:

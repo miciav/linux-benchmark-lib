@@ -9,6 +9,9 @@ lb config init -i
 # Enable a workload
 lb plugin list --enable stress_ng
 
+# Or pick workloads interactively
+lb plugin list --select
+
 # Run remotely (uses the config's remote hosts)
 lb run --remote --run-id demo-run
 ```
