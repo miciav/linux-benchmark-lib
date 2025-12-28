@@ -18,12 +18,12 @@ import tarfile
 import tempfile
 import time
 from urllib.parse import urlparse
-from typing import List, Optional, Type, Any, Tuple, Dict
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from pydantic import Field
 
 from ...interface import BasePluginConfig, WorkloadPlugin, WorkloadIntensity
-from ...base_generator import BaseGenerator
+from ...base_generator import CommandGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -60,16 +60,20 @@ class GeekbenchConfig(BasePluginConfig):
     debug: bool = Field(default=False)
 
 
-class GeekbenchGenerator(BaseGenerator):
+class GeekbenchGenerator(CommandGenerator):
     """Generator that runs Geekbench CPU benchmark."""
 
     def __init__(self, config: GeekbenchConfig):
-        super().__init__("GeekbenchGenerator")
-        self.config = config
-        self._process: Optional[subprocess.Popen[str]] = None
+        super().__init__("GeekbenchGenerator", config)
         self._download_ready: bool = False
         self._download_error: Optional[str] = None
         self._export_supported: bool = True
+        self._executable: Optional[Path] = None
+        self._current_env: dict[str, str] = {}
+        self._current_cwd: Optional[Path] = None
+        self._export_path: Optional[Path] = None
+        self._log_path: Optional[Path] = None
+        self._use_export_flag: bool = False
         # Allow long-running benchmark; runner will extend duration based on this hint.
         timeout_env = os.environ.get("LB_GEEKBENCH_TIMEOUT")
         if timeout_env:
@@ -94,6 +98,59 @@ class GeekbenchGenerator(BaseGenerator):
                 return False
         return True
 
+    def _build_command(self) -> list[str]:
+        if not self._executable:
+            raise RuntimeError("Geekbench executable not prepared")
+
+        cmd: List[str] = [str(self._executable)]
+        if self.config.license_key:
+            cmd.extend(["--unlock", self.config.license_key])
+        if self.config.run_gpu:
+            cmd.append("--compute")
+        if self._use_export_flag and self._export_path:
+            cmd.extend(["--export-json", str(self._export_path)])
+        else:
+            cmd.append("--cpu")
+        if self.config.extra_args:
+            cmd.extend(self.config.extra_args)
+        return cmd
+
+    def _popen_kwargs(self) -> dict[str, Any]:
+        return {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "cwd": self._current_cwd,
+            "env": self._current_env,
+        }
+
+    def _timeout_seconds(self) -> Optional[int]:
+        return self.expected_runtime_seconds
+
+    def _log_command(self, cmd: list[str]) -> None:
+        if self.config.debug:
+            logger.info("Running Geekbench command: %s", " ".join(cmd))
+
+    def _after_run(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> None:
+        if self._log_path:
+            try:
+                self._log_path.write_text((stdout or "") + "\n" + (stderr or ""))
+            except Exception:  # pragma: no cover - best effort
+                pass
+            self._result["log_path"] = str(self._log_path)
+
+        if self._use_export_flag and self._export_supported and self._export_path:
+            if self._export_path.exists():
+                self._result["json_result"] = str(self._export_path)
+        elif not self._use_export_flag or not self._export_supported:
+            self._result["export_json_supported"] = False
+
     def _run_command(self) -> None:
         """Download and execute Geekbench."""
         if not self._validate_environment():
@@ -106,75 +163,47 @@ class GeekbenchGenerator(BaseGenerator):
         extract_dir: Path | None = None
         try:
             executable, archive_path, extract_dir = self._prepare_geekbench()
-            export_path = self.config.output_dir / f"geekbench_result_{time.time_ns()}.json"
+            self._executable = executable
+            self._current_cwd = executable.parent
+            self._current_env = os.environ.copy()
+            self._export_path = self.config.output_dir / f"geekbench_result_{time.time_ns()}.json"
+            self._log_path = self.config.output_dir / "geekbench.log"
 
-            cmd: List[str] = [str(executable)]
-            if self.config.license_key:
-                cmd.extend(["--unlock", self.config.license_key])
-            if self.config.run_gpu:
-                cmd.append("--compute")
-            if self._export_supported:
-                cmd.extend(["--export-json", str(export_path)])
-            else:
-                cmd.append("--cpu")
-            if self.config.extra_args:
-                cmd.extend(self.config.extra_args)
+            self._use_export_flag = self._export_supported
+            super()._run_command()
 
-            env = os.environ.copy()
-            if self.config.debug:
-                logger.info("Running Geekbench command: %s", " ".join(cmd))
-
-            run = self._execute_process(cmd, env, executable.parent)
-
-            log_path = self.config.output_dir / "geekbench.log"
-            try:
-                log_path.write_text((run.stdout or "") + "\n" + (run.stderr or ""))
-            except Exception:  # pragma: no cover - best effort
-                pass
-
-            result_payload: dict[str, Any] = {
-                "stdout": run.stdout or "",
-                "stderr": run.stderr or "",
-                "returncode": run.returncode,
-                "command": " ".join(cmd),
-                "log_path": str(log_path),
-            }
-            if self._export_supported:
-                result_payload["json_result"] = str(export_path)
-            else:
-                result_payload["export_json_supported"] = False
-            self._result = result_payload
-
-            # Fallback: if export-json is unsupported (Pro-only) retry without it.
-            export_failed = self._export_supported and not export_path.exists()
-            stderr_lower = (run.stderr or "").lower()
-            export_flag_error = (
-                "export-json" in stderr_lower
-                or "unknown option" in stderr_lower
-                or "unrecognized option" in stderr_lower
-                or "invalid option" in stderr_lower
+            first_result = self._result if isinstance(self._result, dict) else {}
+            export_failed = (
+                self._use_export_flag
+                and self._export_path is not None
+                and not self._export_path.exists()
             )
-            if self._export_supported and (run.returncode != 0 or export_failed or export_flag_error):
-                fallback_cmd = [str(executable)]
-                if self.config.run_gpu:
-                    fallback_cmd.append("--compute")
-                fallback_cmd.append("--cpu")
-                if self.config.extra_args:
-                    fallback_cmd.extend(self.config.extra_args)
-                fallback = self._execute_process(fallback_cmd, env, executable.parent)
-                try:
-                    log_path.write_text((fallback.stdout or "") + "\n" + (fallback.stderr or ""))
-                except Exception:
-                    pass
-                self._result = {
-                    "stdout": fallback.stdout or "",
-                    "stderr": fallback.stderr or "",
-                    "returncode": fallback.returncode,
-                    "command": " ".join(fallback_cmd),
-                    "log_path": str(log_path),
-                    "export_json_supported": False,
-                    "original_returncode": run.returncode,
-                }
+            stderr_value = first_result.get("stderr") or ""
+            stderr_lower = (
+                stderr_value.lower() if isinstance(stderr_value, str) else ""
+            )
+            export_flag_error = any(
+                token in stderr_lower
+                for token in (
+                    "export-json",
+                    "unknown option",
+                    "unrecognized option",
+                    "invalid option",
+                )
+            )
+
+            if self._use_export_flag and (
+                first_result.get("returncode") != 0
+                or export_failed
+                or export_flag_error
+            ):
+                original_rc = first_result.get("returncode")
+                self._use_export_flag = False
+                super()._run_command()
+                if isinstance(self._result, dict):
+                    self._result["export_json_supported"] = False
+                    if original_rc is not None:
+                        self._result["original_returncode"] = original_rc
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Geekbench execution error: %s", exc)
             self._result = {"error": str(exc)}
@@ -188,33 +217,6 @@ class GeekbenchGenerator(BaseGenerator):
             if not self.config.skip_cleanup and archive_path:
                 archive_path.unlink(missing_ok=True)
             self._is_running = False
-
-    def _execute_process(self, cmd: List[str], env: dict[str, str], cwd: Path) -> subprocess.CompletedProcess[str]:
-        """Run Geekbench command with terminable process to allow stop()."""
-        timeout_s = self.expected_runtime_seconds
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            cwd=cwd,
-            env=env,
-        )
-        self._process = proc
-        try:
-            try:
-                stdout, stderr = proc.communicate(timeout=timeout_s)
-            except subprocess.TimeoutExpired:
-                proc.terminate()
-                try:
-                    stdout, stderr = proc.communicate(timeout=10)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    stdout, stderr = proc.communicate()
-                return subprocess.CompletedProcess(cmd, proc.returncode if proc.returncode is not None else -9, stdout=stdout, stderr=stderr)
-        finally:
-            self._process = None
-        return subprocess.CompletedProcess(cmd, proc.returncode, stdout=stdout, stderr=stderr)
 
     def _prepare_geekbench(self) -> Tuple[Path, Path, Path]:
         """Ensure Geekbench is downloaded and extracted; return executable and asset paths."""

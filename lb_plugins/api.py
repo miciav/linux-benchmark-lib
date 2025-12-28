@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Protocol, Union
 
 from lb_plugins import registry as registry_module
-from lb_plugins.base_generator import BaseGenerator
+from lb_plugins.base_generator import BaseGenerator, CommandGenerator
 from lb_plugins.builtin import builtin_plugins
 from lb_plugins.interface import BasePluginConfig, WorkloadIntensity, WorkloadPlugin
 from lb_plugins.plugin_assets import PluginAssetConfig
@@ -55,6 +55,16 @@ from lb_plugins.plugins.stream.plugin import (
     StreamPlugin,
 )
 from lb_plugins.plugins.stress_ng.plugin import StressNGConfig
+from lb_plugins.plugins.sysbench.plugin import (
+    SysbenchConfig,
+    SysbenchGenerator,
+    SysbenchPlugin,
+)
+from lb_plugins.plugins.unixbench.plugin import (
+    UnixBenchConfig,
+    UnixBenchGenerator,
+    UnixBenchPlugin,
+)
 from lb_plugins.plugins.yabs.plugin import YabsConfig, YabsGenerator, YabsPlugin
 
 logger = logging.getLogger(__name__)
@@ -318,6 +328,7 @@ def apply_plugin_assets(
 
 __all__ = [
     "BaseGenerator",
+    "CommandGenerator",
     "BasePluginConfig",
     "WorkloadIntensity",
     "WorkloadPlugin",
@@ -348,6 +359,9 @@ __all__ = [
     "BaselinePlugin",
     "BASELINE_PLUGIN",
     "StressNGConfig",
+    "SysbenchConfig",
+    "SysbenchGenerator",
+    "SysbenchPlugin",
     "DDConfig",
     "DDPlugin",
     "FIOConfig",
@@ -361,6 +375,9 @@ __all__ = [
     "StreamConfig",
     "StreamGenerator",
     "StreamPlugin",
+    "UnixBenchConfig",
+    "UnixBenchGenerator",
+    "UnixBenchPlugin",
     "YabsConfig",
     "YabsGenerator",
     "YabsPlugin",

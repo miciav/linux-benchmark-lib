@@ -11,21 +11,18 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, List, Optional, Type
-import os
-import re
-import shutil
 
-from pydantic import Field, model_validator, ValidationError # Added pydantic imports
+from pydantic import Field, model_validator
 
-from ...base_generator import BaseGenerator
-from ...interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
+from ...base_generator import CommandGenerator
+from ...interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig
 
 logger = logging.getLogger(__name__)
 
 HPL_VERSION = "2.3"
 
 
-class HPLConfig(BasePluginConfig): # Now inherits from BasePluginConfig
+class HPLConfig(BasePluginConfig):
     """Configuration for HPL benchmark."""
 
     # HPL.dat parameters
@@ -44,7 +41,7 @@ class HPLConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     expected_runtime_seconds: int = Field(default=3600, gt=0, description="Expected runtime of HPL in seconds (used for timeout hints)")
 
     @model_validator(mode="after")
-    def validate_mpi_ranks(self) -> 'HPLConfig':
+    def validate_mpi_ranks(self) -> "HPLConfig":
         if self.mpi_ranks != (self.p * self.q):
             logger.warning(
                 "HPLConfig: mpi_ranks (%d) does not match process grid p*q (%d*%d=%d). "
@@ -54,13 +51,11 @@ class HPLConfig(BasePluginConfig): # Now inherits from BasePluginConfig
         return self
 
 
-class HPLGenerator(BaseGenerator):
+class HPLGenerator(CommandGenerator):
     """Generates and runs HPL workload."""
 
     def __init__(self, config: HPLConfig, name: str = "HPLGenerator") -> None:
-        super().__init__(name)
-        self.config = config
-        self._process: Optional[subprocess.Popen[str]] = None
+        super().__init__(name, config)
         # self.expected_runtime_seconds now comes directly from config.expected_runtime_seconds
         # No need for env var parsing here.
 
@@ -177,104 +172,101 @@ HPL.out      output file name (if any)
             return ["--mca", "plm", "isolated"]
         return ["--mca", "plm_rsh_agent", launcher]
 
-    def _run_command(self) -> None:
-        """Execute the benchmark."""
-        try:
-            if not self._ensure_binary():
-                return
-
-            process_grid = max(1, self.config.p * self.config.q)
-            mpi_ranks = max(1, self.config.mpi_ranks)
-            if mpi_ranks != process_grid:
-                logger.warning(
-                    "Adjusting mpi_ranks from %s to match process grid P*Q=%s",
-                    mpi_ranks,
-                    process_grid,
-                )
-                mpi_ranks = process_grid
-
-            self._generate_hpl_dat()
-
-            cmd = [
-                "mpirun",
-                "--allow-run-as-root",
-                "-np",
-                str(mpi_ranks),
-                *self._launcher_flags(),
-                "./xhpl",
-            ]
-
-            logger.info("Running: %s", " ".join(cmd))
-
-            self._process = subprocess.Popen(
-                cmd,
-                cwd=self.working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                env=os.environ.copy(),
+    def _build_command(self) -> list[str]:
+        process_grid = max(1, self.config.p * self.config.q)
+        mpi_ranks = max(1, self.config.mpi_ranks)
+        if mpi_ranks != process_grid:
+            logger.warning(
+                "Adjusting mpi_ranks from %s to match process grid P*Q=%s",
+                mpi_ranks,
+                process_grid,
             )
+            mpi_ranks = process_grid
 
-            # Use expected_runtime_seconds + timeout_buffer for communicate timeout
-            timeout_s = self.config.expected_runtime_seconds + self.config.timeout_buffer
-            stdout, stderr = self._process.communicate(timeout=timeout_s)
-            result_metrics = self._parse_output(stdout or "")
+        self._generate_hpl_dat()
 
-            self._result = {
-                "returncode": self._process.returncode,
-                "stdout": stdout or "",
-                "stderr": stderr or "",
-                "command": " ".join(cmd),
-                "max_retries": self.config.max_retries, # Add inherited field
-                "tags": self.config.tags, # Add inherited field
-                **result_metrics,
-            }
+        return [
+            "mpirun",
+            "--allow-run-as-root",
+            "-np",
+            str(mpi_ranks),
+            *self._launcher_flags(),
+            "./xhpl",
+        ]
 
-            # Surface common failure modes even when HPL exits 0
-            if stdout:
-                if "Memory allocation failed" in stdout:
-                    msg = (
-                        "HPL reported memory allocation failure; adjust N/P/Q or provide more RAM. "
-                        f"N={self.config.n}, P={self.config.p}, Q={self.config.q}"
-                    )
-                    self._result["error"] = msg
-                    logger.error(msg)
-                else:
-                    # Only treat tests skipped as fatal when >0
-                    import re as _re
-                    skipped = _re.search(r"([0-9]+)\\s+tests skipped", stdout, flags=_re.IGNORECASE)
-                    if skipped:
-                        try:
-                            if int(skipped.group(1)) > 0:
-                                msg = (
-                                    "HPL skipped tests due to illegal input; adjust N/P/Q or install deps."
-                                )
-                                self._result["error"] = msg
-                                logger.error(msg)
-                        except Exception:
-                            pass
+    def _popen_kwargs(self) -> dict[str, Any]:
+        return {
+            "cwd": self.working_dir,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "env": os.environ.copy(),
+        }
 
-                if "HPL ERROR" in stdout and "error" not in self._result:
-                    self._result["error"] = "HPL reported an internal error"
+    def _timeout_seconds(self) -> Optional[int]:
+        return self.config.expected_runtime_seconds + self.config.timeout_buffer
 
-            if self._process.returncode != 0:
-                logger.error("HPL failed with rc=%s", self._process.returncode)
-                if stderr:
-                    logger.error("stderr: %s", stderr)
-                if "error" not in self._result:
-                    self._result["error"] = f"HPL exited with return code {self._process.returncode}"
+    def _build_result(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> dict[str, Any]:
+        result_metrics = self._parse_output(stdout or "")
+        result = super()._build_result(cmd, stdout, stderr, returncode)
+        result.update(result_metrics)
+        return result
 
-        except subprocess.TimeoutExpired:
-            logger.error(f"HPL timed out after {timeout_s} seconds. Terminating process.")
-            self._process.kill()
-            self._process.wait()
-            self._result = {"error": f"Timeout after {timeout_s}s", "returncode": -1}
-        except Exception as exc:
-            logger.error("Execution error: %s", exc)
-            self._result = {"error": str(exc), "returncode": -2}
-        finally:
-            self._process = None
+    def _after_run(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> None:
+        # Surface common failure modes even when HPL exits 0
+        if stdout:
+            if "Memory allocation failed" in stdout:
+                msg = (
+                    "HPL reported memory allocation failure; adjust N/P/Q or provide more RAM. "
+                    f"N={self.config.n}, P={self.config.p}, Q={self.config.q}"
+                )
+                self._result["error"] = msg
+                logger.error(msg)
+            else:
+                skipped = re.search(
+                    r"([0-9]+)\s+tests skipped", stdout, flags=re.IGNORECASE
+                )
+                if skipped:
+                    try:
+                        if int(skipped.group(1)) > 0:
+                            msg = (
+                                "HPL skipped tests due to illegal input; adjust N/P/Q or install deps."
+                            )
+                            self._result["error"] = msg
+                            logger.error(msg)
+                    except Exception:
+                        pass
+
+            if "HPL ERROR" in stdout and "error" not in self._result:
+                self._result["error"] = "HPL reported an internal error"
+
+        if returncode not in (None, 0) and "error" not in self._result:
+            self._result["error"] = f"HPL exited with return code {returncode}"
+
+    def _log_failure(
+        self, returncode: int, stdout: str, stderr: str, cmd: list[str]
+    ) -> None:
+        logger.error("HPL failed with rc=%s", returncode)
+        if stderr:
+            logger.error("stderr: %s", stderr)
+
+    def _run_command(self) -> None:
+        if not self._ensure_binary():
             self._is_running = False
+            return
+        super()._run_command()
 
     def _parse_output(self, output: str) -> dict[str, Any]:
         """Parse summary metrics from HPL stdout."""

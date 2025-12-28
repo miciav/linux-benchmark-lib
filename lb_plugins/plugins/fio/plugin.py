@@ -7,20 +7,19 @@ This module uses fio (Flexible I/O Tester) to generate advanced disk I/O workloa
 import json
 import logging
 import subprocess
-# Removed from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Type, Dict
+from typing import Any, Dict, List, Optional, Type
 
-from pydantic import Field # Added pydantic Field
+from pydantic import Field
 
-from ...base_generator import BaseGenerator
-from ...interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
+from ...base_generator import CommandGenerator
+from ...interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig
 
 
 logger = logging.getLogger(__name__)
 
 
-class FIOConfig(BasePluginConfig): # Now inherits from BasePluginConfig
+class FIOConfig(BasePluginConfig):
     """Configuration for fio I/O testing."""
 
     job_file: Optional[Path] = Field(default=None, description="Path to a custom FIO job file")
@@ -36,7 +35,7 @@ class FIOConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     debug: bool = Field(default=False, description="Enable debug logging for fio")
 
 
-class FIOGenerator(BaseGenerator):
+class FIOGenerator(CommandGenerator):
     """Workload generator using fio."""
     
     def __init__(self, config: FIOConfig, name: str = "FIOGenerator"):
@@ -47,9 +46,7 @@ class FIOGenerator(BaseGenerator):
             config: Configuration for fio
             name: Name of the generator
         """
-        super().__init__(name)
-        self.config = config
-        self._process: Optional[subprocess.Popen] = None
+        super().__init__(name, config)
         self._debug_enabled = bool(config.debug)
         self._setup_debug_logging()
 
@@ -104,6 +101,10 @@ class FIOGenerator(BaseGenerator):
         logger.debug("Built fio command with config: %s", self.config.model_dump_json()) # Using model_dump_json for Pydantic config
         
         return cmd
+
+    def _log_command(self, cmd: list[str]) -> None:
+        logger.info("Running command: %s", " ".join(cmd))
+        logger.debug("Working directory: %s", self.config.directory)
     
     def _validate_environment(self) -> bool:
         """
@@ -122,6 +123,9 @@ class FIOGenerator(BaseGenerator):
         except Exception as e:
             logger.error(f"Error checking for fio: {e}")
             return False
+
+    def _timeout_seconds(self) -> Optional[int]:
+        return self.config.runtime + self.config.timeout_buffer
     
     def _parse_json_output(self, output: str) -> dict:
         """
@@ -175,81 +179,50 @@ class FIOGenerator(BaseGenerator):
             "write_lat_ms": job.get("write", {}).get("lat_ns", {}).get("mean", 0)
             / 1e6,
         }
-    
-    def _run_command(self) -> None:
-        """Run fio with configured parameters."""
-        cmd = self._build_command()
-        logger.info(f"Running command: {' '.join(cmd)}")
-        logger.debug("Working directory: %s", self.config.directory)
-        
-        try:
-            self._process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
+
+    def _build_result(
+        self, cmd: list[str], stdout: str, stderr: str, returncode: int | None
+    ) -> dict[str, Any]:
+        parsed_result: dict[str, Any] = {}
+        if self.config.output_format == "json":
+            logger.debug("Parsing fio JSON output")
+            parsed_result = self._parse_json_output(stdout)
+            logger.debug("Parsed fio JSON metrics: %s", parsed_result)
+
+        result = super()._build_result(cmd, stdout, stderr, returncode)
+        result["parsed"] = parsed_result
+        return result
+
+    def _after_run(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> None:
+        logger.debug(
+            "fio finished with rc=%s (stdout=%d chars, stderr=%d chars)",
+            returncode,
+            len(stdout or ""),
+            len(stderr or ""),
+        )
+
+    def _log_failure(
+        self, returncode: int, stdout: str, stderr: str, cmd: list[str]
+    ) -> None:
+        parsed: dict[str, Any] = {}
+        if isinstance(self._result, dict):
+            parsed = self._result.get("parsed") or {}
+
+        if parsed:
+            logger.info(
+                "fio terminated with rc=%s but produced valid metrics.", returncode
             )
-            
-            # Wait for process to complete with a timeout
-            stdout, stderr = self._process.communicate(timeout=self.config.runtime + self.config.timeout_buffer)
-            logger.debug(
-                "fio finished with rc=%s (stdout=%d chars, stderr=%d chars)",
-                self._process.returncode,
-                len(stdout or ""),
-                len(stderr or ""),
-            )
-            
-            # Parse results if JSON output
-            parsed_result = {}
-            if self.config.output_format == "json":
-                logger.debug("Parsing fio JSON output")
-                parsed_result = self._parse_json_output(stdout)
-                logger.debug("Parsed fio JSON metrics: %s", parsed_result)
-            
-            # Store the result
-            self._result = {
-                "stdout": stdout,
-                "stderr": stderr,
-                "returncode": self._process.returncode,
-                "command": " ".join(cmd),
-                "parsed": parsed_result,
-                "max_retries": self.config.max_retries, # Add inherited field
-                "tags": self.config.tags # Add inherited field
-            }
-            
-            if self._process.returncode != 0:
-                if parsed_result:
-                    logger.info(
-                        f"fio terminated with rc={self._process.returncode} but produced valid metrics."
-                    )
-                else:
-                    logger.error(f"fio failed with return code {self._process.returncode}")
-                    logger.error(f"stderr: {stderr}")
-                
-        except subprocess.TimeoutExpired:
-            logger.error(f"fio timed out after {self.config.runtime + self.config.timeout_buffer} seconds. Terminating process.")
-            self._process.kill()
-            self._process.wait()
-            self._result = {"error": f"Timeout after {self.config.runtime + self.config.timeout_buffer}s", "returncode": -1}
-        except Exception as e:
-            logger.error(f"Error running fio: {e}")
-            self._result = {"error": str(e), "returncode": -2}
-        finally:
-            self._process = None
-            self._is_running = False
-    
-    def _stop_workload(self) -> None:
-        """Stop fio process."""
-        proc = self._process
-        if proc and proc.poll() is None:
-            logger.info("Terminating fio process")
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                logger.warning("Force killing fio process")
-                proc.kill()
-                proc.wait()
+            return
+
+        logger.error("fio failed with return code %s", returncode)
+        if stderr:
+            logger.error("stderr: %s", stderr)
 
 
 class FIOPlugin(WorkloadPlugin):

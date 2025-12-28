@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Type
 import yaml
 from pydantic import Field
 
-from ...base_generator import BaseGenerator
+from ...base_generator import CommandGenerator
 from ...interface import BasePluginConfig, WorkloadPlugin
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ class PhoronixConfig(BasePluginConfig):
     )
 
 
-class PhoronixGenerator(BaseGenerator):
+class PhoronixGenerator(CommandGenerator):
     """Workload generator that runs a single PTS test-profile."""
 
     def __init__(
@@ -109,15 +109,13 @@ class PhoronixGenerator(BaseGenerator):
         expected_runtime_seconds: Optional[int],
         name: str,
     ):
-        super().__init__(name)
-        self.config = config
+        super().__init__(name, config)
         self.binary = binary
         self.profile = profile
         self.home_root = home_root
         self.profile_args = profile_args
         self.system_packages = system_packages
         self.expected_runtime_seconds = expected_runtime_seconds
-        self._process: Optional[subprocess.Popen[str]] = None
 
     def _validate_environment(self) -> bool:
         return shutil.which(self.binary) is not None
@@ -247,11 +245,15 @@ class PhoronixGenerator(BaseGenerator):
         out = (last.stdout if last else "") or ""
         raise RuntimeError(f"PTS profile install failed for '{self.profile}': {out}".strip())
 
-    def _build_command(self, subcommand: str) -> List[str]:
+    def _build_command_for(self, subcommand: str) -> List[str]:
         cmd = [self.binary, subcommand, self.profile]
         cmd.extend(self.profile_args)
         cmd.extend(self.config.extra_args)
         return cmd
+
+    def _build_command(self) -> List[str]:
+        subcommand = "batch-benchmark" if self.config.batch_mode else "benchmark"
+        return self._build_command_for(subcommand)
 
     def _run_command(self) -> None:
         start = time.time()
@@ -268,8 +270,10 @@ class PhoronixGenerator(BaseGenerator):
         except Exception:
             before = set()
 
-        cmd = self._build_command("batch-benchmark" if self.config.batch_mode else "benchmark")
-        cmd_fallback = self._build_command("benchmark")
+        cmd = self._build_command_for(
+            "batch-benchmark" if self.config.batch_mode else "benchmark"
+        )
+        cmd_fallback = self._build_command_for("benchmark")
 
         def _run(cmd_to_run: List[str]) -> tuple[int, str]:
             logger.info("Running PTS command: %s", " ".join(cmd_to_run))

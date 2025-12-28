@@ -62,18 +62,21 @@ def test_geekbench_generator_builds_command(monkeypatch, tmp_path):
     monkeypatch.setattr(gen, "_prepare_geekbench", lambda: (exec_path, archive_path, exec_path.parent))
 
     calls: list[list[str]] = []
-    def fake_exec(cmd, env=None, cwd=None):
-        assert env is not None
-        assert cwd is not None
-        calls.append(cmd)
-        # Simulate Geekbench creating the JSON export when requested.
-        if "--export-json" in cmd:
-            idx = cmd.index("--export-json")
-            if idx + 1 < len(cmd):
-                Path(cmd[idx + 1]).write_text("{}", encoding="utf-8")
-        return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
 
-    monkeypatch.setattr(gen, "_execute_process", fake_exec)
+    class DummyProcess:
+        def __init__(self, cmd, **_kwargs):
+            self.cmd = cmd
+            self.returncode = 0
+            calls.append(cmd)
+
+        def communicate(self, timeout=None):
+            if "--export-json" in self.cmd:
+                idx = self.cmd.index("--export-json")
+                if idx + 1 < len(self.cmd):
+                    Path(self.cmd[idx + 1]).write_text("{}", encoding="utf-8")
+            return "ok", ""
+
+    monkeypatch.setattr(subprocess, "Popen", DummyProcess)
 
     gen._run_command()
 

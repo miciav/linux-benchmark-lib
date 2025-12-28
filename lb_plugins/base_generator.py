@@ -5,10 +5,10 @@ This module defines the common interface that all workload generators must imple
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
-import threading
 import logging
-from pathlib import Path
+import subprocess
+import threading
+from typing import Any, Optional
 
 
 logger = logging.getLogger(__name__)
@@ -134,3 +134,108 @@ class BaseGenerator(ABC):
             The result obtained from the workload generation
         """
         return self._result
+
+
+class CommandGenerator(BaseGenerator):
+    """Base class for command-driven workload generators."""
+
+    def __init__(self, name: str, config: Any):
+        super().__init__(name)
+        self.config = config
+        self._process: Optional[subprocess.Popen[str]] = None
+
+    @abstractmethod
+    def _build_command(self) -> list[str]:
+        """Return the command to execute."""
+        raise NotImplementedError
+
+    def _popen_kwargs(self) -> dict[str, Any]:
+        return {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "text": True}
+
+    def _timeout_seconds(self) -> Optional[int]:
+        timeout = getattr(self.config, "timeout", None)
+        if timeout is None:
+            return None
+        return timeout + int(getattr(self.config, "timeout_buffer", 0))
+
+    def _log_command(self, cmd: list[str]) -> None:
+        logger.info("Running command: %s", " ".join(cmd))
+
+    def _consume_process_output(
+        self, proc: subprocess.Popen[str]
+    ) -> tuple[str, str]:
+        stdout, stderr = proc.communicate(timeout=self._timeout_seconds())
+        return stdout or "", stderr or ""
+
+    def _build_result(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "stdout": stdout,
+            "stderr": stderr,
+            "returncode": returncode,
+            "command": " ".join(cmd),
+        }
+        if hasattr(self.config, "max_retries"):
+            result["max_retries"] = self.config.max_retries
+        if hasattr(self.config, "tags"):
+            result["tags"] = self.config.tags
+        return result
+
+    def _log_failure(
+        self, returncode: int, stdout: str, stderr: str, cmd: list[str]
+    ) -> None:
+        logger.error("%s failed with return code %s", self.name, returncode)
+
+    def _after_run(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> None:
+        return None
+
+    def _run_command(self) -> None:
+        cmd = self._build_command()
+        self._log_command(cmd)
+
+        try:
+            self._process = subprocess.Popen(cmd, **self._popen_kwargs())
+            stdout, stderr = self._consume_process_output(self._process)
+            returncode = self._process.returncode
+            self._result = self._build_result(cmd, stdout, stderr, returncode)
+            if returncode not in (None, 0):
+                self._log_failure(returncode, stdout, stderr, cmd)
+            self._after_run(cmd, stdout, stderr, returncode)
+        except subprocess.TimeoutExpired:
+            timeout = self._timeout_seconds()
+            logger.error(
+                "%s timed out after %s seconds. Terminating process.",
+                self.name,
+                timeout,
+            )
+            self._result = {"error": f"Timeout after {timeout}s", "returncode": -1}
+            self._stop_workload()
+        except Exception as exc:
+            logger.error("Error running %s: %s", self.name, exc)
+            self._result = {"error": str(exc), "returncode": -2}
+        finally:
+            self._process = None
+            self._is_running = False
+
+    def _stop_workload(self) -> None:
+        proc = self._process
+        if proc and proc.poll() is None:
+            logger.info("Terminating %s process", self.name)
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                logger.warning("Force killing %s process", self.name)
+                proc.kill()
+                proc.wait()

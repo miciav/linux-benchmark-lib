@@ -32,8 +32,31 @@ class ClassInfo:
     suspicious: tuple[str, ...]
 
 
+_SKIP_DIRS = {
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+    "build",
+    "dist",
+    "site",
+    "arch_report",
+    "_user",
+}
+
+
+def _should_skip(path: Path) -> bool:
+    return any(part in _SKIP_DIRS for part in path.parts)
+
+
 def py_files_under(pkg: Path) -> list[Path]:
-    return [p for p in pkg.rglob("*.py") if p.is_file() and "__pycache__" not in str(p)]
+    return [
+        p
+        for p in pkg.rglob("*.py")
+        if p.is_file() and not _should_skip(p)
+    ]
 
 
 def top_level_imports(tree: ast.AST) -> set[str]:

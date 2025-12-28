@@ -42,11 +42,21 @@ def test_yabs_generator_builds_command(monkeypatch, tmp_path):
     cfg = YabsConfig(skip_disk=True, skip_network=True, skip_geekbench=True, output_dir=tmp_path)
     gen = YabsGenerator(cfg)
 
-    calls = []
+    run_calls: list[list[str]] = []
+    popen_calls: list[list[str]] = []
 
     def fake_run(cmd, **_kwargs):
-        calls.append(cmd)
+        run_calls.append(cmd)
         return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
+
+    class DummyProcess:
+        def __init__(self, cmd, **_kwargs):
+            self.cmd = cmd
+            self.returncode = 0
+            popen_calls.append(cmd)
+
+        def communicate(self, timeout=None):
+            return "ok", ""
 
     def fake_mkstemp(*_args, **_kwargs):
         p = tmp_path / "yabs.sh"
@@ -57,9 +67,10 @@ def test_yabs_generator_builds_command(monkeypatch, tmp_path):
 
     monkeypatch.setattr(tempfile, "mkstemp", fake_mkstemp)
     monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "Popen", DummyProcess)
     monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/tool")
 
     gen._run_command()
-    # First call downloads script, second runs yabs
-    assert len(calls) >= 2
-    assert "-f" in calls[1] and "-i" in calls[1] and "-g" in calls[1]
+    assert run_calls, "Expected yabs download to run via subprocess.run"
+    assert popen_calls, "Expected yabs execution via subprocess.Popen"
+    assert "-f" in popen_calls[0] and "-i" in popen_calls[0] and "-g" in popen_calls[0]

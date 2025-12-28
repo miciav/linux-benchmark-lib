@@ -5,18 +5,17 @@ Modular plugin version.
 
 import logging
 import subprocess
-# Removed from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional, Type
 
-from pydantic import Field # Added pydantic Field
+from pydantic import Field
 
-from ...base_generator import BaseGenerator
-from ...interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
+from ...base_generator import CommandGenerator
+from ...interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig
 
 logger = logging.getLogger(__name__)
 
-class StressNGConfig(BasePluginConfig): # Now inherits from BasePluginConfig
+class StressNGConfig(BasePluginConfig):
     """Configuration for stress-ng workload generator."""
     
     cpu_workers: int = Field(default=0, ge=0, description="0 means use all available CPUs")
@@ -30,13 +29,11 @@ class StressNGConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     debug: bool = Field(default=False)
 
 
-class StressNGGenerator(BaseGenerator):
+class StressNGGenerator(CommandGenerator):
     """Workload generator using stress-ng."""
     
     def __init__(self, config: StressNGConfig, name: str = "StressNGGenerator"):
-        super().__init__(name)
-        self.config = config
-        self._process: Optional[subprocess.Popen] = None
+        super().__init__(name, config)
         
     def _build_command(self) -> List[str]:
         cmd = ["stress-ng"]
@@ -55,6 +52,20 @@ class StressNGGenerator(BaseGenerator):
             cmd.append("--verbose")
         cmd.extend(self.config.extra_args)
         return cmd
+
+    def _popen_kwargs(self) -> dict[str, Any]:
+        return {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "text": True,
+            "bufsize": 1,
+        }
+
+    def _consume_process_output(
+        self, proc: subprocess.Popen[str]
+    ) -> tuple[str, str]:
+        stdout, _ = proc.communicate(timeout=self._timeout_seconds())
+        return stdout or "", ""
     
     def _validate_environment(self) -> bool:
         try:
@@ -63,67 +74,17 @@ class StressNGGenerator(BaseGenerator):
         except Exception as e:
             logger.error(f"Error checking for stress-ng: {e}")
             return False
-    
-    def _run_command(self) -> None:
-        cmd = self._build_command()
-        logger.info(f"Running command: {' '.join(cmd)}")
-        try:
-            # Merge stderr into stdout to capture everything in one stream
-            self._process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
-            )
-            
-            output_lines = []
-            safety_timeout = self.config.timeout + self.config.timeout_buffer # Use inherited timeout_buffer
-            
-            # Simple streaming loop (timeout handling is tricky here without select, 
-            # but stress-ng handles its own timeout usually)
-            while True:
-                line = self._process.stdout.readline()
-                if not line and self._process.poll() is not None:
-                    break
-                if line:
-                    # Using print to ensure output goes to stdout even from subprocess
-                    # This might be captured by the runner depending on its implementation
-                    print(line, end='', flush=True) 
-                    output_lines.append(line)
-            
-            # Wait for the process to complete, with an additional safety timeout
-            self._process.wait(timeout=safety_timeout)
-            stdout = "".join(output_lines)
-            stderr = "" # Merged, if stderr was redirected to stdout
 
-            self._result = {
-                "stdout": stdout,
-                "stderr": stderr,
-                "returncode": self._process.returncode,
-                "command": " ".join(cmd),
-                "max_retries": self.config.max_retries, # Example of using inherited field
-                "tags": self.config.tags # Example of using inherited field
-            }
-            if self._process.returncode != 0:
-                logger.error(f"stress-ng failed with return code {self._process.returncode}. Output: {stdout}")
-        except subprocess.TimeoutExpired:
-            logger.error(f"stress-ng timed out after {safety_timeout} seconds. Terminating process.")
-            self._result = {"error": f"Timeout after {safety_timeout}s", "returncode": -1}
-            self._stop_workload() # Ensure the process is killed
-        except Exception as e:
-            logger.error(f"Error running stress-ng: {e}")
-            self._result = {"error": str(e), "returncode": -2}
-        finally:
-            self._process = None
-            self._is_running = False
-    
-    def _stop_workload(self) -> None:
-        proc = self._process
-        if proc and proc.poll() is None:
-            logger.info(f"Terminating stress-ng process {proc.pid}")
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                logger.warning(f"stress-ng process {proc.pid} did not terminate gracefully, killing.")
-                proc.kill()
+    def _log_failure(
+        self, returncode: int, stdout: str, stderr: str, cmd: list[str]
+    ) -> None:
+        output = stdout or stderr
+        if output:
+            logger.error(
+                "stress-ng failed with return code %s. Output: %s", returncode, output
+            )
+        else:
+            logger.error("stress-ng failed with return code %s", returncode)
 
 
 class StressNGPlugin(WorkloadPlugin):

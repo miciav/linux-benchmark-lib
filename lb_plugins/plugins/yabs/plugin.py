@@ -14,21 +14,19 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-import re
-# Removed from dataclasses import dataclass, field
-from typing import List, Optional, Type, Any
+from typing import Any, List, Optional, Type
 
-from pydantic import Field, model_validator # Added pydantic Field, model_validator
+from pydantic import Field
 
-from ...interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig # Imported BasePluginConfig
-from ...base_generator import BaseGenerator
+from ...interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig
+from ...base_generator import CommandGenerator
 
 logger = logging.getLogger(__name__)
 
 YABS_URL = "https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh"
 
 
-class YabsConfig(BasePluginConfig): # Now inherits from BasePluginConfig
+class YabsConfig(BasePluginConfig):
     """Configuration for the YABS workload."""
 
     script_url: str = Field(default=YABS_URL, description="URL to the YABS script")
@@ -45,13 +43,14 @@ class YabsConfig(BasePluginConfig): # Now inherits from BasePluginConfig
     # Removed __post_init__ as Pydantic handles Path conversion
 
 
-class YabsGenerator(BaseGenerator):
+class YabsGenerator(CommandGenerator):
     """Generator that runs the upstream yabs.sh script."""
 
     def __init__(self, config: YabsConfig):
-        super().__init__("YabsGenerator")
-        self.config = config
-        self._process: Optional[subprocess.CompletedProcess[str]] = None
+        super().__init__("YabsGenerator", config)
+        self._current_args: list[str] = []
+        self._env: dict[str, str] = {}
+        self._log_path: Optional[Path] = None
         # self.expected_runtime_seconds now comes directly from config.expected_runtime_seconds
 
 
@@ -71,6 +70,56 @@ class YabsGenerator(BaseGenerator):
             return False
         return True
 
+    def _build_command(self) -> list[str]:
+        return list(self._current_args)
+
+    def _popen_kwargs(self) -> dict[str, Any]:
+        return {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "env": self._env,
+        }
+
+    def _timeout_seconds(self) -> Optional[int]:
+        return self.config.expected_runtime_seconds + self.config.timeout_buffer
+
+    def _log_command(self, cmd: list[str]) -> None:
+        if self.config.debug:
+            logger.info("Running YABS command (configured): %s", " ".join(cmd))
+        else:
+            logger.info("Running YABS command: %s", " ".join(cmd))
+
+    def _after_run(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> None:
+        if not self._log_path:
+            return
+        try:
+            self._log_path.write_text((stdout or "") + "\n" + (stderr or ""))
+        except Exception as exc:  # pragma: no cover - best effort
+            logger.debug("Failed to write yabs log: %s", exc)
+        self._result["log_path"] = str(self._log_path)
+
+    def _should_retry_without_cleanup(self) -> bool:
+        if not self.config.skip_cleanup:
+            return False
+        if "-c" not in self._current_args:
+            return False
+        if not isinstance(self._result, dict):
+            return False
+        if self._result.get("returncode") in (None, 0):
+            return False
+        stderr = self._result.get("stderr") or ""
+        if not isinstance(stderr, str):
+            return False
+        stderr_lower = stderr.lower()
+        return "illegal option" in stderr_lower and "-- c" in stderr_lower
+
     def _run_command(self) -> None:
         """Download and execute yabs.sh with configured flags."""
         if not self._validate_environment():
@@ -79,7 +128,6 @@ class YabsGenerator(BaseGenerator):
             return
 
         script_path: Optional[Path] = None
-        timeout_s = self.config.expected_runtime_seconds + self.config.timeout_buffer
         try:
             # Download script to a temp location
             fd, path_str = tempfile.mkstemp(prefix="yabs-", suffix=".sh")
@@ -111,56 +159,20 @@ class YabsGenerator(BaseGenerator):
                     args.extend(self.config.extra_args)
                 return args
 
-            env = os.environ.copy()
+            self._env = os.environ.copy()
             # Prevent interactive prompts
-            env.setdefault("YABS_NONINTERACTIVE", "1")
+            self._env.setdefault("YABS_NONINTERACTIVE", "1")
+            self._log_path = self.config.output_dir / "yabs.log"
 
-            if self.config.debug:
-                logger.info("Running YABS command (configured): %s", " ".join(_build_args(True)))
+            self._current_args = _build_args(True)
+            super()._run_command()
 
-            def _run_yabs(args: list[str]) -> subprocess.CompletedProcess[str]:
-                return subprocess.run(
-                    args,
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                    env=env,
-                    timeout=timeout_s,
+            if self._should_retry_without_cleanup():
+                logger.info(
+                    "YABS script does not support -c; retrying without skip_cleanup flag"
                 )
-
-            args = _build_args(True)
-            run = _run_yabs(args)
-            stderr = (run.stderr or "").lower()
-            if (
-                run.returncode != 0
-                and self.config.skip_cleanup
-                and "-c" in args
-                and ("illegal option" in stderr and "-- c" in stderr)
-            ):
-                # Some pinned upstream revisions don't support -c; retry without it.
-                logger.info("YABS script does not support -c; retrying without skip_cleanup flag")
-                args = _build_args(False)
-                run = _run_yabs(args)
-            self._process = run # Store the CompletedProcess object
-
-            log_path = self.config.output_dir / "yabs.log"
-            try:
-                log_path.write_text((run.stdout or "") + "\n" + (run.stderr or ""))
-            except Exception as exc:  # pragma: no cover - best effort
-                logger.debug("Failed to write yabs log: %s", exc)
-
-            self._result = {
-                "stdout": run.stdout or "",
-                "stderr": run.stderr or "",
-                "returncode": run.returncode,
-                "command": " ".join(args),
-                "log_path": str(log_path),
-                "max_retries": self.config.max_retries, # Add inherited field
-                "tags": self.config.tags # Add inherited field
-            }
-        except subprocess.TimeoutExpired:
-            logger.error(f"YABS timed out after {timeout_s} seconds. Script might still be running or was forcefully killed.")
-            self._result = {"error": f"Timeout after {timeout_s}s", "returncode": -1}
+                self._current_args = _build_args(False)
+                super()._run_command()
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("YABS execution error: %s", exc)
             self._result = {"error": str(exc), "returncode": -2}
@@ -179,13 +191,6 @@ class YabsGenerator(BaseGenerator):
             raise RuntimeError(
                 f"{error_message}: rc={completed.returncode}, stderr={completed.stderr}"
             )
-
-    def _stop_workload(self) -> None:
-        """YABS runs to completion; nothing to stop mid-flight."""
-        # YABS is a shell script, hard to stop gracefully.
-        # It's intended to run to completion or timeout.
-        logger.info("YABS runs to completion; no specific stop logic implemented.")
-        return
 
 
 class YabsPlugin(WorkloadPlugin):

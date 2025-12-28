@@ -19,7 +19,7 @@ from typing import Any, List, Optional, Type
 
 from pydantic import Field
 
-from ...base_generator import BaseGenerator
+from ...base_generator import CommandGenerator
 from ...interface import BasePluginConfig, WorkloadIntensity, WorkloadPlugin
 
 logger = logging.getLogger(__name__)
@@ -74,13 +74,11 @@ class StreamConfig(BasePluginConfig):
     )
 
 
-class StreamGenerator(BaseGenerator):
+class StreamGenerator(CommandGenerator):
     """Generates and runs STREAM workload."""
 
     def __init__(self, config: StreamConfig, name: str = "StreamGenerator") -> None:
-        super().__init__(name)
-        self.config = config
-        self._process: Optional[subprocess.Popen[str]] = None
+        super().__init__(name, config)
 
         if self.config.workspace_dir:
             self.workspace = Path(self.config.workspace_dir).expanduser()
@@ -211,57 +209,54 @@ class StreamGenerator(BaseGenerator):
         cmd.append(str(self.stream_path))
         return cmd
 
-    def _run_command(self) -> None:
-        try:
-            if not self._ensure_binary():
-                return
+    def _popen_kwargs(self) -> dict[str, Any]:
+        return {
+            "cwd": self.working_dir,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "env": self._launcher_env(),
+        }
 
-            cmd = self._build_command()
-            logger.info("Running: %s", " ".join(cmd))
+    def _timeout_seconds(self) -> Optional[int]:
+        return self.config.expected_runtime_seconds + self.config.timeout_buffer
 
-            self._process = subprocess.Popen(
-                cmd,
-                cwd=self.working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                env=self._launcher_env(),
-            )
-
-            timeout_s = self.config.expected_runtime_seconds + self.config.timeout_buffer
-            stdout, stderr = self._process.communicate(timeout=timeout_s)
-            metrics = self._parse_output(stdout or "")
-
-            self._result = {
-                "returncode": self._process.returncode,
-                "stdout": stdout or "",
-                "stderr": stderr or "",
-                "command": " ".join(cmd),
+    def _build_result(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> dict[str, Any]:
+        metrics = self._parse_output(stdout or "")
+        result = super()._build_result(cmd, stdout, stderr, returncode)
+        result.update(
+            {
                 "stream_version": STREAM_VERSION,
                 "upstream_commit": UPSTREAM_COMMIT,
                 "stream_array_size": self.config.stream_array_size,
                 "ntimes": self.config.ntimes,
                 "threads": self.config.threads,
-                "max_retries": self.config.max_retries,
-                "tags": self.config.tags,
                 **metrics,
             }
+        )
+        return result
 
-            if self._process.returncode != 0 and "error" not in self._result:
-                self._result["error"] = f"STREAM exited with return code {self._process.returncode}"
+    def _after_run(
+        self,
+        cmd: list[str],
+        stdout: str,
+        stderr: str,
+        returncode: int | None,
+    ) -> None:
+        if returncode not in (None, 0) and "error" not in self._result:
+            self._result["error"] = f"STREAM exited with return code {returncode}"
 
-        except subprocess.TimeoutExpired:
-            logger.error("STREAM timed out; terminating process")
-            if self._process:
-                self._process.kill()
-                self._process.wait()
-            self._result = {"error": f"Timeout after {timeout_s}s", "returncode": -1}
-        except Exception as exc:
-            logger.error("Execution error: %s", exc)
-            self._result = {"error": str(exc), "returncode": -2}
-        finally:
-            self._process = None
+    def _run_command(self) -> None:
+        if not self._ensure_binary():
             self._is_running = False
+            return
+        super()._run_command()
 
     def _parse_output(self, output: str) -> dict[str, Any]:
         metrics: dict[str, Any] = {}
