@@ -1,0 +1,273 @@
+---
+- name: Install k3s, OpenFaaS, Prometheus, and exporters
+  hosts: all
+  become: true
+  vars:
+    k3s_version: ""
+    k3s_install_exec: "--write-kubeconfig-mode 644"
+    openfaas_namespace: "openfaas"
+    openfaas_fn_namespace: "openfaas-fn"
+    openfaas_gateway_node_port: 31112
+    openfaas_admin_user: "admin"
+    openfaas_gateway_url: ""
+    openfaas_functions: []
+    prometheus_namespace: "openfaas"
+    prometheus_node_port: 30411
+    prometheus_manifests_dir: "/tmp/dfaas-prometheus"
+    scaphandre_enabled: false
+    scaphandre_repo_url: ""
+    scaphandre_repo_name: "scaphandre"
+    scaphandre_chart: ""
+    scaphandre_release: "scaphandre"
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - jq
+          - gnupg
+        state: present
+        update_cache: true
+
+    - name: Install k3s
+      ansible.builtin.shell: "curl -sfL https://get.k3s.io | sh -"
+      args:
+        creates: "/usr/local/bin/k3s"
+      environment:
+        INSTALL_K3S_EXEC: "{{ k3s_install_exec }}"
+        INSTALL_K3S_VERSION: "{{ k3s_version }}"
+
+    - name: Ensure kubeconfig directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/.kube"
+        state: directory
+        mode: "0700"
+
+    - name: Copy kubeconfig for kubectl
+      ansible.builtin.copy:
+        src: "/etc/rancher/k3s/k3s.yaml"
+        dest: "{{ ansible_env.HOME }}/.kube/config"
+        remote_src: true
+        mode: "0600"
+
+    - name: Install helm
+      ansible.builtin.shell: "curl -sSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
+      args:
+        creates: "/usr/local/bin/helm"
+
+    - name: Install faas-cli
+      ansible.builtin.shell: "curl -sSL https://cli.openfaas.com | sh"
+      args:
+        creates: "/usr/local/bin/faas-cli"
+
+    - name: Ensure OpenFaaS namespaces exist
+      ansible.builtin.shell: |
+        kubectl create namespace {{ openfaas_namespace }} --dry-run=client -o yaml | kubectl apply -f -
+        kubectl create namespace {{ openfaas_fn_namespace }} --dry-run=client -o yaml | kubectl apply -f -
+      args:
+        executable: /bin/bash
+
+    - name: Add OpenFaaS helm repo
+      ansible.builtin.command: "helm repo add openfaas https://openfaas.github.io/faas-netes/"
+      register: openfaas_repo
+      changed_when: "'has been added' in openfaas_repo.stdout"
+
+    - name: Update helm repositories
+      ansible.builtin.command: "helm repo update"
+
+    - name: Install OpenFaaS via helm
+      ansible.builtin.command: >
+        helm upgrade --install openfaas openfaas/openfaas
+        --namespace {{ openfaas_namespace }}
+        --set functionNamespace={{ openfaas_fn_namespace }}
+        --set generateBasicAuth=true
+        --set serviceType=NodePort
+        --set gateway.nodePort={{ openfaas_gateway_node_port }}
+        --set prometheus.create=false
+        --set alertmanager.create=false
+
+    - name: Wait for OpenFaaS gateway rollout
+      ansible.builtin.command: >
+        kubectl -n {{ openfaas_namespace }}
+        rollout status deploy/gateway --timeout=5m
+
+    - name: Discover OpenFaaS gateway URL
+      ansible.builtin.set_fact:
+        openfaas_gateway_url: >-
+          {{
+            (openfaas_gateway_url | length > 0)
+            | ternary(
+              openfaas_gateway_url,
+              'http://' + ansible_default_ipv4.address + ':' + (openfaas_gateway_node_port | string)
+            )
+          }}
+
+    - name: Fetch OpenFaaS admin password
+      ansible.builtin.command: >
+        kubectl -n {{ openfaas_namespace }}
+        get secret basic-auth -o jsonpath="{.data.basic-auth-password}"
+      register: openfaas_password_b64
+      changed_when: false
+
+    - name: Decode OpenFaaS admin password
+      ansible.builtin.set_fact:
+        openfaas_admin_password: "{{ openfaas_password_b64.stdout | b64decode }}"
+
+    - name: Login to OpenFaaS
+      ansible.builtin.command: >
+        faas-cli login --gateway {{ openfaas_gateway_url }}
+        --username {{ openfaas_admin_user }}
+        --password {{ openfaas_admin_password }}
+        --tls-no-verify
+      register: faas_login
+      retries: 10
+      delay: 6
+      until: faas_login.rc == 0
+
+    - name: Derive OpenFaaS functions from benchmark config
+      ansible.builtin.set_fact:
+        openfaas_functions: >-
+          {{
+            (
+              (benchmark_config.plugin_settings | default({})).dfaas | default({})
+            )
+            .functions | default([])
+            | map(attribute='name')
+            | list
+          }}
+      when:
+        - openfaas_functions | length == 0
+        - benchmark_config is defined
+
+    - name: Copy Prometheus manifests
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../legacy_materials/infrastructure/"
+        dest: "{{ prometheus_manifests_dir }}/"
+        mode: "0644"
+
+    - name: Copy Prometheus deployment manifest
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/manifests/prometheus-deployment.yaml"
+        dest: "{{ prometheus_manifests_dir }}/prometheus-deployment.yaml"
+        mode: "0644"
+
+    - name: Copy Prometheus service account manifest
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/manifests/prometheus-serviceaccount.yaml"
+        dest: "{{ prometheus_manifests_dir }}/prometheus-serviceaccount.yaml"
+        mode: "0644"
+
+    - name: Render Prometheus NodePort service
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/templates/prometheus-nodeport-service.yaml.j2"
+        dest: "{{ prometheus_manifests_dir }}/nodeport-service.yaml"
+        mode: "0644"
+
+    - name: Apply Prometheus and exporter manifests
+      ansible.builtin.command: "kubectl apply -f {{ prometheus_manifests_dir }}"
+
+    - name: Wait for node-exporter daemonset
+      ansible.builtin.command: >
+        kubectl -n {{ prometheus_namespace }}
+        rollout status ds/node-exporter --timeout=5m
+      changed_when: false
+
+    - name: Wait for cadvisor daemonset
+      ansible.builtin.command: >
+        kubectl -n {{ prometheus_namespace }}
+        rollout status ds/cadvisor --timeout=5m
+      changed_when: false
+
+    - name: Wait for Prometheus rollout
+      block:
+        - name: Check Prometheus rollout status
+          ansible.builtin.command: >
+            kubectl -n {{ prometheus_namespace }}
+            rollout status deploy/prometheus --timeout=5m
+          changed_when: false
+      rescue:
+        - name: Capture Prometheus pods
+          ansible.builtin.command: >
+            kubectl -n {{ prometheus_namespace }}
+            get pods -l app=prometheus -o wide
+          register: prometheus_pods
+          changed_when: false
+          failed_when: false
+
+        - name: Capture Prometheus pod description
+          ansible.builtin.command: >
+            kubectl -n {{ prometheus_namespace }}
+            describe pod -l app=prometheus
+          register: prometheus_describe
+          changed_when: false
+          failed_when: false
+
+        - name: Capture Prometheus logs
+          ansible.builtin.command: >
+            kubectl -n {{ prometheus_namespace }}
+            logs deploy/prometheus
+          register: prometheus_logs
+          changed_when: false
+          failed_when: false
+
+        - name: Fail with Prometheus diagnostics
+          ansible.builtin.fail:
+            msg: |-
+              Prometheus rollout failed.
+              Pods:
+              {{ prometheus_pods.stdout | default('') }}
+              Describe:
+              {{ prometheus_describe.stdout | default('') }}
+              Logs:
+              {{ prometheus_logs.stdout | default('') }}
+
+    - name: Deploy OpenFaaS store functions
+      ansible.builtin.command: >
+        faas-cli store deploy {{ item }}
+        --gateway {{ openfaas_gateway_url }}
+        --tls-no-verify
+      loop: "{{ openfaas_functions }}"
+      when: openfaas_functions | length > 0 and item not in ['openfaas-youtube-dl', 'openfaas-text-to-speech']
+
+    - name: Deploy OpenFaaS youtube-dl function
+      ansible.builtin.command: >
+        faas-cli deploy --image ghcr.io/ema-pe/openfaas-youtube-dl
+        --name openfaas-youtube-dl
+        --gateway {{ openfaas_gateway_url }}
+        --tls-no-verify
+      when: openfaas_functions | select('equalto', 'openfaas-youtube-dl') | list | length > 0
+
+    - name: Deploy OpenFaaS text-to-speech function
+      ansible.builtin.command: >
+        faas-cli deploy --image ghcr.io/ema-pe/openfaas-text-to-speech
+        --name openfaas-text-to-speech
+        --gateway {{ openfaas_gateway_url }}
+        --tls-no-verify
+      when: openfaas_functions | select('equalto', 'openfaas-text-to-speech') | list | length > 0
+
+    - name: Wait for OpenFaaS functions
+      ansible.builtin.command: >
+        faas-cli ready {{ item }}
+        --gateway {{ openfaas_gateway_url }}
+        --tls-no-verify
+      loop: "{{ openfaas_functions }}"
+      when: openfaas_functions | length > 0
+
+    - name: Ensure Scaphandre inputs when enabled
+      ansible.builtin.assert:
+        that:
+          - scaphandre_repo_url | length > 0
+          - scaphandre_chart | length > 0
+        fail_msg: "Set scaphandre_repo_url and scaphandre_chart when scaphandre_enabled=true."
+      when: scaphandre_enabled
+
+    - name: Add Scaphandre helm repo
+      ansible.builtin.command: "helm repo add {{ scaphandre_repo_name }} {{ scaphandre_repo_url }}"
+      when: scaphandre_enabled
+
+    - name: Install Scaphandre via helm
+      ansible.builtin.command: >
+        helm upgrade --install {{ scaphandre_release }} {{ scaphandre_chart }}
+        --namespace {{ prometheus_namespace }}
+      when: scaphandre_enabled
