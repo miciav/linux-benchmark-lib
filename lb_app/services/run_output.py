@@ -235,7 +235,7 @@ class AnsibleOutputFormatter:
             return
         if self._maybe_emit_benchmark_start(line, log_sink):
             return
-        if line.startswith("changed:"):
+        if line.startswith("changed:") or line.startswith('"changed":') or line.startswith("'changed':"):
             return
         if self._maybe_emit_interesting(line, log_sink):
             return

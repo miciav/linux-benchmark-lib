@@ -2,7 +2,7 @@
 Phoronix Test Suite (PTS) workload bundle.
 
 This module exposes multiple `WorkloadPlugin` instances, one per configured PTS
-test-profile. New profiles can be added by editing `pts_workloads.yaml`.
+test-profile or test-suite. New profiles can be added by editing `pts_workloads.yaml`.
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ class PhoronixConfig(BasePluginConfig):
 
 
 class PhoronixGenerator(CommandGenerator):
-    """Workload generator that runs a single PTS test-profile."""
+    """Workload generator that runs a single PTS test-profile or test-suite."""
 
     def __init__(
         self,
@@ -164,26 +164,29 @@ class PhoronixGenerator(CommandGenerator):
             candidates = [
                 base / "test-profiles" / "pts" / self.profile / "test-definition.xml",
                 base / "test-profiles" / self.profile / "test-definition.xml",
+                base / "test-suites" / "pts" / self.profile / "suite-definition.xml",
+                base / "test-suites" / self.profile / "suite-definition.xml",
             ]
             if any(path.exists() for path in candidates):
                 return True
-        try:
-            res = subprocess.run(
-                [self.binary, "list-installed-tests"],
-                env=env,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
-        except Exception:
-            return False
-        if res.returncode != 0:
-            return False
         profile = self.profile.strip().lower()
-        for line in (res.stdout or "").splitlines():
-            if profile and profile in line.lower():
-                return True
+        for subcommand in ("list-installed-tests", "list-installed-suites"):
+            try:
+                res = subprocess.run(
+                    [self.binary, subcommand],
+                    env=env,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    check=False,
+                )
+            except Exception:
+                continue
+            if res.returncode != 0:
+                continue
+            for line in (res.stdout or "").splitlines():
+                if profile and profile in line.lower():
+                    return True
         return False
 
     def _check_system_packages(self, env: Dict[str, str]) -> None:
@@ -386,7 +389,7 @@ class PhoronixGenerator(CommandGenerator):
 
 
 class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
-    """A single PTS test-profile exposed as a WorkloadPlugin."""
+    """A single PTS test-profile or test-suite exposed as a WorkloadPlugin."""
 
     def __init__(
         self,
