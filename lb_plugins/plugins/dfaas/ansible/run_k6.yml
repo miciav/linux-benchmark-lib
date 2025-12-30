@@ -53,6 +53,11 @@
       args:
         executable: /bin/bash
 
+    - name: Ensure k6 log is readable
+      ansible.builtin.file:
+        path: "{{ log_path }}"
+        mode: "0644"
+
     - name: Fetch summary JSON to controller
       ansible.builtin.fetch:
         src: "{{ summary_path }}"

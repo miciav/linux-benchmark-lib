@@ -159,6 +159,10 @@ class DfaasConfig(BasePluginConfig):
     k6_workspace_root: str = Field(
         default="/var/lib/dfaas-k6", description="Workspace root on k6 host"
     )
+    k6_log_stream: bool = Field(
+        default=True,
+        description="Stream k6 log output via SSH while each config runs",
+    )
     gateway_url: str = Field(
         default="http://127.0.0.1:31112", description="OpenFaaS gateway URL"
     )

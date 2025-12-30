@@ -8,14 +8,17 @@ import logging
 import os
 import math
 import re
+import shlex
 import subprocess
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
 from typing import TYPE_CHECKING
+from lb_runner.api import LBEventLogHandler, RunEvent, StdoutEmitter
 from .queries import (
     PrometheusQueryError,
     PrometheusQueryRunner,
@@ -39,6 +42,14 @@ class MetricsSnapshot:
     ram: float
     ram_pct: float
     power: float
+
+
+@dataclass
+class _K6LogStream:
+    config_id: str
+    proc: subprocess.Popen[str]
+    stop_event: threading.Event
+    threads: list[threading.Thread]
 
 
 def _parse_duration_seconds(duration: str) -> int:
@@ -266,6 +277,11 @@ class DfaasGenerator(BaseGenerator):
         super().__init__(name)
         self.config = config
         self.expected_runtime_seconds = self._estimate_runtime()
+        self._event_emitter = StdoutEmitter()
+        self._event_run_id: str | None = None
+        self._event_host: str | None = None
+        self._event_repetition: int | None = None
+        self._event_total_reps: int | None = None
 
     def _estimate_runtime(self) -> int:
         duration = _parse_duration_seconds(self.config.duration)
@@ -333,22 +349,44 @@ class DfaasGenerator(BaseGenerator):
 
         base_idle = self._query_node_metrics(runner, queries_by_name, None, None)
 
-        for config_pairs in configs:
-            if any(dominates(over, config_pairs) for over in overloaded_configs):
-                skipped_rows.append(self._build_skipped_row(function_names, config_pairs))
-                continue
+        total_configs = max(1, len(configs))
+        total_iterations = max(1, self.config.iterations)
+        for idx, config_pairs in enumerate(configs, start=1):
             key = config_key(config_pairs)
-            if key in existing_index:
+            cfg_id = config_id(config_pairs)
+            pairs_label = ", ".join(
+                f"{name}={rate}"
+                for name, rate in sorted(config_pairs, key=lambda pair: pair[0])
+            )
+            skip_reason: str | None = None
+            if any(dominates(over, config_pairs) for over in overloaded_configs):
+                skip_reason = "dominated_by_overload"
+            elif key in existing_index:
+                skip_reason = "already_indexed"
+            if skip_reason:
+                for iteration in range(1, total_iterations + 1):
+                    message = (
+                        "DFaaS config "
+                        f"{idx}/{total_configs} iter {iteration}/{total_iterations} "
+                        f"({cfg_id}) skipped={skip_reason}: {pairs_label}"
+                    )
+                    logger.info("%s", message)
+                    self._emit_log_event(message)
                 skipped_rows.append(self._build_skipped_row(function_names, config_pairs))
                 continue
-
-            cfg_id = config_id(config_pairs)
             script, metric_ids = build_k6_script(self.config, config_pairs)
             script_entries.append({"config_id": cfg_id, "script": script})
 
             overload_counter = 0
             try:
-                for iteration in range(1, self.config.iterations + 1):
+                for iteration in range(1, total_iterations + 1):
+                    message = (
+                        "DFaaS config "
+                        f"{idx}/{total_configs} iter {iteration}/{total_iterations} "
+                        f"({cfg_id}): {pairs_label}"
+                    )
+                    logger.info("%s", message)
+                    self._emit_log_event(message)
                     idle_snapshot, rest_seconds = self._cooldown(
                         runner,
                         queries_by_name,
@@ -722,6 +760,7 @@ class DfaasGenerator(BaseGenerator):
 
         target_name = os.environ.get("LB_RUN_HOST") or os.uname().nodename
         run_id = self._resolve_run_id()
+        log_stream = self._start_k6_log_stream(config_id_value, target_name, run_id)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -763,12 +802,15 @@ class DfaasGenerator(BaseGenerator):
                 "-e",
                 f"k6_workspace_root={self.config.k6_workspace_root}",
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                raise RuntimeError(
-                    f"k6 playbook failed: {result.stdout}\n{result.stderr}"
-                )
-            return json.loads(summary_path.read_text())
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"k6 playbook failed: {result.stdout}\n{result.stderr}"
+                    )
+                return json.loads(summary_path.read_text())
+            finally:
+                self._stop_k6_log_stream(log_stream)
 
     def _resolve_run_id(self) -> str:
         if self.config.run_id:
@@ -783,11 +825,139 @@ class DfaasGenerator(BaseGenerator):
                 pass
         return f"run-{int(time.time())}"
 
+    def _ensure_event_context(self) -> None:
+        if self._event_run_id is not None:
+            return
+        self._event_run_id = self._resolve_run_id()
+        self._event_host = os.environ.get("LB_RUN_HOST") or os.uname().nodename
+        repetition = _parse_int(os.environ.get("LB_RUN_REPETITION"), 1)
+        total = _parse_int(os.environ.get("LB_RUN_TOTAL_REPS"), repetition)
+        self._event_repetition = repetition
+        self._event_total_reps = total
+
+    def _emit_log_event(self, message: str, *, level: str = "INFO") -> None:
+        if os.environ.get("LB_ENABLE_EVENT_LOGGING") != "1":
+            return
+        root_logger = logging.getLogger()
+        if any(isinstance(handler, LBEventLogHandler) for handler in root_logger.handlers):
+            return
+        self._ensure_event_context()
+        if (
+            self._event_run_id is None
+            or self._event_host is None
+            or self._event_repetition is None
+            or self._event_total_reps is None
+        ):
+            return
+        event = RunEvent(
+            run_id=self._event_run_id,
+            host=self._event_host,
+            workload="dfaas",
+            repetition=self._event_repetition,
+            total_repetitions=self._event_total_reps,
+            status="running",
+            message=message,
+            timestamp=time.time(),
+            type="log",
+            level=level,
+        )
+        self._event_emitter.emit(event)
+
+    def _start_k6_log_stream(
+        self, config_id_value: str, target_name: str, run_id: str
+    ) -> _K6LogStream | None:
+        if not self.config.k6_log_stream:
+            return None
+        key_path = Path(self.config.k6_ssh_key).expanduser()
+        log_path = (
+            f"{self.config.k6_workspace_root.rstrip('/')}/"
+            f"{target_name}/{run_id}/{config_id_value}/k6.log"
+        )
+        wait_cmd = (
+            "until test -f {path}; do sleep 1; done; tail -n 0 -F {path}"
+        ).format(path=shlex.quote(log_path))
+        remote_cmd = f"bash -lc {shlex.quote(wait_cmd)}"
+        cmd = [
+            "ssh",
+            "-i",
+            str(key_path),
+            "-p",
+            str(self.config.k6_port),
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            f"{self.config.k6_user}@{self.config.k6_host}",
+            remote_cmd,
+        ]
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+        except FileNotFoundError:
+            logger.warning("k6 log stream disabled: ssh not available")
+            return None
+
+        stop_event = threading.Event()
+
+        def _reader(stream: Any, label: str) -> None:
+            for line in iter(stream.readline, ""):
+                if stop_event.is_set():
+                    break
+                clean = line.rstrip()
+                if clean:
+                    message = f"k6[{config_id_value}] {label}: {clean}"
+                    logger.info("%s", message)
+                    self._emit_log_event(message)
+
+        threads = [
+            threading.Thread(
+                target=_reader, args=(proc.stdout, "stdout"), daemon=True
+            ),
+            threading.Thread(
+                target=_reader, args=(proc.stderr, "stderr"), daemon=True
+            ),
+        ]
+        for thread in threads:
+            thread.start()
+        message = f"k6[{config_id_value}] log stream started"
+        logger.info("%s", message)
+        self._emit_log_event(message)
+        return _K6LogStream(
+            config_id=config_id_value,
+            proc=proc,
+            stop_event=stop_event,
+            threads=threads,
+        )
+
+    def _stop_k6_log_stream(self, stream: _K6LogStream | None) -> None:
+        if not stream:
+            return
+        stream.stop_event.set()
+        if stream.proc.poll() is None:
+            stream.proc.terminate()
+            try:
+                stream.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                stream.proc.kill()
+        for thread in stream.threads:
+            thread.join(timeout=1)
+        message = f"k6[{stream.config_id}] log stream stopped"
+        logger.info("%s", message)
+        self._emit_log_event(message)
+
 
 def _within_threshold(value: float, baseline: float, threshold_pct: float) -> bool:
     if math.isnan(baseline) or math.isnan(value):
         return True
     return value <= baseline + (baseline * threshold_pct)
+
+
+def _parse_int(value: str | None, default: int) -> int:
+    try:
+        return int(value) if value is not None else default
+    except (TypeError, ValueError):
+        return default
 
 
 def _format_float(value: float) -> str:
