@@ -1,0 +1,135 @@
+- name: "{{ run_prefix }} Poll LB_EVENT stream"
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      python3 - <<'PY'
+      import json
+      import os
+      import signal
+      import sys
+      import time
+
+      log_path = "{{ workload_runner_output_dir | default('/tmp') }}/lb_events.stream.log"
+      offset_path = "{{ workload_runner_output_dir | default('/tmp') }}/lb_events.offset"
+      status_path = "{{ workload_runner_workdir }}/lb_localrunner.status.json"
+      pid_path = "{{ workload_runner_workdir }}/lb_localrunner.pid"
+      workload = "{{ workload_runner_current_workload }}"
+      rep = int("{{ workload_runner_current_rep }}")
+      poll_timeout = int("{{ workload_runner_poll_timeout_seconds | default(7200) }}")
+      start_time_path = "{{ workload_runner_workdir }}/lb_poll_start.time"
+
+      # Track polling start time for timeout detection
+      poll_start = time.time()
+      if os.path.exists(start_time_path):
+          try:
+              with open(start_time_path, "r") as f:
+                  poll_start = float(f.read().strip())
+          except (ValueError, OSError):
+              pass
+      else:
+          with open(start_time_path, "w") as f:
+              f.write(str(poll_start))
+
+      offset = 0
+      try:
+          with open(offset_path, "r", encoding="utf-8") as handle:
+              offset = int(handle.read().strip() or 0)
+      except (ValueError, OSError):
+          offset = 0
+
+      def is_process_running(pid: str) -> bool:
+          """Check if process is running using multiple methods."""
+          if not pid.isdigit():
+              return False
+          pid_int = int(pid)
+          # Method 1: Check /proc (Linux)
+          if os.path.exists(f"/proc/{pid}"):
+              return True
+          # Method 2: Try sending signal 0 (works on Unix)
+          try:
+              os.kill(pid_int, 0)
+              return True
+          except (ProcessLookupError, PermissionError):
+              pass
+          except OSError:
+              return True  # Process exists but we can't signal it
+          return False
+
+      crashed = False
+      timed_out = False
+
+      # Check for timeout
+      elapsed = time.time() - poll_start
+      if elapsed > poll_timeout:
+          timed_out = True
+          print("LB_EVENT " + json.dumps({
+              "workload": workload,
+              "repetition": rep,
+              "status": "failed",
+              "message": f"Polling timeout after {int(elapsed)}s (max: {poll_timeout}s)"
+          }))
+
+      # Check for crash if not timed out
+      if not timed_out and os.path.exists(pid_path) and not os.path.exists(status_path):
+          try:
+              with open(pid_path, "r") as f:
+                  pid = f.read().strip()
+              if not is_process_running(pid):
+                  crashed = True
+                  print("LB_EVENT " + json.dumps({
+                      "workload": workload,
+                      "repetition": rep,
+                      "status": "failed",
+                      "message": "LocalRunner crashed (process not found)"
+                  }))
+          except OSError:
+              pass
+
+      finished = os.path.exists(status_path) or crashed or timed_out
+      found_done = False
+      if os.path.exists(log_path):
+          with open(log_path, "rb") as handle:
+              handle.seek(offset)
+              while True:
+                  pos = handle.tell()
+                  line = handle.readline()
+                  if not line or not line.endswith(b"\n"):
+                      offset = pos
+                      break
+                  offset = handle.tell()
+                  if b"LB_EVENT" in line:
+                      sys.stdout.buffer.write(line)
+                      try:
+                          ev = json.loads(line.decode("utf-8").split("LB_EVENT", 1)[1].strip())
+                          if ev.get("workload") == workload and int(ev.get("repetition", 0)) == rep:
+                              if str(ev.get("status")).lower() in ("done", "failed", "stopped"):
+                                  found_done = True
+                      except (json.JSONDecodeError, ValueError, KeyError):
+                          pass
+          with open(offset_path, "w") as handle:
+              handle.write(str(offset))
+
+      if finished or found_done:
+          # Clean up start time file
+          try:
+              os.remove(start_time_path)
+          except OSError:
+              pass
+          print("LB_POLL_STATUS: DONE")
+      else:
+          print("LB_POLL_STATUS: CONTINUE")
+      PY
+  args:
+    executable: /bin/bash
+  register: poll_out
+  changed_when: false
+
+- name: "{{ run_prefix }} Update finished status"
+  ansible.builtin.set_fact:
+    workload_runner_finished: true
+  when: "'LB_POLL_STATUS: DONE' in poll_out.stdout"
+
+- name: "{{ run_prefix }} Delay"
+  ansible.builtin.command: "sleep {{ workload_runner_poll_delay | default(10) | int }}"
+  changed_when: false
+  when: not workload_runner_finished
