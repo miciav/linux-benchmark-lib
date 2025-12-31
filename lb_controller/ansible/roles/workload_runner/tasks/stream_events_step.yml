@@ -124,6 +124,12 @@
   register: poll_out
   changed_when: false
 
+- name: "{{ run_prefix }} Streaming indicator"
+  ansible.builtin.debug:
+    msg: "Stream LB_EVENT lines while run is active"
+  changed_when: false
+  when: poll_out is not defined
+
 - name: "{{ run_prefix }} Update finished status"
   ansible.builtin.set_fact:
     workload_runner_finished: true
