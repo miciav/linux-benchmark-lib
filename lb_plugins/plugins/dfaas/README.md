@@ -154,7 +154,7 @@ ansible-playbook -i k6_inventory.ini lb_plugins/plugins/dfaas/ansible/setup_k6.y
 ```
 
 Key variables:
-- `k6_workspace_root` (default `/var/lib/dfaas-k6`)
+- `k6_workspace_root` (default `/home/<k6_user>/.dfaas-k6`)
 - `k6_version` (default `0.49.0`)
 
 Verification:
@@ -265,7 +265,7 @@ All fields live under `plugins.dfaas` unless noted.
 - `k6_user` (str, default `ubuntu`): SSH user for k6 host.
 - `k6_ssh_key` (str, default `~/.ssh/id_rsa`): SSH private key.
 - `k6_port` (int, default 22): SSH port.
-- `k6_workspace_root` (str, default `/var/lib/dfaas-k6`): workspace root on k6 host.
+- `k6_workspace_root` (str, default `/home/<k6_user>/.dfaas-k6`): workspace root on k6 host.
 
 ### OpenFaaS and Prometheus
 - `gateway_url` (str, default `http://127.0.0.1:31112`): OpenFaaS gateway URL.
@@ -458,7 +458,7 @@ curl -X POST http://<target-ip>:31112/function/figlet -d "test"
 ssh k6-host k6 version
 
 # View k6 workspace
-ssh k6-host ls -la /var/lib/dfaas-k6/
+ssh k6-host ls -la /home/<k6_user>/.dfaas-k6/
 ```
 
 ### Debug mode

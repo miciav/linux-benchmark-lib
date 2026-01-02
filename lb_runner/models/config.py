@@ -31,7 +31,9 @@ class PerfConfig(BaseModel):
     cpu: Optional[int] = Field(default=None, ge=0, description="CPU to profile")
 
 
-DEFAULT_LB_WORKDIR = "{{ ansible_facts['user_dir'] }}/.lb"
+DEFAULT_LB_WORKDIR = (
+    "{{ (ansible_user == 'root') | ternary('/root', '/home/' ~ ansible_user) }}/.lb"
+)
 
 
 class MetricCollectorConfig(BaseModel):

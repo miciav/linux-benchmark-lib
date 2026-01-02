@@ -27,16 +27,16 @@ On `dfaas-target`:
 - [ ] Verify LocalRunner is running:
       `ps aux | grep -E "async_localrunner|lb_runner"`
 - [ ] Inspect pid/status:
-      `/opt/lb/lb_localrunner.pid`
-      `/opt/lb/lb_localrunner.status.json`
+      `/home/<user>/.lb/lb_localrunner.pid`
+      `/home/<user>/.lb/lb_localrunner.status.json`
 - [ ] Confirm generated config exists:
-      `/opt/lb/benchmark_config.generated.json`
+      `/home/<user>/.lb/benchmark_config.generated.json`
 - [ ] Tail the event stream live:
       `tail -f /tmp/benchmark_results/<run-id>/dfaas-target/lb_events.stream.log`
 
 On `dfaas-generator`:
 - [ ] Locate and tail k6 log:
-      `/var/lib/dfaas-k6/<target>/<run-id>/<config-id>/k6.log`
+      `/home/<k6_user>/.dfaas-k6/<target>/<run-id>/<config-id>/k6.log`
 - [ ] Verify k6 process is running.
 
 On local controller:

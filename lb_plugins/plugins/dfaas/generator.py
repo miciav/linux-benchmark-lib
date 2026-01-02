@@ -440,16 +440,24 @@ class DfaasGenerator(BaseGenerator):
         self._emit_log_event(message)
 
         # Wait for cooldown
+        logger.info("DFaaS cooldown start (%s)", cfg_id)
         cooldown_result = ctx.cooldown_manager.wait_for_idle(
             ctx.base_idle, getattr(ctx, "function_names", [])
         )
         idle_snapshot = cooldown_result.snapshot
         rest_seconds = cooldown_result.waited_seconds
+        logger.info("DFaaS cooldown complete (%s) waited=%ds", cfg_id, rest_seconds)
 
         # Execute k6 test
         start_time = time.time()
+        logger.info("DFaaS k6 execute start (%s)", cfg_id)
         k6_result = self._k6_runner.execute(
             cfg_id, script, ctx.target_name, ctx.run_id
+        )
+        logger.info(
+            "DFaaS k6 execute done (%s) duration=%.1fs",
+            cfg_id,
+            k6_result.duration_seconds,
         )
         summary_data = k6_result.summary
         end_time = time.time()

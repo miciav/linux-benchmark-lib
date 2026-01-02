@@ -3,9 +3,14 @@
   hosts: all
   become: true
   vars:
-    k6_workspace_root: "/var/lib/dfaas-k6"
-    k6_key_url: "https://dl.k6.io/key.gpg"
+    k6_workspace_root: >-
+      {{
+        (ansible_user == 'root')
+        | ternary('/root/.dfaas-k6', '/home/' ~ ansible_user ~ '/.dfaas-k6')
+      }}
     k6_keyring_path: "/usr/share/keyrings/k6-archive-keyring.gpg"
+    k6_keyserver: "hkp://keyserver.ubuntu.com:80"
+    k6_key_fingerprint: "C5AD17C747E3415A3642D57D77C6C491D6AC1D69"
     k6_repo: "deb [signed-by={{ k6_keyring_path }}] https://dl.k6.io/deb stable main"
     k6_version: "0.49.0"
     k6_arch_map:
@@ -15,6 +20,7 @@
       arm64: "arm64"
     k6_arch: "{{ k6_arch_map.get(ansible_facts['architecture'], 'amd64') }}"
     k6_tarball_url: "https://github.com/grafana/k6/releases/download/v{{ k6_version }}/k6-v{{ k6_version }}-linux-{{ k6_arch }}.tar.gz"
+    k6_tarball_url_fallback: "https://dl.k6.io/releases/k6-v{{ k6_version }}-linux-{{ k6_arch }}.tar.gz"
     k6_extract_dir: "/tmp/k6-v{{ k6_version }}-linux-{{ k6_arch }}"
   tasks:
     - name: Install apt dependencies
@@ -31,16 +37,22 @@
         state: directory
         mode: "0755"
 
-    - name: Download k6 repository key
-      ansible.builtin.get_url:
-        url: "{{ k6_key_url }}"
-        dest: "/tmp/k6-key.gpg"
-        mode: "0644"
+    - name: Check for k6 repository key
+      ansible.builtin.command: >-
+        gpg --no-default-keyring
+        --keyring {{ k6_keyring_path }}
+        --list-keys {{ k6_key_fingerprint }}
+      register: k6_key_check
+      changed_when: false
+      failed_when: false
 
-    - name: Install k6 repository key
-      ansible.builtin.command: "gpg --dearmor -o {{ k6_keyring_path }} /tmp/k6-key.gpg"
-      args:
-        creates: "{{ k6_keyring_path }}"
+    - name: Install k6 repository key from keyserver
+      ansible.builtin.command: >-
+        gpg --no-default-keyring
+        --keyring {{ k6_keyring_path }}
+        --keyserver {{ k6_keyserver }}
+        --recv-keys {{ k6_key_fingerprint }}
+      when: k6_key_check.rc != 0
 
     - name: Add k6 APT repository
       ansible.builtin.apt_repository:
@@ -56,11 +68,38 @@
             state: present
             update_cache: true
       rescue:
-        - name: Download k6 tarball
+        - name: Download k6 tarball (primary)
           ansible.builtin.get_url:
             url: "{{ k6_tarball_url }}"
             dest: "/tmp/k6.tar.gz"
             mode: "0644"
+            timeout: 60
+            force: true
+          register: k6_tarball_primary
+          retries: 3
+          delay: 5
+          until: k6_tarball_primary is succeeded
+          ignore_errors: true
+
+        - name: Download k6 tarball (fallback mirror)
+          ansible.builtin.get_url:
+            url: "{{ k6_tarball_url_fallback }}"
+            dest: "/tmp/k6.tar.gz"
+            mode: "0644"
+            timeout: 60
+            force: true
+          register: k6_tarball_fallback
+          retries: 3
+          delay: 5
+          until: k6_tarball_fallback is succeeded
+          when: k6_tarball_primary is failed
+
+        - name: Assert k6 tarball download succeeded
+          ansible.builtin.assert:
+            that:
+              - (k6_tarball_primary is succeeded)
+                or (k6_tarball_fallback is defined and k6_tarball_fallback is succeeded)
+            fail_msg: "k6 tarball download failed from both primary and fallback URLs."
 
         - name: Extract k6 tarball
           ansible.builtin.unarchive:

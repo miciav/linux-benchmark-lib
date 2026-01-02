@@ -54,7 +54,7 @@ def test_build_k6_script_includes_scenarios() -> None:
         k6_user="ubuntu",
         k6_ssh_key="~/.ssh/id_rsa",
         k6_port=22,
-        k6_workspace_root="/var/lib/dfaas-k6",
+        k6_workspace_root="/home/ubuntu/.dfaas-k6",
         gateway_url="http://example.com:31112",
         duration="30s",
     )
@@ -73,7 +73,7 @@ def test_parse_k6_summary_extracts_metrics() -> None:
         k6_user="ubuntu",
         k6_ssh_key="~/.ssh/id_rsa",
         k6_port=22,
-        k6_workspace_root="/var/lib/dfaas-k6",
+        k6_workspace_root="/home/ubuntu/.dfaas-k6",
         gateway_url="http://example.com:31112",
         duration="30s",
     )

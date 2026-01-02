@@ -184,6 +184,7 @@ dev = [
     "pip-audit>=2.9.0",
     "bandit>=1.9.2",
     "semgrep>=1.86.0",
+    "tenacity>=9.1.2",
 ]
 
 [tool.deptry]

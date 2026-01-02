@@ -1,8 +1,8 @@
-- name: "{{ run_prefix }} Skip polling if already finished"
+- name: "Skip polling if already finished"
   ansible.builtin.meta: end_host
   when: workload_runner_finished | default(false)
 
-- name: "{{ run_prefix }} Poll LB_EVENT stream"
+- name: "Poll LB_EVENT stream"
   ansible.builtin.shell:
     cmd: |
       set -euo pipefail
@@ -128,18 +128,18 @@
   register: poll_out
   changed_when: false
 
-- name: "{{ run_prefix }} Streaming indicator"
+- name: "Streaming indicator"
   ansible.builtin.debug:
     msg: "Stream LB_EVENT lines while run is active"
   changed_when: false
   when: poll_out is not defined
 
-- name: "{{ run_prefix }} Update finished status"
+- name: "Update finished status"
   ansible.builtin.set_fact:
     workload_runner_finished: true
   when: "'LB_POLL_STATUS: DONE' in poll_out.stdout"
 
-- name: "{{ run_prefix }} Delay"
+- name: "Delay"
   ansible.builtin.command: "sleep {{ workload_runner_poll_delay | default(10) | int }}"
   changed_when: false
   when: not workload_runner_finished

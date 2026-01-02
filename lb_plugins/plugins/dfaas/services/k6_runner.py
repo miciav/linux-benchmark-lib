@@ -351,6 +351,7 @@ class K6Runner:
     ) -> _K6LogStream | None:
         """Start SSH log streaming from k6 host."""
         if not self.log_stream_enabled:
+            self._log("k6 log stream disabled: log_stream_enabled=false")
             return None
 
         key_path = Path(self.k6_ssh_key).expanduser()
@@ -382,7 +383,7 @@ class K6Runner:
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
         except FileNotFoundError:
-            logger.warning("k6 log stream disabled: ssh not available")
+            self._log("k6 log stream disabled: ssh not available")
             return None
 
         stop_event = threading.Event()

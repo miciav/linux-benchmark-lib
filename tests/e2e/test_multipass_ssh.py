@@ -376,13 +376,14 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
         output_root = tmp_path / "results"
         report_root = tmp_path / "reports"
         export_root = tmp_path / "exports"
+        lb_workdir = "/home/ubuntu/.lb"
         extravars = {
             "run_id": run_id,
             "output_root": str(output_root),
             "remote_output_root": f"/tmp/benchmark_results/{run_id}",
             "report_root": str(report_root),
             "data_export_root": str(export_root),
-            "lb_workdir": "/opt/lb",
+            "lb_workdir": lb_workdir,
             "per_host_output": {vm_name: str(output_root / vm_name)},
             "benchmark_config": {},  # Not used by setup.yml today
             "use_container_fallback": False,
@@ -421,9 +422,9 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             "UserKnownHostsFile=/dev/null",
             f"ubuntu@{ip_addr}",
             (
-                "test -x /opt/lb/.venv/bin/python "
-                "&& test -f /opt/lb/lb_controller/__init__.py "
-                "&& test -f /opt/lb/lb_common/logging.py"
+                f"test -x {lb_workdir}/.venv/bin/python "
+                f"&& test -f {lb_workdir}/lb_controller/__init__.py "
+                f"&& test -f {lb_workdir}/lb_common/logging.py"
             ),
         ]
         subprocess.run(ssh_cmd, check=True)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 import json
 import time
 from pathlib import Path
@@ -9,6 +10,8 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 class PrometheusQueryError(RuntimeError):
@@ -155,10 +158,17 @@ class PrometheusQueryRunner:
         self, url: str, params: dict[str, str]
     ) -> dict[str, Any]:
         start = time.time()
+        logged = False
         while True:
             payload = self._request_json(url, params)
             if payload.get("data", {}).get("result"):
                 return payload
+            if not logged:
+                logger.info(
+                    "Prometheus query returned no data yet; retrying for up to %ss",
+                    self._retry_seconds,
+                )
+                logged = True
             if time.time() - start > self._retry_seconds:
                 raise PrometheusQueryError("Prometheus query timed out.")
             time.sleep(self._sleep_seconds)

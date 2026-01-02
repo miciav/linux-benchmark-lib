@@ -24,10 +24,10 @@
     k6_user: "ubuntu"
     k6_ssh_key: ""
     k6_port: 22
-    k6_workspace_root: "/var/lib/dfaas-k6"
+    k6_workspace_root: "/home/ubuntu/.dfaas-k6"
     k6_setup_enabled: true
     k6_setup_playbook_path: ""
-    lb_workdir: "{{ ansible_facts['user_dir'] }}/.lb"
+    lb_workdir: "{{ (ansible_user == 'root') | ternary('/root', '/home/' ~ ansible_user) }}/.lb"
   tasks:
     - name: Install base packages
       ansible.builtin.apt:
@@ -206,7 +206,10 @@
           {{
             ((lb_workdir | default('')) | length > 0)
             | ternary(
-              (lb_workdir | default(ansible_facts['user_dir'] ~ '/.lb')) ~ '/lb_plugins/plugins/dfaas/ansible/setup_k6.yml',
+              (
+                lb_workdir
+                | default((ansible_user == 'root') | ternary('/root', '/home/' ~ ansible_user) ~ '/.lb')
+              ) ~ '/lb_plugins/plugins/dfaas/ansible/setup_k6.yml',
               playbook_dir ~ '/setup_k6.yml'
             )
           }}

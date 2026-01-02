@@ -3,7 +3,11 @@
   hosts: all
   become: true
   vars:
-    k6_workspace_root: "/var/lib/dfaas-k6"
+    k6_workspace_root: >-
+      {{
+        (ansible_user == 'root')
+        | ternary('/root/.dfaas-k6', '/home/' ~ ansible_user ~ '/.dfaas-k6')
+      }}
     target_name: ""
     run_id: ""
     config_id: ""

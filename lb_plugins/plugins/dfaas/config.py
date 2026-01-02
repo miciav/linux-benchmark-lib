@@ -21,6 +21,7 @@ _ALLOWED_HTTP_METHODS = {
     "OPTIONS",
 }
 _DURATION_RE = re.compile(r"^(?P<value>[0-9]+)(?P<unit>ms|s|m|h)$")
+_DEFAULT_K6_WORKSPACE_ROOT = "/home/ubuntu/.dfaas-k6"
 
 
 def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
@@ -156,7 +157,8 @@ class DfaasConfig(BasePluginConfig):
     k6_ssh_key: str = Field(default="~/.ssh/id_rsa", description="SSH private key path")
     k6_port: int = Field(default=22, ge=1, le=65535, description="SSH port")
     k6_workspace_root: str = Field(
-        default="/var/lib/dfaas-k6", description="Workspace root on k6 host"
+        default=_DEFAULT_K6_WORKSPACE_ROOT,
+        description="Workspace root on k6 host",
     )
     k6_log_stream: bool = Field(
         default=True,
@@ -269,4 +271,14 @@ class DfaasConfig(BasePluginConfig):
                 f"openfaas_port and k6_port (SSH) must be different "
                 f"(both set to {self.openfaas_port})"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _normalize_k6_workspace_root(self) -> "DfaasConfig":
+        if self.k6_workspace_root != _DEFAULT_K6_WORKSPACE_ROOT:
+            return self
+        if self.k6_user == "root":
+            self.k6_workspace_root = "/root/.dfaas-k6"
+        elif self.k6_user != "ubuntu":
+            self.k6_workspace_root = f"/home/{self.k6_user}/.dfaas-k6"
         return self
