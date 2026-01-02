@@ -1,13 +1,14 @@
 - name: Setup Phoronix Test Suite workload profile
   hosts: all
-  gather_facts: false
+  gather_facts: true
   become: true
 
   vars:
     pts_profile: "{{ pts_profile | default('') }}"
     pts_deb_relpath: "{{ pts_deb_relpath | default('') }}"
+    lb_workdir: "{{ ansible_facts['user_dir'] }}/.lb"
     # This is used as PTS_USER_PATH_OVERRIDE (must be a directory path with trailing slash).
-    pts_home_root: "{{ pts_home_root | default('/opt/lb/.phoronix-test-suite/') }}"
+    pts_home_root: "{{ pts_home_root | default(lb_workdir + '/.phoronix-test-suite/') }}"
     pts_apt_packages: "{{ pts_apt_packages | default(['gdebi-core', 'unzip']) }}"
 
   tasks:
@@ -37,7 +38,7 @@
     - name: Install phoronix-test-suite from bundled .deb (via gdebi)
       ansible.builtin.shell: |
         set -e
-        DEB="{{ lb_workdir | default('/opt/lb') }}/{{ pts_deb_relpath }}"
+        DEB="{{ lb_workdir }}/{{ pts_deb_relpath }}"
         test -f "$DEB"
         gdebi -n "$DEB"
       when: pts_installed.rc != 0

@@ -1,8 +1,11 @@
 from unittest.mock import MagicMock
+
 import pytest
 
+from lb_plugins.api import StressNGConfig
 from lb_runner.api import (
     BenchmarkConfig,
+    LocalRunner,
     MetricCollectorConfig,
     PerfConfig,
     WorkloadConfig,
@@ -10,8 +13,6 @@ from lb_runner.api import (
 
 pytestmark = [pytest.mark.inter_generic, pytest.mark.slow]
 
-from lb_plugins.api import StressNGConfig
-from lb_runner.api import LocalRunner
 
 def test_run_stress_ng_benchmark(tmp_path, mocker):
     """

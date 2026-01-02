@@ -2,7 +2,6 @@
 
 from types import SimpleNamespace
 
-import pytest
 
 from lb_common.api import RemoteHostSpec
 from lb_controller.api import ControllerState, RunExecutionSummary

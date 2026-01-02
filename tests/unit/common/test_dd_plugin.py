@@ -1,5 +1,7 @@
 import platform
 import subprocess
+import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -23,7 +25,9 @@ def test_dd_build_command_linux(monkeypatch: pytest.MonkeyPatch) -> None:
     cfg = DDConfig(count=5, conv="fdatasync", oflag="direct")
     cmd = DDGenerator(cfg)._build_command()
     assert "if=/dev/zero" in cmd
-    assert "of=/tmp/lb_dd_test" in cmd
+    assert f"of={cfg.of_path}" in cmd
+    output_path = Path(cfg.of_path)
+    assert output_path.is_relative_to(Path(tempfile.gettempdir()))
     assert "count=5" in cmd
     assert "conv=fdatasync" in cmd
     assert "oflag=direct" in cmd

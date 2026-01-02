@@ -3,6 +3,7 @@ import pytest
 from lb_controller.api import (
     BenchmarkController,
     BenchmarkConfig,
+    ControllerOptions,
     ExecutionResult,
     RemoteHostConfig,
     RunJournal,
@@ -53,7 +54,7 @@ def test_resume_runs_pending_repetitions_only(tmp_path):
     journal.save(journal_path)
 
     executor = FakeExecutor()
-    controller = BenchmarkController(cfg, executor=executor)
+    controller = BenchmarkController(cfg, ControllerOptions(executor=executor))
 
     controller.run(
         ["stress_ng"],

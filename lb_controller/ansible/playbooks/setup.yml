@@ -6,8 +6,7 @@
   vars:
     run_id: "{{ run_id | default('unknown') }}"
     use_container_fallback: "{{ use_container_fallback | default(false) }}"
-    # Define a consistent workdir for the benchmark library on remote hosts
-    lb_workdir: "/opt/lb"
+    # lb_workdir is provided by the controller to define the install root.
     lb_uv_install_dir: "{{ lb_workdir }}/.local/bin"
     lb_uv_bin: "{{ lb_uv_install_dir }}/uv"
     lb_uv_python_version: "3.12"
@@ -134,3 +133,11 @@
         path: "{{ output_root }}"
         state: directory
         mode: "0755"
+
+    - name: Set ownership of benchmark library directory
+      ansible.builtin.file:
+        path: "{{ lb_workdir }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        recurse: true

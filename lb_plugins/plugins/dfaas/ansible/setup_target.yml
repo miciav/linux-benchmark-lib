@@ -27,6 +27,7 @@
     k6_workspace_root: "/var/lib/dfaas-k6"
     k6_setup_enabled: true
     k6_setup_playbook_path: ""
+    lb_workdir: "{{ ansible_facts['user_dir'] }}/.lb"
   tasks:
     - name: Install base packages
       ansible.builtin.apt:
@@ -205,15 +206,15 @@
           {{
             ((lb_workdir | default('')) | length > 0)
             | ternary(
-              lb_workdir + '/lb_plugins/plugins/dfaas/ansible/setup_k6.yml',
-              playbook_dir + '/setup_k6.yml'
+              (lb_workdir | default(ansible_facts['user_dir'] ~ '/.lb')) ~ '/lb_plugins/plugins/dfaas/ansible/setup_k6.yml',
+              playbook_dir ~ '/setup_k6.yml'
             )
           }}
       when: k6_setup_enabled
 
     - name: Copy Prometheus manifests
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../legacy_materials/infrastructure/"
+        src: "{{ playbook_dir }}/manifests/"
         dest: "{{ prometheus_manifests_dir }}/"
         mode: "0644"
 

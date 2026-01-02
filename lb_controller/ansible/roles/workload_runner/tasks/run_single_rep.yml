@@ -56,6 +56,7 @@
         LB_BENCH_CONFIG_PATH: "{{ workload_runner_workdir }}/benchmark_config.generated.json"
         LB_EVENT_STREAM_PATH: "{{ workload_runner_output_dir | default('/tmp') }}/lb_events.stream.log"
         LB_ENABLE_EVENT_LOGGING: "1"
+        LB_LOG_LEVEL: "INFO"
         LB_RUN_DAEMONIZE: "1"
         LB_RUN_PID_PATH: "{{ workload_runner_workdir }}/lb_localrunner.pid"
         LB_RUN_STATUS_PATH: "{{ workload_runner_workdir }}/lb_localrunner.status.json"

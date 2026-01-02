@@ -59,8 +59,12 @@ class TUIAdapter(UIAdapter):
         # Then prompt for intensity
         levels = ["low", "medium", "high"]
         # Use simple prompt or picker? Picker is better.
-        l_items = [PickItem(id=l, title=l) for l in levels]
-        level_sel = self.tui.picker.pick_one(l_items, title="Select Intensity", query_hint=default_level)
+        level_items = [PickItem(id=level_name, title=level_name) for level_name in levels]
+        level_sel = self.tui.picker.pick_one(
+            level_items,
+            title="Select Intensity",
+            query_hint=default_level,
+        )
         level = level_sel.id if level_sel else default_level
         
         return selection.id, level

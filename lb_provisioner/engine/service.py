@@ -5,14 +5,12 @@ from __future__ import annotations
 import inspect
 import logging
 import os
-from typing import List
 
 from lb_provisioner.providers.docker import DockerProvisioner
 from lb_provisioner.providers.multipass import MultipassProvisioner
 from lb_provisioner.providers.remote import RemoteProvisioner
 from lb_provisioner.models.types import (
     MAX_NODES,
-    ProvisionedNode,
     ProvisioningError,
     ProvisioningMode,
     ProvisioningRequest,

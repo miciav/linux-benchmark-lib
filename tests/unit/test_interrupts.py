@@ -1,8 +1,7 @@
 """Unit tests for interrupt handling state machine."""
 
 import signal
-import time
-from unittest.mock import Mock, call, patch, ANY
+from unittest.mock import Mock, patch, ANY
 
 import pytest
 

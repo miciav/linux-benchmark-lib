@@ -11,7 +11,6 @@ import jc
 from typing import Dict, Any, List
 
 from ._base_collector import BaseCollector
-from .aggregators import aggregate_cli
 
 
 logger = logging.getLogger(__name__)

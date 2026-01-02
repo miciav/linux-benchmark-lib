@@ -1,7 +1,6 @@
 """Unit tests for the StopCoordinator state machine."""
 
 import time
-from unittest.mock import MagicMock
 
 import pytest
 

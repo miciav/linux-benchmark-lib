@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import List, Optional
 
 import typer
 
-from lb_app.api import AnalyticsRequest, ConfigService, RunCatalogService
+from lb_app.api import AnalyticsRequest, RunCatalogService
 from lb_ui.tui.system.models import PickItem, TableModel
 
 
 from lb_ui.wiring.dependencies import UIContext
-from lb_ui.tui.system.models import PickItem, TableModel
 
 
 def create_runs_app(ctx: UIContext) -> typer.Typer:

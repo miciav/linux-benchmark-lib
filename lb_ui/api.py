@@ -33,13 +33,7 @@ __all__ = [
     "_PickerApp",
     "PickItem",
     "SelectionNode",
-    "config_service",
-    "doctor_service",
-    "test_service",
-    "analytics_service",
-    "app_client",
-    "ui",
-    "ui_adapter",
-    "DEV_MODE",
-    "subprocess",
+    # Dynamic exports via __getattr__ forwarding to lb_ui.cli:
+    # config_service, doctor_service, test_service, analytics_service,
+    # app_client, ui, ui_adapter, DEV_MODE, subprocess
 ]

@@ -4,7 +4,7 @@ Unit tests for the Baseline workload plugin.
 
 import threading
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError

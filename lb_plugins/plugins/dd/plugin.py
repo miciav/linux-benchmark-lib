@@ -7,6 +7,8 @@ import logging
 import os
 import platform
 import subprocess
+import tempfile
+import uuid
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -18,11 +20,20 @@ from ...base_generator import CommandGenerator, CommandSpec
 logger = logging.getLogger(__name__)
 
 
+def _default_dd_output_path() -> str:
+    temp_root = Path(tempfile.gettempdir())
+    unique = uuid.uuid4().hex
+    return str(temp_root / f"lb_dd_test_{os.getpid()}_{unique}")
+
+
 class DDConfig(BasePluginConfig):
     """Configuration for dd workload."""
 
     if_path: str = Field(default="/dev/zero", description="Input file path")
-    of_path: str = Field(default="/tmp/lb_dd_test", description="Output file path")
+    of_path: str = Field(
+        default_factory=_default_dd_output_path,
+        description="Output file path",
+    )
     bs: str = Field(default="1M", description="Block size for reads/writes (e.g., 1M, 4k)")
     count: Optional[int] = Field(default=None, ge=1, description="Number of blocks to copy (None means run until stopped by runner duration)")
     conv: Optional[str] = Field(default="fdatasync", description="Conversion options (e.g., fdatasync, noerror, sync)")
@@ -113,7 +124,7 @@ class DDGenerator(CommandGenerator):
             logger.info("dd stderr output:\n%s", stderr)
 
         output_path = Path(self.config.of_path).resolve()
-        tmp_dir = Path("/tmp").resolve()
+        tmp_dir = Path(tempfile.gettempdir()).resolve()
         if output_path.exists() and output_path.is_relative_to(tmp_dir):
             try:
                 output_path.unlink()

@@ -5,7 +5,7 @@ import json
 import time
 from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import yaml
@@ -102,7 +102,7 @@ class PrometheusQueryRunner:
         base_url: str,
         *,
         timeout_seconds: float = 10.0,
-        retry_seconds: int = 30,
+        retry_seconds: int = 120,
         sleep_seconds: int = 1,
     ) -> None:
         self._base_url = base_url.rstrip("/")
@@ -164,7 +164,10 @@ class PrometheusQueryRunner:
             time.sleep(self._sleep_seconds)
 
     def _request_json(self, url: str, params: dict[str, str]) -> dict[str, Any]:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError(f"Unsupported URL scheme for Prometheus: {parsed.scheme}")
         query_string = urlencode(params)
         request = Request(f"{url}?{query_string}")
-        with urlopen(request, timeout=self._timeout_seconds) as response:
+        with urlopen(request, timeout=self._timeout_seconds) as response:  # nosec B310
             return json.loads(response.read().decode("utf-8"))

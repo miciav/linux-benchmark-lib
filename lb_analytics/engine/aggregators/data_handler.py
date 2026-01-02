@@ -8,10 +8,8 @@ DataFrames suitable for analysis and reporting.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any, Dict, List, Optional, TypedDict
 
-import numpy as np
 import pandas as pd
 
 from lb_analytics.engine.aggregators.collectors import (

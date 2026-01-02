@@ -1,6 +1,5 @@
 Project API not found in grimp; falling back to build_graph.
 Installed grimp version: 3.14
 Error: No module named 'grimp.adaptors.project'
-Import cycles in lb_runner: 2
-  - lb_runner.services.system_info -> lb_runner.services.system_info_cli -> lb_runner.services.system_info_io -> lb_runner.services.system_info
-  - lb_runner.services.system_info -> lb_runner.services.system_info_cli -> lb_runner.services.system_info_service -> lb_runner.services.system_info
+Import cycles in lb_plugins: 1
+  - lb_plugins.plugins.dfaas.generator -> lb_plugins.plugins.dfaas.plugin -> lb_plugins.plugins.dfaas.generator

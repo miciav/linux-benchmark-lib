@@ -9,36 +9,23 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional
 
-from lb_plugins.api import PluginAssetConfig
-from lb_runner.api import BenchmarkConfig, RemoteHostConfig, RunEvent, StopToken
+from lb_runner.api import BenchmarkConfig, RunEvent
 
 from lb_controller.models.state import ControllerState, ControllerStateMachine
-from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
 from lb_controller.services.journal import RunJournal
-from lb_controller.adapters.playbooks import (
-    execute_run_playbook,
-    handle_collect_phase,
-    run_for_hosts,
-    run_global_setup,
-    run_global_teardown,
-    run_teardown_playbook,
-    run_workload_execution,
-    run_workload_setup,
-)
-from lb_controller.engine.stop_logic import handle_stop_during_workloads, handle_stop_protocol
+from lb_controller.adapters.playbooks import run_global_setup
 from lb_controller.engine.run_state import RunFlags, RunState
 from lb_controller.services.paths import generate_run_id, prepare_per_host_dirs, prepare_run_dirs
 from lb_controller.engine.stops import StopCoordinator
 from lb_controller.engine.lifecycle import RunLifecycle, RunPhase
-from lb_controller.models.types import (
-    ExecutionResult,
-    InventorySpec,
-    RemoteExecutor,
-    RunExecutionSummary,
-)
-from lb_controller.models.pending import pending_hosts_for, pending_repetitions
+from lb_controller.models.types import ExecutionResult, InventorySpec, RunExecutionSummary
+from lb_controller.models.controller_options import ControllerOptions
+from lb_controller.services.controller_context import ControllerContext
+from lb_controller.services.teardown_service import TeardownService
+from lb_controller.services.ui_notifier import UINotifier
+from lb_controller.services.workload_runner import WorkloadRunner
 
 logger = logging.getLogger(__name__)
 
@@ -49,36 +36,43 @@ class BenchmarkController:
     def __init__(
         self,
         config: BenchmarkConfig,
-        executor: Optional[RemoteExecutor] = None,
-        output_callback: Optional[Callable[[str, str], None]] = None,
-        output_formatter: Optional[Any] = None,  # Inject the formatter instance
-        journal_refresh: Optional[Callable[[], None]] = None,
-        stop_token: StopToken | None = None,
-        stop_timeout_s: float = 30.0,
-        state_machine: ControllerStateMachine | None = None,
-    ):
+        options: ControllerOptions | None = None,
+    ) -> None:
         self.config = config
         from lb_controller.services.paths import apply_playbook_defaults
         from lb_plugins.api import apply_plugin_assets, create_registry
         apply_playbook_defaults(self.config)
         if not self.config.plugin_assets:
             apply_plugin_assets(self.config, create_registry())
-        self.output_formatter = output_formatter
-        self.stop_token = stop_token
-        self._stop_timeout_s = stop_timeout_s
+        self._options = options or ControllerOptions()
+        self.output_formatter = self._options.output_formatter
+        self.stop_token = self._options.stop_token
+        self._stop_timeout_s = self._options.stop_timeout_s
         self.lifecycle = RunLifecycle()
-        self.state_machine = state_machine or ControllerStateMachine()
-        # Enable streaming if a callback is provided
-        stream = output_callback is not None
-        self.executor = executor or AnsibleRunnerExecutor(
-            output_callback=output_callback,
-            stream_output=stream,
-            stop_token=stop_token,
-        )
-        self._journal_refresh = journal_refresh
-        # Use event stream as the source of truth; avoid mass RUNNING/COMPLETED updates.
+        self.state_machine = self._options.state_machine or ControllerStateMachine()
+        self.executor = self._options.build_executor()
         self._use_progress_stream = True
-        self.coordinator: Optional[StopCoordinator] = None
+        self._journal_refresh = self._options.journal_refresh
+        self._context = ControllerContext(
+            config=self.config,
+            executor=self.executor,
+            output_formatter=self.output_formatter,
+            stop_token=self.stop_token,
+            lifecycle=self.lifecycle,
+            state_machine=self.state_machine,
+            journal_refresh=self._journal_refresh,
+            use_progress_stream=self._use_progress_stream,
+        )
+        self._ui = UINotifier(
+            output_formatter=self.output_formatter,
+            journal_refresh=self._journal_refresh,
+        )
+        self.workload_runner = WorkloadRunner(
+            config=self.config,
+            context=self._context,
+            ui_notifier=self._ui,
+        )
+        self.teardown_service = TeardownService(context=self._context)
         self._resume_requested = False
 
     def on_event(self, event: RunEvent) -> None:
@@ -86,35 +80,13 @@ class BenchmarkController:
         if self.coordinator:
             self.coordinator.process_event(event)
 
-    def _transition(self, state: ControllerState, reason: str | None = None) -> None:
-        """Transition controller state and ignore invalid jumps silently."""
-        try:
-            self.state_machine.transition(state, reason=reason)
-        except ValueError:
-            logger.debug("Invalid transition ignored: %s -> %s", self.state_machine.state, state)
+    @property
+    def coordinator(self) -> StopCoordinator | None:
+        return self._context.coordinator
 
-    def _arm_stop(self, reason: str | None = None) -> None:
-        """Arm a coordinated stop (idempotent)."""
-        try:
-            self.state_machine.transition(ControllerState.STOP_ARMED, reason=reason)
-        except Exception:
-            pass
-
-    def _stop_requested(self) -> bool:
-        """Return True when a stop was requested and arm the stop state."""
-        if self.stop_token and self.stop_token.should_stop():
-            self._arm_stop("stop requested")
-            return True
-        return False
-
-    def _refresh_journal(self) -> None:
-        """Trigger UI journal refresh callback when available."""
-        if not self._journal_refresh:
-            return
-        try:
-            self._journal_refresh()
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.debug("Journal refresh callback failed: %s", exc)
+    @coordinator.setter
+    def coordinator(self, value: StopCoordinator | None) -> None:
+        self._context.coordinator = value
 
     def run(
         self,
@@ -146,29 +118,31 @@ class BenchmarkController:
         state = self._prepare_run_state(test_types, run_id, journal, journal_path)
 
         def ui_log(msg: str) -> None:
-            logger.info(msg)
+            self._ui.log(msg)
 
         ui_log(f"Starting Run {state.resolved_run_id}")
 
         if self.config.remote_execution.run_setup:
-            early_summary = self._run_global_setup(state, phases, flags, ui_log)
+            early_summary = run_global_setup(self._context, state, phases, flags, ui_log)
             if early_summary:
                 return early_summary
 
         if (
-            not self._stop_requested()
+            not self._context._stop_requested()
             and self.state_machine.state != ControllerState.RUNNING_WORKLOADS
         ):
-            self._transition(ControllerState.RUNNING_WORKLOADS)
+            self._context._transition(ControllerState.RUNNING_WORKLOADS)
 
-        flags = self._run_workloads(state, phases, flags, ui_log)
-        self._run_global_teardown(state, phases, flags, ui_log)
+        flags = self.workload_runner.run_workloads(
+            state, phases, flags, self._resume_requested, ui_log
+        )
+        self.teardown_service.run_global_teardown(state, phases, flags, ui_log)
 
         ui_log("Run Finished.")
         time.sleep(1)
 
         self.lifecycle.finish()
-        return self._build_summary(state, phases, flags)
+        return self._context._build_summary(state, phases, flags)
 
     def _prepare_run_state(
         self,
@@ -195,7 +169,7 @@ class BenchmarkController:
             if self.config.remote_execution.run_setup
             else ControllerState.RUNNING_WORKLOADS
         )
-        self._transition(initial_state)
+        self._context._transition(initial_state)
         self.lifecycle.start_phase(
             RunPhase.GLOBAL_SETUP
             if self.config.remote_execution.run_setup
@@ -218,8 +192,7 @@ class BenchmarkController:
         )
         journal_file = journal_path or output_root / "run_journal.json"
         active_journal.save(journal_file)
-        if self._journal_refresh:
-            self._journal_refresh()
+        self._ui.refresh_journal()
 
         remote_output_root = f"/tmp/benchmark_results/{resolved_run_id}"
         extravars = {
@@ -228,12 +201,12 @@ class BenchmarkController:
             "remote_output_root": remote_output_root,
             "report_root": str(report_root),
             "data_export_root": str(data_export_root),
-            "lb_workdir": "/opt/lb",
+            "lb_workdir": self.config.remote_execution.lb_workdir,
             "per_host_output": {k: str(v) for k, v in per_host_output.items()},
             "benchmark_config": self.config.model_dump(mode="json"),
             "use_container_fallback": self.config.remote_execution.use_container_fallback,
             "lb_upgrade_pip": self.config.remote_execution.upgrade_pip,
-            "collector_apt_packages": sorted(self._collector_apt_packages()),
+            "collector_apt_packages": sorted(self._context._collector_apt_packages()),
             "workload_runner_install_deps": False,
             "repetitions_total": target_reps,
             "repetition_index": 0,
@@ -253,306 +226,10 @@ class BenchmarkController:
             test_types=list(test_types),
         )
 
-    def _run_global_setup(
-        self,
-        state: RunState,
-        phases: Dict[str, ExecutionResult],
-        flags: RunFlags,
-        ui_log: Callable[[str], None],
-    ) -> RunExecutionSummary | None:
-        return run_global_setup(self, state, phases, flags, ui_log)
-
-    def _run_workloads(
-        self,
-        state: RunState,
-        phases: Dict[str, ExecutionResult],
-        flags: RunFlags,
-        ui_log: Callable[[str], None],
-    ) -> RunFlags:
-        self.lifecycle.start_phase(RunPhase.WORKLOADS)
-        for test_name in state.test_types:
-            if self._stop_requested():
-                flags = self._handle_stop_during_workloads(
-                    state.inventory, state.extravars, flags, ui_log
-                )
-                break
-            if not self._process_single_workload(test_name, state, phases, flags, ui_log):
-                break
-
-        return flags
-
-    def _process_single_workload(
-        self,
-        test_name: str,
-        state: RunState,
-        phases: Dict[str, ExecutionResult],
-        flags: RunFlags,
-        ui_log: Callable[[str], None],
-    ) -> bool:
-        workload_cfg = self.config.workloads.get(test_name)
-        if not workload_cfg:
-            ui_log(f"Skipping unknown workload: {test_name}")
-            return True
-
-        pending_hosts = pending_hosts_for(
-            state.active_journal,
-            state.target_reps,
-            test_name,
-            self.config.remote_hosts,
-            allow_skipped=self._resume_requested,
-        )
-        if not pending_hosts:
-            ui_log(f"All repetitions already completed for {test_name}, skipping.")
-            return True
-
-        plugin_assets = self._get_plugin_assets(workload_cfg.plugin, test_name, ui_log, flags)
-
-        if self.stop_token and self.stop_token.should_stop():
-            self._handle_stop_during_workloads(
-                state.inventory, state.extravars, flags, ui_log
-            )
-            return False
-
-        pending_reps = pending_repetitions(
-            state.active_journal,
-            state.target_reps,
-            pending_hosts,
-            test_name,
-            allow_skipped=self._resume_requested,
-        )
-
-        self._run_workload_setup(
-            test_name,
-            plugin_assets,
-            workload_cfg.plugin,
-            state.inventory,
-            state.extravars,
-            pending_reps,
-            phases,
-            flags,
-            ui_log,
-        )
-        if not pending_reps:
-            return True
-        if self._stop_requested():
-            self._handle_stop_during_workloads(
-                state.inventory, state.extravars, flags, ui_log
-            )
-            return False
-
-        self._run_workload_execution(
-            test_name,
-            plugin_assets,
-            workload_cfg.plugin,
-            state,
-            pending_hosts,
-            pending_reps,
-            phases,
-            flags,
-            ui_log,
-        )
-
-        if self._stop_requested():
-            self._handle_stop_during_workloads(
-                state.inventory, state.extravars, flags, ui_log
-            )
-            return False
-        return True
-
-    def _handle_stop_during_workloads(
-        self,
-        inventory: InventorySpec,
-        extravars: Dict[str, Any],
-        flags: RunFlags,
-        ui_log: Callable[[str], None],
-    ) -> RunFlags:
-        return handle_stop_during_workloads(self, inventory, extravars, flags, ui_log)
-
-    def _get_plugin_assets(
-        self,
-        plugin_name: str,
-        test_name: str,
-        ui_log: Callable[[str], None],
-        flags: RunFlags,
-    ) -> PluginAssetConfig | None:
-        assets = self.config.plugin_assets.get(plugin_name)
-        if assets is None:
-            ui_log(
-                f"No plugin assets found for {test_name} ({plugin_name}); skipping setup/teardown."
-            )
-        return assets
-
-    def _run_workload_setup(
-        self,
-        test_name: str,
-        plugin_assets: PluginAssetConfig | None,
-        plugin_name: str,
-        inventory: InventorySpec,
-        extravars: Dict[str, Any],
-        pending_reps: Dict[str, List[int]],
-        phases: Dict[str, ExecutionResult],
-        flags: RunFlags,
-        ui_log: Callable[[str], None],
-    ) -> None:
-        run_workload_setup(
-            self,
-            test_name,
-            plugin_assets,
-            plugin_name,
-            inventory,
-            extravars,
-            pending_reps,
-            phases,
-            flags,
-            ui_log,
-        )
-
-    def _run_workload_execution(
-        self,
-        test_name: str,
-        plugin_assets: PluginAssetConfig | None,
-        plugin_name: str,
-        state: RunState,
-        pending_hosts: List[RemoteHostConfig],
-        pending_reps: Dict[str, List[int]],
-        phases: Dict[str, ExecutionResult],
-        flags: RunFlags,
-        ui_log: Callable[[str], None],
-    ) -> None:
-        run_workload_execution(
-            self,
-            test_name,
-            plugin_assets,
-            plugin_name,
-            state,
-            pending_hosts,
-            pending_reps,
-            phases,
-            flags,
-            ui_log,
-        )
-
-    def _execute_run_playbook(
-        self,
-        test_name: str,
-        pending_hosts: List[RemoteHostConfig],
-        pending_reps: Dict[str, List[int]],
-        state: RunState,
-        phases: Dict[str, ExecutionResult],
-        flags: RunFlags,
-        ui_log: Callable[[str], None],
-    ) -> None:
-        execute_run_playbook(
-            self,
-            test_name,
-            pending_hosts,
-            pending_reps,
-            state,
-            phases,
-            flags,
-            ui_log,
-        )
-
-    def _handle_collect_phase(
-        self,
-        test_name: str,
-        pending_hosts: List[RemoteHostConfig],
-        state: RunState,
-        phases: Dict[str, ExecutionResult],
-        flags: RunFlags,
-        ui_log: Callable[[str], None],
-    ) -> None:
-        handle_collect_phase(
-            self,
-            test_name,
-            pending_hosts,
-            state,
-            phases,
-            flags,
-            ui_log,
-        )
-
-    def _run_global_teardown(
-        self,
-        state: RunState,
-        phases: Dict[str, ExecutionResult],
-        flags: RunFlags,
-        ui_log: Callable[[str], None],
-    ) -> None:
-        run_global_teardown(self, state, phases, flags, ui_log)
-
-    def _build_summary(
-        self,
-        state: RunState,
-        phases: Dict[str, ExecutionResult],
-        flags: RunFlags,
-        success_override: Optional[bool] = None,
-    ) -> RunExecutionSummary:
-        if self._stop_requested():
-            final_state = (
-                ControllerState.STOP_FAILED
-                if not flags.stop_successful
-                else ControllerState.ABORTED
-            )
-        elif not flags.all_tests_success or success_override is False:
-            final_state = ControllerState.FAILED
-        else:
-            final_state = ControllerState.FINISHED
-        self._transition(final_state)
-        success = (
-            success_override
-            if success_override is not None
-            else flags.all_tests_success and flags.stop_successful
-        )
-        return RunExecutionSummary(
-            run_id=state.resolved_run_id,
-            per_host_output=state.per_host_output,
-            phases=phases,
-            success=bool(success),
-            output_root=state.output_root,
-            report_root=state.report_root,
-            data_export_root=state.data_export_root,
-            controller_state=self.state_machine.state,
-            cleanup_allowed=self.state_machine.allows_cleanup(),
-        )
-
     def _handle_stop_protocol(
         self,
         inventory: InventorySpec,
         extravars: Dict[str, Any],
         log_fn: Callable[[str], None],
     ) -> bool:
-        """
-        Execute the distributed stop protocol.
-
-        Returns:
-            True if stop was confirmed by all runners (safe to teardown).
-            False if stop timed out or failed (unsafe to teardown).
-        """
-        return handle_stop_protocol(self, inventory, extravars, log_fn)
-
-    def _interrupt_executor(self) -> None:
-        exec_obj = self.executor
-        if hasattr(exec_obj, "interrupt"):
-            try:
-                exec_obj.interrupt()  # type: ignore[attr-defined]
-            except Exception:
-                pass
-
-    def _collector_apt_packages(self) -> Set[str]:
-        """Return apt packages needed for enabled collectors."""
-        packages: Set[str] = set()
-        if self.config.collectors.cli_commands:
-            # sar/mpstat/iostat/pidstat
-            packages.update({"sysstat", "procps"})
-        return packages
-
-    def _run_for_hosts(
-        self,
-        playbook_path: Path,
-        base_inventory: InventorySpec,
-        hosts: List[RemoteHostConfig],
-        extravars: Dict[str, Any],
-        tags: Optional[List[str]] = None,
-    ) -> ExecutionResult:
-        return run_for_hosts(self, playbook_path, base_inventory, hosts, extravars, tags)
+        return self._context._handle_stop_protocol(inventory, extravars, log_fn)

@@ -2,7 +2,6 @@
   hosts: all
   become: true
   vars:
-    lb_workdir: "/opt/lb"
     # remote_output_root is passed via extravars during execution
 
   tasks:

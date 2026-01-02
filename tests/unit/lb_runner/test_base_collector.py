@@ -6,7 +6,6 @@ import pytest
 
 from lb_runner.api import BaseCollector
 
-import pytest
 
 pytestmark = pytest.mark.unit_runner
 

@@ -9,6 +9,23 @@ from typing import Any
 
 import pytest
 
+from lb_plugins.api import DDConfig, FIOConfig, StressNGConfig
+from lb_runner.api import (
+    BenchmarkConfig,
+    MetricCollectorConfig,
+    RemoteExecutionConfig,
+    RemoteHostConfig,
+    WorkloadConfig,
+)
+from lb_controller.api import AnsibleRunnerExecutor, BenchmarkController, ControllerOptions
+from tests.helpers.multipass import (
+    ensure_ansible_available,
+    ensure_multipass_access,
+    get_intensity,
+    make_test_ansible_env,
+    stage_private_key,
+)
+
 # Explicitly set the start method for multiprocessing on macOS
 # This can help with issues related to ansible-runner's worker processes
 # try:
@@ -20,24 +37,6 @@ pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.sl
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
-
-from lb_plugins.api import DDConfig, FIOConfig, StressNGConfig
-from lb_runner.api import (
-    BenchmarkConfig,
-    MetricCollectorConfig,
-    RemoteExecutionConfig,
-    RemoteHostConfig,
-    WorkloadConfig,
-)
-from lb_controller.api import AnsibleRunnerExecutor
-from lb_controller.api import BenchmarkController
-from tests.helpers.multipass import (
-    ensure_ansible_available,
-    ensure_multipass_access,
-    get_intensity,
-    make_test_ansible_env,
-    stage_private_key,
-)
 
 # Constants
 VM_NAME_PREFIX = "benchmark-test-vm"
@@ -360,7 +359,7 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
     
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)
-    controller = BenchmarkController(config, executor=executor)
+    controller = BenchmarkController(config, ControllerOptions(executor=executor))
 
     # Execute
     print(f"Starting benchmark controller for workloads: {workloads}")

@@ -7,7 +7,6 @@ import logging
 import threading
 import time
 # Removed from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional
 
 from pydantic import Field # Added pydantic Field

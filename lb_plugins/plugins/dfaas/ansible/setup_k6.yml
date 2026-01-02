@@ -13,7 +13,7 @@
       amd64: "amd64"
       aarch64: "arm64"
       arm64: "arm64"
-    k6_arch: "{{ k6_arch_map.get(ansible_architecture, 'amd64') }}"
+    k6_arch: "{{ k6_arch_map.get(ansible_facts['architecture'], 'amd64') }}"
     k6_tarball_url: "https://github.com/grafana/k6/releases/download/v{{ k6_version }}/k6-v{{ k6_version }}-linux-{{ k6_arch }}.tar.gz"
     k6_extract_dir: "/tmp/k6-v{{ k6_version }}-linux-{{ k6_arch }}"
   tasks:

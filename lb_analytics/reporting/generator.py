@@ -7,7 +7,6 @@ This module creates textual and graphical reports from aggregated benchmark data
 import logging
 import pandas as pd
 from pathlib import Path
-from typing import Dict
 
 
 logger = logging.getLogger(__name__)

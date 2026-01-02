@@ -54,28 +54,13 @@ class PluginInstaller:
         archive_path.parent.mkdir(parents=True, exist_ok=True)
 
         if archive_path.suffix == ".zip":
-            with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as zip_ref:
-                for path in source_dir.rglob("*"):
-                    zip_ref.write(path, path.relative_to(source_dir.parent))
+            self._package_zip(source_dir, archive_path)
             return archive_path
 
-        name = archive_path.name
-        mode = None
-        if name.endswith(".tar.gz") or name.endswith(".tgz"):
-            mode = "w:gz"
-        elif name.endswith(".tar.bz2"):
-            mode = "w:bz2"
-        elif name.endswith(".tar.xz"):
-            mode = "w:xz"
-        elif name.endswith(".tar"):
-            mode = "w"
-        elif archive_path.suffix in {".gz", ".bz2", ".xz"}:
-            mode = "w:*"
+        mode = self._tar_mode_for(archive_path)
         if mode is None:
             raise ValueError(f"Unsupported archive format: {archive_path}")
-
-        with tarfile.open(archive_path, mode) as tar_ref:
-            tar_ref.add(source_dir, arcname=source_dir.name)
+        self._package_tar(source_dir, archive_path, mode)
         return archive_path
 
     def uninstall(self, plugin_name: str) -> bool:
@@ -116,11 +101,9 @@ class PluginInstaller:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             if archive_path.suffix == ".zip":
-                with zipfile.ZipFile(archive_path, "r") as zip_ref:
-                    zip_ref.extractall(tmp_path)
+                self._safe_extract_zip(archive_path, tmp_path)
             else:
-                with tarfile.open(archive_path, "r") as tar_ref:
-                    tar_ref.extractall(tmp_path, filter="data")
+                self._safe_extract_tar(archive_path, tmp_path)
             items = list(tmp_path.iterdir())
             source_dir = items[0] if len(items) == 1 and items[0].is_dir() else tmp_path
             return self._install_directory(source_dir, force)
@@ -133,32 +116,97 @@ class PluginInstaller:
                 f"Directory '{source_dir.name}' does not contain any Python files."
             )
 
-        if len(py_files) == 1 and (source_dir / "__init__.py").exists():
-            module = py_files[0]
-            plugin_name = module.stem
-            target_py = self.plugin_dir / f"{plugin_name}.py"
-            if target_py.exists() and not force:
-                raise FileExistsError(
-                    f"Plugin '{plugin_name}' already exists at {target_py}. Use --force to overwrite."
-                )
-            if target_py.exists():
-                target_py.unlink()
-            shutil.copy2(module, target_py)
-            return plugin_name
+        if self._is_single_module(source_dir, py_files):
+            return self._install_module_file(py_files[0], force)
 
+        return self._install_package_dir(source_dir, force)
+
+    @staticmethod
+    def _tar_mode_for(archive_path: Path) -> str | None:
+        name = archive_path.name
+        if name.endswith((".tar.gz", ".tgz")):
+            return "w:gz"
+        if name.endswith(".tar.bz2"):
+            return "w:bz2"
+        if name.endswith(".tar.xz"):
+            return "w:xz"
+        if name.endswith(".tar"):
+            return "w"
+        if archive_path.suffix in {".gz", ".bz2", ".xz"}:
+            return "w:*"
+        return None
+
+    @staticmethod
+    def _package_zip(source_dir: Path, archive_path: Path) -> None:
+        with zipfile.ZipFile(
+            archive_path, "w", compression=zipfile.ZIP_DEFLATED
+        ) as zip_ref:
+            for path in source_dir.rglob("*"):
+                zip_ref.write(path, path.relative_to(source_dir.parent))
+
+    @staticmethod
+    def _package_tar(source_dir: Path, archive_path: Path, mode: str) -> None:
+        with tarfile.open(archive_path, mode) as tar_ref:
+            tar_ref.add(source_dir, arcname=source_dir.name)
+
+    @staticmethod
+    def _is_single_module(source_dir: Path, py_files: list[Path]) -> bool:
+        return len(py_files) == 1 and (source_dir / "__init__.py").exists()
+
+    def _install_module_file(self, module: Path, force: bool) -> str:
+        plugin_name = module.stem
+        target_py = self.plugin_dir / f"{plugin_name}.py"
+        self._ensure_target_available(target_py, plugin_name, force)
+        if target_py.exists():
+            target_py.unlink()
+        shutil.copy2(module, target_py)
+        return plugin_name
+
+    def _install_package_dir(self, source_dir: Path, force: bool) -> str:
         plugin_name = source_dir.name
         target_dir = self.plugin_dir / plugin_name
+        self._ensure_target_available(target_dir, plugin_name, force)
         if target_dir.exists():
-            if not force:
-                raise FileExistsError(
-                    f"Plugin '{plugin_name}' already exists at {target_dir}. Use --force to overwrite."
-                )
             if target_dir.is_dir():
                 shutil.rmtree(target_dir)
             else:
                 target_dir.unlink()
         shutil.copytree(source_dir, target_dir)
         return plugin_name
+
+    @staticmethod
+    def _is_safe_path(base: Path, target: Path) -> bool:
+        try:
+            target.resolve().relative_to(base.resolve())
+            return True
+        except ValueError:
+            return False
+
+    @classmethod
+    def _safe_extract_zip(cls, archive_path: Path, dest: Path) -> None:
+        with zipfile.ZipFile(archive_path, "r") as zip_ref:
+            for member in zip_ref.infolist():
+                member_path = dest / member.filename
+                if not cls._is_safe_path(dest, member_path):
+                    raise ValueError(f"Unsafe path in archive: {member.filename}")
+                zip_ref.extract(member, dest)
+
+    @classmethod
+    def _safe_extract_tar(cls, archive_path: Path, dest: Path) -> None:
+        with tarfile.open(archive_path, "r") as tar_ref:
+            for member in tar_ref.getmembers():
+                member_path = dest / member.name
+                if not cls._is_safe_path(dest, member_path):
+                    raise ValueError(f"Unsafe path in archive: {member.name}")
+                tar_ref.extract(member, dest, filter="data")
+
+    @staticmethod
+    def _ensure_target_available(target: Path, plugin_name: str, force: bool) -> None:
+        if target.exists() and not force:
+            raise FileExistsError(
+                f"Plugin '{plugin_name}' already exists at {target}. "
+                "Use --force to overwrite."
+            )
 
     @staticmethod
     def _looks_like_git_url(raw: str) -> bool:

@@ -8,8 +8,9 @@ import queue
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from lb_controller.api import BenchmarkConfig, StopToken
+from lb_controller.api import BenchmarkConfig, ControllerOptions, StopToken
 from lb_plugins.api import PluginRegistry, apply_plugin_assets, create_registry
+from lb_runner.api import RunEvent
 from lb_controller.api import (
     BenchmarkController,
     ControllerRunner,
@@ -328,11 +329,13 @@ class RunService:
 
         controller = BenchmarkController(
             context.config,
-            output_callback=pipeline.output_cb,
-            output_formatter=formatter,
-            journal_refresh=session.dashboard.refresh if session.dashboard else None,
-            stop_token=session.stop_token,
-            state_machine=session.controller_state,
+            ControllerOptions(
+                output_callback=pipeline.output_cb,
+                output_formatter=formatter,
+                journal_refresh=session.dashboard.refresh if session.dashboard else None,
+                stop_token=session.stop_token,
+                state_machine=session.controller_state,
+            ),
         )
         pipeline.controller_ref["controller"] = controller
         if formatter:
@@ -466,7 +469,8 @@ class RunService:
             controller_ref=controller_ref,
             dedupe=dedupe,
         )
-        event_from_payload = lambda data: event_from_payload_data(data, session, context)
+        def event_from_payload(data: dict[str, str]) -> RunEvent | None:
+            return event_from_payload_data(data, session, context)
         progress_handler = make_progress_handler(
             session=session,
             context=context,

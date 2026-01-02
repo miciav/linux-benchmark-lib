@@ -8,7 +8,7 @@ from typing import Iterable, Sequence
 from lb_app.interfaces import AppClient, UIHooks, RunRequest
 from lb_app.services.config_service import ConfigService
 from lb_controller.api import BenchmarkConfig, RemoteHostConfig, RunJournal, WorkloadConfig
-from lb_app.services.run_service import RunService, RunContext
+from lb_app.services.run_service import RunService
 from lb_app.services.run_service import RunResult
 from lb_common.api import RemoteHostSpec, configure_logging
 from lb_provisioner.api import (
@@ -195,7 +195,10 @@ class ApplicationClient(AppClient):
             output_cb = None
             # If no UI adapter is provided, forward raw logs to hooks.
             if request.ui_adapter is None:
-                output_cb = lambda text, end="": hooks.on_log(text)
+                def _output_cb(text: str, end: str = "") -> None:
+                    hooks.on_log(text)
+
+                output_cb = _output_cb
 
             run_result = self._run_service.execute(
                 context,

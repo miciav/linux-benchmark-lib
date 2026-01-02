@@ -7,13 +7,11 @@ Exposes quick commands to inspect plugins/hosts and run benchmarks via provision
 from __future__ import annotations
 
 import os
-import subprocess
 from typing import Optional
 
 import typer
 
 from pathlib import Path
-from lb_ui.tui.system.models import PickItem
 
 # Command modules
 from lb_ui.cli.commands.config import create_config_app
@@ -105,7 +103,7 @@ register_run_command(
 @app.command("plugins", hidden=True)
 def list_plugins() -> None:
     """Compatibility alias for plugin list."""
-    ui.present.info("Use `lb plugin list`.") 
+    ctx_store.ui.present.info("Use `lb plugin list`.")
 
 
 def main() -> None:

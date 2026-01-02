@@ -1,6 +1,5 @@
 """Unit tests for the STREAM workload plugin logic."""
 
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

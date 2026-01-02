@@ -5,9 +5,9 @@
   become: true
 
   vars:
-    lb_workdir: "/opt/lb"
+    lb_workdir: "{{ ansible_facts['user_dir'] }}/.lb"
     hpl_version: "2.3"
-    hpl_workspace: "{{ ansible_env.HOME + '/.lb/workspaces/hpl' }}"
+    hpl_workspace: "{{ ansible_facts['env']['HOME'] + '/.lb/workspaces/hpl' }}"
     hpl_arch_map:
       x86_64: amd64
       amd64: amd64

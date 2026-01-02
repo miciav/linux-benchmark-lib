@@ -1,4 +1,3 @@
-from typing import Optional
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
 from lb_ui.tui.system.protocols import Form

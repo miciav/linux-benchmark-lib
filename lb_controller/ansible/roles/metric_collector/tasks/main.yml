@@ -11,6 +11,6 @@
       {
         "host": "{{ inventory_hostname }}",
         "run_id": "{{ run_id | default('run') }}",
-        "timestamp": "{{ ansible_date_time.iso8601 }}",
+        "timestamp": "{{ ansible_facts['date_time']['iso8601'] }}",
         "collector_config": {{ collector_config | default({}) | to_json }}
       }

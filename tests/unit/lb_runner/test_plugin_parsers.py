@@ -1,7 +1,6 @@
 """Lightweight parser tests for plugins using fixture-like data."""
 
 import json
-from pathlib import Path
 
 import pytest
 

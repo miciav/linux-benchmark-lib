@@ -1,3 +1,7 @@
+- name: "{{ run_prefix }} Skip polling if already finished"
+  ansible.builtin.meta: end_host
+  when: workload_runner_finished | default(false)
+
 - name: "{{ run_prefix }} Poll LB_EVENT stream"
   ansible.builtin.shell:
     cmd: |

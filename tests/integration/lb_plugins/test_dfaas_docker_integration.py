@@ -8,13 +8,13 @@ import textwrap
 import time
 import uuid
 from pathlib import Path
-from urllib.error import URLError
 from urllib.request import urlopen
 
 import pytest
 
 from lb_plugins.plugins.dfaas.generator import DfaasGenerator
-from lb_plugins.plugins.dfaas.plugin import DfaasConfig, DfaasFunctionConfig, DfaasPlugin
+from lb_plugins.plugins.dfaas.config import DfaasConfig, DfaasFunctionConfig
+from lb_plugins.plugins.dfaas.plugin import DfaasPlugin
 
 pytestmark = [pytest.mark.inter_plugins, pytest.mark.inter_docker]
 

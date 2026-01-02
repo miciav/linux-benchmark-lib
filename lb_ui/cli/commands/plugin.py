@@ -5,7 +5,7 @@ from typing import Optional
 
 import typer
 
-from lb_app.api import BenchmarkConfig, build_plugin_table, create_registry
+from lb_app.api import build_plugin_table, create_registry
 from lb_ui.wiring.dependencies import UIContext
 from lb_ui.tui.system.models import TableModel
 from lb_ui.flows.selection import select_plugins_interactively, apply_plugin_selection

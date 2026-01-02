@@ -8,6 +8,7 @@ pytestmark = [pytest.mark.unit_plugins]
 def test_dfaas_readme_has_required_sections() -> None:
     repo_root = Path(__file__).resolve().parents[3]
     readme = (repo_root / "lb_plugins" / "plugins" / "dfaas" / "README.md").read_text()
+    # Check for required documentation sections
     for section in [
         "## Architecture",
         "## Prerequisites",
@@ -16,4 +17,4 @@ def test_dfaas_readme_has_required_sections() -> None:
         "## Outputs",
         "## Troubleshooting",
     ]:
-        assert section in readme
+        assert section in readme, f"Missing section: {section}"

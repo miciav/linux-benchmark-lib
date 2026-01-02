@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Dict, Protocol
 
 from lb_plugins import discovery as discovery_module
 from lb_plugins import registry as registry_module

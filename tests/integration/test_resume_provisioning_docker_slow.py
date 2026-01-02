@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -126,10 +127,14 @@ def test_resume_provisioning_real_docker(
     fake_executor = FakeExecutor()
     client = ApplicationClient()
     from lb_app.services import run_service as run_service_module
-    from lb_controller.api import BenchmarkController
+    from lb_controller.api import BenchmarkController, ControllerOptions
 
-    def fake_controller(*args, **kwargs):
-        return BenchmarkController(*args, executor=fake_executor, **kwargs)
+    def fake_controller(config, options=None):
+        if options is None:
+            options = ControllerOptions(executor=fake_executor)
+        else:
+            options = replace(options, executor=fake_executor)
+        return BenchmarkController(config, options)
 
     monkeypatch.setattr(run_service_module, "BenchmarkController", fake_controller)
 

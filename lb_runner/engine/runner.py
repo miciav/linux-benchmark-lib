@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
 from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
+from lb_runner.models.events import RunEvent
 from lb_runner.services.log_handler import LBEventLogHandler
 from lb_runner.services.storage import (
     workload_output_dir,

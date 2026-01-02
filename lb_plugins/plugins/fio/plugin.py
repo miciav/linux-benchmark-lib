@@ -7,6 +7,7 @@ This module uses fio (Flexible I/O Tester) to generate advanced disk I/O workloa
 import json
 import logging
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -17,6 +18,9 @@ from ...interface import WorkloadIntensity, SimpleWorkloadPlugin, BasePluginConf
 
 
 logger = logging.getLogger(__name__)
+
+def _default_fio_directory() -> str:
+    return tempfile.gettempdir()
 
 
 class FIOConfig(BasePluginConfig):
@@ -29,7 +33,10 @@ class FIOConfig(BasePluginConfig):
     iodepth: int = Field(default=16, gt=0, description="Number of I/O units to keep in flight")
     numjobs: int = Field(default=1, gt=0, description="Number of jobs to run concurrently")
     size: str = Field(default="1G", description="Total size of the I/O for each job")
-    directory: str = Field(default="/tmp", description="Directory to store test files")
+    directory: str = Field(
+        default_factory=_default_fio_directory,
+        description="Directory to store test files",
+    )
     name: str = Field(default="benchmark", description="Name of the FIO job")
     output_format: str = Field(default="json", description="Output format (e.g., json, normal)")
     debug: bool = Field(default=False, description="Enable debug logging for fio")

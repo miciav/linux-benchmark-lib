@@ -10,12 +10,12 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional
 
 from pydantic import Field, model_validator
 
 from ...base_generator import CommandGenerator
-from ...interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig
+from ...interface import SimpleWorkloadPlugin, WorkloadIntensity, BasePluginConfig
 
 logger = logging.getLogger(__name__)
 
@@ -354,23 +354,26 @@ HPL.out      output file name (if any)
         self._process = None
 
 
-class HPLPlugin(WorkloadPlugin):
+class HPLPlugin(SimpleWorkloadPlugin):
     """HPL Plugin definition."""
 
-    @property
-    def name(self) -> str:
-        return "hpl"
-
-    @property
-    def description(self) -> str:
-        return "HPL (High Performance Linpack) 2.3 via OpenMPI"
-
-    @property
-    def config_cls(self) -> Type[HPLConfig]:
-        return HPLConfig
-
-    def create_generator(self, config: HPLConfig) -> HPLGenerator:
-        return HPLGenerator(config)
+    NAME = "hpl"
+    DESCRIPTION = "HPL (High Performance Linpack) 2.3 via OpenMPI"
+    CONFIG_CLS = HPLConfig
+    GENERATOR_CLS = HPLGenerator
+    REQUIRED_APT_PACKAGES = [
+        "ansible",
+        "build-essential",
+        "gfortran",
+        "openmpi-bin",
+        "libopenmpi-dev",
+        "libopenblas-dev",
+        "make",
+        "wget",
+        "tar",
+    ]
+    REQUIRED_LOCAL_TOOLS = ["mpirun", "make"]
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[HPLConfig]:
         cpu_count = multiprocessing.cpu_count()
@@ -399,25 +402,6 @@ class HPLPlugin(WorkloadPlugin):
             p, q = _grid_for_ranks(ranks)
             return HPLConfig(n=45000, nb=384, p=p, q=q, mpi_ranks=ranks)
         return None
-
-    def get_required_apt_packages(self) -> List[str]:
-        return [
-            "ansible",
-            "build-essential",
-            "gfortran",
-            "openmpi-bin",
-            "libopenmpi-dev",
-            "libopenblas-dev",
-            "make",
-            "wget",
-            "tar",
-        ]
-
-    def get_required_local_tools(self) -> List[str]:
-        return ["mpirun", "make"]
-
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        return Path(__file__).parent / "ansible" / "setup.yml"
 
     def export_results_to_csv(
         self,
