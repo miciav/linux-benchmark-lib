@@ -185,7 +185,8 @@ class DfaasGenerator(BaseGenerator):
             gateway_url=config.gateway_url,
             duration=config.duration,
             log_stream_enabled=config.k6_log_stream,
-            log_callback=self._emit_log_event,
+            log_callback=self._emit_k6_log_event,
+            log_to_logger=not self._exec_ctx.event_logging_enabled,
         )
         self._metrics_collector = MetricsCollector(
             prometheus_url=config.prometheus_url,
@@ -719,6 +720,26 @@ class DfaasGenerator(BaseGenerator):
             return
         root_logger = logging.getLogger()
         if any(isinstance(handler, LBEventLogHandler) for handler in root_logger.handlers):
+            return
+        self._ensure_event_context()
+        if self._event_run_id is None:
+            return
+        event = RunEvent(
+            run_id=self._event_run_id,
+            host=self._exec_ctx.host,
+            workload="dfaas",
+            repetition=self._exec_ctx.repetition,
+            total_repetitions=self._exec_ctx.total_repetitions,
+            status="running",
+            message=message,
+            timestamp=time.time(),
+            type="log",
+            level=level,
+        )
+        self._event_emitter.emit(event)
+
+    def _emit_k6_log_event(self, message: str, *, level: str = "INFO") -> None:
+        if not self._exec_ctx.event_logging_enabled:
             return
         self._ensure_event_context()
         if self._event_run_id is None:

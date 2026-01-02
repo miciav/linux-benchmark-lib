@@ -74,6 +74,7 @@ class K6Runner:
         duration: str,
         log_stream_enabled: bool = False,
         log_callback: Any | None = None,
+        log_to_logger: bool = True,
     ) -> None:
         """Initialize K6Runner.
 
@@ -87,6 +88,7 @@ class K6Runner:
             duration: k6 test duration (e.g., "30s")
             log_stream_enabled: Enable SSH log streaming
             log_callback: Optional callback for log events (message: str) -> None
+            log_to_logger: Emit log messages to the module logger
         """
         self.k6_host = k6_host
         self.k6_user = k6_user
@@ -97,6 +99,7 @@ class K6Runner:
         self.duration = duration
         self.log_stream_enabled = log_stream_enabled
         self._log_callback = log_callback
+        self._log_to_logger = log_to_logger
 
     def build_script(
         self,
@@ -342,9 +345,10 @@ class K6Runner:
 
     def _log(self, message: str) -> None:
         """Log message and call callback if set."""
-        logger.info("%s", message)
         if self._log_callback:
             self._log_callback(message)
+        if self._log_to_logger:
+            logger.info("%s", message)
 
     def _start_log_stream(
         self, config_id: str, target_name: str, run_id: str
