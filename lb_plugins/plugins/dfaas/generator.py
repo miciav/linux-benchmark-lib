@@ -42,7 +42,8 @@ class ExecutionContext:
         host = os.environ.get("LB_RUN_HOST") or os.uname().nodename
         repetition = _parse_int(os.environ.get("LB_RUN_REPETITION"), 1)
         total = _parse_int(os.environ.get("LB_RUN_TOTAL_REPS"), repetition)
-        event_logging = os.environ.get("LB_ENABLE_EVENT_LOGGING") == "1"
+        raw = os.environ.get("LB_ENABLE_EVENT_LOGGING", "1").strip().lower()
+        event_logging = raw not in {"0", "false", "no"}
         return cls(
             host=host,
             repetition=repetition,

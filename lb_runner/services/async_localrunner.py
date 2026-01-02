@@ -21,14 +21,19 @@ def _env(name: str) -> str:
     return value
 
 
+def _event_logging_enabled(env: dict[str, str] | None = None) -> bool:
+    raw = (env or os.environ).get("LB_ENABLE_EVENT_LOGGING", "1").strip().lower()
+    return raw not in {"0", "false", "no"}
+
+
 def _configure_logging_level() -> None:
     """Configure root logger level for event logging.
 
-    When LB_ENABLE_EVENT_LOGGING=1, ensure the root logger accepts INFO-level
-    messages so that LBEventLogHandler can receive and emit them.
+    When event logging is enabled (default), ensure the root logger accepts
+    INFO-level messages so that LBEventLogHandler can receive and emit them.
     The level can be overridden via LB_LOG_LEVEL env var.
     """
-    if os.environ.get("LB_ENABLE_EVENT_LOGGING") != "1":
+    if not _event_logging_enabled():
         return
     level_name = os.environ.get("LB_LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)

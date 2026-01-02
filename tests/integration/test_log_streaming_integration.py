@@ -54,9 +54,9 @@ def test_local_runner_attaches_log_handler(monkeypatch):
 
 
 @pytest.mark.inter_generic
-def test_local_runner_ignores_log_handler_default(monkeypatch):
-    """Verify LocalRunner does NOT attach handler if env var is missing."""
-    monkeypatch.delenv("LB_ENABLE_EVENT_LOGGING", raising=False)
+def test_local_runner_ignores_log_handler_when_disabled(monkeypatch):
+    """Verify LocalRunner does NOT attach handler if env var disables it."""
+    monkeypatch.setenv("LB_ENABLE_EVENT_LOGGING", "0")
     
     mock_config = MagicMock(spec=BenchmarkConfig)
     mock_config.warmup_seconds = 0

@@ -178,7 +178,7 @@ def test_configure_logging_level_respects_lb_log_level_env(monkeypatch):
 @pytest.mark.unit_controller
 def test_configure_logging_level_noop_when_event_logging_disabled(monkeypatch):
     """Verify _configure_logging_level does nothing when event logging is off."""
-    monkeypatch.delenv("LB_ENABLE_EVENT_LOGGING", raising=False)
+    monkeypatch.setenv("LB_ENABLE_EVENT_LOGGING", "0")
 
     root_logger = logging.getLogger()
     original_level = root_logger.level

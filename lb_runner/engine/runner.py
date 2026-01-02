@@ -187,7 +187,8 @@ class LocalRunner:
     def _attach_event_logger(
         self, test_name: str, repetition: int, total_repetitions: int
     ) -> logging.Handler | None:
-        if os.environ.get("LB_ENABLE_EVENT_LOGGING") != "1":
+        raw = os.environ.get("LB_ENABLE_EVENT_LOGGING", "1").strip().lower()
+        if raw in {"0", "false", "no"}:
             return None
         handler = LBEventLogHandler(
             run_id=self._current_run_id or "",
