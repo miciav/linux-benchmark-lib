@@ -57,6 +57,7 @@ class RichDashboard(Dashboard):
         self.log_buffer: List[str] = []
         self.max_log_lines = 20
         self._polling_rollups: dict[tuple[str, str, str, str], dict[str, float | int]] = {}
+        self._polling_summary_only = True
         self.layout = Layout()
         self.layout.split_column(
             Layout(name="journal"),
@@ -270,6 +271,9 @@ class RichDashboard(Dashboard):
         if duration is not None:
             rollup["duration"] = float(rollup["duration"]) + duration
         self._polling_rollups[key] = rollup
+        if self._polling_summary_only:
+            self._update_polling_summary(phase, host)
+            return True
         count = int(rollup["count"])
         if status_key == "skipped":
             display_message = f"{base} x{count} skipped"
@@ -291,6 +295,41 @@ class RichDashboard(Dashboard):
             return True
         self.log_buffer.append(display_line)
         return True
+
+    def _update_polling_summary(self, phase: str, host: str) -> None:
+        poll_key = (phase, host, "Poll LB_EVENT stream", "done")
+        delay_key = (phase, host, "Delay", "done")
+        poll_rollup = self._polling_rollups.get(poll_key, {"count": 0, "duration": 0.0})
+        delay_rollup = self._polling_rollups.get(delay_key, {"count": 0, "duration": 0.0})
+        skipped_count = 0
+        for (r_phase, r_host, _, status), rollup in self._polling_rollups.items():
+            if r_phase == phase and r_host == host and status == "skipped":
+                skipped_count += int(rollup.get("count", 0))
+
+        poll_count = int(poll_rollup.get("count", 0))
+        poll_total = float(poll_rollup.get("duration", 0.0))
+        delay_count = int(delay_rollup.get("count", 0))
+        delay_total = float(delay_rollup.get("duration", 0.0))
+        if poll_count == 0 and delay_count == 0 and skipped_count == 0:
+            return
+
+        parts: list[str] = []
+        if poll_count:
+            parts.append(f"poll x{poll_count} {poll_total:.1f}s")
+        if delay_count:
+            parts.append(f"delay x{delay_count} {delay_total:.1f}s")
+        if skipped_count:
+            parts.append(f"skipped x{skipped_count}")
+        summary_message = "Polling loop " + " ".join(parts)
+        host_prefix = f"({host}) " if host else ""
+        display_line = escape(f"• [{phase}] {host_prefix}{summary_message}")
+        search_prefix = f"• [{phase}] {host_prefix}Polling loop "
+        for idx in range(len(self.log_buffer) - 1, -1, -1):
+            existing = self._normalize_log_line(self.log_buffer[idx])
+            if existing.startswith(search_prefix):
+                self.log_buffer[idx] = display_line
+                return
+        self.log_buffer.append(display_line)
 
     def _write_ui_log(self, message: str) -> None:
         if not self.ui_log_file:
