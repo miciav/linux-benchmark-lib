@@ -167,11 +167,13 @@ class AnsibleOutputFormatter:
             "Streaming indicator",
             "Update finished status",
             "Delay",
+            "Initialize polling status",
             "workload_runner : Skip polling if already finished",
             "workload_runner : Poll LB_EVENT stream",
             "workload_runner : Streaming indicator",
             "workload_runner : Update finished status",
             "workload_runner : Delay",
+            "workload_runner : Initialize polling status",
         }
 
     def set_phase(self, phase: str):
@@ -396,9 +398,10 @@ class AnsibleOutputFormatter:
         task_name: str,
         log_sink: Callable[[str], None] | None,
     ) -> bool:
-        if log_sink:
-            return False
-        return raw_task in self._suppress_task_names or task_name in self._suppress_task_names
+        if raw_task in self._suppress_task_names or task_name in self._suppress_task_names:
+            # Allow dashboard sinks to summarize polling tasks instead of dropping them.
+            return log_sink is None
+        return False
 
     def _maybe_flush_task_timing(
         self, line: str, log_sink: Callable[[str], None] | None

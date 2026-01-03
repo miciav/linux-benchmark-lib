@@ -102,7 +102,11 @@
                       break
                   offset = handle.tell()
                   if b"LB_EVENT" in line:
-                      sys.stdout.buffer.write(line)
+                      try:
+                          text_line = line.decode("utf-8").rstrip("\n")
+                      except UnicodeDecodeError:
+                          text_line = line.decode("utf-8", errors="ignore").rstrip("\n")
+                      print(text_line, flush=True)
                       try:
                           ev = json.loads(line.decode("utf-8").split("LB_EVENT", 1)[1].strip())
                           if ev.get("workload") == workload and int(ev.get("repetition", 0)) == rep:
