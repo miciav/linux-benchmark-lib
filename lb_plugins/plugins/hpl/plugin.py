@@ -17,8 +17,8 @@ import shutil
 
 from pydantic import Field, model_validator, ValidationError # Added pydantic imports
 
-from ...plugin_system.base_generator import BaseGenerator
-from ...plugin_system.interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
+from lb_runner.plugin_system.base_generator import BaseGenerator
+from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
 
 logger = logging.getLogger(__name__)
 

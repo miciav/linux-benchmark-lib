@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-import lb_runner.plugins.yabs.plugin as yabs_mod
+import lb_plugins.plugins.yabs.plugin as yabs_mod
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 

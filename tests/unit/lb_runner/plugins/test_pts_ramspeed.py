@@ -1,7 +1,7 @@
 """Unit tests for the PTS ramspeed workload plugin."""
 
 import pytest
-from lb_runner.plugins.phoronix_test_suite.plugin import (
+from lb_plugins.plugins.phoronix_test_suite.plugin import (
     PhoronixConfig,
     PhoronixGenerator,
     PhoronixTestSuiteWorkloadPlugin,

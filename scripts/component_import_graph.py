@@ -69,7 +69,7 @@ def extract_edges(
 
         owner = path.parts[0] if path.parts else None
         if owner not in components:
-            # Some files can live in nested dirs (e.g. lb_runner/plugins). Derive owner by checking prefix.
+            # Some files can live in nested dirs (e.g. lb_plugins/plugins). Derive owner by checking prefix.
             owner = next((comp for comp in components if path.match(f"{comp}/**")), owner)
         if owner not in components:
             continue

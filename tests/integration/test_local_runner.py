@@ -10,7 +10,7 @@ from lb_runner.benchmark_config import (
 
 pytestmark = [pytest.mark.inter_generic, pytest.mark.slow]
 
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
+from lb_plugins.plugins.stress_ng.plugin import StressNGConfig
 from lb_runner.local_runner import LocalRunner
 
 def test_run_stress_ng_benchmark(tmp_path, mocker):

@@ -17,7 +17,7 @@ from lb_runner.benchmark_config import (
     RemoteHostConfig,
     WorkloadConfig,
 )
-from lb_runner.plugins.baseline.plugin import BaselineConfig
+from lb_plugins.plugins.baseline.plugin import BaselineConfig
 from lb_controller.ansible_executor import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController
 from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401

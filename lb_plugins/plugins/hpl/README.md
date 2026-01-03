@@ -25,7 +25,7 @@ Crea una VM Multipass, installa dipendenze, copia i file di packaging e genera i
 
 Esempio:
 ```bash
-VM_NAME=hpl-build-amd64 VM_ARCH=x86_64 bash lb_runner/plugins/hpl/build_hpl_vm.sh
+VM_NAME=hpl-build-amd64 VM_ARCH=x86_64 bash lb_plugins/plugins/hpl/build_hpl_vm.sh
 ```
 Se Multipass non supporta `--arch`, usare un host/VM dell’architettura desiderata.
 
@@ -37,7 +37,7 @@ Crea una VM Multipass, installa il `.deb` fornito, scrive un `HPL.dat` minimale 
   - `VM_ARCH` (opzionale, se supportato)
 - Uso:
 ```bash
-bash lb_runner/plugins/hpl/test_hpl_vm.sh /path/to/hpl_2.3-1_*.deb
+bash lb_plugins/plugins/hpl/test_hpl_vm.sh /path/to/hpl_2.3-1_*.deb
 ```
 Lo script installa runtime deps (`openmpi`, `openblas`), carica il deb, genera `HPL.dat` in `/opt/hpl-2.3/bin/Linux/` e avvia `xhpl`.
 
@@ -53,19 +53,19 @@ Wrapper per Docker Buildx: costruisce il `.deb` per una piattaforma target e scr
   - `BUILDER` (default `hpl-cross-builder`)
 - Uso:
 ```bash
-TARGET_ARCH=linux/amd64 bash lb_runner/plugins/hpl/build_hpl_docker_cross.sh
+TARGET_ARCH=linux/amd64 bash lb_plugins/plugins/hpl/build_hpl_docker_cross.sh
 ```
 Richiede Docker Buildx con binfmt/qemu abilitati per le architetture desiderate.
 
 ### Dockerfile.arm / Dockerfile.amd64
 Dockerfile per costruire un’immagine docker che installa rispettivamente il `.deb` ARM64 o AMD64.
 
-- Passa il percorso del `.deb` nel contesto con `--build-arg HPL_DEB=...` (default: `hpl_2.3-1_arm64.deb` o `hpl_2.3-1_amd64.deb`); usa percorsi relativi al contesto (es. `lb_runner/plugins/hpl/hpl_2.3-1_arm64.deb`).
+- Passa il percorso del `.deb` nel contesto con `--build-arg HPL_DEB=...` (default: `hpl_2.3-1_arm64.deb` o `hpl_2.3-1_amd64.deb`); usa percorsi relativi al contesto (es. `lb_plugins/plugins/hpl/hpl_2.3-1_arm64.deb`).
 - Se vuoi forzare l’architettura, usa `docker build --platform linux/arm64` o `--platform linux/amd64`.
 - Esempi:
   ```bash
-  docker build --platform linux/arm64  -f lb_runner/plugins/hpl/Dockerfile.arm   --build-arg HPL_DEB=lb_runner/plugins/hpl/hpl_2.3-1_arm64.deb .
-  docker build --platform linux/amd64  -f lb_runner/plugins/hpl/Dockerfile.amd64 --build-arg HPL_DEB=lb_runner/plugins/hpl/hpl_2.3-1_amd64.deb .
+  docker build --platform linux/arm64  -f lb_plugins/plugins/hpl/Dockerfile.arm   --build-arg HPL_DEB=lb_plugins/plugins/hpl/hpl_2.3-1_arm64.deb .
+  docker build --platform linux/amd64  -f lb_plugins/plugins/hpl/Dockerfile.amd64 --build-arg HPL_DEB=lb_plugins/plugins/hpl/hpl_2.3-1_amd64.deb .
   ```
 
 ### push_hpl_images.sh
@@ -77,7 +77,7 @@ Script helper per buildare e pushare su Docker Hub le immagini ARM64/AMD64 e cre
 - Requisiti: buildx abilitato, login già effettuato (`docker login`).
 - Esempio:
   ```bash
-  DOCKER_USER=youruser bash lb_runner/plugins/hpl/push_hpl_images.sh
+  DOCKER_USER=youruser bash lb_plugins/plugins/hpl/push_hpl_images.sh
   ```
 
 ## Note operative

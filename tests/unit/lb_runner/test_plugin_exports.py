@@ -8,10 +8,10 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from lb_runner.plugins.geekbench.plugin import GeekbenchPlugin
-from lb_runner.plugins.hpl.plugin import HPLPlugin
-from lb_runner.plugins.stream.plugin import StreamPlugin
-from lb_runner.plugins.yabs.plugin import YabsPlugin
+from lb_plugins.plugins.geekbench.plugin import GeekbenchPlugin
+from lb_plugins.plugins.hpl.plugin import HPLPlugin
+from lb_plugins.plugins.stream.plugin import StreamPlugin
+from lb_plugins.plugins.yabs.plugin import YabsPlugin
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 

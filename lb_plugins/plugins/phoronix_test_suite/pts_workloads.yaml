@@ -2,7 +2,7 @@ version: 1
 
 pts:
   binary: phoronix-test-suite
-  deb_path: "lb_runner/plugins/phoronix_test_suite/assets/phoronix-test-suite_10.8.4_all.deb"
+  deb_path: "lb_plugins/plugins/phoronix_test_suite/assets/phoronix-test-suite_10.8.4_all.deb"
   apt_packages:
     - gdebi-core
     - unzip

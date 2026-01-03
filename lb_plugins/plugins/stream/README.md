@@ -27,13 +27,13 @@ File:
 
 Esempi:
 ```bash
-TARGET_ARCH=linux/amd64 bash lb_runner/plugins/stream/build_stream_docker_cross.sh
-TARGET_ARCH=linux/arm64 bash lb_runner/plugins/stream/build_stream_docker_cross.sh
+TARGET_ARCH=linux/amd64 bash lb_plugins/plugins/stream/build_stream_docker_cross.sh
+TARGET_ARCH=linux/arm64 bash lb_plugins/plugins/stream/build_stream_docker_cross.sh
 ```
 
 Il playbook Ansible cerca di default i `.deb` qui:
-- `lb_runner/plugins/stream/stream-benchmark_5.10-1_amd64.deb`
-- `lb_runner/plugins/stream/stream-benchmark_5.10-1_arm64.deb`
+- `lb_plugins/plugins/stream/stream-benchmark_5.10-1_amd64.deb`
+- `lb_plugins/plugins/stream/stream-benchmark_5.10-1_arm64.deb`
 
 Se li metti altrove, passa `-e stream_deb_src=/path/to/stream-benchmark_...deb` al provisioning workload.
 

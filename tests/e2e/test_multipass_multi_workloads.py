@@ -13,13 +13,13 @@ from lb_runner.benchmark_config import (
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
 
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
-from lb_runner.plugins.dd.plugin import DDConfig
+from lb_plugins.plugins.stress_ng.plugin import StressNGConfig
+from lb_plugins.plugins.dd.plugin import DDConfig
 from lb_controller.ansible_executor import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController
 from tests.e2e.test_multipass_benchmark import multipass_vm
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
-from lb_runner.plugins.fio.plugin import FIOConfig
+from lb_plugins.plugins.fio.plugin import FIOConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"

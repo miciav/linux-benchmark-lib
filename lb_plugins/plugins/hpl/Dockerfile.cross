@@ -25,9 +25,9 @@ WORKDIR /hpl-deb
 RUN wget -q http://www.netlib.org/benchmark/hpl/hpl-2.3.tar.gz && tar xf hpl-2.3.tar.gz
 
 # Copy packaging files
-COPY lb_runner/plugins/hpl/Make.Linux hpl-2.3/Make.Linux
-COPY lb_runner/plugins/hpl/control hpl-2.3/debian/control
-COPY lb_runner/plugins/hpl/rules hpl-2.3/debian/rules
+COPY lb_plugins/plugins/hpl/Make.Linux hpl-2.3/Make.Linux
+COPY lb_plugins/plugins/hpl/control hpl-2.3/debian/control
+COPY lb_plugins/plugins/hpl/rules hpl-2.3/debian/rules
 
 RUN cd hpl-2.3 && chmod +x debian/rules
 

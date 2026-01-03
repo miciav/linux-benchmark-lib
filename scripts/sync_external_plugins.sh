@@ -5,7 +5,7 @@ set -euo pipefail
 # Sync external plugins (sysbench, unixbench) into the user plugin directory for
 # local testing.
 #
-# This writes into `lb_runner/plugins/_user` by default, matching the runner's
+# This writes into `lb_plugins/plugins/_user` by default, matching the runner's
 # preferred user plugin dir when the source tree is writable.
 #
 # Re-clones repos and ensures `.gitignore` ignores the target dir.
@@ -16,7 +16,7 @@ set -euo pipefail
 #   scripts/sync_external_plugins.sh --dest /path/to/plugins
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILTIN_PLUGIN_DIR="$ROOT/lb_runner/plugins"
+BUILTIN_PLUGIN_DIR="$ROOT/lb_plugins/plugins"
 DEFAULT_USER_PLUGIN_DIR="$BUILTIN_PLUGIN_DIR/_user"
 PATCH_DIR="$ROOT/scripts/external_plugin_patches"
 
@@ -93,7 +93,7 @@ for spec in "${REPOS[@]}"; do
 done
 
 # Ensure .gitignore entries exist
-IGNORE_ENTRIES=("/lb_runner/plugins/_user/")
+IGNORE_ENTRIES=("/lb_plugins/plugins/_user/")
 
 GITIGNORE="$ROOT/.gitignore"
 touch "$GITIGNORE"

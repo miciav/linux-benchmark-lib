@@ -17,10 +17,10 @@ WORKDIR /stream-deb
 
 # Create a minimal Debian source tree (we vendor stream.c and LICENSE.txt in the repo).
 RUN mkdir -p stream-benchmark-${STREAM_VERSION}/debian
-COPY lb_runner/plugins/stream/upstream/stream.c stream-benchmark-${STREAM_VERSION}/stream.c
-COPY lb_runner/plugins/stream/upstream/LICENSE.txt stream-benchmark-${STREAM_VERSION}/LICENSE.txt
-COPY lb_runner/plugins/stream/control stream-benchmark-${STREAM_VERSION}/debian/control
-COPY lb_runner/plugins/stream/rules stream-benchmark-${STREAM_VERSION}/debian/rules
+COPY lb_plugins/plugins/stream/upstream/stream.c stream-benchmark-${STREAM_VERSION}/stream.c
+COPY lb_plugins/plugins/stream/upstream/LICENSE.txt stream-benchmark-${STREAM_VERSION}/LICENSE.txt
+COPY lb_plugins/plugins/stream/control stream-benchmark-${STREAM_VERSION}/debian/control
+COPY lb_plugins/plugins/stream/rules stream-benchmark-${STREAM_VERSION}/debian/rules
 RUN chmod +x stream-benchmark-${STREAM_VERSION}/debian/rules
 
 RUN cd stream-benchmark-${STREAM_VERSION} && DEBFULLNAME='STREAM Builder' DEBEMAIL='builder@example.com' \

@@ -18,14 +18,14 @@ from lb_runner.benchmark_config import (
 )
 # We need to import all plugin configs that BenchmarkConfig might try to load by default
 # This ensures they are registered with the PluginRegistry before BenchmarkConfig() is called
-from lb_runner.plugins.baseline.plugin import BaselineConfig
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
-from lb_runner.plugins.dd.plugin import DDConfig
-from lb_runner.plugins.fio.plugin import FIOConfig
-from lb_runner.plugins.geekbench.plugin import GeekbenchConfig
-from lb_runner.plugins.hpl.plugin import HPLConfig
-from lb_runner.plugins.stream.plugin import StreamConfig
-from lb_runner.plugins.yabs.plugin import YabsConfig
+from lb_plugins.plugins.baseline.plugin import BaselineConfig
+from lb_plugins.plugins.stress_ng.plugin import StressNGConfig
+from lb_plugins.plugins.dd.plugin import DDConfig
+from lb_plugins.plugins.fio.plugin import FIOConfig
+from lb_plugins.plugins.geekbench.plugin import GeekbenchConfig
+from lb_plugins.plugins.hpl.plugin import HPLConfig
+from lb_plugins.plugins.stream.plugin import StreamConfig
+from lb_plugins.plugins.yabs.plugin import YabsConfig
 
 pytestmark = pytest.mark.unit_runner
 

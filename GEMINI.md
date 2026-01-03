@@ -13,11 +13,12 @@
 *   **Data Handling:** Aggregation using Pandas, reporting with Matplotlib/Seaborn.
 
 ## Architecture
-*   `lb_runner/`: Core execution logic, workload plugins, and metric collectors.
+*   `lb_runner/`: Core execution logic and metric collectors.
     *   `local_runner.py`: Orchestrates the benchmark workflow on a single node.
 *   `lb_controller/`: Remote orchestration, Ansible integration, and result handling.
 *   `lb_ui/`: CLI and TUI layer. **Note:** Runner/Controller modules do not import UI components.
 *   `lb_analytics/`: Data aggregation and reporting logic.
+*   `lb_plugins/`: Workload plugin implementations.
 *   `benchmark_results/`: Stores raw metric data.
 *   `reports/`: Generated text reports and plots.
 
@@ -74,5 +75,5 @@ uv run pytest -m tui
 ## File Structure Highlights
 *   `pyproject.toml`: Dependency and build configuration.
 *   `lb_runner/benchmark_config.py`: Configuration dataclasses.
-*   `lb_runner/plugins/`: Workload plugin implementations.
+*   `lb_plugins/plugins/`: Workload plugin implementations.
 *   `lb_controller/ansible/`: Ansible playbooks and roles.

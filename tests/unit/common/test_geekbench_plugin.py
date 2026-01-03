@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-import lb_runner.plugins.geekbench.plugin as gb_mod
+import lb_plugins.plugins.geekbench.plugin as gb_mod
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 

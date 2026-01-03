@@ -19,8 +19,8 @@ from typing import Any, List, Optional, Type
 
 from pydantic import Field
 
-from ...plugin_system.base_generator import BaseGenerator
-from ...plugin_system.interface import BasePluginConfig, WorkloadIntensity, WorkloadPlugin
+from lb_runner.plugin_system.base_generator import BaseGenerator
+from lb_runner.plugin_system.interface import BasePluginConfig, WorkloadIntensity, WorkloadPlugin
 
 logger = logging.getLogger(__name__)
 

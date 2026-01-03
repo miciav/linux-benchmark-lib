@@ -26,7 +26,7 @@ WORKDIR /app
 RUN mkdir -p /etc/ansible && echo "localhost ansible_connection=local" > /etc/ansible/hosts
 
 # Only bring in the playbook needed to compile HPL
-COPY lb_runner/plugins/hpl/ansible/setup.yml /app/setup.yml
+COPY lb_plugins/plugins/hpl/ansible/setup.yml /app/setup.yml
 
 # Optional pre-build to avoid first-run compilation cost (disabled by default to
 # keep memory usage low during docker build)

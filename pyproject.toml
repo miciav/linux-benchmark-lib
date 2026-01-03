@@ -57,11 +57,14 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["lb_runner*", "lb_controller*", "lb_ui*", "lb_analytics*", "lb_provisioner*", "lb_app*", "lb_common*"]
+include = ["lb_runner*", "lb_controller*", "lb_ui*", "lb_analytics*", "lb_provisioner*", "lb_app*", "lb_common*", "lb_plugins*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [tool.setuptools.package-data]
 lb_runner = [
+    "plugins/**/*",
+]
+lb_plugins = [
     "plugins/**/*",
 ]
 lb_controller = [
@@ -77,11 +80,11 @@ psutil = "lb_runner.plugin_system.builtin:PSUTIL_COLLECTOR"
 cli = "lb_runner.plugin_system.builtin:CLI_COLLECTOR"
 
 [project.entry-points."linux_benchmark.workloads"]
-stress_ng = "lb_runner.plugins.stress_ng.plugin:PLUGIN"
-fio = "lb_runner.plugins.fio.plugin:PLUGIN"
-dd = "lb_runner.plugins.dd.plugin:PLUGIN"
-hpl = "lb_runner.plugins.hpl.plugin:PLUGIN"
-stream = "lb_runner.plugins.stream.plugin:PLUGIN"
+stress_ng = "lb_plugins.plugins.stress_ng.plugin:PLUGIN"
+fio = "lb_plugins.plugins.fio.plugin:PLUGIN"
+dd = "lb_plugins.plugins.dd.plugin:PLUGIN"
+hpl = "lb_plugins.plugins.hpl.plugin:PLUGIN"
+stream = "lb_plugins.plugins.stream.plugin:PLUGIN"
 
 [tool.uv]
 package = true

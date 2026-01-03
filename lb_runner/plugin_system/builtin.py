@@ -12,7 +12,22 @@ from .registry import CollectorPlugin
 
 logger = logging.getLogger(__name__)
 _PACKAGE_ROOT = __package__.rsplit(".", 1)[0]
-_PLUGIN_PACKAGE = f"{_PACKAGE_ROOT}.plugins"
+_PLUGIN_PACKAGE = "lb_plugins.plugins"
+
+
+def _plugin_root() -> Path:
+    try:
+        import lb_plugins  # type: ignore
+
+        candidate = Path(lb_plugins.__file__).resolve().parent / "plugins"
+        if candidate.exists():
+            return candidate
+    except Exception:
+        pass
+    fallback = Path(__file__).resolve().parent.parent / "plugins"
+    if fallback.exists():
+        return fallback
+    return Path(__file__).resolve().parents[2] / "lb_plugins" / "plugins"
 
 # --- Collector Factories ---
 
@@ -76,7 +91,7 @@ def builtin_plugins() -> List[Any]:
     ]
 
     # 1. Scan plugins/*/plugin.py
-    plugins_path = Path(__file__).resolve().parent.parent / "plugins"
+    plugins_path = _plugin_root()
     if plugins_path.exists():
         for item in plugins_path.iterdir():
             if item.is_dir() and (item / "plugin.py").exists():

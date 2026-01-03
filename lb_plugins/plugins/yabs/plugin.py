@@ -20,8 +20,8 @@ from typing import List, Optional, Type, Any
 
 from pydantic import Field, model_validator # Added pydantic Field, model_validator
 
-from ...plugin_system.interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig # Imported BasePluginConfig
-from ...plugin_system.base_generator import BaseGenerator
+from lb_runner.plugin_system.interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig # Imported BasePluginConfig
+from lb_runner.plugin_system.base_generator import BaseGenerator
 
 logger = logging.getLogger(__name__)
 

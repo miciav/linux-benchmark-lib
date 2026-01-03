@@ -12,8 +12,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
-DEB_ARM64_REL="${DEB_ARM64_REL:-lb_runner/plugins/hpl/hpl_2.3-1_arm64.deb}"
-DEB_AMD64_REL="${DEB_AMD64_REL:-lb_runner/plugins/hpl/hpl_2.3-1_amd64.deb}"
+DEB_ARM64_REL="${DEB_ARM64_REL:-lb_plugins/plugins/hpl/hpl_2.3-1_arm64.deb}"
+DEB_AMD64_REL="${DEB_AMD64_REL:-lb_plugins/plugins/hpl/hpl_2.3-1_amd64.deb}"
 DEB_ARM64="${ROOT_DIR}/${DEB_ARM64_REL}"
 DEB_AMD64="${ROOT_DIR}/${DEB_AMD64_REL}"
 
@@ -33,7 +33,7 @@ fi
 
 echo "Building and pushing ARM64..."
 docker buildx build --platform linux/arm64 \
-  -f "${ROOT_DIR}/lb_runner/plugins/hpl/Dockerfile.arm" \
+  -f "${ROOT_DIR}/lb_plugins/plugins/hpl/Dockerfile.arm" \
   --build-arg HPL_DEB="${DEB_ARM64_REL}" \
   --no-cache \
   -t "${DOCKER_USER}/hpl:2.3-arm64" \
@@ -42,7 +42,7 @@ docker buildx build --platform linux/arm64 \
 
 echo "Building and pushing AMD64..."
 docker buildx build --platform linux/amd64 \
-  -f "${ROOT_DIR}/lb_runner/plugins/hpl/Dockerfile.amd64" \
+  -f "${ROOT_DIR}/lb_plugins/plugins/hpl/Dockerfile.amd64" \
   --build-arg HPL_DEB="${DEB_AMD64_REL}" \
   --no-cache \
   -t "${DOCKER_USER}/hpl:2.3-amd64" \

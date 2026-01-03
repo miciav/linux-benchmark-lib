@@ -13,8 +13,8 @@ from typing import List, Optional, Type, Any
 
 from pydantic import Field # Added pydantic Field
 
-from ...plugin_system.interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig # Imported BasePluginConfig
-from ...plugin_system.base_generator import BaseGenerator
+from lb_runner.plugin_system.interface import WorkloadPlugin, WorkloadIntensity, BasePluginConfig # Imported BasePluginConfig
+from lb_runner.plugin_system.base_generator import BaseGenerator
 
 logger = logging.getLogger(__name__)
 

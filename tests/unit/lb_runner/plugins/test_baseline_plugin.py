@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError # Added ValidationError import
 from lb_runner.plugin_system.interface import WorkloadIntensity
-from lb_runner.plugins.baseline.plugin import (
+from lb_plugins.plugins.baseline.plugin import (
     BaselineConfig,
     BaselineGenerator,
     BaselinePlugin,

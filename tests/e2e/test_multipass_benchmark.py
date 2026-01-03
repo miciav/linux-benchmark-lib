@@ -28,8 +28,8 @@ from lb_runner.benchmark_config import (
     RemoteHostConfig,
     WorkloadConfig,
 )
-from lb_runner.plugins.dd.plugin import DDConfig
-from lb_runner.plugins.stress_ng.plugin import StressNGConfig
+from lb_plugins.plugins.dd.plugin import DDConfig
+from lb_plugins.plugins.stress_ng.plugin import StressNGConfig
 from lb_controller.ansible_executor import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController
 from tests.helpers.multipass import (
@@ -39,7 +39,7 @@ from tests.helpers.multipass import (
     make_test_ansible_env,
     stage_private_key,
 )
-from lb_runner.plugins.fio.plugin import FIOConfig
+from lb_plugins.plugins.fio.plugin import FIOConfig
 
 # Constants
 VM_NAME_PREFIX = "benchmark-test-vm"

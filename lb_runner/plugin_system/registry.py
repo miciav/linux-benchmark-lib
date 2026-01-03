@@ -22,7 +22,24 @@ from .user_plugins import load_plugins_from_dir
 logger = logging.getLogger(__name__)
 ENTRYPOINT_GROUP = "linux_benchmark.workloads"
 COLLECTOR_ENTRYPOINT_GROUP = "linux_benchmark.collectors"
-BUILTIN_PLUGIN_ROOT = Path(__file__).resolve().parent.parent / "plugins"
+
+
+def _builtin_plugin_root() -> Path:
+    try:
+        import lb_plugins  # type: ignore
+
+        candidate = Path(lb_plugins.__file__).resolve().parent / "plugins"
+        if candidate.exists():
+            return candidate
+    except Exception:
+        pass
+    fallback = Path(__file__).resolve().parent.parent / "plugins"
+    if fallback.exists():
+        return fallback
+    return Path(__file__).resolve().parents[2] / "lb_plugins" / "plugins"
+
+
+BUILTIN_PLUGIN_ROOT = _builtin_plugin_root()
 
 
 def resolve_user_plugin_dir() -> Path:
@@ -31,7 +48,7 @@ def resolve_user_plugin_dir() -> Path:
 
     Preference order:
     1) `LB_USER_PLUGIN_DIR` env override (if set).
-    2) `<package>/plugins/_user` (portable with runner tree).
+    2) `<package>/plugins/_user` (portable with plugin tree).
     """
     override = os.environ.get("LB_USER_PLUGIN_DIR")
     if override:
