@@ -5,15 +5,25 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_runner.api import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
+from lb_controller.api import (
+    AnsibleRunnerExecutor,
+    BenchmarkController,
+    ControllerOptions,
+    ControllerState,
+    ExecutionResult,
+    InventorySpec,
+    RemoteExecutor,
+    apply_playbook_defaults,
+)
+from lb_plugins.api import apply_plugin_assets, create_registry
+from lb_runner.api import (
+    BenchmarkConfig,
+    RemoteHostConfig,
+    StopToken,
+    WorkloadConfig,
+)
 
 pytestmark = pytest.mark.unit_controller
-
-from lb_controller.api import BenchmarkController, ControllerState, apply_playbook_defaults
-from lb_controller.api import AnsibleRunnerExecutor
-from lb_controller.api import ExecutionResult, InventorySpec, RemoteExecutor
-from lb_plugins.api import apply_plugin_assets, create_registry
-from lb_runner.api import StopToken
 
 
 class DummyExecutor(RemoteExecutor):
@@ -63,7 +73,7 @@ def test_controller_creates_output_dirs(tmp_path: Path):
     config.remote_execution.run_teardown = False
     _prepare_controller_config(config)
     executor = DummyExecutor()
-    controller = BenchmarkController(config, executor=executor)
+    controller = BenchmarkController(config, ControllerOptions(executor=executor))
 
     summary = controller.run(test_types=["stress_ng"], run_id="run-test")
 
@@ -188,7 +198,7 @@ def test_controller_merges_plugin_extravars_into_setup(tmp_path: Path) -> None:
     _prepare_controller_config(config)
 
     executor = DummyExecutor()
-    controller = BenchmarkController(config, executor=executor)
+    controller = BenchmarkController(config, ControllerOptions(executor=executor))
     summary = controller.run(test_types=["pts_build_linux_kernel"], run_id="run-test")
     assert summary.success
 
@@ -226,7 +236,7 @@ def test_controller_summary_includes_run_outputs(tmp_path: Path) -> None:
     _prepare_controller_config(config)
 
     executor = DummyExecutor()
-    controller = BenchmarkController(config, executor=executor)
+    controller = BenchmarkController(config, ControllerOptions(executor=executor))
 
     run_id = "run-characterization"
     summary = controller.run(test_types=["stress_ng"], run_id=run_id)
@@ -284,7 +294,12 @@ def test_controller_runs_teardown_even_after_stop_requested(tmp_path: Path) -> N
 
     executor = StopAfterRunExecutor()
     controller = BenchmarkController(
-        config, executor=executor, stop_token=stop_token, stop_timeout_s=0.0
+        config,
+        ControllerOptions(
+            executor=executor,
+            stop_token=stop_token,
+            stop_timeout_s=0.0,
+        ),
     )
     controller.run(test_types=["stress_ng"], run_id="run-test")
 
@@ -341,7 +356,12 @@ def test_controller_interrupt_setup_triggers_teardown(tmp_path: Path) -> None:
 
     executor = InterruptSetupExecutor()
     controller = BenchmarkController(
-        config, executor=executor, stop_token=stop_token, stop_timeout_s=0.0
+        config,
+        ControllerOptions(
+            executor=executor,
+            stop_token=stop_token,
+            stop_timeout_s=0.0,
+        ),
     )
     summary = controller.run(test_types=["stress_ng"], run_id="run-test")
     assert summary.success is False
@@ -379,7 +399,9 @@ def test_controller_sets_aborted_state_on_setup_stop(tmp_path: Path) -> None:
             return ExecutionResult(rc=1, status="stopped")
 
     executor = StopDuringSetupExecutor()
-    controller = BenchmarkController(config, executor=executor, stop_token=stop_token)
+    controller = BenchmarkController(
+        config, ControllerOptions(executor=executor, stop_token=stop_token)
+    )
     summary = controller.run(test_types=["stress_ng"], run_id="run-test")
 
     assert summary.controller_state == ControllerState.ABORTED

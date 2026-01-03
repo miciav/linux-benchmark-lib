@@ -15,7 +15,7 @@
     stream_deb_default: "{{ playbook_dir + '/../stream-benchmark_' + stream_version + '-1_' + stream_arch + '.deb' }}"
     stream_deb_src_resolved: "{{ stream_deb_src | default(stream_deb_default, true) }}"
     stream_deb_dest: "/tmp/stream-benchmark_{{ stream_version }}.deb"
-    stream_workspace: "{{ ansible_env.HOME + '/.lb/workspaces/stream' }}"
+    stream_workspace: "{{ ansible_facts['env']['HOME'] + '/.lb/workspaces/stream' }}"
 
     stream_packages:
       - libgomp1

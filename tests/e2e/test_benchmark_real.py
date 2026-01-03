@@ -5,21 +5,19 @@ These tests run actual benchmarks with minimal parameters to verify
 the entire system works end-to-end.
 """
 
-import unittest
-import tempfile
-import shutil
-from pathlib import Path
 import json
+import shutil
+import tempfile
 import time
+import unittest
+from pathlib import Path
 
 import pytest
 
-from lb_runner.api import BenchmarkConfig, MetricCollectorConfig, WorkloadConfig
+from lb_plugins.api import PluginRegistry, StressNGConfig, builtin_plugins
+from lb_runner.api import BenchmarkConfig, LocalRunner, MetricCollectorConfig, WorkloadConfig
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.slow]
-
-from lb_plugins.api import PluginRegistry, StressNGConfig, builtin_plugins
-from lb_runner.api import LocalRunner
 
 
 class TestRealBenchmarkIntegration(unittest.TestCase):
@@ -88,8 +86,6 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         run_id = getattr(runner, "_current_run_id", None)
         output_root = config.output_dir / run_id if run_id else config.output_dir
         workload_dir = output_root / "stress_ng"
-        export_root = config.data_export_dir / run_id if run_id else config.data_export_dir
-        
         # Verify execution time is reasonable
         execution_time = end_time - start_time
         self.assertLess(execution_time, 10)  # Should complete within 10 seconds

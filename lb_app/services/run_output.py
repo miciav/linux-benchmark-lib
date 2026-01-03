@@ -161,6 +161,20 @@ class AnsibleOutputFormatter:
             "workload_runner : Build repetitions list",
             "workload_runner : Run benchmark via local runner (per repetition)",
         )
+        self._suppress_task_names = {
+            "Skip polling if already finished",
+            "Poll LB_EVENT stream",
+            "Streaming indicator",
+            "Update finished status",
+            "Delay",
+            "Initialize polling status",
+            "workload_runner : Skip polling if already finished",
+            "workload_runner : Poll LB_EVENT stream",
+            "workload_runner : Streaming indicator",
+            "workload_runner : Update finished status",
+            "workload_runner : Delay",
+            "workload_runner : Initialize polling status",
+        }
 
     def set_phase(self, phase: str):
         self.current_phase = phase
@@ -283,6 +297,8 @@ class AnsibleOutputFormatter:
         if not parsed:
             return True
         phase, message = parsed
+        if self._should_suppress_task(raw_task, message, log_sink):
+            return True
         status = str(data.get("status") or "").lower()
         if status in {"failed", "skipped", "unreachable"}:
             message = f"{message} {status}"
@@ -342,6 +358,9 @@ class AnsibleOutputFormatter:
         if not parsed:
             return False
         phase, message = parsed
+        raw_task = self.task_pattern.search(line).group(1).strip()
+        if self._should_suppress_task(raw_task, message, log_sink):
+            return True
         if self.emit_task_timings:
             timing = self._task_timer.start(phase, message)
             if timing:
@@ -372,6 +391,17 @@ class AnsibleOutputFormatter:
         if raw_task in self._always_show_tasks or task_name in self._always_show_tasks:
             message = task_name
         return phase, message
+
+    def _should_suppress_task(
+        self,
+        raw_task: str,
+        task_name: str,
+        log_sink: Callable[[str], None] | None,
+    ) -> bool:
+        if raw_task in self._suppress_task_names or task_name in self._suppress_task_names:
+            # Allow dashboard sinks to summarize polling tasks instead of dropping them.
+            return log_sink is None
+        return False
 
     def _maybe_flush_task_timing(
         self, line: str, log_sink: Callable[[str], None] | None

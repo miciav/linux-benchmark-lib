@@ -98,11 +98,13 @@ class AnsibleEnvBuilder:
         local_tmp: Path,
         event_log_path: Path,
         ansible_root: Path,
+        event_debug: bool = False,
     ) -> None:
         self._private_data_dir = private_data_dir
         self._local_tmp = local_tmp
         self._event_log_path = event_log_path
         self._ansible_root = ansible_root
+        self._event_debug = event_debug
 
     def build(self) -> Dict[str, str]:
         repo_roles = (self._ansible_root / "roles").resolve()
@@ -116,7 +118,7 @@ class AnsibleEnvBuilder:
                 runner_collections,
                 dirs_exist_ok=True,
             )
-        return {
+        env = {
             "ANSIBLE_ROLES_PATH": f"{runner_roles}:{repo_roles}",
             "ANSIBLE_COLLECTIONS_PATHS": f"{runner_collections}:{repo_collections}",
             "ANSIBLE_LOCAL_TEMP": str(self._local_tmp),
@@ -127,6 +129,9 @@ class AnsibleEnvBuilder:
             "ANSIBLE_CALLBACKS_ENABLED": "lb_events",
             "LB_EVENT_LOG_PATH": str(self._event_log_path),
         }
+        if self._event_debug:
+            env["LB_EVENT_DEBUG"] = "1"
+        return env
 
     @staticmethod
     def merge_env(envvars: Dict[str, str]) -> Dict[str, str]:

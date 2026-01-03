@@ -80,6 +80,12 @@ class CallbackModule(CallbackBase):
         self.log_path = Path(log_path).expanduser()
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._task_start_times: Dict[str, float] = {}
+        # Debug mode: write diagnostic info to separate file
+        # Temporarily enabled by default for diagnostics
+        self._debug = os.getenv("LB_EVENT_DEBUG", "1").lower() in ("1", "true", "yes")
+        self._debug_path = self.log_path.parent / "lb_events.debug.log" if self._debug else None
+        if self._debug_path:
+            self._debug_path.write_text(f"[{time.time()}] Callback plugin initialized, log_path={self.log_path}\n")
 
     def v2_runner_on_ok(self, result, **kwargs):  # type: ignore[override]
         self._handle_result(result, status_override=None)
@@ -104,11 +110,24 @@ class CallbackModule(CallbackBase):
 
     def _handle_result(self, result: Any, status_override: str | None) -> None:
         host = getattr(result._host, "get_name", lambda: None)()  # type: ignore[attr-defined]
+        task = getattr(result, "_task", None)
+        task_name = getattr(task, "get_name", lambda: "")() if task else ""
+        if self._debug and self._debug_path:
+            res = getattr(result, "_result", {}) or {}
+            stdout = res.get("stdout", "")[:200] if res.get("stdout") else ""
+            msg = res.get("msg", "")[:200] if res.get("msg") else ""
+            has_lb_event = "LB_EVENT" in str(res)
+            with self._debug_path.open("a") as f:
+                f.write(f"[{time.time()}] _handle_result: host={host} task={task_name} "
+                        f"has_lb_event={has_lb_event} stdout_preview={stdout!r} msg_preview={msg!r}\n")
         for event in self._events_from_result(result):
             event.setdefault("host", host)
             if status_override and "status" not in event:
                 event["status"] = status_override
             self._write_event(event)
+            if self._debug and self._debug_path:
+                with self._debug_path.open("a") as f:
+                    f.write(f"[{time.time()}] Wrote event: {json.dumps(event)}\n")
         self._emit_task_timing(result, host, status_override)
 
     def _events_from_result(self, result: Any) -> Iterator[Dict[str, Any]]:

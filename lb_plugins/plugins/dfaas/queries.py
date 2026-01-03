@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 import json
 import time
 from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 class PrometheusQueryError(RuntimeError):
@@ -102,7 +105,7 @@ class PrometheusQueryRunner:
         base_url: str,
         *,
         timeout_seconds: float = 10.0,
-        retry_seconds: int = 30,
+        retry_seconds: int = 120,
         sleep_seconds: int = 1,
     ) -> None:
         self._base_url = base_url.rstrip("/")
@@ -155,16 +158,26 @@ class PrometheusQueryRunner:
         self, url: str, params: dict[str, str]
     ) -> dict[str, Any]:
         start = time.time()
+        logged = False
         while True:
             payload = self._request_json(url, params)
             if payload.get("data", {}).get("result"):
                 return payload
+            if not logged:
+                logger.info(
+                    "Prometheus query returned no data yet; retrying for up to %ss",
+                    self._retry_seconds,
+                )
+                logged = True
             if time.time() - start > self._retry_seconds:
                 raise PrometheusQueryError("Prometheus query timed out.")
             time.sleep(self._sleep_seconds)
 
     def _request_json(self, url: str, params: dict[str, str]) -> dict[str, Any]:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError(f"Unsupported URL scheme for Prometheus: {parsed.scheme}")
         query_string = urlencode(params)
         request = Request(f"{url}?{query_string}")
-        with urlopen(request, timeout=self._timeout_seconds) as response:
+        with urlopen(request, timeout=self._timeout_seconds) as response:  # nosec B310
             return json.loads(response.read().decode("utf-8"))

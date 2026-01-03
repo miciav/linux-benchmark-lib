@@ -9,7 +9,7 @@ pts:
   # PTS stores its state under PTS_USER_PATH (e.g. ~/.phoronix-test-suite/).
   # We override it to a stable location inside the container/remote host.
   # NOTE: keep the trailing slash; PTS concatenates paths as strings.
-  home_root: "/opt/lb/.phoronix-test-suite/"
+  home_root: "~/.lb/.phoronix-test-suite/"
 
 workloads:
   - profile: build-linux-kernel

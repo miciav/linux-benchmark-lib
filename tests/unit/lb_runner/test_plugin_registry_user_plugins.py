@@ -1,7 +1,5 @@
-import os
 from pathlib import Path
 
-import pytest
 
 from lb_plugins.api import PluginRegistry
 

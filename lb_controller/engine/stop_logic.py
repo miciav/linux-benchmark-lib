@@ -59,11 +59,12 @@ def handle_stop_protocol(
 
     stop_pb_content = """
 - hosts: all
-  gather_facts: false
+  gather_facts: true
+  become: true
   tasks:
     - name: Create STOP file
       ansible.builtin.file:
-        path: "{{ lb_workdir | default('/opt/lb') }}/STOP"
+        path: "{{ lb_workdir }}/STOP"
         state: touch
         mode: '0644'
 """

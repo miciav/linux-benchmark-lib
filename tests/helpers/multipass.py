@@ -67,6 +67,8 @@ def make_test_ansible_env(tmp_path: Path, roles_path: Optional[Path] = None) -> 
     local_tmp.mkdir(parents=True, exist_ok=True)
 
     cfg_path = tmp_path / "ansible.cfg"
+    callback_dir = tmp_path / "callback_plugins"
+    callback_dir.mkdir(parents=True, exist_ok=True)
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(
         "[defaults]\n"
@@ -84,7 +86,8 @@ def make_test_ansible_env(tmp_path: Path, roles_path: Optional[Path] = None) -> 
     env["ANSIBLE_REMOTE_TMP"] = "/tmp/.ansible"
     env["ANSIBLE_HOST_KEY_CHECKING"] = "False"
     env["ANSIBLE_STDOUT_CALLBACK"] = "default"
-    env["ANSIBLE_CALLBACK_PLUGINS"] = ""
+    env["ANSIBLE_CALLBACK_PLUGINS"] = str(callback_dir)
+    env["ANSIBLE_CALLBACKS_ENABLED"] = "default"
     if roles_path:
         env["ANSIBLE_ROLES_PATH"] = str(roles_path)
     return env

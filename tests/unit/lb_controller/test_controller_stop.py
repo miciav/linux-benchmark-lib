@@ -1,10 +1,10 @@
 """Unit tests for BenchmarkController stop protocol integration."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, ANY, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from lb_controller.api import BenchmarkController
+from lb_controller.api import BenchmarkController, ControllerOptions
 from lb_controller.api import StopState
 from lb_controller.api import ExecutionResult
 from lb_runner.api import BenchmarkConfig, RemoteHostConfig
@@ -27,7 +27,10 @@ def controller(mock_executor):
         data_export_dir=Path("/tmp/exp"),
     )
     stop_token = StopToken(enable_signals=False)
-    ctrl = BenchmarkController(config, executor=mock_executor, stop_token=stop_token)
+    ctrl = BenchmarkController(
+        config,
+        ControllerOptions(executor=mock_executor, stop_token=stop_token),
+    )
     # Mock coordinator to avoid real timing logic
     ctrl.coordinator = MagicMock()
     ctrl.coordinator.state = StopState.IDLE

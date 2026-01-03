@@ -3,7 +3,11 @@
   hosts: all
   become: true
   vars:
-    k6_workspace_root: "/var/lib/dfaas-k6"
+    k6_workspace_root: >-
+      {{
+        (ansible_user == 'root')
+        | ternary('/root/.dfaas-k6', '/home/' ~ ansible_user ~ '/.dfaas-k6')
+      }}
     target_name: ""
     run_id: ""
     config_id: ""
@@ -52,6 +56,11 @@
         > "{{ log_path }}" 2>&1
       args:
         executable: /bin/bash
+
+    - name: Ensure k6 log is readable
+      ansible.builtin.file:
+        path: "{{ log_path }}"
+        mode: "0644"
 
     - name: Fetch summary JSON to controller
       ansible.builtin.fetch:

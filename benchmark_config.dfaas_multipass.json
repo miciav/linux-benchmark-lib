@@ -1,0 +1,44 @@
+{
+  "remote_hosts": [
+    {
+      "name": "dfaas-target",
+      "address": "192.168.2.2",
+      "user": "ubuntu",
+      "become": true,
+      "vars": {
+        "ansible_ssh_private_key_file": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/temp_keys/dfaas_multipass_key",
+        "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
+        "ansible_python_interpreter": "/usr/bin/python3"
+      }
+    }
+  ],
+  "remote_execution": {
+    "enabled": true
+  },
+  "plugin_settings": {
+    "dfaas": {
+      "k6_host": "192.168.2.3",
+      "k6_user": "ubuntu",
+      "k6_ssh_key": "/home/ubuntu/.ssh/dfaas_k6_key",
+      "k6_port": 22,
+      "gateway_url": "http://192.168.2.2:31112",
+      "prometheus_url": "http://192.168.2.2:30411",
+      "functions": [
+        {
+          "name": "env",
+          "method": "GET",
+          "body": "",
+          "headers": {
+            "Authorization": "Basic CHANGE_ME"
+          }
+        }
+      ]
+    }
+  },
+  "workloads": {
+    "dfaas": {
+      "plugin": "dfaas",
+      "enabled": true
+    }
+  }
+}

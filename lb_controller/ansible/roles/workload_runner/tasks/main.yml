@@ -1,18 +1,25 @@
+- name: Validate workload runner workdir
+  ansible.builtin.assert:
+    that:
+      - lb_workdir is defined
+      - lb_workdir | length > 0
+    fail_msg: "lb_workdir is required for workload execution."
+
 - name: Select workload runner mode
   debug:
     msg: >-
       Workload runner mode={{ workload_runner_mode | default('execute') }}
       tests={{ workload_runner_tests | default([]) }}
       output={{ workload_runner_output_dir | default('/tmp') }}
-      lb_workdir={{ lb_workdir | default('/opt/lb') }}
+      lb_workdir={{ lb_workdir }}
 
 - name: Define workload runner workdir (use globally installed lb_workdir)
   set_fact:
-    workload_runner_workdir: "{{ lb_workdir | default('/opt/lb') }}"
+    workload_runner_workdir: "{{ lb_workdir }}"
     workload_runner_uv_bin: >-
       {{
         lb_uv_bin
-        | default((lb_workdir | default('/opt/lb')) + '/.local/bin/uv')
+        | default(lb_workdir + '/.local/bin/uv')
       }}
     setup_prefix: "[setup]"
     run_prefix: "[run]"

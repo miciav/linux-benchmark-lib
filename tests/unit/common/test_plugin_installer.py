@@ -1,17 +1,14 @@
 import shutil
 import subprocess
 from pathlib import Path
-from dataclasses import dataclass
-from typing import Type
 
 import pytest
 
+from lb_app.api import ConfigService
+from lb_plugins.api import PluginInstaller
 from lb_runner.api import BenchmarkConfig
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
-
-from lb_app.api import ConfigService
-from lb_plugins.api import PluginInstaller
 
 # Dummy plugin content to be written to files
 DUMMY_PLUGIN_CONTENT = """

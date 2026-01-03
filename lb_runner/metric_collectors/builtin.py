@@ -26,14 +26,14 @@ PSUtilCollector, PSUTIL_IMPORT_ERROR = _safe_import(
     "lb_runner.metric_collectors.psutil_collector", "PSUtilCollector"
 )
 PSUTIL_AGGREGATOR, _ = _safe_import(
-    "lb_runner.metric_collectors.psutil_collector", "aggregate_psutil"
+    "lb_runner.metric_collectors.aggregators", "aggregate_psutil"
 )
 
 CLICollector, CLI_IMPORT_ERROR = _safe_import(
     "lb_runner.metric_collectors.cli_collector", "CLICollector"
 )
 CLI_AGGREGATOR, _ = _safe_import(
-    "lb_runner.metric_collectors.cli_collector", "aggregate_cli"
+    "lb_runner.metric_collectors.aggregators", "aggregate_cli"
 )
 
 

@@ -1127,7 +1127,7 @@ wheels = [
 
 [[package]]
 name = "linux-benchmark-lib"
-version = "0.60.0"
+version = "0.62.0"
 source = { editable = "." }
 dependencies = [
     { name = "jc" },
@@ -1203,6 +1203,7 @@ dev = [
     { name = "rich" },
     { name = "ruff" },
     { name = "semgrep" },
+    { name = "tenacity" },
     { name = "typer" },
     { name = "vulture" },
     { name = "xenon" },
@@ -1274,6 +1275,7 @@ dev = [
     { name = "rich", specifier = ">=13.7.0" },
     { name = "ruff", specifier = ">=0.14.10" },
     { name = "semgrep", specifier = ">=1.86.0" },
+    { name = "tenacity", specifier = ">=9.1.2" },
     { name = "typer", specifier = ">=0.12.5" },
     { name = "vulture", specifier = ">=2.10" },
     { name = "xenon", specifier = ">=0.9.3" },
@@ -2951,6 +2953,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d7/22/991efbf35bc811dfe7edcd749253f0931d2d4838cf55176132633e1c82a7/subprocess_tee-0.4.2.tar.gz", hash = "sha256:91b2b4da3aae9a7088d84acaf2ea0abee3f4fd9c0d2eae69a9b9122a71476590", size = 14951, upload-time = "2024-06-17T19:51:51.249Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4d/ab/e3a3be062cd544b2803760ff707dee38f0b1cb5685b2446de0ec19be28d9/subprocess_tee-0.4.2-py3-none-any.whl", hash = "sha256:21942e976715af4a19a526918adb03a8a27a8edab959f2d075b777e3d78f532d", size = 5249, upload-time = "2024-06-17T19:51:15.949Z" },
+]
+
+[[package]]
+name = "tenacity"
+version = "9.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/d4/2b0cd0fe285e14b36db076e78c93766ff1d529d70408bd1d2a5a84f1d929/tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb", size = 48036, upload-time = "2025-04-02T08:25:09.966Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/30/643397144bfbfec6f6ef821f36f33e57d35946c44a2352d3c9f0ae847619/tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138", size = 28248, upload-time = "2025-04-02T08:25:07.678Z" },
 ]
 
 [[package]]

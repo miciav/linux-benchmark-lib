@@ -31,6 +31,11 @@ class PerfConfig(BaseModel):
     cpu: Optional[int] = Field(default=None, ge=0, description="CPU to profile")
 
 
+DEFAULT_LB_WORKDIR = (
+    "{{ (ansible_user == 'root') | ternary('/root', '/home/' ~ ansible_user) }}/.lb"
+)
+
+
 class MetricCollectorConfig(BaseModel):
     """Configuration for metric collectors."""
 
@@ -91,6 +96,10 @@ class RemoteExecutionConfig(BaseModel):
 
     enabled: bool = Field(default=False, description="Enable remote execution")
     inventory_path: Optional[Path] = Field(default=None, description="Path to a custom Ansible inventory file")
+    lb_workdir: str = Field(
+        default=DEFAULT_LB_WORKDIR,
+        description="Remote workdir for benchmark install (Ansible-templated)",
+    )
     run_setup: bool = Field(default=True, description="Execute setup playbooks before tests")
     run_collect: bool = Field(default=True, description="Execute collection playbooks after tests")
     setup_playbook: Optional[Path] = Field(default=None, description="Path to the Ansible setup playbook")

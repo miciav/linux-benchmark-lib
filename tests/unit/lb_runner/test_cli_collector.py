@@ -4,7 +4,6 @@ import pytest
 import pandas as pd
 from lb_runner.api import aggregate_cli
 
-import pytest
 
 pytestmark = pytest.mark.unit_runner
 

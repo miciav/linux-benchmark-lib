@@ -2,13 +2,12 @@
 
 import json
 import logging
-import time
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 from lb_runner.api import RunEvent
 from lb_runner.api import LBEventLogHandler
+from lb_runner.services.async_localrunner import _configure_logging_level
 from lb_app.api import AnsibleOutputFormatter, _extract_lb_event_data
 
 
@@ -132,6 +131,85 @@ def test_ansible_output_formatter_mixed_input():
     }
     # Ansible often wraps output in quotes or escapes
     log_line = f'msg: LB_EVENT {json.dumps(log_payload)}'
-    
+
     res_log = formatter._format_progress(log_line)
     assert res_log == ("run w1", "[ERROR] Critical failure", "h1")
+
+
+@pytest.mark.unit_controller
+def test_configure_logging_level_sets_info_when_event_logging_enabled(monkeypatch):
+    """Verify _configure_logging_level sets INFO when LB_ENABLE_EVENT_LOGGING=1."""
+    monkeypatch.setenv("LB_ENABLE_EVENT_LOGGING", "1")
+    monkeypatch.delenv("LB_LOG_LEVEL", raising=False)
+
+    root_logger = logging.getLogger()
+    original_level = root_logger.level
+
+    try:
+        # Reset to WARNING to simulate default state
+        root_logger.setLevel(logging.WARNING)
+
+        _configure_logging_level()
+
+        assert root_logger.level == logging.INFO
+    finally:
+        root_logger.setLevel(original_level)
+
+
+@pytest.mark.unit_controller
+def test_configure_logging_level_respects_lb_log_level_env(monkeypatch):
+    """Verify _configure_logging_level uses LB_LOG_LEVEL env var."""
+    monkeypatch.setenv("LB_ENABLE_EVENT_LOGGING", "1")
+    monkeypatch.setenv("LB_LOG_LEVEL", "DEBUG")
+
+    root_logger = logging.getLogger()
+    original_level = root_logger.level
+
+    try:
+        root_logger.setLevel(logging.WARNING)
+
+        _configure_logging_level()
+
+        assert root_logger.level == logging.DEBUG
+    finally:
+        root_logger.setLevel(original_level)
+
+
+@pytest.mark.unit_controller
+def test_configure_logging_level_noop_when_event_logging_disabled(monkeypatch):
+    """Verify _configure_logging_level does nothing when event logging is off."""
+    monkeypatch.setenv("LB_ENABLE_EVENT_LOGGING", "0")
+
+    root_logger = logging.getLogger()
+    original_level = root_logger.level
+
+    try:
+        root_logger.setLevel(logging.WARNING)
+
+        _configure_logging_level()
+
+        # Should remain at WARNING
+        assert root_logger.level == logging.WARNING
+    finally:
+        root_logger.setLevel(original_level)
+
+
+@pytest.mark.unit_controller
+def test_configure_logging_level_does_not_raise_level(monkeypatch):
+    """Verify _configure_logging_level doesn't raise level if already lower."""
+    monkeypatch.setenv("LB_ENABLE_EVENT_LOGGING", "1")
+    monkeypatch.delenv("LB_LOG_LEVEL", raising=False)
+
+    root_logger = logging.getLogger()
+    original_level = root_logger.level
+
+    try:
+        # Set to DEBUG (lower/more verbose than INFO)
+        root_logger.setLevel(logging.DEBUG)
+
+        _configure_logging_level()
+
+        # Should remain at DEBUG
+        assert root_logger.level == logging.DEBUG
+    finally:
+        root_logger.setLevel(original_level)

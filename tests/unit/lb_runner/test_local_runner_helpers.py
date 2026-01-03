@@ -57,7 +57,6 @@ def test_select_repetitions_validates(tmp_path: Path) -> None:
 
 def test_merge_results_overwrites_repetition(tmp_path: Path) -> None:
     results_file = tmp_path / "out.json"
-    existing = [{"repetition": 1, "value": "old"}, {"repetition": 2, "value": "keep"}]
     results_file.write_text('[{"repetition": 1, "value": "old"}, {"repetition": 2, "value": "keep"}]')
     merged = merge_results(results_file, [{"repetition": 1, "value": "new"}])
     assert any(r["value"] == "new" for r in merged)

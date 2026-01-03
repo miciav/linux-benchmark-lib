@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import signal
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from enum import Enum

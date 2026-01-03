@@ -66,7 +66,10 @@ def create_test_app(ctx: UIContext) -> typer.Typer:
 
             items = []
             for opt in options:
-                variants = [PickItem(id=f"{opt}:{l}", title=l) for l in ["low", "medium", "high"]]
+                variants = [
+                    PickItem(id=f"{opt}:{level_name}", title=level_name)
+                    for level_name in ["low", "medium", "high"]
+                ]
                 items.append(PickItem(id=opt, title=opt, variants=variants, description=f"Run {opt} scenario"))
 
             selection = ctx.ui.picker.pick_one(items, title="Select Multipass Scenario & Intensity")

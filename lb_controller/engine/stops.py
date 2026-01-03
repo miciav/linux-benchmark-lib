@@ -10,7 +10,7 @@ Manages the lifecycle of a graceful stop:
 import time
 import logging
 from enum import Enum, auto
-from typing import Set, Dict, Any
+from typing import Set
 
 from lb_runner.api import RunEvent
 

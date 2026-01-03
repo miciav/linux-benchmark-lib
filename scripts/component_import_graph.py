@@ -7,7 +7,7 @@ import argparse
 import ast
 import subprocess
 from pathlib import Path
-from typing import Iterable, Mapping, Set, Tuple
+from typing import Iterable, Set, Tuple
 
 from lb_common.api import configure_logging
 
@@ -118,7 +118,7 @@ def render_dot(
     dot_lines.append("}")
 
     dot = "\n".join(dot_lines)
-    proc = subprocess.run(
+    subprocess.run(
         ["dot", "-T", fmt, "-o", str(output)],
         input=dot.encode(),
         check=True,

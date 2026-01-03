@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 from lb_plugins.api import PluginAssetConfig
-from lb_runner.api import RemoteHostConfig
+from lb_runner.api import DEFAULT_LB_WORKDIR, RemoteHostConfig
 
 if TYPE_CHECKING:
     from ..controller import AnsibleRunnerExecutor, InventorySpec
@@ -48,7 +48,9 @@ class SetupService:
         return self._inventory_cls(hosts=[localhost])
 
     def provision_global(
-        self, target_hosts: Optional[List[RemoteHostConfig]] = None
+        self,
+        target_hosts: Optional[List[RemoteHostConfig]] = None,
+        lb_workdir: Optional[str] = None,
     ) -> bool:
         """
         Run the global setup playbook (dependencies, base directories).
@@ -67,10 +69,11 @@ class SetupService:
         )
 
         logger.info("Running global setup...")
+        workdir = lb_workdir or DEFAULT_LB_WORKDIR
         result = self.executor.run_playbook(
             playbook,
             inventory=inventory,
-            extravars={"lb_workdir": "/opt/lb"},  # Default global workdir
+            extravars={"lb_workdir": workdir},
         )
         return result.success
 
@@ -137,7 +140,9 @@ class SetupService:
         return result.success
 
     def teardown_global(
-        self, target_hosts: Optional[List[RemoteHostConfig]] = None
+        self,
+        target_hosts: Optional[List[RemoteHostConfig]] = None,
+        lb_workdir: Optional[str] = None,
     ) -> bool:
         """
         Run the global teardown playbook.
@@ -153,7 +158,11 @@ class SetupService:
         )
 
         logger.info("Running global teardown...")
+        workdir = lb_workdir or DEFAULT_LB_WORKDIR
         result = self.executor.run_playbook(
-            playbook, inventory=inventory, cancellable=False
+            playbook,
+            inventory=inventory,
+            extravars={"lb_workdir": workdir},
+            cancellable=False,
         )
         return result.success

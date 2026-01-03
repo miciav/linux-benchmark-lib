@@ -4,7 +4,7 @@ from lb_common.api import configure_logging as _configure_logging
 
 _configure_logging()
 
-from lb_provisioner.api import (  # noqa: F401
+from lb_provisioner.api import (  # noqa: F401,E402
     ProvisionedNode,
     ProvisioningError,
     ProvisioningMode,

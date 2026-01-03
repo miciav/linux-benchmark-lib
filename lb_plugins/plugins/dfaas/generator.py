@@ -5,40 +5,75 @@ import csv
 import hashlib
 import json
 import logging
-import os
 import math
+import os
 import re
 import subprocess
-import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from typing import TYPE_CHECKING
-from .queries import (
-    PrometheusQueryError,
-    PrometheusQueryRunner,
-    QueryDefinition,
-    filter_queries,
-    load_queries,
-)
+from lb_runner.api import LBEventLogHandler, RunEvent, StdoutEmitter
+from .config import DfaasConfig
+from .exceptions import K6ExecutionError
+from .services import CooldownManager, CooldownTimeoutError, MetricsCollector, MetricsSnapshot
+from .services.k6_runner import K6Runner
 from ...base_generator import BaseGenerator
-
-if TYPE_CHECKING:
-    from .plugin import DfaasConfig
 
 logger = logging.getLogger(__name__)
 
+
+@dataclass
+class ExecutionContext:
+    """Encapsulates runtime context for DFaaS execution.
+
+    Use `from_environment()` to create from env vars, or inject directly for testing.
+    """
+
+    host: str
+    repetition: int
+    total_repetitions: int
+    event_logging_enabled: bool = False
+
+    @classmethod
+    def from_environment(cls) -> "ExecutionContext":
+        """Create context from environment variables."""
+        host = os.environ.get("LB_RUN_HOST") or os.uname().nodename
+        repetition = _parse_int(os.environ.get("LB_RUN_REPETITION"), 1)
+        total = _parse_int(os.environ.get("LB_RUN_TOTAL_REPS"), repetition)
+        raw = os.environ.get("LB_ENABLE_EVENT_LOGGING", "1").strip().lower()
+        event_logging = raw not in {"0", "false", "no"}
+        return cls(
+            host=host,
+            repetition=repetition,
+            total_repetitions=total,
+            event_logging_enabled=event_logging,
+        )
+
+
+@dataclass
+class _RunContext:
+    """Context object holding state for a benchmark run."""
+
+    function_names: list[str]
+    configs: list[list[tuple[str, int]]]
+    existing_index: set[tuple[tuple[str, ...], tuple[int, ...]]]
+    cooldown_manager: CooldownManager
+    base_idle: MetricsSnapshot
+    target_name: str
+    run_id: str
+
+    # Result containers
+    results_rows: list[dict[str, Any]] = field(default_factory=list)
+    skipped_rows: list[dict[str, Any]] = field(default_factory=list)
+    index_rows: list[dict[str, Any]] = field(default_factory=list)
+    summary_entries: list[dict[str, Any]] = field(default_factory=list)
+    metrics_entries: list[dict[str, Any]] = field(default_factory=list)
+    script_entries: list[dict[str, Any]] = field(default_factory=list)
+    overloaded_configs: list[list[tuple[str, int]]] = field(default_factory=list)
+
 _DURATION_RE = re.compile(r"^(?P<value>[0-9]+)(?P<unit>ms|s|m|h)$")
-
-
-@dataclass(frozen=True)
-class MetricsSnapshot:
-    cpu: float
-    ram: float
-    ram_pct: float
-    power: float
 
 
 def _parse_duration_seconds(duration: str) -> int:
@@ -56,15 +91,6 @@ def _parse_duration_seconds(duration: str) -> int:
     if unit == "h":
         return value * 3600
     raise ValueError(f"Unsupported duration unit: {unit}")
-
-
-def _normalize_metric_id(name: str) -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9_]", "_", name)
-    if not cleaned:
-        cleaned = "fn"
-    if cleaned[0].isdigit():
-        cleaned = f"fn_{cleaned}"
-    return cleaned
 
 
 def generate_rates_list(min_rate: int, max_rate: int, step: int) -> list[int]:
@@ -114,7 +140,7 @@ def config_key(config: Iterable[tuple[str, int]]) -> tuple[tuple[str, ...], tupl
 def config_id(config: Iterable[tuple[str, int]]) -> str:
     names, rates = config_key(config)
     payload = "|".join(f"{name}:{rate}" for name, rate in zip(names, rates))
-    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:12]
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
 
 
 def dominates(
@@ -136,136 +162,41 @@ def dominates(
     return better
 
 
-def build_k6_script(
-    config: DfaasConfig,
-    config_pairs: list[tuple[str, int]],
-) -> tuple[str, dict[str, str]]:
-    functions_by_name = {fn.name: fn for fn in config.functions}
-    metric_ids: dict[str, str] = {}
-    lines: list[str] = [
-        'import http from "k6/http";',
-        'import { check, sleep } from "k6";',
-        'import { Rate, Trend, Counter } from "k6/metrics";',
-        "",
-    ]
-
-    scenarios: list[str] = []
-    for name, rate in sorted(config_pairs, key=lambda pair: pair[0]):
-        fn_cfg = functions_by_name[name]
-        metric_id = _normalize_metric_id(name)
-        if metric_id in metric_ids.values():
-            metric_id = f"{metric_id}_{len(metric_ids) + 1}"
-        metric_ids[name] = metric_id
-
-        body = json.dumps(fn_cfg.body)
-        headers = json.dumps(fn_cfg.headers)
-        url = f"{config.gateway_url.rstrip('/')}/function/{name}"
-        exec_name = f"exec_{metric_id}"
-
-        lines.extend(
-            [
-                f'const fn_{metric_id} = {{',
-                f'  method: "{fn_cfg.method}",',
-                f'  url: "{url}",',
-                f"  body: {body},",
-                f"  headers: {headers},",
-                "};",
-                f'const success_rate_{metric_id} = new Rate("success_rate_{metric_id}");',
-                f'const latency_{metric_id} = new Trend("latency_{metric_id}");',
-                f'const request_count_{metric_id} = new Counter("request_count_{metric_id}");',
-                "",
-                f"export function {exec_name}() {{",
-                f"  const res = http.request(fn_{metric_id}.method, fn_{metric_id}.url, fn_{metric_id}.body, {{ headers: fn_{metric_id}.headers }});",
-                "  const ok = res.status >= 200 && res.status < 300;",
-                f"  success_rate_{metric_id}.add(ok);",
-                f"  latency_{metric_id}.add(res.timings.duration);",
-                f"  request_count_{metric_id}.add(1);",
-                '  check(res, { "status is 2xx": (r) => r.status >= 200 && r.status < 300 });',
-                "}",
-                "",
-            ]
-        )
-
-        if rate > 0:
-            vus = max(1, rate)
-            scenarios.append(
-                "\n".join(
-                    [
-                        f'    {metric_id}: {{',
-                        '      executor: "constant-arrival-rate",',
-                        f"      rate: {rate},",
-                        '      timeUnit: "1s",',
-                        f'      duration: "{config.duration}",',
-                        f"      preAllocatedVUs: {vus},",
-                        f"      maxVUs: {vus},",
-                        f'      exec: "{exec_name}",',
-                        f'      tags: {{ function: "{name}" }},',
-                        "    },",
-                    ]
-                )
-            )
-
-    lines.append("export const options = {")
-    lines.append("  scenarios: {")
-    if scenarios:
-        lines.extend(scenarios)
-    else:
-        lines.extend(
-            [
-                '    idle: {',
-                '      executor: "constant-vus",',
-                "      vus: 1,",
-                f'      duration: "{config.duration}",',
-                '      exec: "idle_exec",',
-                "    },",
-            ]
-        )
-    lines.append("  },")
-    lines.append("};")
-    lines.append("")
-
-    if not scenarios:
-        lines.extend(
-            [
-                "export function idle_exec() {",
-                "  sleep(1);",
-                "}",
-                "",
-            ]
-        )
-
-    return "\n".join(lines), metric_ids
-
-
-def parse_k6_summary(
-    summary: dict[str, Any], metric_ids: dict[str, str]
-) -> dict[str, dict[str, float]]:
-    metrics = summary.get("metrics", {}) or {}
-    parsed: dict[str, dict[str, float]] = {}
-    for name, metric_id in metric_ids.items():
-        success_metric = metrics.get(f"success_rate_{metric_id}", {}).get("values", {})
-        latency_metric = metrics.get(f"latency_{metric_id}", {}).get("values", {})
-        count_metric = metrics.get(f"request_count_{metric_id}", {}).get("values", {})
-
-        success_rate = float(success_metric.get("rate", 1.0))
-        latency_avg = float(latency_metric.get("avg", 0.0))
-        request_count = float(count_metric.get("count", count_metric.get("rate", 0.0)))
-
-        parsed[name] = {
-            "success_rate": success_rate,
-            "avg_latency": latency_avg,
-            "request_count": request_count,
-        }
-    return parsed
-
-
 class DfaasGenerator(BaseGenerator):
     """DFaaS generator that orchestrates one config at a time."""
 
-    def __init__(self, config: DfaasConfig, name: str = "DfaasGenerator"):
+    def __init__(
+        self,
+        config: DfaasConfig,
+        name: str = "DfaasGenerator",
+        execution_context: ExecutionContext | None = None,
+    ):
         super().__init__(name)
         self.config = config
+        self._exec_ctx = execution_context or ExecutionContext.from_environment()
         self.expected_runtime_seconds = self._estimate_runtime()
+        self._event_emitter = StdoutEmitter()
+        self._event_run_id: str | None = None
+        self._k6_runner = K6Runner(
+            k6_host=config.k6_host,
+            k6_user=config.k6_user,
+            k6_ssh_key=config.k6_ssh_key,
+            k6_port=config.k6_port,
+            k6_workspace_root=config.k6_workspace_root,
+            gateway_url=config.gateway_url,
+            duration=config.duration,
+            log_stream_enabled=config.k6_log_stream,
+            log_callback=self._emit_k6_log_event,
+            log_to_logger=not self._exec_ctx.event_logging_enabled,
+        )
+        self._metrics_collector = MetricsCollector(
+            prometheus_url=config.prometheus_url,
+            queries_path=config.queries_path,
+            duration=config.duration,
+            scaphandre_enabled=config.scaphandre_enabled,
+            function_pid_regexes=config.function_pid_regexes,
+        )
+        self._duration_seconds = _parse_duration_seconds(config.duration)
 
     def _estimate_runtime(self) -> int:
         duration = _parse_duration_seconds(self.config.duration)
@@ -299,6 +230,17 @@ class DfaasGenerator(BaseGenerator):
         return None
 
     def _run_command(self) -> None:
+        """Execute DFaaS benchmark run."""
+        ctx = self._prepare_run()
+        self._execute_configs(ctx)
+        self._finalize_results(ctx)
+
+    def _prepare_run(self) -> _RunContext:
+        """Prepare context for benchmark run.
+
+        Returns:
+            _RunContext with configurations and initialized services
+        """
         output_dir = self._resolve_output_dir()
         function_names = sorted(fn.name for fn in self.config.functions)
         rates = generate_rates_list(
@@ -315,109 +257,271 @@ class DfaasGenerator(BaseGenerator):
             rates_by_function=rates_by_function,
         )
 
-        queries = load_queries(Path(self.config.queries_path))
-        active_queries = filter_queries(
-            queries, scaphandre_enabled=self.config.scaphandre_enabled
-        )
-        queries_by_name = {query.name: query for query in active_queries}
-        runner = PrometheusQueryRunner(self.config.prometheus_url)
-
         existing_index = self._load_index(output_dir)
-        results_rows: list[dict[str, Any]] = []
-        skipped_rows: list[dict[str, Any]] = []
-        index_rows: list[dict[str, Any]] = []
-        summary_entries: list[dict[str, Any]] = []
-        metrics_entries: list[dict[str, Any]] = []
-        script_entries: list[dict[str, Any]] = []
-        overloaded_configs: list[list[tuple[str, int]]] = []
+        base_idle = self._metrics_collector.get_node_snapshot()
 
-        base_idle = self._query_node_metrics(runner, queries_by_name, None, None)
+        cooldown_manager = CooldownManager(
+            max_wait_seconds=self.config.cooldown.max_wait_seconds,
+            sleep_step_seconds=self.config.cooldown.sleep_step_seconds,
+            idle_threshold_pct=self.config.cooldown.idle_threshold_pct,
+            metrics_provider=self._metrics_collector.get_node_snapshot,
+            replicas_provider=self._get_function_replicas,
+        )
 
-        for config_pairs in configs:
-            if any(dominates(over, config_pairs) for over in overloaded_configs):
-                skipped_rows.append(self._build_skipped_row(function_names, config_pairs))
-                continue
-            key = config_key(config_pairs)
-            if key in existing_index:
-                skipped_rows.append(self._build_skipped_row(function_names, config_pairs))
-                continue
+        target_name = self._exec_ctx.host
+        run_id = self._resolve_run_id()
 
-            cfg_id = config_id(config_pairs)
-            script, metric_ids = build_k6_script(self.config, config_pairs)
-            script_entries.append({"config_id": cfg_id, "script": script})
+        return _RunContext(
+            function_names=function_names,
+            configs=configs,
+            existing_index=existing_index,
+            cooldown_manager=cooldown_manager,
+            base_idle=base_idle,
+            target_name=target_name,
+            run_id=run_id,
+        )
 
-            overload_counter = 0
-            try:
-                for iteration in range(1, self.config.iterations + 1):
-                    idle_snapshot, rest_seconds = self._cooldown(
-                        runner,
-                        queries_by_name,
-                        base_idle,
-                        function_names,
-                    )
-                    start_time = time.time()
-                    summary_data = self._run_k6(cfg_id, script)
-                    end_time = time.time()
+    def _execute_configs(self, ctx: _RunContext) -> None:
+        """Execute all configurations.
 
-                    summary_metrics = parse_k6_summary(summary_data, metric_ids)
-                    replicas = self._get_function_replicas(function_names)
-                    metrics = self._query_metrics(
-                        runner,
-                        queries_by_name,
-                        config_pairs,
-                        start_time,
-                        end_time,
-                    )
-                    row, overloaded = self._build_result_row(
-                        function_names,
-                        config_pairs,
-                        summary_metrics,
-                        replicas,
-                        metrics,
-                        idle_snapshot,
-                        rest_seconds,
-                    )
-                    results_rows.append(row)
-                    metrics_entries.append(
-                        {
-                            "config_id": cfg_id,
-                            "iteration": iteration,
-                            "metrics": metrics,
-                        }
-                    )
-                    summary_entries.append(
-                        {
-                            "config_id": cfg_id,
-                            "iteration": iteration,
-                            "summary": summary_data,
-                        }
-                    )
-                    if overloaded:
-                        overload_counter += 1
+        Args:
+            ctx: Run context with configurations and services
+        """
+        total_configs = max(1, len(ctx.configs))
+        total_iterations = max(1, self.config.iterations)
 
-                if overload_counter > self.config.iterations / 2:
-                    overloaded_configs.append(list(config_pairs))
-                index_rows.append(
-                    {
-                        "functions": list(key[0]),
-                        "rates": list(key[1]),
-                        "results_file": "results.csv",
-                    }
+        for idx, config_pairs in enumerate(ctx.configs, start=1):
+            self._execute_single_config(ctx, config_pairs, idx, total_configs, total_iterations)
+
+    def _execute_single_config(
+        self,
+        ctx: _RunContext,
+        config_pairs: list[tuple[str, int]],
+        idx: int,
+        total_configs: int,
+        total_iterations: int,
+    ) -> None:
+        """Execute a single configuration with all iterations.
+
+        Args:
+            ctx: Run context
+            config_pairs: Configuration pairs (function_name, rate)
+            idx: Configuration index (1-based)
+            total_configs: Total number of configurations
+            total_iterations: Total iterations per configuration
+        """
+        key = config_key(config_pairs)
+        cfg_id = config_id(config_pairs)
+        pairs_label = ", ".join(
+            f"{name}={rate}"
+            for name, rate in sorted(config_pairs, key=lambda pair: pair[0])
+        )
+
+        # Check skip conditions
+        skip_reason = self._check_skip_reason(ctx, config_pairs, key)
+        if skip_reason:
+            self._log_skipped_config(
+                ctx, config_pairs, cfg_id, pairs_label, skip_reason,
+                idx, total_configs, total_iterations
+            )
+            return
+
+        # Build k6 script
+        script, metric_ids = self._k6_runner.build_script(
+            config_pairs, self.config.functions
+        )
+        ctx.script_entries.append({"config_id": cfg_id, "script": script})
+
+        # Execute iterations
+        overload_counter = 0
+        try:
+            for iteration in range(1, total_iterations + 1):
+                overloaded = self._execute_iteration(
+                    ctx, config_pairs, script, metric_ids, cfg_id, pairs_label,
+                    idx, total_configs, iteration, total_iterations
                 )
-            except Exception as exc:  # noqa: BLE001
-                logger.error("Failed config %s: %s", cfg_id, exc)
-                skipped_rows.append(self._build_skipped_row(function_names, config_pairs))
+                if overloaded:
+                    overload_counter += 1
+
+            # Track overloaded configs
+            if overload_counter > self.config.iterations / 2:
+                ctx.overloaded_configs.append(list(config_pairs))
+
+            # Add to index
+            ctx.index_rows.append({
+                "functions": list(key[0]),
+                "rates": list(key[1]),
+                "results_file": "results.csv",
+            })
+        except CooldownTimeoutError as exc:
+            logger.warning(
+                "Config %s skipped: cooldown timeout after %ds (max: %ds)",
+                cfg_id, exc.waited_seconds, exc.max_seconds
+            )
+            ctx.skipped_rows.append(
+                self._build_skipped_row(ctx.function_names, config_pairs)
+            )
+        except K6ExecutionError as exc:
+            logger.error("Config %s failed: k6 execution error: %s", cfg_id, exc)
+            if exc.stderr:
+                logger.debug("k6 stderr: %s", exc.stderr)
+            ctx.skipped_rows.append(
+                self._build_skipped_row(ctx.function_names, config_pairs)
+            )
+        except (OSError, json.JSONDecodeError, RuntimeError) as exc:
+            logger.error("Config %s failed: %s: %s", cfg_id, type(exc).__name__, exc)
+            ctx.skipped_rows.append(
+                self._build_skipped_row(ctx.function_names, config_pairs)
+            )
+
+    def _check_skip_reason(
+        self,
+        ctx: _RunContext,
+        config_pairs: list[tuple[str, int]],
+        key: tuple[tuple[str, ...], tuple[int, ...]],
+    ) -> str | None:
+        """Check if configuration should be skipped.
+
+        Returns:
+            Skip reason string or None if config should run
+        """
+        if any(dominates(over, config_pairs) for over in ctx.overloaded_configs):
+            return "dominated_by_overload"
+        if key in ctx.existing_index:
+            return "already_indexed"
+        return None
+
+    def _log_skipped_config(
+        self,
+        ctx: _RunContext,
+        config_pairs: list[tuple[str, int]],
+        cfg_id: str,
+        pairs_label: str,
+        skip_reason: str,
+        idx: int,
+        total_configs: int,
+        total_iterations: int,
+    ) -> None:
+        """Log and record skipped configuration."""
+        for iteration in range(1, total_iterations + 1):
+            message = (
+                "DFaaS config "
+                f"{idx}/{total_configs} iter {iteration}/{total_iterations} "
+                f"({cfg_id}) skipped={skip_reason}: {pairs_label}"
+            )
+            logger.info("%s", message)
+            self._emit_log_event(message)
+        ctx.skipped_rows.append(
+            self._build_skipped_row(ctx.function_names, config_pairs)
+        )
+
+    def _execute_iteration(
+        self,
+        ctx: _RunContext,
+        config_pairs: list[tuple[str, int]],
+        script: str,
+        metric_ids: dict[str, str],
+        cfg_id: str,
+        pairs_label: str,
+        idx: int,
+        total_configs: int,
+        iteration: int,
+        total_iterations: int,
+    ) -> bool:
+        """Execute a single iteration of a configuration.
+
+        Returns:
+            True if system was overloaded during this iteration
+        """
+        message = (
+            "DFaaS config "
+            f"{idx}/{total_configs} iter {iteration}/{total_iterations} "
+            f"({cfg_id}): {pairs_label}"
+        )
+        logger.info("%s", message)
+        self._emit_log_event(message)
+
+        # Wait for cooldown
+        logger.info("DFaaS cooldown start (%s)", cfg_id)
+        cooldown_result = ctx.cooldown_manager.wait_for_idle(
+            ctx.base_idle, getattr(ctx, "function_names", [])
+        )
+        idle_snapshot = cooldown_result.snapshot
+        rest_seconds = cooldown_result.waited_seconds
+        logger.info("DFaaS cooldown complete (%s) waited=%ds", cfg_id, rest_seconds)
+
+        # Execute k6 test
+        start_time = time.time()
+        logger.info("DFaaS k6 execute start (%s)", cfg_id)
+        k6_result = self._k6_runner.execute(
+            cfg_id, script, ctx.target_name, ctx.run_id
+        )
+        logger.info(
+            "DFaaS k6 execute done (%s) duration=%.1fs",
+            cfg_id,
+            k6_result.duration_seconds,
+        )
+        summary_data = k6_result.summary
+        end_time = time.time()
+
+        # Collect metrics
+        summary_metrics = self._k6_runner.parse_summary(summary_data, metric_ids)
+        replicas = self._get_function_replicas(getattr(ctx, "function_names", []))
+        config_fn_names = [name for name, _ in config_pairs]
+        metrics = self._metrics_collector.collect_all_metrics(
+            config_fn_names,
+            start_time,
+            end_time,
+            self._duration_seconds,
+        )
+
+        # Build result row
+        row, overloaded = self._build_result_row(
+            getattr(ctx, "function_names", []),
+            config_pairs,
+            summary_metrics,
+            replicas,
+            metrics,
+            idle_snapshot,
+            rest_seconds,
+        )
+
+        # Store results
+        ctx.results_rows.append(row)
+        ctx.metrics_entries.append({
+            "config_id": cfg_id,
+            "iteration": iteration,
+            "metrics": metrics,
+        })
+        ctx.summary_entries.append({
+            "config_id": cfg_id,
+            "iteration": iteration,
+            "summary": summary_data,
+        })
+
+        return overloaded
+
+    def _finalize_results(self, ctx: _RunContext) -> None:
+        """Build final result dictionary.
+
+        Args:
+            ctx: Run context with collected results
+        """
+        # Use getattr to be robust against potential dataclass issues in remote execution
+        function_names = getattr(ctx, "function_names", None)
+        if not function_names:
+            function_names = sorted(fn.name for fn in self.config.functions)
 
         self._result = {
             "returncode": 0,
             "success": True,
             "dfaas_functions": function_names,
-            "dfaas_results": results_rows,
-            "dfaas_skipped": skipped_rows,
-            "dfaas_index": index_rows,
-            "dfaas_summaries": summary_entries,
-            "dfaas_metrics": metrics_entries,
-            "dfaas_scripts": script_entries,
+            "dfaas_results": ctx.results_rows,
+            "dfaas_skipped": ctx.skipped_rows,
+            "dfaas_index": ctx.index_rows,
+            "dfaas_summaries": ctx.summary_entries,
+            "dfaas_metrics": ctx.metrics_entries,
+            "dfaas_scripts": ctx.script_entries,
         }
 
     def _build_rates_by_function(self, rates: list[int]) -> dict[str, list[int]]:
@@ -443,8 +547,8 @@ class DfaasGenerator(BaseGenerator):
                         workload_name = name
                         break
                 return output_root / workload_name
-            except Exception:  # noqa: BLE001
-                pass
+            except (json.JSONDecodeError, OSError, TypeError, KeyError) as exc:
+                logger.debug("Could not parse config file %s: %s", cfg_path, exc)
         return Path.cwd() / "benchmark_results" / "dfaas"
 
     def _load_index(
@@ -462,133 +566,12 @@ class DfaasGenerator(BaseGenerator):
                     rates = ast.literal_eval(row.get("rates", "[]"))
                     entries.add((tuple(functions), tuple(rates)))
                 return entries
-        except Exception:  # noqa: BLE001
+        except (OSError, csv.Error) as exc:
+            logger.warning("Could not read index file %s: %s", index_path, exc)
             return set()
-
-    def _cooldown(
-        self,
-        runner: PrometheusQueryRunner,
-        queries: dict[str, QueryDefinition],
-        base_idle: MetricsSnapshot,
-        function_names: list[str],
-    ) -> tuple[MetricsSnapshot, int]:
-        max_wait = self.config.cooldown.max_wait_seconds
-        sleep_step = self.config.cooldown.sleep_step_seconds
-        threshold_pct = self.config.cooldown.idle_threshold_pct / 100.0
-        waited = 0
-
-        while True:
-            snapshot = self._query_node_metrics(runner, queries, None, None)
-            replicas = self._get_function_replicas(function_names)
-            replicas_ok = all(value < 2 for value in replicas.values())
-            if (
-                _within_threshold(snapshot.cpu, base_idle.cpu, threshold_pct)
-                and _within_threshold(snapshot.ram, base_idle.ram, threshold_pct)
-                and _within_threshold(snapshot.power, base_idle.power, threshold_pct)
-                and replicas_ok
-            ):
-                return snapshot, waited
-            time.sleep(sleep_step)
-            waited += sleep_step
-            if waited > max_wait:
-                raise TimeoutError("Cooldown exceeded max_wait_seconds")
-
-    def _query_node_metrics(
-        self,
-        runner: PrometheusQueryRunner,
-        queries: dict[str, QueryDefinition],
-        start_time: float | None,
-        end_time: float | None,
-    ) -> MetricsSnapshot:
-        duration = self.config.duration
-        cpu = runner.execute(
-            queries["cpu_usage_node"],
-            time_span=duration,
-            start_time=start_time,
-            end_time=end_time,
-        )
-        ram = runner.execute(
-            queries["ram_usage_node"],
-            time_span=duration,
-            start_time=start_time,
-            end_time=end_time,
-        )
-        ram_pct = runner.execute(
-            queries["ram_usage_node_pct"],
-            time_span=duration,
-            start_time=start_time,
-            end_time=end_time,
-        )
-        power = float("nan")
-        if self.config.scaphandre_enabled and "power_usage_node" in queries:
-            power = runner.execute(
-                queries["power_usage_node"],
-                time_span=duration,
-                start_time=start_time,
-                end_time=end_time,
-            )
-        return MetricsSnapshot(cpu=cpu, ram=ram, ram_pct=ram_pct, power=power)
-
-    def _query_metrics(
-        self,
-        runner: PrometheusQueryRunner,
-        queries: dict[str, QueryDefinition],
-        config_pairs: list[tuple[str, int]],
-        start_time: float,
-        end_time: float,
-    ) -> dict[str, Any]:
-        duration = self.config.duration
-        range_query = end_time - start_time > _parse_duration_seconds(duration)
-        start = start_time if range_query else None
-        end = end_time if range_query else None
-
-        node = self._query_node_metrics(runner, queries, start, end)
-        metrics: dict[str, Any] = {
-            "cpu_usage_node": node.cpu,
-            "ram_usage_node": node.ram,
-            "ram_usage_node_pct": node.ram_pct,
-            "power_usage_node": node.power,
-            "functions": {},
-        }
-
-        for name, _ in config_pairs:
-            function_metrics = {}
-            try:
-                function_metrics["cpu"] = runner.execute(
-                    queries["cpu_usage_function"],
-                    time_span=duration,
-                    start_time=start,
-                    end_time=end,
-                    function_name=name,
-                )
-                function_metrics["ram"] = runner.execute(
-                    queries["ram_usage_function"],
-                    time_span=duration,
-                    start_time=start,
-                    end_time=end,
-                    function_name=name,
-                )
-                function_metrics["power"] = float("nan")
-                if (
-                    self.config.scaphandre_enabled
-                    and "power_usage_function" in queries
-                ):
-                    pid_regex = self.config.function_pid_regexes.get(name)
-                    if pid_regex:
-                        function_metrics["power"] = runner.execute(
-                            queries["power_usage_function"],
-                            time_span=duration,
-                            start_time=start,
-                            end_time=end,
-                            pid_regex=pid_regex,
-                        )
-            except PrometheusQueryError as exc:
-                logger.warning("Prometheus query failed for %s: %s", name, exc)
-                function_metrics["cpu"] = float("nan")
-                function_metrics["ram"] = float("nan")
-                function_metrics["power"] = float("nan")
-            metrics["functions"][name] = function_metrics
-        return metrics
+        except (SyntaxError, ValueError) as exc:
+            logger.warning("Invalid data in index file %s: %s", index_path, exc)
+            return set()
 
     def _build_result_row(
         self,
@@ -715,61 +698,6 @@ class DfaasGenerator(BaseGenerator):
                     replicas[name] = 0
         return replicas
 
-    def _run_k6(self, config_id_value: str, script: str) -> dict[str, Any]:
-        playbook = Path(__file__).parent / "ansible" / "run_k6.yml"
-        if not playbook.exists():
-            raise FileNotFoundError(f"Missing playbook: {playbook}")
-
-        target_name = os.environ.get("LB_RUN_HOST") or os.uname().nodename
-        run_id = self._resolve_run_id()
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            script_path = temp_path / f"config-{config_id_value}.js"
-            script_path.write_text(script)
-            summary_path = temp_path / "summary.json"
-            inventory_path = temp_path / "inventory.ini"
-            inventory_path.write_text(
-                "\n".join(
-                    [
-                        "[k6]",
-                        (
-                            f"k6_host ansible_host={self.config.k6_host} "
-                            f"ansible_user={self.config.k6_user} "
-                            f"ansible_port={self.config.k6_port} "
-                            f"ansible_ssh_private_key_file={Path(self.config.k6_ssh_key).expanduser()} "
-                            "ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'"
-                        ),
-                        "",
-                    ]
-                )
-            )
-
-            cmd = [
-                "ansible-playbook",
-                "-i",
-                str(inventory_path),
-                str(playbook),
-                "-e",
-                f"target_name={target_name}",
-                "-e",
-                f"run_id={run_id}",
-                "-e",
-                f"config_id={config_id_value}",
-                "-e",
-                f"script_src={script_path}",
-                "-e",
-                f"summary_fetch_dest={temp_path}/",
-                "-e",
-                f"k6_workspace_root={self.config.k6_workspace_root}",
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                raise RuntimeError(
-                    f"k6 playbook failed: {result.stdout}\n{result.stderr}"
-                )
-            return json.loads(summary_path.read_text())
-
     def _resolve_run_id(self) -> str:
         if self.config.run_id:
             return self.config.run_id
@@ -779,15 +707,64 @@ class DfaasGenerator(BaseGenerator):
                 data = json.loads(cfg_path.read_text())
                 output_dir = Path(data.get("output_dir", "."))
                 return output_dir.parent.name
-            except Exception:  # noqa: BLE001
-                pass
+            except (json.JSONDecodeError, OSError, TypeError) as exc:
+                logger.debug("Could not parse config for run_id: %s", exc)
         return f"run-{int(time.time())}"
 
+    def _ensure_event_context(self) -> None:
+        if self._event_run_id is not None:
+            return
+        self._event_run_id = self._resolve_run_id()
 
-def _within_threshold(value: float, baseline: float, threshold_pct: float) -> bool:
-    if math.isnan(baseline) or math.isnan(value):
-        return True
-    return value <= baseline + (baseline * threshold_pct)
+    def _emit_log_event(self, message: str, *, level: str = "INFO") -> None:
+        if not self._exec_ctx.event_logging_enabled:
+            return
+        root_logger = logging.getLogger()
+        if any(isinstance(handler, LBEventLogHandler) for handler in root_logger.handlers):
+            return
+        self._ensure_event_context()
+        if self._event_run_id is None:
+            return
+        event = RunEvent(
+            run_id=self._event_run_id,
+            host=self._exec_ctx.host,
+            workload="dfaas",
+            repetition=self._exec_ctx.repetition,
+            total_repetitions=self._exec_ctx.total_repetitions,
+            status="running",
+            message=message,
+            timestamp=time.time(),
+            type="log",
+            level=level,
+        )
+        self._event_emitter.emit(event)
+
+    def _emit_k6_log_event(self, message: str, *, level: str = "INFO") -> None:
+        if not self._exec_ctx.event_logging_enabled:
+            return
+        self._ensure_event_context()
+        if self._event_run_id is None:
+            return
+        event = RunEvent(
+            run_id=self._event_run_id,
+            host=self._exec_ctx.host,
+            workload="dfaas",
+            repetition=self._exec_ctx.repetition,
+            total_repetitions=self._exec_ctx.total_repetitions,
+            status="running",
+            message=message,
+            timestamp=time.time(),
+            type="log",
+            level=level,
+        )
+        self._event_emitter.emit(event)
+
+
+def _parse_int(value: str | None, default: int) -> int:
+    try:
+        return int(value) if value is not None else default
+    except (TypeError, ValueError):
+        return default
 
 
 def _format_float(value: float) -> str:

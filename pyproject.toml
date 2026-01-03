@@ -1,6 +1,6 @@
 [project]
 name = "linux-benchmark-lib"
-version = "0.61.0"
+version = "0.62.0"
 description = "A robust and configurable Python library for benchmarking Linux computational node performance"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -184,6 +184,7 @@ dev = [
     "pip-audit>=2.9.0",
     "bandit>=1.9.2",
     "semgrep>=1.86.0",
+    "tenacity>=9.1.2",
 ]
 
 [tool.deptry]

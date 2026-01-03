@@ -24,63 +24,113 @@
         } | to_json
       }}
 
+- name: "{{ run_prefix }} Initialize event stream files"
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      log_file="{{ workload_runner_output_dir | default('/tmp') }}/lb_events.stream.log"
+      offset_file="{{ workload_runner_output_dir | default('/tmp') }}/lb_events.offset"
+      mkdir -p "$(dirname "$log_file")"
+      touch "$log_file"
+      bytes="$(wc -c < "$log_file" | tr -d ' ')"
+      printf '%s' "$bytes" > "$offset_file"
+  args:
+    chdir: "{{ workload_runner_workdir }}"
+    executable: /bin/bash
+  changed_when: false
+
 - name: Run workload repetition via LocalRunner
   block:
     - name: "{{ run_prefix }} Execute {{ workload_runner_current_workload }} repetition {{ workload_runner_current_rep }}"
-      ansible.builtin.shell: |
-        set -e
-        export PYTHONUNBUFFERED=1
-        "{{ workload_runner_uv_bin }}" run python - <<'PY'
-        import json
-        import sys
-        import time
-        from pathlib import Path
-
-        from lb_plugins.api import create_registry
-        from lb_runner.api import BenchmarkConfig, LocalRunner, StopToken
-
-        cfg_path = Path("{{ workload_runner_workdir }}/benchmark_config.generated.json")
-        cfg = BenchmarkConfig.from_dict(json.loads(cfg_path.read_text()))
-
-        stop_file = Path("{{ workload_runner_workdir }}/STOP")
-        stop_token = StopToken(stop_file=stop_file)
-
-        runner = LocalRunner(
-            cfg,
-            registry=create_registry(),
-            progress_callback=None,
-            host_name="{{ inventory_hostname }}",
-            stop_token=stop_token,
-        )
-
-        start = time.time()
-        success = runner.run_benchmark(
-            "{{ workload_runner_current_workload }}",
-            repetition_override={{ workload_runner_current_rep }},
-            total_repetitions={{ workload_runner_total_reps }},
-            run_id="{{ run_id }}",
-        )
-        duration = time.time() - start
-        payload = {
-            "run_id": "{{ run_id }}",
-            "host": "{{ inventory_hostname }}",
-            "workload": "{{ workload_runner_current_workload }}",
-            "repetition": {{ workload_runner_current_rep }},
-            "total_repetitions": {{ workload_runner_total_reps }},
-            "status": "done" if success else "failed",
-            "message": f"duration={duration:.1f}s",
-        }
-        print("LB_EVENT " + json.dumps(payload), flush=True)
-        if not success:
-            sys.exit(1)
-        PY
+      ansible.builtin.command: >
+        {{ workload_runner_uv_bin }} run python -m lb_runner.services.async_localrunner
       args:
         chdir: "{{ workload_runner_workdir }}"
       environment:
         LB_RUN_HOST: "{{ inventory_hostname }}"
+        LB_RUN_WORKLOAD: "{{ workload_runner_current_workload }}"
+        LB_RUN_REPETITION: "{{ workload_runner_current_rep }}"
+        LB_RUN_TOTAL_REPS: "{{ workload_runner_total_reps }}"
+        LB_RUN_ID: "{{ run_id }}"
+        LB_RUN_STOP_FILE: "{{ workload_runner_workdir }}/STOP"
+        LB_BENCH_CONFIG_PATH: "{{ workload_runner_workdir }}/benchmark_config.generated.json"
+        LB_EVENT_STREAM_PATH: "{{ workload_runner_output_dir | default('/tmp') }}/lb_events.stream.log"
         LB_ENABLE_EVENT_LOGGING: "1"
-      register: workload_runner_rep_result
+        LB_LOG_LEVEL: "INFO"
+        LB_RUN_DAEMONIZE: "1"
+        LB_RUN_PID_PATH: "{{ workload_runner_workdir }}/lb_localrunner.pid"
+        LB_RUN_STATUS_PATH: "{{ workload_runner_workdir }}/lb_localrunner.status.json"
+      register: workload_runner_async
       changed_when: true
+      async: 45
+      poll: 0
+
+    - name: "{{ run_prefix }} Wait for LocalRunner pid file"
+      ansible.builtin.wait_for:
+        path: "{{ workload_runner_workdir }}/lb_localrunner.pid"
+        state: present
+        timeout: 10
+
+    - name: "{{ run_prefix }} Initialize polling status"
+      ansible.builtin.set_fact:
+        workload_runner_finished: false
+
+    - name: "{{ run_prefix }} Stream LB_EVENT lines (polling loop)"
+      ansible.builtin.include_tasks: stream_events_step.yml
+      loop: "{{ range(workload_runner_poll_max_iterations | default(1000) | int) | list }}"
+      when: not workload_runner_finished | default(false)
+
+    - name: "{{ run_prefix }} Check stop file"
+      ansible.builtin.stat:
+        path: "{{ workload_runner_workdir }}/STOP"
+      register: workload_runner_stop_file
+
+    - name: "{{ run_prefix }} Force stop LocalRunner if still running"
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          pid_file="{{ workload_runner_workdir }}/lb_localrunner.pid"
+          if [ -f "$pid_file" ]; then
+            pid="$(cat "$pid_file" || true)"
+            if [ -n "$pid" ]; then
+              kill "$pid" || true
+            fi
+          fi
+      args:
+        executable: /bin/bash
+      when:
+        - workload_runner_stop_file.stat.exists
+      failed_when: false
+      changed_when: false
+
+    - name: "{{ run_prefix }} Load LocalRunner status"
+      ansible.builtin.slurp:
+        src: "{{ workload_runner_workdir }}/lb_localrunner.status.json"
+      register: workload_runner_status_raw
+      failed_when: false
+      changed_when: false
+
+    - name: "{{ run_prefix }} Set LocalRunner result"
+      ansible.builtin.set_fact:
+        workload_runner_rep_result: >-
+          {{
+            (workload_runner_status_raw.content | b64decode | from_json)
+            if workload_runner_status_raw is defined and workload_runner_status_raw.content is defined
+            else {'rc': 1}
+          }}
+
+    - name: "{{ run_prefix }} Ensure LocalRunner finished"
+      ansible.builtin.assert:
+        that:
+          - workload_runner_rep_result.rc is defined
+        fail_msg: "LocalRunner status missing."
+
+    - name: "{{ run_prefix }} Fail on LocalRunner error"
+      ansible.builtin.assert:
+        that:
+          - workload_runner_rep_result.rc | default(0) == 0
+        fail_msg: >-
+          LocalRunner failed (rc={{ workload_runner_rep_result.rc | default('unknown') }}).
 
     - name: "{{ run_prefix }} Collect workload artifacts for repetition"
       ansible.builtin.include_tasks: collect_workload.yml
@@ -98,7 +148,7 @@
               "status": "done"
             } | to_json
           }}
-      when: workload_runner_rep_result.rc == 0
+      when: workload_runner_rep_result.rc | default(1) == 0
 
     - name: "{{ run_prefix }} Cooldown between repetitions (pure, collectors stopped)"
       ansible.builtin.wait_for:

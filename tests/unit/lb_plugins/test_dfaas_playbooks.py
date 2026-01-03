@@ -15,13 +15,32 @@ def _load_playbook(name: str) -> list[dict]:
     return data
 
 
+def _find_apt_tasks(tasks: list[dict], name: str) -> bool:
+    """Recursively find apt tasks with given package name, including inside blocks."""
+    for task in tasks:
+        # Check direct apt task
+        apt_config = task.get("ansible.builtin.apt", {})
+        if apt_config.get("name") == name:
+            return True
+        # Check if name is in a list of packages
+        if isinstance(apt_config.get("name"), list) and name in apt_config.get("name"):
+            return True
+        # Check inside block structures
+        if "block" in task:
+            if _find_apt_tasks(task["block"], name):
+                return True
+        # Check inside rescue structures
+        if "rescue" in task:
+            if _find_apt_tasks(task["rescue"], name):
+                return True
+    return False
+
+
 def test_setup_k6_playbook_installs_k6() -> None:
     playbook = _load_playbook("setup_k6.yml")
     tasks = playbook[0]["tasks"]
-    assert any(
-        task.get("ansible.builtin.apt", {}).get("name") == "k6"
-        for task in tasks
-    )
+    # k6 is installed via apt inside a block/rescue structure
+    assert _find_apt_tasks(tasks, "k6"), "k6 apt installation not found in playbook"
 
 
 def test_run_k6_playbook_runs_k6_with_summary() -> None:

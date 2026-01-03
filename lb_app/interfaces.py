@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Protocol, Sequence
+from typing import Iterable, Protocol, Sequence
 
 from lb_controller.api import BenchmarkConfig, RunEvent
 from lb_controller.api import RunJournal

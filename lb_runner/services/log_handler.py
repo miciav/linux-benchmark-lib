@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import json
 import sys
-from typing import Any
 
 
 class LBEventLogHandler(logging.Handler):

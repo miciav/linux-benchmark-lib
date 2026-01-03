@@ -10,7 +10,7 @@ SCRIPTS_ROOT = SCENARIO_ROOT / "scripts"
 if str(SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_ROOT))
 
-from controller_stop_runner import run_controller  # type: ignore
+from controller_stop_runner import run_controller  # type: ignore # noqa: E402
 
 
 @pytest.mark.parametrize(

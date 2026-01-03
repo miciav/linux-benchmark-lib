@@ -296,6 +296,10 @@ def run_global_teardown(
     ui_log: Callable[[str], None],
 ) -> None:
     """Execute global teardown playbook if enabled."""
+    # Always transition to RUNNING_GLOBAL_TEARDOWN to maintain valid state flow.
+    # This allows FINISHED to be reached via RUNNING_WORKLOADS -> RUNNING_GLOBAL_TEARDOWN -> FINISHED.
+    if controller.state_machine.state == ControllerState.RUNNING_WORKLOADS:
+        controller._transition(ControllerState.RUNNING_GLOBAL_TEARDOWN)
     if not controller.config.remote_execution.run_teardown:
         return
     stopping_now = controller._stop_requested()

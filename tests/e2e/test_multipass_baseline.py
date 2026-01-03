@@ -3,8 +3,6 @@ Multipass e2e tests for the Baseline workload.
 """
 
 import os
-import shutil
-import os
 from pathlib import Path
 from typing import Dict, List
 
@@ -18,10 +16,9 @@ from lb_runner.api import (
     RemoteHostConfig,
     WorkloadConfig,
 )
-from lb_controller.api import AnsibleRunnerExecutor
-from lb_controller.api import BenchmarkController
-from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
-from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
+from lb_controller.api import AnsibleRunnerExecutor, BenchmarkController, ControllerOptions
+import tests.e2e.test_multipass_benchmark as _multipass_benchmark  # noqa: F401
+from tests.helpers.multipass import make_test_ansible_env, stage_private_key
 
 pytestmark = [
     pytest.mark.inter_e2e,
@@ -140,7 +137,7 @@ def _run_single_workload(
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)
-    controller = BenchmarkController(config, executor=executor)
+    controller = BenchmarkController(config, ControllerOptions(executor=executor))
 
     summary = controller.run([workload], run_id=f"{workload}_three_reps")
     if not summary.success:

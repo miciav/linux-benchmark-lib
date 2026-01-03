@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 YABS_URL = "https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh"
 
+def _default_yabs_output_dir() -> Path:
+    return Path(tempfile.gettempdir()) / "lb_yabs"
+
 
 class YabsConfig(BasePluginConfig):
     """Configuration for the YABS workload."""
@@ -35,7 +38,10 @@ class YabsConfig(BasePluginConfig):
     skip_network: bool = Field(default=False, description="Skip network benchmarks (iperf)")
     skip_geekbench: bool = Field(default=True, description="Skip Geekbench benchmark")
     skip_cleanup: bool = Field(default=True, description="Skip temporary file cleanup")
-    output_dir: Path = Field(default=Path("/tmp"), description="Directory for YABS log files")
+    output_dir: Path = Field(
+        default_factory=_default_yabs_output_dir,
+        description="Directory for YABS log files",
+    )
     extra_args: List[str] = Field(default_factory=list, description="Additional arguments to pass to yabs.sh")
     expected_runtime_seconds: int = Field(default=600, gt=0, description="Expected runtime of YABS in seconds (used for timeout hints)")
     debug: bool = Field(default=False, description="Enable debug logging")

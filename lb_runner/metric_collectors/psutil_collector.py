@@ -10,7 +10,6 @@ from typing import Dict, Any
 import psutil
 
 from ._base_collector import BaseCollector
-from .aggregators import aggregate_psutil
 
 
 logger = logging.getLogger(__name__)

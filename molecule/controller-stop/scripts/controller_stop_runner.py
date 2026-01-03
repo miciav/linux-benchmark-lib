@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
-from lb_controller.api import BenchmarkController
+from lb_controller.api import BenchmarkController, ControllerOptions
 from lb_runner.api import (
     BenchmarkConfig,
     RemoteExecutionConfig,
@@ -62,7 +62,9 @@ def run_controller(stop_at: str | None) -> dict[str, bool]:
     cfg = _config(out)
     stop_token = StopToken(enable_signals=False)
     executor = AnsibleRunnerExecutor(stream_output=True, stop_token=stop_token)
-    controller = BenchmarkController(cfg, executor=executor, stop_token=stop_token)
+    controller = BenchmarkController(
+        cfg, ControllerOptions(executor=executor, stop_token=stop_token)
+    )
 
     class _StubPlugin:
         name = "stub"
