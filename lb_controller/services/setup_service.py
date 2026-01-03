@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from ..controller import AnsibleRunnerExecutor, InventorySpec
 
 logger = logging.getLogger(__name__)
+setup_logger = logging.LoggerAdapter(logger, {"lb_phase": "setup"})
+teardown_logger = logging.LoggerAdapter(logger, {"lb_phase": "teardown"})
 
 # Assuming standard layout: lb_controller/ansible/playbooks
 ANSIBLE_ROOT = Path(__file__).resolve().parent.parent / "ansible"
@@ -57,7 +59,7 @@ class SetupService:
         """
         playbook = ANSIBLE_ROOT / "playbooks" / "setup.yml"
         if not playbook.exists():
-            logger.warning(f"Global setup playbook not found at {playbook}")
+            setup_logger.warning("Global setup playbook not found at %s", playbook)
             return False
 
         inventory = (
@@ -66,7 +68,7 @@ class SetupService:
             else self._get_local_inventory()
         )
 
-        logger.info("Running global setup...")
+        setup_logger.info("Running global setup...")
         result = self.executor.run_playbook(
             playbook,
             inventory=inventory,
@@ -84,7 +86,7 @@ class SetupService:
         """
         playbook = plugin.get_ansible_setup_path()
         if not playbook:
-            logger.debug(f"No setup playbook for plugin {plugin.name}")
+            setup_logger.debug("No setup playbook for plugin %s", plugin.name)
             return True
 
         inventory = (
@@ -97,11 +99,11 @@ class SetupService:
         try:
             extravars.update(plugin.get_ansible_setup_extravars())
         except Exception as exc:  # pragma: no cover - defensive
-            logger.debug(
+            setup_logger.debug(
                 "Failed to compute setup extravars for %s: %s", plugin.name, exc
             )
 
-        logger.info(f"Running setup for {plugin.name}...")
+        setup_logger.info("Running setup for %s...", plugin.name)
         result = self.executor.run_playbook(
             playbook, inventory=inventory, extravars=extravars or None
         )
@@ -129,11 +131,11 @@ class SetupService:
         try:
             extravars.update(plugin.get_ansible_teardown_extravars())
         except Exception as exc:  # pragma: no cover - defensive
-            logger.debug(
+            teardown_logger.debug(
                 "Failed to compute teardown extravars for %s: %s", plugin.name, exc
             )
 
-        logger.info(f"Running teardown for {plugin.name}...")
+        teardown_logger.info("Running teardown for %s...", plugin.name)
         result = self.executor.run_playbook(
             playbook,
             inventory=inventory,
@@ -158,7 +160,7 @@ class SetupService:
             else self._get_local_inventory()
         )
 
-        logger.info("Running global teardown...")
+        teardown_logger.info("Running global teardown...")
         result = self.executor.run_playbook(
             playbook, inventory=inventory, cancellable=False
         )

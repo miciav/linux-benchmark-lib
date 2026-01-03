@@ -7,6 +7,7 @@ from lb_runner.benchmark_config import (
     WorkloadConfig,
 )
 from lb_runner.events import RunEvent, StdoutEmitter
+from lb_runner.log_handler import LBEventLogHandler
 from lb_runner.plugin_system.base_generator import BaseGenerator
 from lb_runner.plugin_system.interface import WorkloadIntensity, WorkloadPlugin
 from lb_runner.plugin_system.registry import PluginRegistry
@@ -22,4 +23,5 @@ __all__ = [
     "PluginRegistry",
     "RunEvent",
     "StdoutEmitter",
+    "LBEventLogHandler",
 ]

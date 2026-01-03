@@ -11,6 +11,7 @@ from pydantic import ValidationError # Added ValidationError import
 
 from lb_runner.benchmark_config import (
     BenchmarkConfig,
+    LokiConfig,
     MetricCollectorConfig,
     PerfConfig,
     RemoteHostConfig,
@@ -142,6 +143,24 @@ class TestBenchmarkConfig:
 
         round_trip = BenchmarkConfig.model_validate(config.model_dump()) # Use Pydantic's methods
         assert all(isinstance(wl, WorkloadConfig) for wl in round_trip.workloads.values())
+
+    def test_loki_env_overrides(self, monkeypatch):
+        """Environment variables override Loki config defaults."""
+        monkeypatch.setenv("LB_LOKI_ENABLED", "1")
+        monkeypatch.setenv("LB_LOKI_ENDPOINT", "http://example.com:3100")
+        monkeypatch.setenv("LB_LOKI_LABELS", "env=ci,team=bench")
+        monkeypatch.setenv("LB_LOKI_BATCH_SIZE", "50")
+        monkeypatch.setenv("LB_LOKI_FLUSH_INTERVAL_MS", "250")
+
+        config = BenchmarkConfig()
+
+        assert isinstance(config.loki, LokiConfig)
+        assert config.loki.enabled is True
+        assert config.loki.endpoint == "http://example.com:3100"
+        assert config.loki.labels["env"] == "ci"
+        assert config.loki.labels["team"] == "bench"
+        assert config.loki.batch_size == 50
+        assert config.loki.flush_interval_ms == 250
 
 
 class TestStressNGConfig:

@@ -8,6 +8,7 @@
     remote_output_root: "{{ remote_output_root | default('/tmp/benchmark_results') }}"
     data_export_root: "{{ data_export_root | default('/tmp/data_exports') }}"
     per_host_output: "{{ per_host_output | default({}) }}"
+    output_root: "{{ output_root | default('./benchmark_results') }}"
 
   tasks:
     - name: Ensure local host output dir exists
@@ -26,3 +27,32 @@
       loop:
         - system_info.json
         - system_info.csv
+
+    - name: Ensure controller log output dir exists
+      ansible.builtin.file:
+        path: "{{ output_root }}/logs"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      run_once: false
+
+    - name: Find JSONL logs on remote host
+      ansible.builtin.find:
+        paths: "{{ remote_output_root }}/{{ inventory_hostname }}"
+        patterns: "*.jsonl"
+        recurse: true
+        file_type: file
+      register: workload_runner_log_files
+      failed_when: false
+      changed_when: false
+
+    - name: Fetch JSONL logs to controller
+      ansible.builtin.fetch:
+        src: "{{ item.path }}"
+        dest: "{{ output_root }}/logs/"
+        flat: true
+      loop: "{{ workload_runner_log_files.files | default([]) }}"
+      loop_control:
+        label: "{{ item.path | default('') }}"
+      failed_when: false

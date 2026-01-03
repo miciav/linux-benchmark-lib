@@ -21,6 +21,8 @@ from .types import (
 )
 
 logger = logging.getLogger(__name__)
+setup_logger = logging.LoggerAdapter(logger, {"lb_phase": "setup"})
+teardown_logger = logging.LoggerAdapter(logger, {"lb_phase": "teardown"})
 
 
 class DockerProvisioner:
@@ -114,7 +116,7 @@ class DockerProvisioner:
             "-c",
             init_script,
         ]
-        logger.info("Provisioning container %s via %s", name, engine)
+        setup_logger.info("Provisioning container %s via %s", name, engine)
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as exc:  # pragma: no cover - defensive
@@ -208,10 +210,10 @@ class DockerProvisioner:
         try:
             subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
-            logger.debug("Best-effort cleanup failed for container %s", name)
+            teardown_logger.debug("Best-effort cleanup failed for container %s", name)
         for path in (key_path, pub_path):
             try:
                 if path.exists():
                     path.unlink()
             except Exception:
-                logger.debug("Failed to remove %s", path)
+                teardown_logger.debug("Failed to remove %s", path)

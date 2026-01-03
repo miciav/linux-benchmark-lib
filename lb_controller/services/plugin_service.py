@@ -15,6 +15,8 @@ from lb_runner.plugin_system.registry import PluginRegistry, resolve_user_plugin
 from lb_runner.plugin_system import registry as registry  # noqa: F401
 
 logger = logging.getLogger(__name__)
+install_logger = logging.LoggerAdapter(logger, {"lb_phase": "install"})
+teardown_logger = logging.LoggerAdapter(logger, {"lb_phase": "teardown"})
 
 USER_PLUGIN_DIR = resolve_user_plugin_dir()
 _REGISTRY_CACHE: PluginRegistry | None = None
@@ -83,22 +85,22 @@ class PluginInstaller:
         # 1. Check for directory plugin
         if target_dir.exists() and target_dir.is_dir():
             shutil.rmtree(target_dir)
-            logger.info(f"Removed plugin directory: {target_dir}")
+            teardown_logger.info("Removed plugin directory: %s", target_dir)
             found = True
 
         # 2. Check for single file plugin
         if target_py.exists():
             target_py.unlink()
-            logger.info(f"Removed plugin source: {target_py}")
+            teardown_logger.info("Removed plugin source: %s", target_py)
             found = True
         
         for manifest in [target_yaml, target_yml]:
             if manifest.exists():
                 manifest.unlink()
-                logger.info(f"Removed plugin manifest: {manifest}")
+                teardown_logger.info("Removed plugin manifest: %s", manifest)
 
         if not found:
-            logger.warning(f"Plugin '{plugin_name}' not found in user directory.")
+            teardown_logger.warning("Plugin '%s' not found in user directory.", plugin_name)
             
         return found
 
@@ -121,20 +123,20 @@ class PluginInstaller:
             raise FileExistsError(f"Plugin '{py_path.stem}' already exists. Use --force to overwrite.")
 
         shutil.copy2(py_path, target_py)
-        logger.info(f"Installed plugin source to {target_py}")
+        install_logger.info("Installed plugin source to %s", target_py)
         
         if manifest_path:
             manifest_path = Path(manifest_path)
             # Rename manifest to match plugin name for consistency
             target_manifest = self.plugin_dir / f"{py_path.stem}.yaml"
             shutil.copy2(manifest_path, target_manifest)
-            logger.info(f"Installed plugin manifest to {target_manifest}")
+            install_logger.info("Installed plugin manifest to %s", target_manifest)
             
         return py_path.stem
 
     def _install_archive(self, archive_path: Path, force: bool) -> str:
         """Extract archive and install as a directory plugin."""
-        logger.info(f"Extracting archive {archive_path}...")
+        install_logger.info("Extracting archive %s...", archive_path)
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             
@@ -198,7 +200,7 @@ class PluginInstaller:
                     raise FileExistsError(f"Plugin '{plugin_name}' already exists at {target_py}. Use --force to overwrite.")
                 target_py.unlink()
             shutil.copy2(module, target_py)
-            logger.info(f"Installed plugin source to {target_py}")
+            install_logger.info("Installed plugin source to %s", target_py)
             return plugin_name
 
         plugin_name = source_dir.name
@@ -213,7 +215,7 @@ class PluginInstaller:
                 target_dir.unlink()  # It was a file
 
         shutil.copytree(source_dir, target_dir)
-        logger.info(f"Installed plugin directory to {target_dir}")
+        install_logger.info("Installed plugin directory to %s", target_dir)
         return plugin_name
 
     def _package_directory(self, source_dir: Path, archive_path: Path) -> Path:
@@ -225,7 +227,7 @@ class PluginInstaller:
             for item in Path(source_dir).iterdir():
                 tar.add(item, arcname=item.name)
 
-        logger.info(f"Compressed plugin directory {source_dir} -> {archive_path}")
+        install_logger.info("Compressed plugin directory %s -> %s", source_dir, archive_path)
         return archive_path
 
     def _is_supported_archive(self, path: Path) -> bool:

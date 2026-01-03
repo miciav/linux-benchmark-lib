@@ -18,7 +18,12 @@ from lb_controller.interrupts import (
 )
 from lb_controller.journal import LogSink, RunJournal, RunStatus, TaskState
 from lb_controller.pending import pending_exists
-from lb_controller.services import ConfigService, RunCatalogService, RunInfo, create_registry
+from lb_controller.services import (
+    ConfigService,
+    RunCatalogService,
+    RunInfo,
+    create_registry,
+)
 from lb_controller.services.plugin_service import PluginInstaller, build_plugin_table
 from lb_controller.types import RunExecutionSummary
 

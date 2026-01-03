@@ -1,0 +1,71 @@
+---
+- name: Run k6 workload for a single DFaaS config
+  hosts: all
+  become: true
+  vars:
+    k6_workspace_root: >-
+      {{
+        (ansible_user == 'root')
+        | ternary('/root/.dfaas-k6', '/home/' ~ ansible_user ~ '/.dfaas-k6')
+      }}
+    target_name: ""
+    run_id: ""
+    config_id: ""
+    script_src: ""
+    summary_dest: ""
+    summary_fetch_dest: ""
+    k6_extra_args: ""
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - target_name | length > 0
+          - run_id | length > 0
+          - config_id | length > 0
+          - script_src | length > 0
+        fail_msg: "target_name, run_id, config_id, and script_src are required."
+
+    - name: Build workspace paths
+      ansible.builtin.set_fact:
+        config_dir: "{{ k6_workspace_root }}/{{ target_name }}/{{ run_id }}/{{ config_id }}"
+        script_dest: "{{ k6_workspace_root }}/{{ target_name }}/{{ run_id }}/{{ config_id }}/config-{{ config_id }}.js"
+
+    - name: Ensure config workspace exists
+      ansible.builtin.file:
+        path: "{{ config_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy k6 script to workspace
+      ansible.builtin.copy:
+        src: "{{ script_src }}"
+        dest: "{{ script_dest }}"
+        mode: "0644"
+
+    - name: Determine summary and log paths
+      ansible.builtin.set_fact:
+        summary_path: >-
+          {{
+            (summary_dest | length > 0)
+            | ternary(summary_dest, config_dir + '/summary.json')
+          }}
+        log_path: "{{ config_dir }}/k6.log"
+
+    - name: Run k6 with summary export
+      ansible.builtin.shell: >
+        k6 run --summary-export "{{ summary_path }}" {{ k6_extra_args }} "{{ script_dest }}"
+        > "{{ log_path }}" 2>&1
+      args:
+        executable: /bin/bash
+
+    - name: Ensure k6 log is readable
+      ansible.builtin.file:
+        path: "{{ log_path }}"
+        mode: "0644"
+
+    - name: Fetch summary JSON to controller
+      ansible.builtin.fetch:
+        src: "{{ summary_path }}"
+        dest: "{{ summary_fetch_dest }}"
+        flat: true
+      when: summary_fetch_dest | length > 0

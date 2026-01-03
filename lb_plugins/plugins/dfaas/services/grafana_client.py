@@ -1,0 +1,194 @@
+"""Grafana API client for DFaaS integrations."""
+
+from __future__ import annotations
+
+import json
+import time
+from dataclasses import dataclass
+from typing import Any, Mapping
+from urllib import request, error
+
+
+@dataclass
+class GrafanaClient:
+    """Lightweight Grafana API client with retry support."""
+
+    base_url: str
+    api_key: str | None = None
+    org_id: int = 1
+    timeout_seconds: float = 5.0
+    max_retries: int = 3
+    backoff_base: float = 0.5
+    backoff_factor: float = 2.0
+
+    def health_check(self) -> tuple[bool, dict[str, Any] | None]:
+        try:
+            status, data = self._request("GET", "/api/health", expected_statuses={200})
+            return status == 200, data
+        except Exception:
+            return False, None
+
+    def upsert_datasource(
+        self,
+        *,
+        name: str,
+        url: str,
+        datasource_type: str = "prometheus",
+        access: str = "proxy",
+        is_default: bool = False,
+        basic_auth: tuple[str, str] | None = None,
+        json_data: Mapping[str, Any] | None = None,
+    ) -> int | None:
+        status, data = self._request(
+            "GET",
+            f"/api/datasources/name/{name}",
+            expected_statuses={200, 404},
+        )
+        payload = {
+            "name": name,
+            "type": datasource_type,
+            "url": url,
+            "access": access,
+            "isDefault": is_default,
+        }
+        if json_data:
+            payload["jsonData"] = dict(json_data)
+        if basic_auth:
+            payload["basicAuth"] = True
+            payload["basicAuthUser"] = basic_auth[0]
+            payload["secureJsonData"] = {"basicAuthPassword": basic_auth[1]}
+
+        if status == 200 and isinstance(data, dict):
+            datasource_id = data.get("id")
+            if datasource_id is not None:
+                payload["id"] = datasource_id
+                self._request(
+                    "PUT",
+                    f"/api/datasources/{datasource_id}",
+                    payload=payload,
+                    expected_statuses={200},
+                )
+                return int(datasource_id)
+        status, data = self._request(
+            "POST",
+            "/api/datasources",
+            payload=payload,
+            expected_statuses={200, 201},
+        )
+        if isinstance(data, dict):
+            return data.get("datasource", {}).get("id")
+        return None
+
+    def import_dashboard(
+        self,
+        dashboard: Mapping[str, Any],
+        *,
+        overwrite: bool = True,
+        folder_id: int = 0,
+    ) -> dict[str, Any] | None:
+        payload = {
+            "dashboard": dict(dashboard),
+            "overwrite": overwrite,
+            "folderId": folder_id,
+        }
+        _, data = self._request(
+            "POST",
+            "/api/dashboards/db",
+            payload=payload,
+            expected_statuses={200},
+        )
+        return data if isinstance(data, dict) else None
+
+    def create_annotation(
+        self,
+        *,
+        text: str,
+        tags: list[str] | None = None,
+        dashboard_id: int | None = None,
+        panel_id: int | None = None,
+        time_ms: int | None = None,
+        time_end_ms: int | None = None,
+    ) -> dict[str, Any] | None:
+        payload: dict[str, Any] = {
+            "text": text,
+            "tags": tags or [],
+        }
+        if dashboard_id is not None:
+            payload["dashboardId"] = dashboard_id
+        if panel_id is not None:
+            payload["panelId"] = panel_id
+        if time_ms is not None:
+            payload["time"] = time_ms
+        if time_end_ms is not None:
+            payload["timeEnd"] = time_end_ms
+        _, data = self._request(
+            "POST",
+            "/api/annotations",
+            payload=payload,
+            expected_statuses={200},
+        )
+        return data if isinstance(data, dict) else None
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        payload: Mapping[str, Any] | None = None,
+        expected_statuses: set[int] | None = None,
+    ) -> tuple[int, dict[str, Any] | None]:
+        expected = expected_statuses or {200}
+        url = f"{self.base_url.rstrip('/')}{path}"
+        headers = {"Accept": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        if self.org_id:
+            headers["X-Grafana-Org-Id"] = str(self.org_id)
+        data = None
+        if payload is not None:
+            data = json.dumps(payload).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                req = request.Request(url, data=data, headers=headers, method=method)
+                with request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                    status = resp.status
+                    body = resp.read().decode("utf-8") if resp is not None else ""
+                parsed = self._parse_json(body)
+                if status in expected:
+                    return status, parsed
+                if 500 <= status and attempt < self.max_retries:
+                    self._sleep_backoff(attempt)
+                    continue
+                raise RuntimeError(f"Grafana API error {status}: {body}")
+            except error.HTTPError as exc:
+                status = exc.code
+                body = exc.read().decode("utf-8") if exc.fp else ""
+                parsed = self._parse_json(body)
+                if status in expected:
+                    return status, parsed
+                if status >= 500 and attempt < self.max_retries:
+                    self._sleep_backoff(attempt)
+                    continue
+                raise RuntimeError(f"Grafana API error {status}: {body}") from exc
+            except error.URLError as exc:
+                if attempt < self.max_retries:
+                    self._sleep_backoff(attempt)
+                    continue
+                raise RuntimeError(f"Grafana API request failed: {exc}") from exc
+        raise RuntimeError("Grafana API request failed after retries.")
+
+    @staticmethod
+    def _parse_json(body: str) -> dict[str, Any] | None:
+        if not body:
+            return None
+        try:
+            parsed = json.loads(body)
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            return None
+
+    def _sleep_backoff(self, attempt: int) -> None:
+        delay = self.backoff_base * (self.backoff_factor ** attempt)
+        if delay > 0:
+            time.sleep(delay)

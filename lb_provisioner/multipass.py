@@ -22,6 +22,8 @@ from .types import (
 )
 
 logger = logging.getLogger(__name__)
+setup_logger = logging.LoggerAdapter(logger, {"lb_phase": "setup"})
+teardown_logger = logging.LoggerAdapter(logger, {"lb_phase": "teardown"})
 
 
 class MultipassProvisioner:
@@ -112,7 +114,7 @@ class MultipassProvisioner:
             "--memory",
             "8G",
         ]
-        logger.info("Launching Multipass VM %s (%s)", vm_name, image)
+        setup_logger.info("Launching Multipass VM %s (%s)", vm_name, image)
         try:
             subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError:
@@ -178,11 +180,11 @@ class MultipassProvisioner:
                 stderr=subprocess.DEVNULL,
             )
         except Exception:
-            logger.debug("Best-effort cleanup failed for VM %s", vm_name)
+            teardown_logger.debug("Best-effort cleanup failed for VM %s", vm_name)
 
         for path in (key_path, pub_path):
             try:
                 if path.exists():
                     path.unlink()
             except Exception:
-                logger.debug("Failed to remove %s", path)
+                teardown_logger.debug("Failed to remove %s", path)

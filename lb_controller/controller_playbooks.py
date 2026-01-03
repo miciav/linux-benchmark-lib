@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from lb_controller.types import RunExecutionSummary
 
 logger = logging.getLogger(__name__)
+setup_logger = logging.LoggerAdapter(logger, {"lb_phase": "setup"})
+teardown_logger = logging.LoggerAdapter(logger, {"lb_phase": "teardown"})
 
 
 def run_global_setup(
@@ -42,6 +44,7 @@ def run_global_setup(
     ui_log("Phase: Global Setup")
     if controller.output_formatter:
         controller.output_formatter.set_phase("Global Setup")
+    setup_logger.info("Executing global setup playbook")
     phases["setup_global"] = controller.executor.run_playbook(
         controller.config.remote_execution.setup_playbook,
         inventory=state.inventory,
@@ -93,7 +96,10 @@ def run_workload_setup(
     try:
         setup_extravars.update(plugin.get_ansible_setup_extravars())
     except Exception as exc:  # pragma: no cover - defensive
-        logger.debug("Failed to compute setup extravars for %s: %s", plugin.name, exc)
+        setup_logger.debug(
+            "Failed to compute setup extravars for %s: %s", plugin.name, exc
+        )
+    setup_logger.info("Executing setup playbook for %s (%s)", test_name, plugin.name)
     res = controller.executor.run_playbook(
         setup_pb,
         inventory=inventory,
@@ -121,24 +127,26 @@ def run_workload_execution(
     """Execute run/collect/teardown for a workload."""
     if not pending_reps:
         return
-    execute_run_playbook(
-        controller,
-        test_name,
-        pending_hosts,
-        pending_reps,
-        state,
-        phases,
-        flags,
-        ui_log,
-    )
-    if controller.stop_token and controller.stop_token.should_stop():
-        controller._handle_stop_during_workloads(
-            state.inventory, state.extravars, flags, ui_log
+    try:
+        execute_run_playbook(
+            controller,
+            test_name,
+            pending_hosts,
+            pending_reps,
+            state,
+            phases,
+            flags,
+            ui_log,
         )
+    finally:
+        try:
+            handle_collect_phase(
+                controller, test_name, pending_hosts, state, phases, flags, ui_log
+            )
+        except Exception as exc:
+            ui_log(f"Collect failed for {test_name}: {exc}")
+    if controller.stop_token and controller.stop_token.should_stop():
         return
-    handle_collect_phase(
-        controller, test_name, pending_hosts, state, phases, flags, ui_log
-    )
     run_teardown_playbook(controller, plugin, state.inventory, state.extravars)
 
 
@@ -278,11 +286,12 @@ def run_teardown_playbook(
     try:
         td_extravars.update(plugin.get_ansible_teardown_extravars())
     except Exception as exc:  # pragma: no cover - defensive
-        logger.debug(
+        teardown_logger.debug(
             "Failed to compute teardown extravars for %s: %s",
             plugin.name,
             exc,
         )
+    teardown_logger.info("Executing teardown playbook for %s", plugin.name)
     controller.executor.run_playbook(
         teardown_pb,
         inventory=inventory,
@@ -322,6 +331,7 @@ def run_global_teardown(
     ui_log("Phase: Global Teardown")
     if controller.output_formatter:
         controller.output_formatter.set_phase("Global Teardown")
+    teardown_logger.info("Executing global teardown playbook")
 
     if not controller.config.remote_execution.teardown_playbook:
         ui_log("No teardown playbook configured.")
