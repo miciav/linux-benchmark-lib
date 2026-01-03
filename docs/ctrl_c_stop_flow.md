@@ -35,7 +35,7 @@
 
 ## Thread Model
 
-- **Controller worker thread** runs orchestration via `ControllerRunner`, sharing the `ControllerStateMachine`.
+- **Controller worker thread** runs orchestration via `ControllerRunner` (`lb_controller.async_api`), sharing the `ControllerStateMachine`.
 - **UI/main thread** handles input and logging; SIGINT is converted into queued stop requests, never killing the controller thread.
 - **Ansible subprocesses** are session-isolated; interrupted only via controller-driven `interrupt()`.
 

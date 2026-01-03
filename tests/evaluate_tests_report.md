@@ -13,7 +13,7 @@ The project employs a structured testing strategy using `pytest`, organized into
 | Package | Primary Test Locations | Key Coverage Areas |
 | :--- | :--- | :--- |
 | **`lb_runner`** | `tests/unit/lb_runner`, `tests/unit/common`, `tests/integration` | Plugins (FIO, StressNG, etc.), `LocalRunner`, log streaming, metric collectors. |
-| **`lb_controller`** | `tests/unit/lb_controller`, `tests/unit/common` | `BenchmarkController` (orchestration), `ControllerRunner`, State Machine, Lifecycle. |
+| **`lb_controller`** | `tests/unit/lb_controller`, `tests/unit/common` | `BenchmarkController` (orchestration), `ControllerRunner` (async helpers), State Machine, Lifecycle. |
 | **`lb_ui`** | `tests/unit/lb_ui`, `tests/unit/common` | CLI commands (`test_cli_commands.py`), Prompt fallbacks, basic dashboard adapters. |
 | **`lb_analytics`** | `tests/unit/lb_analytics` | Data collectors, built-in data handlers. |
 | **`lb_provisioner`** | `tests/e2e`, `tests/unit/common` | Implicitly covered by E2E tests (`MultipassService`), `test_container_service.py` (Docker). |

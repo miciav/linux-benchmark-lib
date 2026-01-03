@@ -25,7 +25,7 @@ The interrupt handling logic is separated into three layers:
 3. **Orchestration (`RunService`, `BenchmarkController`)**
    - `lb_app.services.run_service.RunService` installs the handler and provides UI callbacks.
    - `StopToken` in `lb_runner.stop_token` signals intent to stop across threads/processes.
-   - `BenchmarkController` and `ControllerRunner` observe the token and coordinate teardown.
+   - `BenchmarkController` and optional `ControllerRunner` (`lb_controller.async_api`) observe the token and coordinate teardown.
    - `AnsibleRunnerExecutor` interrupts active playbooks when a stop is requested.
 
 ## Behavior

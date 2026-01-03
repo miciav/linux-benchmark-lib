@@ -6,6 +6,10 @@ Orchestration helpers for remote runs, Ansible execution, and run catalogs.
 
 ::: lb_controller.api
 
+## Async helpers (optional)
+
+::: lb_controller.async_api
+
 ## Benchmark controller
 
 ::: lb_controller.controller.BenchmarkController
@@ -24,4 +28,3 @@ Orchestration helpers for remote runs, Ansible execution, and run catalogs.
 
 ::: lb_controller.journal.RunJournal
 ::: lb_controller.types.RunExecutionSummary
-

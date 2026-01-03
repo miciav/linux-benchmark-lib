@@ -1,7 +1,9 @@
-"""Public controller API surface."""
+"""Public controller API surface.
+
+For threaded start/stop/status helpers, use `lb_controller.async_api`.
+"""
 
 from lb_controller.controller import BenchmarkController
-from lb_controller.controller_runner import ControllerRunner
 from lb_controller.controller_state import ControllerState, ControllerStateMachine
 from lb_controller.contracts import (
     BenchmarkConfig,
@@ -24,7 +26,6 @@ __all__ = [
     "BenchmarkConfig",
     "BenchmarkController",
     "ConfigService",
-    "ControllerRunner",
     "ControllerState",
     "ControllerStateMachine",
     "DoubleCtrlCStateMachine",

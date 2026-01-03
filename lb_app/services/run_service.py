@@ -11,7 +11,6 @@ from typing import IO, TYPE_CHECKING, Any, Callable, Dict, List, Optional
 from lb_runner.api import BenchmarkConfig, PluginRegistry
 from lb_runner.stop_token import StopToken
 from lb_controller.api import (
-    ControllerRunner,
     ControllerStateMachine,
     DoubleCtrlCStateMachine,
     LogSink,
@@ -20,6 +19,7 @@ from lb_controller.api import (
     SigintDoublePressHandler,
     pending_exists,
 )
+from lb_controller.async_api import ControllerRunner
 from lb_app.ui_interfaces import UIAdapter, DashboardHandle, NoOpDashboardHandle
 
 if TYPE_CHECKING:
