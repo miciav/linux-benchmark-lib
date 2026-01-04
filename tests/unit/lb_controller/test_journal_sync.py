@@ -7,7 +7,7 @@ from lb_runner.api import BenchmarkConfig, WorkloadConfig, RemoteHostConfig
 
 def _journal_for(workload: str = "stress_ng") -> tuple[RunJournal, BenchmarkConfig]:
     cfg = BenchmarkConfig()
-    cfg.workloads[workload] = WorkloadConfig(plugin=workload, enabled=True)
+    cfg.workloads[workload] = WorkloadConfig(plugin=workload)
     cfg.remote_hosts = [RemoteHostConfig(name="host1", address="1.2.3.4")]
     journal = RunJournal.initialize("run-1", cfg, [workload])
     return journal, cfg

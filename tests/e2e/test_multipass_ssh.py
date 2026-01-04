@@ -435,7 +435,6 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             "workloads": {
                 "stress_ng": {
                     "plugin": "stress_ng", 
-                    "enabled": True, 
                     "options": {"vm_workers": 0, "cpu_workers": 1, "timeout": 3, "metrics_brief": True}
                 }
             },

@@ -45,7 +45,7 @@ def register_run_command(
     def run(
         tests: List[str] = typer.Argument(
             None,
-            help="Workload names to run; defaults to enabled workloads in the config.",
+            help="Workload names to run; defaults to configured workloads in the config.",
         ),
         config: Optional[Path] = typer.Option(
             None,
@@ -269,10 +269,10 @@ def register_run_command(
         try:
             from lb_app.api import RunRequest
 
-            selected_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+            selected_tests = tests or list(cfg.workloads.keys())
             if not selected_tests:
                 ctx.ui.present.error("No workloads selected to run.")
-                ctx.ui.present.info("Enable workloads first with `lb plugin list --enable NAME` or use `lb config select-workloads`.")
+                ctx.ui.present.info("Add workloads first with `lb config enable-workload NAME` or use `lb config select-workloads`.")
                 raise typer.Exit(1)
 
             run_request = RunRequest(

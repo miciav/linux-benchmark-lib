@@ -22,7 +22,7 @@ class DummyController:
 
 def test_run_service_uses_controller_runner(monkeypatch):
     cfg = BenchmarkConfig()
-    cfg.workloads = {"dummy": WorkloadConfig(plugin="stress_ng", enabled=True)}
+    cfg.workloads = {"dummy": WorkloadConfig(plugin="stress_ng")}
     cfg.remote_hosts = [
         RemoteHostConfig(
             name="host1",

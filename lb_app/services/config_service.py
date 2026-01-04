@@ -9,6 +9,7 @@ from typing import Optional, Tuple
 
 from lb_controller.api import (
     BenchmarkConfig,
+    PlatformConfig,
     RemoteHostConfig,
     WorkloadConfig,
     apply_playbook_defaults,
@@ -16,13 +17,13 @@ from lb_controller.api import (
 from lb_plugins.api import (
     apply_plugin_assets,
     create_registry,
-    ensure_workloads_from_plugin_settings,
+    PluginRegistry,
     hydrate_plugin_settings,
-    populate_default_plugin_settings,
 )
 
 DEFAULT_CONFIG_NAME = "config.json"
 DEFAULT_CONFIG_POINTER = "config_path"
+PLATFORM_CONFIG_NAME = "platform.json"
 
 
 class ConfigService:
@@ -34,6 +35,7 @@ class ConfigService:
         self.config_home = (config_home or base) / "lb"
         self.default_target = self.config_home / DEFAULT_CONFIG_NAME
         self.pointer = self.config_home / DEFAULT_CONFIG_POINTER
+        self.platform_target = self.config_home / PLATFORM_CONFIG_NAME
 
     def ensure_home(self) -> None:
         """Create the config home directory."""
@@ -90,50 +92,81 @@ class ConfigService:
         """
         registry = create_registry()
         hydrate_plugin_settings(cfg, registry=registry)
-        ensure_workloads_from_plugin_settings(
-            cfg,
-            workload_factory=WorkloadConfig,
-        )
         apply_plugin_assets(cfg, registry)
         apply_playbook_defaults(cfg)
 
     def create_default_config(self) -> BenchmarkConfig:
-        """Create a fresh BenchmarkConfig populated with all installed plugins."""
-        registry = create_registry()
+        """Create a fresh BenchmarkConfig with no workloads selected."""
         cfg = BenchmarkConfig()
         cfg.workloads = {}
         cfg.plugin_settings = {}
-
-        available = registry.available(load_entrypoints=True)
-        populate_default_plugin_settings(
-            cfg,
-            registry=registry,
-            load_entrypoints=True,
-            allow_dataclasses=True,
-        )
-        ensure_workloads_from_plugin_settings(
-            cfg,
-            workload_factory=WorkloadConfig,
-            dump_mode="json",
-            convert_dataclasses=True,
-        )
-        apply_plugin_assets(cfg, registry)
-
-        for name in available:
-            if name not in cfg.workloads:
-                cfg.workloads[name] = WorkloadConfig(plugin=name, enabled=False)
-
+        apply_plugin_assets(cfg, create_registry())
         apply_playbook_defaults(cfg)
         return cfg
+
+    @staticmethod
+    def apply_platform_defaults(
+        cfg: BenchmarkConfig, platform_config: PlatformConfig
+    ) -> None:
+        """Apply platform defaults without mutating workload selection."""
+        if platform_config.output_dir:
+            cfg.output_dir = platform_config.output_dir
+        if platform_config.report_dir:
+            cfg.report_dir = platform_config.report_dir
+        if platform_config.data_export_dir:
+            cfg.data_export_dir = platform_config.data_export_dir
+        if platform_config.loki:
+            cfg.loki = platform_config.loki
+
+    def load_platform_config(self) -> tuple[PlatformConfig, Path, bool]:
+        """Load platform config from ~/.config/lb/platform.json (empty if missing)."""
+        if self.platform_target.exists():
+            cfg = PlatformConfig.load(self.platform_target)
+            return cfg, self.platform_target, True
+        return PlatformConfig(), self.platform_target, False
+
+    def load_platform_for_write(self) -> tuple[PlatformConfig, Path]:
+        """Load platform config (create default if missing) for mutation."""
+        cfg, target, _ = self.load_platform_config()
+        return cfg, target
+
+    def set_plugin_enabled(
+        self,
+        name: str,
+        enabled: bool,
+    ) -> tuple[PlatformConfig, Path]:
+        """Enable/disable a plugin in platform config."""
+        cfg, target = self.load_platform_for_write()
+        cfg.plugins[name] = enabled
+        self.ensure_home()
+        cfg.save(target)
+        return cfg, target
+
+    def set_plugin_selection(
+        self,
+        selection: set[str],
+        registry: PluginRegistry,
+    ) -> tuple[PlatformConfig, Path]:
+        """Persist plugin selection to platform config."""
+        cfg, target = self.load_platform_for_write()
+        cfg.plugins = {name: name in selection for name in registry.available()}
+        self.ensure_home()
+        cfg.save(target)
+        return cfg, target
 
     def load_for_read(self, config_path: Optional[Path]) -> Tuple[BenchmarkConfig, Optional[Path], Optional[Path]]:
         """Load a config for read-only scenarios."""
         resolved, stale = self.resolve_config_path(config_path)
         if resolved is None:
-            return self.create_default_config(), None, stale
+            cfg = self.create_default_config()
+            platform_cfg, _, _ = self.load_platform_config()
+            self.apply_platform_defaults(cfg, platform_cfg)
+            return cfg, None, stale
 
         cfg = BenchmarkConfig.load(resolved)
         self._hydrate_config(cfg)
+        platform_cfg, _, _ = self.load_platform_config()
+        self.apply_platform_defaults(cfg, platform_cfg)
         return cfg, resolved, stale
 
     def load_for_write(
@@ -160,29 +193,27 @@ class ConfigService:
 
         return cfg, target, stale, created
 
-    def update_workload_enabled(
+    def add_workload(
         self,
         name: str,
-        enabled: bool,
         config: Optional[Path],
         set_default: bool,
     ) -> Tuple[BenchmarkConfig, Path, Optional[Path]]:
-        """Enable/disable workload and persist the config."""
+        """Add a workload to the run config (ensuring plugin settings)."""
         cfg, target, stale, _ = self.load_for_write(config, allow_create=True)
+        registry = create_registry()
+        if name not in registry.available():
+            raise ValueError(
+                f"Plugin '{name}' is not installed. Use `lb plugin list` to see available plugins."
+            )
 
-        if enabled:
-            registry = create_registry()
-            if name not in registry.available():
-                raise ValueError(f"Plugin '{name}' is not installed. Use `lb plugin list` to see available plugins.")
-
-            if name not in cfg.plugin_settings:
-                plugin = registry.get(name)
-                if hasattr(plugin, "config_cls"):
-                    cfg.plugin_settings[name] = plugin.config_cls()
-            apply_plugin_assets(cfg, registry)
+        if name not in cfg.plugin_settings:
+            plugin = registry.get(name)
+            if hasattr(plugin, "config_cls"):
+                cfg.plugin_settings[name] = plugin.config_cls()
+        apply_plugin_assets(cfg, registry)
 
         workload = cfg.workloads.get(name) or WorkloadConfig(plugin=name, options={})
-        workload.enabled = enabled
         cfg.workloads[name] = workload
 
         cfg.save(target)
@@ -233,6 +264,15 @@ class ConfigService:
         """Persist a pointer to the preferred config path."""
         self.ensure_home()
         self.pointer.write_text(str(path.expanduser()))
+
+    def read_saved_config_path(self) -> Tuple[Optional[Path], Optional[Path]]:
+        """Return (resolved_path, stale_path) from the pointer file, if any."""
+        return self._read_saved_config_path()
+
+    def clear_saved_config_path(self) -> None:
+        """Remove the saved config path pointer, if present."""
+        if self.pointer.exists():
+            self.pointer.unlink()
 
     def _read_saved_config_path(self) -> Tuple[Optional[Path], Optional[Path]]:
         """Return (resolved_path, stale_path) from the pointer file, if any."""

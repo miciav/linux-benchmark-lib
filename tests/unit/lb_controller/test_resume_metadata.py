@@ -17,7 +17,7 @@ pytestmark = pytest.mark.unit_controller
 def _make_config(tmp_path, host_names=None) -> BenchmarkConfig:
     cfg = BenchmarkConfig()
     cfg.output_dir = tmp_path / "benchmark_results"
-    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng", enabled=True)}
+    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
     cfg.repetitions = 1
     if host_names:
         cfg.remote_hosts = [

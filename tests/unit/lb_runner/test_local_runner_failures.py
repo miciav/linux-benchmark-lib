@@ -17,7 +17,7 @@ def test_collector_start_failure_does_not_crash(mocker, tmp_path):
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",
         data_export_dir=tmp_path / "exp",
-        workloads={"dummy": WorkloadConfig(plugin="stress_ng", enabled=True)},
+        workloads={"dummy": WorkloadConfig(plugin="stress_ng")},
         warmup_seconds=0,
         cooldown_seconds=0,
     )
@@ -44,7 +44,7 @@ def test_system_info_write_failure_is_ignored(mocker, tmp_path):
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",
         data_export_dir=tmp_path / "exp",
-        workloads={"dummy": WorkloadConfig(plugin="stress_ng", enabled=True)},
+        workloads={"dummy": WorkloadConfig(plugin="stress_ng")},
         warmup_seconds=0,
         cooldown_seconds=0,
         collect_system_info=True,
@@ -67,7 +67,7 @@ def test_mock_generator_without_flag_exits_promptly(monkeypatch, tmp_path):
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",
         data_export_dir=tmp_path / "exp",
-        workloads={"dummy": WorkloadConfig(plugin="stress_ng", enabled=True)},
+        workloads={"dummy": WorkloadConfig(plugin="stress_ng")},
         warmup_seconds=0,
         cooldown_seconds=0,
         test_duration_seconds=300,  # would be long if loop didn't exit early

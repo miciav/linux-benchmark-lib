@@ -38,7 +38,7 @@ def _make_planner(tmp_path: Path) -> RunPlanner:
         report_dir=tmp_path / "rep",
         data_export_dir=tmp_path / "exp",
     )
-    cfg.workloads["dummy"] = WorkloadConfig(plugin="dummy", enabled=True)
+    cfg.workloads["dummy"] = WorkloadConfig(plugin="dummy")
     return RunPlanner(
         workloads=cfg.workloads,
         repetitions=cfg.repetitions,
@@ -65,7 +65,7 @@ def test_merge_results_overwrites_repetition(tmp_path: Path) -> None:
 
 def test_resolve_config_input_prefers_preset(tmp_path: Path) -> None:
     planner = _make_planner(tmp_path)
-    wl_cfg = WorkloadConfig(plugin="dummy", enabled=True, intensity="low")
+    wl_cfg = WorkloadConfig(plugin="dummy", intensity="low")
     plugin = DummyPlugin(preset={"preset": True})
     resolved = planner.resolve_config_input(wl_cfg, plugin)
     assert resolved == {"preset": True}

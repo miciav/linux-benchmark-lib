@@ -489,9 +489,6 @@ class LocalRunner:
         """Run all configured benchmark tests."""
         run_id = self._planner.generate_run_id()
         for test_name, workload in self.config.workloads.items():
-            if not workload.enabled:
-                logger.info("Skipping disabled workload '%s'", test_name)
-                continue
             try:
                 self.run_benchmark(test_name, run_id=run_id)
             except Exception as e:

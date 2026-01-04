@@ -46,10 +46,11 @@ Order used by commands that need a config:
 
 ## Plugin management (`lb plugin ...`)
 
-- `lb plugin list [--select] [--enable NAME | --disable NAME] [-c FILE] [--set-default]`
-- `lb plugin select [-c FILE] [--set-default]`
+- `lb plugin list [--select] [--enable NAME | --disable NAME]`
+- `lb plugin select`
 
 Running `lb plugin` with no subcommand is equivalent to `lb plugin list`.
+Plugin enablement is stored in the platform config (`~/.config/lb/platform.json`); workloads live in the run config.
 
 ## Config management (`lb config ...`)
 

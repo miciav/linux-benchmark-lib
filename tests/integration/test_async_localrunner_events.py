@@ -29,7 +29,6 @@ def test_async_localrunner_emits_events_to_stream_file(tmp_path: Path) -> None:
         "workloads": {
             "baseline": {
                 "plugin": "baseline",
-                "enabled": True,
                 "options": {"duration_seconds": 2},
             }
         },
@@ -122,7 +121,6 @@ def test_async_localrunner_daemonized_emits_events(tmp_path: Path) -> None:
         "workloads": {
             "baseline": {
                 "plugin": "baseline",
-                "enabled": True,
                 "options": {"duration_seconds": 2},
             }
         },

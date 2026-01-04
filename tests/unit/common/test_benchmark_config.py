@@ -44,7 +44,6 @@ class TestBenchmarkConfig:
         assert isinstance(config.plugin_settings["baseline"], BaselineConfig)
         assert "stress_ng" in config.workloads
         assert config.workloads["stress_ng"].plugin == "stress_ng"
-        assert config.workloads["stress_ng"].enabled is False
 
     def test_custom_config_creation(self):
         """Test creating a config with custom values."""
@@ -78,6 +77,20 @@ class TestBenchmarkConfig:
             assert config.output_dir.exists()
             assert config.report_dir.exists()
             assert config.data_export_dir.exists()
+
+    def test_workload_config_rejects_enabled_field(self):
+        """Legacy workload configs with 'enabled' should be rejected."""
+        with pytest.raises(ValidationError):
+            BenchmarkConfig.model_validate(
+                {
+                    "workloads": {
+                        "stress_ng": {
+                            "plugin": "stress_ng",
+                            "enabled": True,
+                        }
+                    }
+                }
+            )
 
     def test_config_to_json(self):
         """Test converting config to JSON."""

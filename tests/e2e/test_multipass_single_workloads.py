@@ -181,7 +181,6 @@ def test_multipass_stress_ng_three_reps(multipass_vm, tmp_path: Path) -> None:
     stress_cfg = StressNGConfig(cpu_workers=1, timeout=intensity["stress_timeout"])
     workload_cfg = WorkloadConfig(
         plugin="stress_ng",
-        enabled=True,
         options=stress_cfg.model_dump(mode="json"),
     )
     _run_single_workload("stress_ng", workload_cfg, {"stress_ng": stress_cfg}, multipass_vm, tmp_path)
@@ -193,7 +192,6 @@ def test_multipass_dd_three_reps(multipass_vm, tmp_path: Path) -> None:
     dd_cfg = DDConfig(bs="1M", count=intensity["dd_count"], of_path="/tmp/dd_test")
     workload_cfg = WorkloadConfig(
         plugin="dd",
-        enabled=True,
         options=dd_cfg.model_dump(mode="json"),
     )
     _run_single_workload("dd", workload_cfg, {"dd": dd_cfg}, multipass_vm, tmp_path)
@@ -215,7 +213,6 @@ def test_multipass_fio_three_reps(multipass_vm, tmp_path: Path) -> None:
     )
     workload_cfg = WorkloadConfig(
         plugin="fio",
-        enabled=True,
         options=fio_cfg.model_dump(mode="json"),
     )
     _run_single_workload("fio", workload_cfg, {"fio": fio_cfg}, multipass_vm, tmp_path)
@@ -243,7 +240,6 @@ def test_multipass_geekbench_three_reps(multipass_vm, tmp_path: Path) -> None:
     )
     workload_cfg = WorkloadConfig(
         plugin="geekbench",
-        enabled=True,
         options=geek_cfg.model_dump(mode="json"),
     )
     _run_single_workload(
@@ -271,7 +267,6 @@ def test_multipass_hpl_three_reps(multipass_vm, tmp_path: Path) -> None:
     )
     workload_cfg = WorkloadConfig(
         plugin="hpl",
-        enabled=True,
         options=hpl_cfg.model_dump(mode="json"),
     )
     _run_single_workload(
@@ -298,7 +293,6 @@ def test_multipass_yabs_three_reps(multipass_vm, tmp_path: Path) -> None:
     )
     workload_cfg = WorkloadConfig(
         plugin="yabs",
-        enabled=True,
         options=yabs_cfg.model_dump(mode="json"),
     )
     _run_single_workload(

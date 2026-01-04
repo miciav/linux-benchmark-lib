@@ -149,14 +149,11 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             None, "--config", "-c", help="Config file to inspect."
         )
     ) -> None:
-        """List workloads and their enabled status."""
+        """List configured workloads."""
         cfg = _load_config(config)
-        rows = [
-            [name, wl.plugin, "yes" if wl.enabled else "no"]
-            for name, wl in sorted(cfg.workloads.items())
-        ]
+        rows = [[name, wl.plugin] for name, wl in sorted(cfg.workloads.items())]
         ctx.ui.tables.show(
-            TableModel(title="Configured Workloads", columns=["Name", "Plugin", "Enabled"], rows=rows)
+            TableModel(title="Configured Workloads", columns=["Name", "Plugin"], rows=rows)
         )
 
     @app.command("enable-workload")
@@ -169,12 +166,12 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             help="Also remember this config as the default.",
         ),
     ) -> None:
-        """Enable a workload in the configuration (creates it if missing)."""
+        """Add a workload to the configuration (creates it if missing)."""
         try:
-            cfg, target, stale = ctx.config_service.update_workload_enabled(name, True, config, set_default)
+            cfg, target, stale = ctx.config_service.add_workload(name, config, set_default)
             if stale:
                 ctx.ui.present.warning(f"Saved default config not found: {stale}")
-            ctx.ui.present.success(f"Workload '{name}' enabled in {target}")
+            ctx.ui.present.success(f"Workload '{name}' added in {target}")
         except ValueError as e:
             ctx.ui.present.error(str(e))
             raise typer.Exit(1)
@@ -189,11 +186,15 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             help="Also remember this config as the default.",
         ),
     ) -> None:
-        """Disable a workload in the configuration (creates it if missing)."""
-        cfg, target, stale = ctx.config_service.update_workload_enabled(name, False, config, set_default)
+        """Remove a workload from the configuration (and its plugin settings)."""
+        cfg, target, stale, removed = ctx.config_service.remove_plugin(name, config)
         if stale:
             ctx.ui.present.warning(f"Saved default config not found: {stale}")
-        ctx.ui.present.success(f"Workload '{name}' disabled in {target}")
+        if not removed:
+            ctx.ui.present.warning(f"No workload named '{name}' found in the config.")
+        if set_default:
+            ctx.config_service.write_saved_config_path(target)
+        ctx.ui.present.success(f"Workload '{name}' removed from {target}")
 
     def _select_workloads_interactively(
         cfg: BenchmarkConfig,
@@ -215,10 +216,10 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             help="Remember the config after saving selection.",
         ),
     ) -> None:
-        """Interactively enable/disable workloads using arrows + space."""
+        """Interactively toggle workloads using arrows + space."""
         cfg = _load_config(config)
         if not cfg.workloads:
-            ctx.ui.present.warning("No workloads configured yet. Enable plugins first with `lb plugin list --enable NAME`.")
+            ctx.ui.present.warning("No workloads configured yet. Add workloads with `lb config enable-workload NAME`.")
             return
 
         registry = create_registry()

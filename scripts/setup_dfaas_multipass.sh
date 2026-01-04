@@ -21,15 +21,73 @@ PUB_KEY_PATH="${KEY_PATH}.pub"
 TARGET_K6_KEY_PATH="${DFAAS_TARGET_K6_KEY_PATH:-/home/ubuntu/.ssh/dfaas_k6_key}"
 
 CONFIG_PATH="${DFAAS_CONFIG_PATH:-${ROOT_DIR}/benchmark_config.dfaas_multipass.json}"
-ENABLE_LOKI="${DFAAS_ENABLE_LOKI:-1}"
-INSTALL_LOKI="${DFAAS_INSTALL_LOKI:-1}"
-LOKI_ENDPOINT="${DFAAS_LOKI_ENDPOINT:-}"
+ENABLE_LOKI="1"
+INSTALL_LOKI="1"
+LOKI_ENDPOINT=""
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "Missing required command: $1" >&2
     exit 1
   fi
+}
+
+usage() {
+  cat <<EOF
+Usage: $0 [options]
+
+Options:
+  --loki                Enable Loki (default)
+  --no-loki             Disable Loki
+  --install-loki        Install Loki on the controller (default)
+  --no-install-loki     Skip Loki installation
+  --loki-endpoint URL   Loki endpoint (e.g. http://<controller-ip>:3100)
+  -h, --help            Show this help message
+EOF
+}
+
+parse_args() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --loki)
+        ENABLE_LOKI="1"
+        shift
+        ;;
+      --no-loki)
+        ENABLE_LOKI="0"
+        shift
+        ;;
+      --install-loki)
+        INSTALL_LOKI="1"
+        shift
+        ;;
+      --no-install-loki)
+        INSTALL_LOKI="0"
+        shift
+        ;;
+      --loki-endpoint)
+        if [ -z "${2:-}" ]; then
+          echo "Missing value for --loki-endpoint" >&2
+          exit 1
+        fi
+        LOKI_ENDPOINT="$2"
+        shift 2
+        ;;
+      --loki-endpoint=*)
+        LOKI_ENDPOINT="${1#*=}"
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "Unknown argument: $1" >&2
+        usage
+        exit 1
+        ;;
+    esac
+  done
 }
 
 ensure_keypair() {
@@ -95,7 +153,9 @@ wait_for_ip() {
 
 is_enabled() {
   local raw="${1:-}"
-  case "${raw,,}" in
+  local lower
+  lower="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
+  case "$lower" in
     1|true|yes|on) return 0 ;;
     *) return 1 ;;
   esac
@@ -104,6 +164,29 @@ is_enabled() {
 controller_ip_from_vm() {
   local name="$1"
   multipass exec "$name" -- bash -lc "ip route | awk '/default/ {print \$3; exit}'" 2>/dev/null || true
+}
+
+controller_ip_local() {
+  local os
+  os="$(uname -s)"
+  if [ "${os}" = "Darwin" ]; then
+    local iface=""
+    iface="$(route -n get default 2>/dev/null | awk '/interface:/{print $2; exit}')"
+    if [ -n "$iface" ] && command -v ipconfig >/dev/null 2>&1; then
+      ipconfig getifaddr "$iface" 2>/dev/null || true
+      return 0
+    fi
+  else
+    if command -v ip >/dev/null 2>&1; then
+      ip route get 1 2>/dev/null | awk '{print $7; exit}'
+      return 0
+    fi
+    if command -v hostname >/dev/null 2>&1; then
+      hostname -I 2>/dev/null | awk '{print $1; exit}'
+      return 0
+    fi
+  fi
+  echo ""
 }
 
 maybe_install_loki() {
@@ -198,7 +281,7 @@ config = {
             ],
         }
     },
-    "workloads": {"dfaas": {"plugin": "dfaas", "enabled": True}},
+    "workloads": {"dfaas": {"plugin": "dfaas"}},
 }
 
 if loki_enabled:
@@ -213,6 +296,8 @@ PY
 }
 
 main() {
+  parse_args "$@"
+
   require_cmd multipass
   require_cmd ssh-keygen
   require_cmd python3
@@ -230,6 +315,9 @@ main() {
   if is_enabled "$ENABLE_LOKI"; then
     if [ -z "$LOKI_ENDPOINT" ]; then
       controller_ip="$(controller_ip_from_vm "$TARGET_NAME")"
+      if [ -z "$controller_ip" ]; then
+        controller_ip="$(controller_ip_local)"
+      fi
       if [ -n "$controller_ip" ]; then
         LOKI_ENDPOINT="http://${controller_ip}:3100"
       fi

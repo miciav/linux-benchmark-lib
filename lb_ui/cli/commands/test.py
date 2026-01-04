@@ -10,6 +10,7 @@ import typer
 
 from lb_ui.wiring.dependencies import UIContext
 from lb_ui.tui.system.models import PickItem
+from lb_plugins.api import create_registry
 
 
 def create_test_app(ctx: UIContext) -> typer.Typer:
@@ -60,8 +61,8 @@ def create_test_app(ctx: UIContext) -> typer.Typer:
         if multi_workloads:
             scenario_choice = "multi"
         else:
-            cfg_preview = ctx.config_service.create_default_config().workloads
-            names = sorted(cfg_preview.keys())
+            registry = create_registry()
+            names = sorted(registry.available().keys())
             options = list(dict.fromkeys(names + ["multi"]).keys())
 
             items = []

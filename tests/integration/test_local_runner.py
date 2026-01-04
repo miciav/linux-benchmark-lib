@@ -46,7 +46,6 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
         workloads={
             "stress_ng": WorkloadConfig(
                 plugin="stress_ng",
-                enabled=True,
                 options=stress_cfg.model_dump(mode="json"),
             )
         },

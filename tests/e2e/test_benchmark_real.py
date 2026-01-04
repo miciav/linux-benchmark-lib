@@ -59,7 +59,6 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             workloads={
                 "stress_ng": WorkloadConfig(
                     plugin="stress_ng",
-                    enabled=True,
                     options=stress_cfg.model_dump(mode="json"),
                 )
             },
@@ -177,7 +176,6 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             workloads={
                 "stress_ng": WorkloadConfig(
                     plugin="stress_ng",
-                    enabled=True,
                     options=stress_cfg.model_dump(mode="json"),
                 )
             },

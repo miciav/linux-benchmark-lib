@@ -58,7 +58,7 @@ def test_local_runner_writes_results(tmp_path, monkeypatch):
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",
         data_export_dir=tmp_path / "exp",
-        workloads={"dummy": WorkloadConfig(plugin="dummy", enabled=True)},
+        workloads={"dummy": WorkloadConfig(plugin="dummy")},
         warmup_seconds=0,
         cooldown_seconds=0,
         collect_system_info=False,

@@ -43,7 +43,13 @@ class ApplicationClient(AppClient):
         return RunJournal.list_runs(config.output_dir)
 
     def get_run_plan(self, config: BenchmarkConfig, tests: Sequence[str], execution_mode: str = "remote"):
-        return self._run_service.get_run_plan(config, list(tests), execution_mode=execution_mode)
+        platform_cfg, _, _ = self._config_service.load_platform_config()
+        return self._run_service.get_run_plan(
+            config,
+            list(tests),
+            execution_mode=execution_mode,
+            platform_config=platform_cfg,
+        )
 
     def _provision(
         self,
@@ -152,11 +158,11 @@ class ApplicationClient(AppClient):
     def start_run(self, request: RunRequest, hooks: UIHooks) -> RunResult | None:
         cfg = request.config
         target_tests = list(
-            request.tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+            request.tests or list(cfg.workloads.keys())
         )
         for name in target_tests:
             if name not in cfg.workloads:
-                cfg.workloads[name] = WorkloadConfig(plugin=name, enabled=True)
+                cfg.workloads[name] = WorkloadConfig(plugin=name, options={})
 
         context = self._run_service.create_session(
             self._config_service,

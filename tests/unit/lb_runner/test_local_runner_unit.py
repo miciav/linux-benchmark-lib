@@ -34,7 +34,7 @@ def test_local_runner_merges_results_across_repetition_override_calls(tmp_path: 
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",
         data_export_dir=tmp_path / "exp",
-        workloads={"dummy": WorkloadConfig(plugin="stress_ng", enabled=True)},
+        workloads={"dummy": WorkloadConfig(plugin="stress_ng")},
         warmup_seconds=0,
         cooldown_seconds=0,
         collect_system_info=False,

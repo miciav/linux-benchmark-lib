@@ -402,9 +402,7 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         else:
             resolved_node_count = len(cfg.remote_hosts or []) or 1
 
-        plan_tests = list(run_workloads) if run_workloads else [
-            name for name, wl in cfg.workloads.items() if wl.enabled
-        ]
+        plan_tests = list(run_workloads) if run_workloads else list(cfg.workloads.keys())
         if not plan_tests:
             ctx.ui.present.error("No workloads selected to run.")
             raise typer.Exit(1)

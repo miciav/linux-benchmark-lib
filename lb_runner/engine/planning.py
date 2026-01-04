@@ -36,12 +36,10 @@ def select_repetitions(
 
 
 def resolve_workload(name: str, workloads: dict[str, WorkloadConfig]) -> WorkloadConfig:
-    """Return the workload configuration ensuring it is enabled."""
+    """Return the workload configuration for the given name."""
     workload = workloads.get(name)
     if workload is None:
         raise ValueError(f"Unknown workload: {name}")
-    if not workload.enabled:
-        raise ValueError(f"Workload '{name}' is disabled in the configuration")
     return workload
 
 

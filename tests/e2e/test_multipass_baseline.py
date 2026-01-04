@@ -162,7 +162,6 @@ def test_multipass_baseline_three_reps(multipass_vm, tmp_path: Path) -> None:
     baseline_cfg = BaselineConfig(duration=5)
     workload_cfg = WorkloadConfig(
         plugin="baseline",
-        enabled=True,
         options=baseline_cfg.model_dump(mode="json"),
     )
     

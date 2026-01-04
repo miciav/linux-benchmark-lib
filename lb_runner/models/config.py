@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from lb_common.env_utils import (
     parse_bool_env,
@@ -197,8 +197,9 @@ class RemoteExecutionConfig(BaseModel):
 class WorkloadConfig(BaseModel):
     """Configuration wrapper for workload plugins."""
 
+    model_config = ConfigDict(extra="forbid")
+
     plugin: str = Field(description="Name of the plugin to use")
-    enabled: bool = Field(default=True, description="Enable or disable this workload")
     intensity: str = Field(default="user_defined", description="Pre-defined intensity level (low, medium, high, user_defined)")
     options: Dict[str, Any] = Field(default_factory=dict, description="Plugin-specific options for the workload")
 
@@ -286,3 +287,35 @@ class BenchmarkConfig(BaseModel):
         return cls.model_validate_json(filepath.read_text())
 
     # Removed _normalize_playbook_paths as its logic is now within RemoteExecutionConfig's model_validator
+
+
+class PlatformConfig(BaseModel):
+    """Platform-level configuration for defaults and plugin enablement."""
+
+    plugins: Dict[str, bool] = Field(
+        default_factory=dict,
+        description="Plugin enable/disable map (missing entries default to enabled)",
+    )
+    output_dir: Optional[Path] = Field(
+        default=None, description="Default benchmark output directory"
+    )
+    report_dir: Optional[Path] = Field(
+        default=None, description="Default report directory"
+    )
+    data_export_dir: Optional[Path] = Field(
+        default=None, description="Default data export directory"
+    )
+    loki: Optional[LokiConfig] = Field(
+        default=None, description="Optional Loki defaults for the platform"
+    )
+
+    def is_plugin_enabled(self, name: str) -> bool:
+        """Return True when the plugin is enabled or not explicitly disabled."""
+        return self.plugins.get(name, True)
+
+    def save(self, filepath: Path) -> None:
+        filepath.write_text(self.model_dump_json(indent=2))
+
+    @classmethod
+    def load(cls, filepath: Path) -> "PlatformConfig":
+        return cls.model_validate_json(filepath.read_text())

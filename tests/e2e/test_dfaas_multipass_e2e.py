@@ -766,7 +766,6 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
 
     workload_cfg = WorkloadConfig(
         plugin="dfaas",
-        enabled=True,
         options=dfaas_config.model_dump(mode="json"),
     )
     config = BenchmarkConfig(
@@ -1579,7 +1578,6 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
 
     workload_cfg = WorkloadConfig(
         plugin="dfaas",
-        enabled=True,
         options=dfaas_config.model_dump(mode="json"),
     )
     config = BenchmarkConfig(
@@ -1839,7 +1837,6 @@ def test_dfaas_multipass_localrunner_direct(multipass_two_vms, tmp_path: Path) -
         "workloads": {
             "baseline": {
                 "plugin": "baseline",
-                "enabled": True,
                 "options": {"duration_seconds": 2},
             }
         },
@@ -1987,7 +1984,6 @@ def test_dfaas_multipass_localrunner_daemonized(multipass_two_vms, tmp_path: Pat
         "workloads": {
             "baseline": {
                 "plugin": "baseline",
-                "enabled": True,
                 "options": {"duration_seconds": 2},
             }
         },
@@ -2261,7 +2257,6 @@ def test_dfaas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> None
         "workloads": {
             "dfaas": {
                 "plugin": "dfaas",
-                "enabled": True,
                 "options": dfaas_options,
             }
         },
