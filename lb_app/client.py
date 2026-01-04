@@ -7,6 +7,11 @@ from typing import Iterable, Sequence
 
 from lb_app.interfaces import AppClient, UIHooks, RunRequest
 from lb_app.services.config_service import ConfigService
+from lb_app.services.provision_service import (
+    ProvisionConfigSummary,
+    ProvisionService,
+    ProvisionStatus,
+)
 from lb_controller.api import BenchmarkConfig, RemoteHostConfig, RunJournal, WorkloadConfig
 from lb_app.services.run_service import RunService
 from lb_app.services.run_service import RunResult
@@ -27,6 +32,7 @@ class ApplicationClient(AppClient):
         configure_logging()
         self._config_service = ConfigService()
         self._run_service = RunService(registry_factory=create_registry)
+        self._provision_service = ProvisionService(self._config_service)
         self._provisioner = ProvisioningService(
             enforce_ui_caller=True, allowed_callers=("lb_ui", "lb_app")
         )
@@ -222,3 +228,42 @@ class ApplicationClient(AppClient):
                     prov_result.keep_nodes = True
                     hooks.on_warning("Leaving provisioned nodes for inspection", ttl=5)
         return run_result
+
+    def install_loki_grafana(
+        self,
+        *,
+        mode: str,
+        config_path: Path | None,
+        grafana_url: str | None,
+        grafana_api_key: str | None,
+        grafana_org_id: int | None,
+        loki_endpoint: str | None,
+        configure_assets: bool = True,
+    ) -> ProvisionConfigSummary | None:
+        return self._provision_service.install_loki_grafana(
+            mode=mode,
+            config_path=config_path,
+            grafana_url=grafana_url,
+            grafana_api_key=grafana_api_key,
+            grafana_org_id=grafana_org_id,
+            loki_endpoint=loki_endpoint,
+            configure_assets=configure_assets,
+        )
+
+    def remove_loki_grafana(self, *, remove_data: bool = False) -> None:
+        self._provision_service.remove_loki_grafana(remove_data=remove_data)
+
+    def status_loki_grafana(
+        self,
+        *,
+        grafana_url: str | None,
+        grafana_api_key: str | None,
+        grafana_org_id: int | None,
+        loki_endpoint: str | None,
+    ) -> ProvisionStatus:
+        return self._provision_service.status_loki_grafana(
+            grafana_url=grafana_url,
+            grafana_api_key=grafana_api_key,
+            grafana_org_id=grafana_org_id,
+            loki_endpoint=loki_endpoint,
+        )

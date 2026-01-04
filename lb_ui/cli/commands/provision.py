@@ -5,14 +5,6 @@ from pathlib import Path
 
 import typer
 
-from lb_plugins.api import collect_grafana_assets, create_registry
-from lb_provisioner.api import (
-    check_grafana_ready,
-    check_loki_ready,
-    configure_grafana,
-    install_loki_grafana,
-    remove_loki_grafana,
-)
 from lb_ui.wiring.dependencies import UIContext
 
 
@@ -62,28 +54,17 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
             help="Configure Grafana datasources and dashboards after install.",
         ),
     ) -> None:
-        platform_cfg, _, _ = ctx.config_service.load_platform_config()
-        resolved_loki = (
-            loki_endpoint
-            or (platform_cfg.loki.endpoint if platform_cfg.loki else None)
-            or "http://localhost:3100"
-        )
-        resolved_grafana = (
-            grafana_url
-            or (platform_cfg.grafana.url if platform_cfg.grafana else None)
-            or "http://localhost:3000"
-        )
-        resolved_api_key = (
-            grafana_api_key
-            or (platform_cfg.grafana.api_key if platform_cfg.grafana else None)
-        )
-        resolved_org_id = grafana_org_id or (
-            platform_cfg.grafana.org_id if platform_cfg.grafana else 1
-        )
-
         ctx.ui.present.info("Installing Loki and Grafana...")
         try:
-            install_loki_grafana(mode=mode)
+            summary = ctx.app_client.install_loki_grafana(
+                mode=mode,
+                config_path=config,
+                grafana_url=grafana_url,
+                grafana_api_key=grafana_api_key,
+                grafana_org_id=grafana_org_id,
+                loki_endpoint=loki_endpoint,
+                configure_assets=configure_assets,
+            )
         except Exception as exc:
             ctx.ui.present.error(f"Installation failed: {exc}")
             raise typer.Exit(1)
@@ -91,41 +72,9 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
         if not configure_assets:
             ctx.ui.present.warning("Skipping Grafana configuration (--no-configure).")
             return
-
-        if not resolved_api_key:
-            ctx.ui.present.error(
-                "Grafana API key required to configure datasources/dashboards. "
-                "Provide --grafana-api-key or set it in platform config."
-            )
-            raise typer.Exit(1)
-
-        registry = create_registry()
-        enabled_map = {
-            name: platform_cfg.is_plugin_enabled(name)
-            for name in registry.available(load_entrypoints=True)
-        }
-        if config:
-            run_cfg, _, _ = ctx.config_service.load_for_read(config)
-        else:
-            run_cfg = ctx.config_service.create_default_config()
-        assets = collect_grafana_assets(
-            registry,
-            plugin_settings=run_cfg.plugin_settings,
-            enabled_plugins=enabled_map,
-        )
-
-        ctx.ui.present.info("Configuring Grafana datasources and dashboards...")
-        try:
-            summary = configure_grafana(
-                grafana_url=resolved_grafana,
-                grafana_api_key=resolved_api_key,
-                grafana_org_id=resolved_org_id,
-                loki_endpoint=resolved_loki,
-                assets=assets,
-            )
-        except Exception as exc:
-            ctx.ui.present.error(f"Grafana configuration failed: {exc}")
-            raise typer.Exit(1)
+        if summary is None:
+            ctx.ui.present.warning("Grafana configuration skipped.")
+            return
 
         ctx.ui.present.success(
             "Grafana configured: "
@@ -143,7 +92,7 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
     ) -> None:
         ctx.ui.present.info("Removing Loki and Grafana...")
         try:
-            remove_loki_grafana(remove_data=remove_data)
+            ctx.app_client.remove_loki_grafana(remove_data=remove_data)
         except Exception as exc:
             ctx.ui.present.error(f"Removal failed: {exc}")
             raise typer.Exit(1)
@@ -172,43 +121,24 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
             help="Loki base URL or push endpoint.",
         ),
     ) -> None:
-        platform_cfg, _, _ = ctx.config_service.load_platform_config()
-        resolved_loki = (
-            loki_endpoint
-            or (platform_cfg.loki.endpoint if platform_cfg.loki else None)
-            or "http://localhost:3100"
-        )
-        resolved_grafana = (
-            grafana_url
-            or (platform_cfg.grafana.url if platform_cfg.grafana else None)
-            or "http://localhost:3000"
-        )
-        resolved_api_key = (
-            grafana_api_key
-            or (platform_cfg.grafana.api_key if platform_cfg.grafana else None)
-        )
-        resolved_org_id = grafana_org_id or (
-            platform_cfg.grafana.org_id if platform_cfg.grafana else 1
+        status = ctx.app_client.status_loki_grafana(
+            grafana_url=grafana_url,
+            grafana_api_key=grafana_api_key,
+            grafana_org_id=grafana_org_id,
+            loki_endpoint=loki_endpoint,
         )
 
-        loki_ok = check_loki_ready(resolved_loki)
-        grafana_ok = check_grafana_ready(
-            resolved_grafana,
-            api_key=resolved_api_key,
-            org_id=resolved_org_id,
-        )
-
-        if loki_ok:
-            ctx.ui.present.success(f"Loki ready: {resolved_loki}")
+        if status.loki_ready:
+            ctx.ui.present.success(f"Loki ready: {status.loki_url}")
         else:
-            ctx.ui.present.warning(f"Loki not reachable: {resolved_loki}")
+            ctx.ui.present.warning(f"Loki not reachable: {status.loki_url}")
 
-        if grafana_ok:
-            ctx.ui.present.success(f"Grafana ready: {resolved_grafana}")
+        if status.grafana_ready:
+            ctx.ui.present.success(f"Grafana ready: {status.grafana_url}")
         else:
-            ctx.ui.present.warning(f"Grafana not reachable: {resolved_grafana}")
+            ctx.ui.present.warning(f"Grafana not reachable: {status.grafana_url}")
 
-        if not (loki_ok and grafana_ok):
+        if not (status.loki_ready and status.grafana_ready):
             raise typer.Exit(1)
 
     app.add_typer(loki_grafana_app, name="loki-grafana")

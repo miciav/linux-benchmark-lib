@@ -9,6 +9,11 @@ from lb_app.services.doctor_types import (
     DoctorCheckItem,
     DoctorReport,
 )
+from lb_app.services.provision_service import (
+    ProvisionConfigSummary,
+    ProvisionService,
+    ProvisionStatus,
+)
 from lb_app.services.run_service import RunService
 from lb_app.services.run_types import RunContext, RunResult
 from lb_app.services.test_service import TestService
@@ -64,6 +69,9 @@ __all__ = [
     "DoctorCheckItem",
     "DoctorReport",
     "TestService",
+    "ProvisionConfigSummary",
+    "ProvisionService",
+    "ProvisionStatus",
     "BenchmarkConfig",
     "ConfigService",
     "PluginRegistry",

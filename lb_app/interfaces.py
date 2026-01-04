@@ -9,6 +9,7 @@ from typing import Iterable, Protocol, Sequence
 from lb_controller.api import BenchmarkConfig, RunEvent
 from lb_controller.api import RunJournal
 from lb_app.services.run_service import RunResult
+from lb_app.services.provision_service import ProvisionConfigSummary, ProvisionStatus
 from lb_app.ui_interfaces import UIAdapter
 
 
@@ -49,3 +50,23 @@ class AppClient(Protocol):
     def list_runs(self, config: BenchmarkConfig) -> Iterable[RunJournal]: ...
     def get_run_plan(self, config: BenchmarkConfig, tests: Sequence[str], execution_mode: str = "remote"): ...
     def start_run(self, request: RunRequest, hooks: UIHooks) -> RunResult | None: ...
+    def install_loki_grafana(
+        self,
+        *,
+        mode: str,
+        config_path: Path | None,
+        grafana_url: str | None,
+        grafana_api_key: str | None,
+        grafana_org_id: int | None,
+        loki_endpoint: str | None,
+        configure_assets: bool = True,
+    ) -> ProvisionConfigSummary | None: ...
+    def remove_loki_grafana(self, *, remove_data: bool = False) -> None: ...
+    def status_loki_grafana(
+        self,
+        *,
+        grafana_url: str | None,
+        grafana_api_key: str | None,
+        grafana_org_id: int | None,
+        loki_endpoint: str | None,
+    ) -> ProvisionStatus: ...
