@@ -21,6 +21,9 @@ PUB_KEY_PATH="${KEY_PATH}.pub"
 TARGET_K6_KEY_PATH="${DFAAS_TARGET_K6_KEY_PATH:-/home/ubuntu/.ssh/dfaas_k6_key}"
 
 CONFIG_PATH="${DFAAS_CONFIG_PATH:-${ROOT_DIR}/benchmark_config.dfaas_multipass.json}"
+ENABLE_LOKI="${DFAAS_ENABLE_LOKI:-1}"
+INSTALL_LOKI="${DFAAS_INSTALL_LOKI:-1}"
+LOKI_ENDPOINT="${DFAAS_LOKI_ENDPOINT:-}"
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -90,6 +93,30 @@ wait_for_ip() {
   return 1
 }
 
+is_enabled() {
+  local raw="${1:-}"
+  case "${raw,,}" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+controller_ip_from_vm() {
+  local name="$1"
+  multipass exec "$name" -- bash -lc "ip route | awk '/default/ {print \$3; exit}'" 2>/dev/null || true
+}
+
+maybe_install_loki() {
+  if ! is_enabled "$INSTALL_LOKI"; then
+    return 0
+  fi
+  if [ ! -x "${ROOT_DIR}/scripts/install_loki.sh" ]; then
+    echo "Loki install script not found: ${ROOT_DIR}/scripts/install_loki.sh" >&2
+    return 1
+  fi
+  "${ROOT_DIR}/scripts/install_loki.sh"
+}
+
 inject_key() {
   local name="$1"
   local pub_key
@@ -121,6 +148,8 @@ write_config() {
   DFAAS_GENERATOR_IP="$generator_ip" \
   DFAAS_KEY_PATH="$KEY_PATH" \
   DFAAS_K6_KEY_PATH="$TARGET_K6_KEY_PATH" \
+  DFAAS_LOKI_ENABLED="$ENABLE_LOKI" \
+  DFAAS_LOKI_ENDPOINT="$LOKI_ENDPOINT" \
   DFAAS_CONFIG_PATH="$CONFIG_PATH" \
   python3 - <<'PY'
 import json
@@ -133,6 +162,8 @@ generator_ip = os.environ["DFAAS_GENERATOR_IP"]
 key_path = os.environ["DFAAS_KEY_PATH"]
 k6_key_path = os.environ["DFAAS_K6_KEY_PATH"]
 config_path = Path(os.environ["DFAAS_CONFIG_PATH"])
+loki_enabled = os.environ.get("DFAAS_LOKI_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+loki_endpoint = os.environ.get("DFAAS_LOKI_ENDPOINT", "").strip()
 
 config = {
     "remote_hosts": [
@@ -170,6 +201,12 @@ config = {
     "workloads": {"dfaas": {"plugin": "dfaas", "enabled": True}},
 }
 
+if loki_enabled:
+    config["loki"] = {
+        "enabled": True,
+        "endpoint": loki_endpoint or "http://localhost:3100",
+    }
+
 config_path.write_text(json.dumps(config, indent=2))
 print(f"Wrote {config_path}")
 PY
@@ -190,6 +227,15 @@ main() {
 
   target_ip="$(wait_for_ip "$TARGET_NAME")"
   generator_ip="$(wait_for_ip "$GENERATOR_NAME")"
+  if is_enabled "$ENABLE_LOKI"; then
+    if [ -z "$LOKI_ENDPOINT" ]; then
+      controller_ip="$(controller_ip_from_vm "$TARGET_NAME")"
+      if [ -n "$controller_ip" ]; then
+        LOKI_ENDPOINT="http://${controller_ip}:3100"
+      fi
+    fi
+    maybe_install_loki
+  fi
 
   write_config "$target_ip" "$generator_ip"
 
