@@ -1,6 +1,7 @@
 import json
 import logging
 import queue
+from typing import Any
 
 import pytest
 
@@ -134,7 +135,7 @@ def test_loki_handler_emit_handles_queue_full(
     )
     handler.setFormatter(logging.Formatter("%(message)s"))
 
-    def mock_put_nowait(entry) -> None:
+    def mock_put_nowait(entry: Any) -> None:
         raise queue.Full()
 
     monkeypatch.setattr(handler._queue, "put_nowait", mock_put_nowait)
@@ -187,3 +188,47 @@ def test_loki_payload_empty_entries() -> None:
     """Empty entries list should produce empty streams."""
     payload = build_loki_payload([])
     assert payload == {"streams": []}
+
+
+def test_loki_handler_retries_on_transient_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Handler should retry on network error."""
+    handler = LokiPushHandler(
+        endpoint="http://localhost:3100",
+        component="runner",
+        host="host1",
+        run_id="run-1",
+        max_retries=2,
+        backoff_base=0.01,  # Fast retry for test
+    )
+    handler.setFormatter(logging.Formatter("%(message)s"))
+
+    # Create a mock response context manager
+    class MockResponse:
+        def __init__(self, status: int) -> None:
+            self.status = status
+        def __enter__(self) -> "MockResponse":
+            return self
+        def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+            pass
+
+    # Mock urlopen to fail once then succeed
+    call_count = 0
+
+    def mock_urlopen(req: Any, timeout: float) -> Any:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            from urllib.error import HTTPError
+            raise HTTPError(req.full_url, 503, "Service Unavailable", None, None)  # type: ignore[arg-type]
+        return MockResponse(204)
+
+    monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+
+    # Force synchronous push for testing
+    entry = LokiLogEntry(
+        labels={"component": "runner"}, timestamp_ns="1", line="test"
+    )
+    handler._push_entries([entry])
+
+    assert call_count == 2
+    handler.close()

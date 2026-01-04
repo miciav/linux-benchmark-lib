@@ -17,6 +17,7 @@ from typing import Any, Iterable
 from urllib.parse import urlparse, urlunparse
 
 from lb_common.handlers.jsonl_handler import JsonlLogFormatter
+from lb_common.handlers.loki_handler import normalize_loki_endpoint
 from lb_common.logging import attach_jsonl_handler, attach_loki_handler
 from lb_runner.api import LBEventLogHandler, RunEvent, StdoutEmitter
 from .config import DfaasConfig
@@ -579,6 +580,24 @@ class DfaasGenerator(BaseGenerator):
         tags["repetition"] = str(self._exec_ctx.repetition)
         return tags
 
+    def _resolve_k6_outputs(self) -> list[str]:
+        outputs: list[str] = []
+        for output in self.config.k6_outputs:
+            if output is None:
+                continue
+            cleaned = str(output).strip()
+            if cleaned:
+                outputs.append(cleaned)
+
+        raw_enabled = os.environ.get("LB_LOKI_ENABLED", "").strip().lower()
+        if raw_enabled in {"1", "true", "yes", "on"}:
+            endpoint = os.environ.get("LB_LOKI_ENDPOINT") or "http://localhost:3100"
+            loki_output = f"loki={normalize_loki_endpoint(endpoint)}"
+            if not any(entry.startswith("loki=") for entry in outputs):
+                outputs.append(loki_output)
+
+        return outputs
+
     def _execute_configs(self, ctx: _RunContext) -> None:
         """Execute all configurations.
 
@@ -773,7 +792,7 @@ class DfaasGenerator(BaseGenerator):
             script,
             ctx.target_name,
             ctx.run_id,
-            outputs=self.config.k6_outputs,
+            outputs=self._resolve_k6_outputs(),
             tags=self._build_k6_tags(ctx.run_id),
         )
         logger.info(

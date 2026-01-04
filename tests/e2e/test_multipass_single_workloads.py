@@ -29,7 +29,7 @@ from lb_runner.api import (
 )
 from lb_controller.api import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController, ControllerOptions
-import tests.e2e.test_multipass_benchmark as _multipass_benchmark  # noqa: F401
+from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
 
 pytestmark = [

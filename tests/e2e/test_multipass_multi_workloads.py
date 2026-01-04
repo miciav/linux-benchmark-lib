@@ -11,6 +11,7 @@ from lb_runner.api import (
     RemoteHostConfig,
     WorkloadConfig,
 )
+from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
