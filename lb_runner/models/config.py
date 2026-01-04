@@ -137,6 +137,16 @@ class LokiConfig(BaseModel):
         return values
 
 
+class GrafanaPlatformConfig(BaseModel):
+    """Platform-level Grafana connection settings."""
+
+    url: str = Field(default="http://localhost:3000", description="Grafana base URL")
+    api_key: str | None = Field(default=None, description="Grafana API key (optional)")
+    org_id: int = Field(default=1, ge=1, description="Grafana organization id")
+
+    model_config = {"extra": "ignore"}
+
+
 class RemoteHostConfig(BaseModel):
     """Configuration for a remote benchmark host."""
 
@@ -307,6 +317,9 @@ class PlatformConfig(BaseModel):
     )
     loki: Optional[LokiConfig] = Field(
         default=None, description="Optional Loki defaults for the platform"
+    )
+    grafana: Optional[GrafanaPlatformConfig] = Field(
+        default=None, description="Optional Grafana defaults for the platform"
     )
 
     def is_plugin_enabled(self, name: str) -> bool:

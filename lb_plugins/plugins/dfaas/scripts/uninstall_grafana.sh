@@ -32,12 +32,45 @@ if [[ -z "${METHOD}" ]]; then
   exit 1
 fi
 
-remove_data=false
-read -r -p "Remove Grafana data dir? [y/N]: " confirm
-case "${confirm}" in
-  y|Y|yes|YES) remove_data=true ;;
-  *) remove_data=false ;;
-esac
+remove_data=""
+print_usage() {
+  cat <<EOF
+Usage: uninstall_grafana.sh [--remove-data|--keep-data]
+
+If no flag is provided, the script will prompt before removing data.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --remove-data)
+      remove_data="true"
+      shift
+      ;;
+    --keep-data)
+      remove_data="false"
+      shift
+      ;;
+    -h|--help)
+      print_usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1"
+      print_usage
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "${remove_data}" ]]; then
+  remove_data=false
+  read -r -p "Remove Grafana data dir? [y/N]: " confirm
+  case "${confirm}" in
+    y|Y|yes|YES) remove_data=true ;;
+    *) remove_data=false ;;
+  esac
+fi
 
 case "${METHOD}" in
   brew)

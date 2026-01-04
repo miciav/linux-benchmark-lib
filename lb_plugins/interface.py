@@ -7,6 +7,7 @@ import yaml # Added yaml import
 import pandas as pd
 from pydantic import BaseModel, Field # Added Pydantic imports
 
+from lb_plugins.observability import GrafanaAssets
 
 class WorkloadIntensity(str, Enum):
     LOW = "low"
@@ -148,6 +149,10 @@ class WorkloadPlugin(ABC):
         """Return extra vars merged into the plugin teardown playbook run."""
         return {}
 
+    def get_grafana_assets(self) -> GrafanaAssets | None:
+        """Return Grafana datasources/dashboards provided by this plugin."""
+        return None
+
     # Optional: allow plugins to normalize their own results into CSV before collection
     def export_results_to_csv(
         self,
@@ -199,6 +204,7 @@ class SimpleWorkloadPlugin(WorkloadPlugin):
     REQUIRED_LOCAL_TOOLS: List[str] = []
     SETUP_PLAYBOOK: Optional[Path] = None
     TEARDOWN_PLAYBOOK: Optional[Path] = None
+    GRAFANA_ASSETS: GrafanaAssets | None = None
 
     @property
     def name(self) -> str:
@@ -220,6 +226,9 @@ class SimpleWorkloadPlugin(WorkloadPlugin):
         if self.GENERATOR_CLS is None:
             raise NotImplementedError("SimpleWorkloadPlugin.GENERATOR_CLS must be set")
         return self.GENERATOR_CLS(config)
+
+    def get_grafana_assets(self) -> GrafanaAssets | None:
+        return self.GRAFANA_ASSETS
 
     def get_required_apt_packages(self) -> List[str]:
         return list(self.REQUIRED_APT_PACKAGES)

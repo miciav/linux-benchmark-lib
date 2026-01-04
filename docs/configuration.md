@@ -51,8 +51,9 @@ config = BenchmarkConfig.load(Path("benchmark_config.json"))
 The configuration model is split into two files:
 
 - **Platform config**: `~/.config/lb/platform.json`
-  - Holds environment-level settings (e.g. Loki endpoint/labels, output defaults, controller defaults).
+  - Holds environment-level settings (e.g. Loki endpoint/labels, Grafana URL/API key, output defaults).
   - Includes only plugin enablement flags: `"plugins": { "dfaas": true, "fio": false }`.
+  - Optional `grafana` block stores connection defaults (`url`, `api_key`, `org_id`) for provisioning.
   - Does **not** contain workload definitions or plugin configs.
   - Never drives execution directly.
 

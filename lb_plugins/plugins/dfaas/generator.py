@@ -21,6 +21,10 @@ from lb_common.handlers.loki_handler import normalize_loki_endpoint
 from lb_common.logging import attach_jsonl_handler, attach_loki_handler
 from lb_runner.api import LBEventLogHandler, RunEvent, StdoutEmitter
 from .config import DfaasConfig
+from .grafana_assets import (
+    GRAFANA_DASHBOARD_PATH,
+    GRAFANA_PROMETHEUS_DATASOURCE_NAME,
+)
 from .exceptions import K6ExecutionError
 from .services import (
     CooldownManager,
@@ -85,9 +89,6 @@ class _RunContext:
     overloaded_configs: list[list[tuple[str, int]]] = field(default_factory=list)
 
 _DURATION_RE = re.compile(r"^(?P<value>[0-9]+)(?P<unit>ms|s|m|h)$")
-_GRAFANA_DASHBOARD_PATH = Path(__file__).parent / "grafana" / "dfaas-dashboard.json"
-_GRAFANA_DATASOURCE_NAME = "dfaas-prometheus"
-
 
 def _parse_duration_seconds(duration: str) -> int:
     match = _DURATION_RE.match(duration.strip())
@@ -437,7 +438,7 @@ class DfaasGenerator(BaseGenerator):
                 prometheus_url,
             )
         datasource_id = client.upsert_datasource(
-            name=_GRAFANA_DATASOURCE_NAME,
+            name=GRAFANA_PROMETHEUS_DATASOURCE_NAME,
             url=prometheus_url,
             datasource_type="prometheus",
             access="proxy",
@@ -446,7 +447,7 @@ class DfaasGenerator(BaseGenerator):
         if datasource_id is None:
             logger.error(
                 "Grafana datasource '%s' could not be created.",
-                _GRAFANA_DATASOURCE_NAME,
+                GRAFANA_PROMETHEUS_DATASOURCE_NAME,
             )
             return
 
@@ -468,7 +469,7 @@ class DfaasGenerator(BaseGenerator):
             logger.info("Grafana dashboard ready at %s", import_result["url"])
 
     def _load_grafana_dashboard(self) -> dict[str, Any]:
-        return json.loads(_GRAFANA_DASHBOARD_PATH.read_text())
+        return json.loads(GRAFANA_DASHBOARD_PATH.read_text())
 
     def _resolve_prometheus_url(self, target_name: str) -> str:
         url = self.config.prometheus_url

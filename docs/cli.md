@@ -37,6 +37,8 @@ Order used by commands that need a config:
   Run analytics on an existing run.
 - `lb plugin ...`
   Inspect and manage workload plugins.
+- `lb provision loki-grafana install|remove|status [--mode local|docker] [--grafana-url URL] [--grafana-api-key KEY] [--loki-endpoint URL] [--no-configure]`
+  Install/remove Loki + Grafana and configure datasources/dashboards.
 - `lb config ...`
   Create and manage benchmark configuration files.
 - `lb doctor ...`

@@ -9,6 +9,7 @@ from typing import Any
 
 from ...interface import SimpleWorkloadPlugin
 from .config import DfaasConfig
+from .grafana_assets import GRAFANA_ASSETS
 from .generator import DfaasGenerator
 
 
@@ -20,6 +21,7 @@ class DfaasPlugin(SimpleWorkloadPlugin):
     CONFIG_CLS = DfaasConfig
     GENERATOR_CLS = DfaasGenerator
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_target.yml"
+    GRAFANA_ASSETS = GRAFANA_ASSETS
 
     def export_results_to_csv(
         self,

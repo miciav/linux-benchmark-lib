@@ -105,5 +105,67 @@ choose_method() {
   fi
 }
 
-choose_method
+run_mode() {
+  local mode="$1"
+  local os
+  os="$(uname -s)"
+  case "${mode}" in
+    local)
+      if [[ "${os}" == "Darwin" ]]; then
+        install_brew
+      elif [[ "${os}" == "Linux" ]]; then
+        install_apt
+      else
+        echo "Unsupported OS: ${os}"
+        exit 1
+      fi
+      ;;
+    brew)
+      install_brew
+      ;;
+    apt)
+      install_apt
+      ;;
+    docker)
+      install_docker
+      ;;
+    *)
+      echo "Unsupported mode: ${mode}"
+      exit 1
+      ;;
+  esac
+}
+
+print_usage() {
+  cat <<EOF
+Usage: install_grafana.sh [--mode local|docker|brew|apt]
+
+If --mode is omitted, the script will prompt for an install method.
+EOF
+}
+
+MODE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mode)
+      MODE="${2:-}"
+      shift 2
+      ;;
+    -h|--help)
+      print_usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1"
+      print_usage
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -n "${MODE}" ]]; then
+  run_mode "${MODE}"
+else
+  choose_method
+fi
 verify_grafana

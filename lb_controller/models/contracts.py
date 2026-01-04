@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from lb_runner.api import (
     BenchmarkConfig,
+    GrafanaPlatformConfig,
     PlatformConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
@@ -12,6 +13,7 @@ from lb_runner.api import (
 
 __all__ = [
     "BenchmarkConfig",
+    "GrafanaPlatformConfig",
     "PlatformConfig",
     "RemoteHostConfig",
     "WorkloadConfig",
