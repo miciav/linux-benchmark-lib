@@ -87,6 +87,9 @@ class ProvisionService:
         config_path: Path | None,
         grafana_url: str | None,
         grafana_api_key: str | None,
+        grafana_admin_user: str | None,
+        grafana_admin_password: str | None,
+        grafana_token_name: str | None,
         grafana_org_id: int | None,
         loki_endpoint: str | None,
         configure_assets: bool = True,
@@ -105,9 +108,10 @@ class ProvisionService:
         if not configure_assets:
             return None
         if not resolved_api_key:
-            raise ValueError(
-                "Grafana API key required to configure datasources/dashboards."
-            )
+            if not grafana_admin_user:
+                grafana_admin_user = "admin"
+            if not grafana_admin_password:
+                grafana_admin_password = "admin"
 
         platform_cfg, _, _ = self._config_service.load_platform_config()
         registry = create_registry()
@@ -128,6 +132,9 @@ class ProvisionService:
         summary = configure_grafana(
             grafana_url=resolved_grafana,
             grafana_api_key=resolved_api_key,
+            grafana_admin_user=grafana_admin_user,
+            grafana_admin_password=grafana_admin_password,
+            grafana_token_name=grafana_token_name,
             grafana_org_id=resolved_org_id,
             loki_endpoint=resolved_loki,
             assets=assets,
@@ -165,4 +172,3 @@ class ProvisionService:
             loki_ready=loki_ok,
             grafana_ready=grafana_ok,
         )
-

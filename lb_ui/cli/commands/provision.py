@@ -38,6 +38,21 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
             "--grafana-api-key",
             help="Grafana API key used to configure datasources/dashboards.",
         ),
+        grafana_admin_user: Optional[str] = typer.Option(
+            None,
+            "--grafana-admin-user",
+            help="Grafana admin user to create an API key automatically (default: admin).",
+        ),
+        grafana_admin_password: Optional[str] = typer.Option(
+            None,
+            "--grafana-admin-password",
+            help="Grafana admin password to create an API key automatically (default: admin).",
+        ),
+        grafana_token_name: Optional[str] = typer.Option(
+            None,
+            "--grafana-api-key-name",
+            help="Name for the generated Grafana API key/token.",
+        ),
         grafana_org_id: Optional[int] = typer.Option(
             None,
             "--grafana-org-id",
@@ -61,6 +76,9 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
                 config_path=config,
                 grafana_url=grafana_url,
                 grafana_api_key=grafana_api_key,
+                grafana_admin_user=grafana_admin_user,
+                grafana_admin_password=grafana_admin_password,
+                grafana_token_name=grafana_token_name,
                 grafana_org_id=grafana_org_id,
                 loki_endpoint=loki_endpoint,
                 configure_assets=configure_assets,

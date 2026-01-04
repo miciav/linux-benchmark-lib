@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 from unittest.mock import MagicMock
@@ -70,6 +71,36 @@ def test_request_sends_headers_and_payload(
     payload_bytes = captured["data"]
     assert isinstance(payload_bytes, (bytes, bytearray))
     assert json.loads(payload_bytes.decode("utf-8")) == {"a": 1}
+
+
+def test_request_sends_basic_auth_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _get_header(req: Request, name: str) -> str | None:
+        header = req.get_header(name)
+        if header is not None:
+            return header
+        for key, value in req.headers.items():
+            if key.lower() == name.lower():
+                return value
+        return None
+
+    def fake_urlopen(req: Request, timeout: float | None = None) -> DummyResponse:
+        captured["auth"] = _get_header(req, "Authorization")
+        return DummyResponse(200, '{"ok": true}')
+
+    monkeypatch.setattr(grafana_mod.request, "urlopen", fake_urlopen)
+
+    client = GrafanaClient(
+        base_url="http://grafana",
+        basic_auth=("admin", "secret"),
+    )
+    client._request("GET", "/api/test", expected_statuses={200})
+
+    expected = base64.b64encode(b"admin:secret").decode("ascii")
+    assert captured["auth"] == f"Basic {expected}"
 
 
 def test_request_handles_expected_http_error(

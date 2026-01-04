@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import time
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ class GrafanaClient:
 
     base_url: str
     api_key: str | None = None
+    basic_auth: tuple[str, str] | None = None
     org_id: int = 1
     timeout_seconds: float = 5.0
     max_retries: int = 3
@@ -140,6 +142,61 @@ class GrafanaClient:
         )
         return data if isinstance(data, dict) else None
 
+    def create_service_account_token(
+        self,
+        *,
+        name: str,
+        role: str = "Admin",
+    ) -> str:
+        """Create a Grafana service account and return its token."""
+        if not self.basic_auth:
+            raise ValueError("Basic auth credentials are required to create a token.")
+        _, data = self._request(
+            "POST",
+            "/api/serviceaccounts",
+            payload={"name": name, "role": role},
+            expected_statuses={200, 201},
+        )
+        service_id = None
+        if isinstance(data, dict):
+            service_id = data.get("id")
+        if not service_id:
+            raise RuntimeError("Grafana service account creation failed.")
+        _, token_data = self._request(
+            "POST",
+            f"/api/serviceaccounts/{service_id}/tokens",
+            payload={"name": name},
+            expected_statuses={200, 201},
+        )
+        token = token_data.get("key") if isinstance(token_data, dict) else None
+        if not token:
+            raise RuntimeError("Grafana service account token creation failed.")
+        return token
+
+    def create_api_key(
+        self,
+        *,
+        name: str,
+        role: str = "Admin",
+        seconds_to_live: int | None = None,
+    ) -> str:
+        """Create a Grafana API key and return the token."""
+        if not self.basic_auth:
+            raise ValueError("Basic auth credentials are required to create an API key.")
+        payload: dict[str, Any] = {"name": name, "role": role}
+        if seconds_to_live:
+            payload["secondsToLive"] = seconds_to_live
+        _, data = self._request(
+            "POST",
+            "/api/auth/keys",
+            payload=payload,
+            expected_statuses={200, 201},
+        )
+        token = data.get("key") if isinstance(data, dict) else None
+        if not token:
+            raise RuntimeError("Grafana API key creation failed.")
+        return token
+
     def _request(
         self,
         method: str,
@@ -152,6 +209,12 @@ class GrafanaClient:
         headers = {"Accept": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        elif self.basic_auth:
+            user, password = self.basic_auth
+            token = base64.b64encode(f"{user}:{password}".encode("utf-8")).decode(
+                "ascii"
+            )
+            headers["Authorization"] = f"Basic {token}"
         if self.org_id:
             headers["X-Grafana-Org-Id"] = str(self.org_id)
         data = None

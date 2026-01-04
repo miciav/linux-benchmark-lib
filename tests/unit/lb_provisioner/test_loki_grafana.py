@@ -39,6 +39,28 @@ class DummyGrafanaClient:
         return {"id": 1}
 
 
+class TokenGrafanaClient(DummyGrafanaClient):
+    instances: list["TokenGrafanaClient"] = []
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        api_key: str | None = None,
+        org_id: int = 1,
+        basic_auth: tuple[str, str] | None = None,
+    ) -> None:
+        super().__init__()
+        self.base_url = base_url
+        self.api_key = api_key
+        self.org_id = org_id
+        self.basic_auth = basic_auth
+        TokenGrafanaClient.instances.append(self)
+
+    def create_service_account_token(self, *, name: str, role: str = "Admin") -> str:
+        return f"{name}-token"
+
+
 def test_normalize_loki_base_url() -> None:
     assert (
         normalize_loki_base_url("http://localhost:3100/loki/api/v1/push")
@@ -65,6 +87,9 @@ def test_configure_grafana_uses_assets() -> None:
     summary = configure_grafana(
         grafana_url="http://grafana:3000",
         grafana_api_key="token",
+        grafana_admin_user=None,
+        grafana_admin_password=None,
+        grafana_token_name=None,
         grafana_org_id=1,
         loki_endpoint="http://loki:3100/loki/api/v1/push",
         assets=assets,
@@ -84,7 +109,39 @@ def test_configure_grafana_requires_api_key() -> None:
         configure_grafana(
             grafana_url="http://grafana:3000",
             grafana_api_key=None,
+            grafana_admin_user=None,
+            grafana_admin_password=None,
+            grafana_token_name=None,
             grafana_org_id=1,
             loki_endpoint="http://loki:3100",
             assets=GrafanaAssets(),
         )
+
+
+def test_configure_grafana_creates_token_with_admin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    TokenGrafanaClient.instances.clear()
+    monkeypatch.setattr(
+        "lb_provisioner.services.loki_grafana.GrafanaClient",
+        TokenGrafanaClient,
+    )
+
+    assets = GrafanaAssets()
+
+    configure_grafana(
+        grafana_url="http://grafana:3000",
+        grafana_api_key=None,
+        grafana_admin_user="admin",
+        grafana_admin_password="secret",
+        grafana_token_name="lb-token",
+        grafana_org_id=1,
+        loki_endpoint="http://loki:3100",
+        assets=assets,
+    )
+
+    assert len(TokenGrafanaClient.instances) == 2
+    bootstrap = TokenGrafanaClient.instances[0]
+    provisioned = TokenGrafanaClient.instances[1]
+    assert bootstrap.basic_auth == ("admin", "secret")
+    assert provisioned.api_key == "lb-token-token"

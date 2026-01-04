@@ -14,6 +14,7 @@ from lb_plugins.api import (
 
 
 DEFAULT_LOKI_DATASOURCE_NAME = "loki"
+DEFAULT_GRAFANA_TOKEN_NAME = "lb-observability"
 _LOKI_READY_PATH = "/ready"
 _LOKI_PUSH_PATH = "/loki/api/v1/push"
 
@@ -123,6 +124,9 @@ def configure_grafana(
     *,
     grafana_url: str,
     grafana_api_key: str | None,
+    grafana_admin_user: str | None = None,
+    grafana_admin_password: str | None = None,
+    grafana_token_name: str | None = None,
     grafana_org_id: int,
     loki_endpoint: str,
     assets: GrafanaAssets,
@@ -131,7 +135,25 @@ def configure_grafana(
     """Configure Grafana with Loki and plugin-provided assets."""
     if client is None:
         if not grafana_api_key:
-            raise ValueError("Grafana API key is required to configure assets")
+            if not grafana_admin_user or not grafana_admin_password:
+                raise ValueError(
+                    "Grafana API key or admin credentials are required to configure assets"
+                )
+            bootstrap = GrafanaClient(
+                base_url=grafana_url,
+                basic_auth=(grafana_admin_user, grafana_admin_password),
+                org_id=grafana_org_id,
+            )
+            token_name = grafana_token_name or DEFAULT_GRAFANA_TOKEN_NAME
+            try:
+                grafana_api_key = bootstrap.create_service_account_token(
+                    name=token_name
+                )
+            except RuntimeError as exc:
+                try:
+                    grafana_api_key = bootstrap.create_api_key(name=token_name)
+                except RuntimeError:
+                    raise exc
         client = GrafanaClient(
             base_url=grafana_url,
             api_key=grafana_api_key,
