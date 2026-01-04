@@ -12,8 +12,15 @@ def _load_playbook(relative_path: str) -> list[dict]:
     data = yaml.safe_load(path.read_text())
     assert isinstance(data, list)
     assert data
-    tasks = data[0].get("tasks", [])
-    assert isinstance(tasks, list)
+    tasks: list[dict] = []
+    for play in data:
+        play_tasks = play.get("tasks", [])
+        play_pre_tasks = play.get("pre_tasks", [])
+        if isinstance(play_pre_tasks, list):
+            tasks.extend(play_pre_tasks)
+        if isinstance(play_tasks, list):
+            tasks.extend(play_tasks)
+    assert tasks
     return tasks
 
 
@@ -50,8 +57,38 @@ def _has_logs_dir_task(tasks: list[dict]) -> bool:
     return False
 
 
+def _has_stream_log_fetch_task(tasks: list[dict]) -> bool:
+    for task in tasks:
+        fetch_cfg = task.get("ansible.builtin.fetch", {})
+        if not isinstance(fetch_cfg, dict):
+            continue
+        src = fetch_cfg.get("src", "")
+        dest = fetch_cfg.get("dest", "")
+        if isinstance(src, str) and "lb_events.stream.log" in src:
+            if isinstance(dest, str) and "lb_events-" in dest:
+                return True
+    return False
+
+
+def _has_k6_log_collection(tasks: list[dict]) -> bool:
+    found = False
+    for task in tasks:
+        find_cfg = task.get("ansible.builtin.find", {})
+        if isinstance(find_cfg, dict) and find_cfg.get("patterns") == "k6.log":
+            found = True
+            continue
+        fetch_cfg = task.get("ansible.builtin.fetch", {})
+        if isinstance(fetch_cfg, dict):
+            dest = fetch_cfg.get("dest", "")
+            if isinstance(dest, str) and "/logs/k6/" in dest:
+                found = True
+    return found
+
+
 def test_collect_playbook_has_log_collection_tasks() -> None:
     tasks = _load_playbook("playbooks/collect.yml")
     assert _has_find_jsonl_task(tasks)
     assert _has_fetch_logs_task(tasks)
     assert _has_logs_dir_task(tasks)
+    assert _has_stream_log_fetch_task(tasks)
+    assert _has_k6_log_collection(tasks)
