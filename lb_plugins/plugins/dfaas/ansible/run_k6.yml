@@ -14,6 +14,7 @@
     script_src: ""
     summary_dest: ""
     summary_fetch_dest: ""
+    k6_extra_args: ""
   tasks:
     - name: Validate required variables
       ansible.builtin.assert:
@@ -52,8 +53,8 @@
 
     - name: Run k6 with summary export
       ansible.builtin.shell: >
-        k6 run --summary-export "{{ summary_path }}" "{{ script_dest }}"
-        > "{{ log_path }}" 2>&1
+        k6 run --summary-export "{{ summary_path }}" {{ k6_extra_args }}
+        "{{ script_dest }}" > "{{ log_path }}" 2>&1
       args:
         executable: /bin/bash
 

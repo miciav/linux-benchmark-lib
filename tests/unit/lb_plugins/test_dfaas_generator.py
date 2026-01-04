@@ -88,3 +88,16 @@ def test_parse_k6_summary_extracts_metrics() -> None:
     assert parsed["figlet"]["success_rate"] == 0.9
     assert parsed["figlet"]["avg_latency"] == 12.5
     assert parsed["figlet"]["request_count"] == 5
+
+
+def test_build_k6_extra_args_includes_outputs_and_tags() -> None:
+    args = K6Runner._build_extra_args(
+        outputs=["loki=http://localhost:3100/loki/api/v1/push"],
+        tags={"run_id": "run-1", "component": "k6"},
+    )
+
+    assert "--out" in args
+    assert "loki=http://localhost:3100/loki/api/v1/push" in args
+    assert "--tag" in args
+    assert "run_id=run-1" in args
+    assert "component=k6" in args

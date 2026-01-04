@@ -158,6 +158,32 @@ class TestBenchmarkConfig:
         round_trip = BenchmarkConfig.model_validate(config.model_dump())
         assert all(isinstance(wl, WorkloadConfig) for wl in round_trip.workloads.values())
 
+    def test_loki_env_overrides(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LB_LOKI_ENABLED", "1")
+        monkeypatch.setenv("LB_LOKI_ENDPOINT", "http://loki.local:3100")
+        monkeypatch.setenv("LB_LOKI_LABELS", "env=lab,team=perf")
+        monkeypatch.setenv("LB_LOKI_BATCH_SIZE", "50")
+        monkeypatch.setenv("LB_LOKI_FLUSH_INTERVAL_MS", "500")
+        monkeypatch.setenv("LB_LOKI_TIMEOUT_SECONDS", "3")
+        monkeypatch.setenv("LB_LOKI_MAX_RETRIES", "2")
+        monkeypatch.setenv("LB_LOKI_MAX_QUEUE_SIZE", "123")
+        monkeypatch.setenv("LB_LOKI_BACKOFF_BASE", "0.2")
+        monkeypatch.setenv("LB_LOKI_BACKOFF_FACTOR", "1.7")
+
+        config = BenchmarkConfig()
+
+        assert config.loki.enabled is True
+        assert config.loki.endpoint == "http://loki.local:3100"
+        assert config.loki.labels["env"] == "lab"
+        assert config.loki.labels["team"] == "perf"
+        assert config.loki.batch_size == 50
+        assert config.loki.flush_interval_ms == 500
+        assert config.loki.timeout_seconds == 3
+        assert config.loki.max_retries == 2
+        assert config.loki.max_queue_size == 123
+        assert config.loki.backoff_base == 0.2
+        assert config.loki.backoff_factor == 1.7
+
 
 class TestStressNGConfig:
     """Test cases for StressNGConfig class."""

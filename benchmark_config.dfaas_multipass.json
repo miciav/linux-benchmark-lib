@@ -2,7 +2,7 @@
   "remote_hosts": [
     {
       "name": "dfaas-target",
-      "address": "192.168.2.2",
+      "address": "192.168.2.4",
       "user": "ubuntu",
       "become": true,
       "vars": {
@@ -17,12 +17,12 @@
   },
   "plugin_settings": {
     "dfaas": {
-      "k6_host": "192.168.2.3",
+      "k6_host": "192.168.2.5",
       "k6_user": "ubuntu",
       "k6_ssh_key": "/home/ubuntu/.ssh/dfaas_k6_key",
       "k6_port": 22,
-      "gateway_url": "http://192.168.2.2:31112",
-      "prometheus_url": "http://192.168.2.2:30411",
+      "gateway_url": "http://192.168.2.4:31112",
+      "prometheus_url": "http://192.168.2.4:30411",
       "functions": [
         {
           "name": "env",

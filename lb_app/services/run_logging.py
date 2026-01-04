@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import IO, Callable
 
 from lb_controller.api import ControllerState
 from lb_app.services.run_types import _RemoteSession
 from lb_app.ui_interfaces import DashboardHandle, UIAdapter
 
+logger = logging.getLogger(__name__)
 
 def controller_stop_hint(message: str) -> tuple[str, str]:
     """Return colored dashboard text and plain log text for stop notices."""
@@ -36,6 +38,7 @@ def announce_stop_factory(
         except Exception:
             pass
         display_msg, log_msg = hint_factory(msg)
+        logger.info("%s", log_msg)
         if ui_adapter:
             ui_adapter.show_warning(log_msg)
         elif session.dashboard:
@@ -62,6 +65,7 @@ def log_completion(
 ) -> None:
     """Log run completion to sinks."""
     msg = f"Run {session.effective_run_id} completed in {elapsed:.1f}s"
+    logger.info("%s", msg)
     try:
         session.log_file.write(msg + "\n")
         session.log_file.flush()
@@ -88,6 +92,7 @@ def on_controller_state_change(
     line = f"Controller state: {new_state.value}"
     if reason:
         line = f"{line} ({reason})"
+    logger.info("%s", line)
     try:
         session.log_file.write(line + "\n")
         session.log_file.flush()
@@ -131,6 +136,7 @@ def emit_warning(
             ui_adapter.show_warning(message)
         except Exception:
             pass
+    logger.warning("%s", message)
     if dashboard:
         try:
             if hasattr(dashboard, "set_warning"):

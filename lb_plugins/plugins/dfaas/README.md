@@ -266,10 +266,18 @@ All fields live under `plugins.dfaas` unless noted.
 - `k6_ssh_key` (str, default `~/.ssh/id_rsa`): SSH private key.
 - `k6_port` (int, default 22): SSH port.
 - `k6_workspace_root` (str, default `/home/<k6_user>/.dfaas-k6`): workspace root on k6 host.
+- `k6_outputs` (list[str], default empty): optional k6 `--out` targets (e.g. Loki).
+- `k6_tags` (map, default empty): additional k6 tags merged with run metadata.
 
 ### OpenFaaS and Prometheus
 - `gateway_url` (str, default `http://127.0.0.1:31112`): OpenFaaS gateway URL.
 - `prometheus_url` (str, default `http://127.0.0.1:30411`): Prometheus base URL.
+
+### Grafana (optional)
+- `grafana.enabled` (bool, default false): enable Grafana integration.
+- `grafana.url` (str, default `http://localhost:3000`): Grafana base URL.
+- `grafana.api_key` (str, optional): API key for provisioning datasource/dashboard.
+- `grafana.org_id` (int, default 1): Grafana org id.
 
 ### Functions
 List of function objects:
@@ -332,6 +340,14 @@ plugins:
 
     gateway_url: "http://<target-ip>:31112"
     prometheus_url: "http://<target-ip>:30411"
+    k6_outputs:
+      - "loki=http://<controller-ip>:3100/loki/api/v1/push"
+    k6_tags:
+      environment: "lab"
+    grafana:
+      enabled: true
+      url: "http://<controller-ip>:3000"
+      api_key: "<grafana_api_key>"
 
     functions:
       - name: "figlet"

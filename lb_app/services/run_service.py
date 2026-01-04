@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import platform
 import time
 import threading
 import queue
@@ -64,6 +66,8 @@ from lb_app.services.run_types import (
     _EventDedupe,
     _DashboardLogProxy,
 )
+from lb_common.handlers.jsonl_handler import JsonlLogFormatter
+from lb_common.logging import attach_jsonl_handler, attach_loki_handler
 
 
 class RunService:
@@ -313,57 +317,123 @@ class RunService:
         if not context.config.plugin_assets:
             apply_plugin_assets(context.config, context.registry)
         session = self._prepare_remote_session(context, run_id, ui_adapter, stop_token)
+        jsonl_handler = self._attach_controller_jsonl(context, session)
+        loki_handler = self._attach_controller_loki(context, session)
 
-        if not session.stop_token.should_stop() and not pending_exists(
-            session.journal,
-            context.target_tests,
-            context.config.remote_hosts or [],
-            context.config.repetitions,
-            allow_skipped=session.resume_requested,
-        ):
-            return self._short_circuit_empty_run(context, session, ui_adapter)
+        try:
+            if not session.stop_token.should_stop() and not pending_exists(
+                session.journal,
+                context.target_tests,
+                context.config.remote_hosts or [],
+                context.config.repetitions,
+                allow_skipped=session.resume_requested,
+            ):
+                return self._short_circuit_empty_run(context, session, ui_adapter)
 
-        pipeline = self._build_event_pipeline(
-            context, session, formatter, output_callback, ui_adapter, emit_timing
+            pipeline = self._build_event_pipeline(
+                context, session, formatter, output_callback, ui_adapter, emit_timing
+            )
+
+            controller = BenchmarkController(
+                context.config,
+                ControllerOptions(
+                    output_callback=pipeline.output_cb,
+                    output_formatter=formatter,
+                    journal_refresh=session.dashboard.refresh if session.dashboard else None,
+                    stop_token=session.stop_token,
+                    state_machine=session.controller_state,
+                ),
+            )
+            pipeline.controller_ref["controller"] = controller
+            if formatter:
+                formatter.host_label = ",".join(
+                    h.name for h in context.config.remote_hosts
+                )
+
+            tailer = maybe_start_event_tailer(
+                controller,
+                pipeline.event_from_payload,
+                pipeline.ingest_event,
+                formatter,
+            )
+
+            summary = self._run_controller_loop(
+                controller=controller,
+                context=context,
+                session=session,
+                pipeline=pipeline,
+                ui_adapter=ui_adapter,
+            )
+
+            if tailer:
+                tailer.stop()
+            session.sink.close()
+            session.stop_token.restore()
+            return RunResult(
+                context=context,
+                summary=summary,
+                journal_path=session.journal_path,
+                log_path=session.log_path,
+                ui_log_path=session.ui_stream_log_path,
+            )
+        finally:
+            for handler in (jsonl_handler, loki_handler):
+                if not handler:
+                    continue
+                logging.getLogger().removeHandler(handler)
+                try:
+                    handler.close()
+                except Exception:
+                    pass
+
+    @staticmethod
+    def _attach_controller_jsonl(
+        context: RunContext, session: _RemoteSession
+    ) -> logging.Handler:
+        return attach_jsonl_handler(
+            logging.getLogger(),
+            output_dir=session.journal_path.parent,
+            component="controller",
+            host=platform.node() or "controller",
+            run_id=session.effective_run_id,
+            workload="controller",
+            repetition=1,
         )
 
-        controller = BenchmarkController(
-            context.config,
-            ControllerOptions(
-                output_callback=pipeline.output_cb,
-                output_formatter=formatter,
-                journal_refresh=session.dashboard.refresh if session.dashboard else None,
-                stop_token=session.stop_token,
-                state_machine=session.controller_state,
-            ),
+    @staticmethod
+    def _attach_controller_loki(
+        context: RunContext, session: _RemoteSession
+    ) -> logging.Handler | None:
+        loki_cfg = context.config.loki
+        handler = attach_loki_handler(
+            logging.getLogger(),
+            enabled=loki_cfg.enabled,
+            endpoint=loki_cfg.endpoint,
+            component="controller",
+            host=platform.node() or "controller",
+            run_id=session.effective_run_id,
+            workload="controller",
+            repetition=1,
+            labels=loki_cfg.labels,
+            batch_size=loki_cfg.batch_size,
+            flush_interval_ms=loki_cfg.flush_interval_ms,
+            timeout_seconds=loki_cfg.timeout_seconds,
+            max_retries=loki_cfg.max_retries,
+            max_queue_size=loki_cfg.max_queue_size,
+            backoff_base=loki_cfg.backoff_base,
+            backoff_factor=loki_cfg.backoff_factor,
         )
-        pipeline.controller_ref["controller"] = controller
-        if formatter:
-            formatter.host_label = ",".join(h.name for h in context.config.remote_hosts)
-
-        tailer = maybe_start_event_tailer(
-            controller, pipeline.event_from_payload, pipeline.ingest_event, formatter
-        )
-
-        summary = self._run_controller_loop(
-            controller=controller,
-            context=context,
-            session=session,
-            pipeline=pipeline,
-            ui_adapter=ui_adapter,
-        )
-
-        if tailer:
-            tailer.stop()
-        session.sink.close()
-        session.stop_token.restore()
-        return RunResult(
-            context=context,
-            summary=summary,
-            journal_path=session.journal_path,
-            log_path=session.log_path,
-            ui_log_path=session.ui_stream_log_path,
-        )
+        if handler:
+            handler.setFormatter(
+                JsonlLogFormatter(
+                    component="controller",
+                    host=platform.node() or "controller",
+                    run_id=session.effective_run_id,
+                    workload="controller",
+                    repetition=1,
+                )
+            )
+        return handler
 
     def _prepare_remote_session(
         self,

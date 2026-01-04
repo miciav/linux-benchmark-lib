@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from lb_common.env_utils import (
+    parse_bool_env,
+    parse_float_env,
+    parse_int_env,
+    parse_labels_env,
+)
 from lb_plugins.api import PluginAssetConfig
 
 # --- Pydantic Models for Configuration ---
@@ -52,6 +59,82 @@ class MetricCollectorConfig(BaseModel):
     )
     perf_config: PerfConfig = Field(default_factory=PerfConfig, description="Configuration for perf profiling")
     enable_ebpf: bool = Field(default=False, description="Enable eBPF-based metric collection")
+
+
+class LokiConfig(BaseModel):
+    """Configuration for Loki log shipping."""
+
+    enabled: bool = Field(default=False, description="Enable Loki log push")
+    endpoint: str = Field(
+        default="http://localhost:3100",
+        description="Loki base URL or push endpoint",
+    )
+    labels: Dict[str, str] = Field(
+        default_factory=dict, description="Static labels sent with Loki logs"
+    )
+    batch_size: int = Field(default=100, gt=0, description="Logs per batch")
+    flush_interval_ms: int = Field(
+        default=1000, gt=0, description="Flush interval in milliseconds"
+    )
+    timeout_seconds: float = Field(
+        default=5.0, gt=0, description="HTTP timeout for Loki push"
+    )
+    max_retries: int = Field(default=3, ge=0, description="Max retries on failure")
+    max_queue_size: int = Field(
+        default=10000, gt=0, description="Max pending logs in queue"
+    )
+    backoff_base: float = Field(
+        default=0.5, ge=0, description="Base backoff delay in seconds"
+    )
+    backoff_factor: float = Field(
+        default=2.0, ge=1.0, description="Backoff multiplier"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_env_overrides(cls, values: Any) -> Any:
+        if isinstance(values, cls):
+            return values
+        if not isinstance(values, dict):
+            return values
+
+        env_enabled = parse_bool_env(os.environ.get("LB_LOKI_ENABLED"))
+        env_endpoint = os.environ.get("LB_LOKI_ENDPOINT")
+        env_labels = parse_labels_env(os.environ.get("LB_LOKI_LABELS"))
+        env_batch_size = parse_int_env(os.environ.get("LB_LOKI_BATCH_SIZE"))
+        env_flush_ms = parse_int_env(os.environ.get("LB_LOKI_FLUSH_INTERVAL_MS"))
+        env_timeout = parse_float_env(os.environ.get("LB_LOKI_TIMEOUT_SECONDS"))
+        env_retries = parse_int_env(os.environ.get("LB_LOKI_MAX_RETRIES"))
+        env_queue = parse_int_env(os.environ.get("LB_LOKI_MAX_QUEUE_SIZE"))
+        env_backoff_base = parse_float_env(os.environ.get("LB_LOKI_BACKOFF_BASE"))
+        env_backoff_factor = parse_float_env(
+            os.environ.get("LB_LOKI_BACKOFF_FACTOR")
+        )
+
+        if env_enabled is not None:
+            values["enabled"] = env_enabled
+        if env_endpoint:
+            values["endpoint"] = env_endpoint
+        if env_labels:
+            merged = dict(values.get("labels") or {})
+            merged.update(env_labels)
+            values["labels"] = merged
+        if env_batch_size is not None:
+            values["batch_size"] = env_batch_size
+        if env_flush_ms is not None:
+            values["flush_interval_ms"] = env_flush_ms
+        if env_timeout is not None:
+            values["timeout_seconds"] = env_timeout
+        if env_retries is not None:
+            values["max_retries"] = env_retries
+        if env_queue is not None:
+            values["max_queue_size"] = env_queue
+        if env_backoff_base is not None:
+            values["backoff_base"] = env_backoff_base
+        if env_backoff_factor is not None:
+            values["backoff_factor"] = env_backoff_factor
+
+        return values
 
 
 class RemoteHostConfig(BaseModel):
@@ -154,6 +237,11 @@ class BenchmarkConfig(BaseModel):
 
     # System information collection
     collect_system_info: bool = Field(default=True, description="Collect system information before running benchmarks")
+
+    # Loki configuration (optional)
+    loki: LokiConfig = Field(
+        default_factory=LokiConfig, description="Loki log shipping configuration"
+    )
 
     # InfluxDB configuration (optional)
     influxdb_enabled: bool = Field(default=False, description="Enable InfluxDB integration")

@@ -12,7 +12,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any, Iterable, Mapping, TYPE_CHECKING
 
 from ..exceptions import K6ExecutionError
 
@@ -217,6 +217,9 @@ class K6Runner:
         script: str,
         target_name: str,
         run_id: str,
+        *,
+        outputs: Iterable[str] | None = None,
+        tags: Mapping[str, str] | None = None,
     ) -> K6RunResult:
         """Execute k6 script via Ansible.
 
@@ -225,6 +228,8 @@ class K6Runner:
             script: k6 script content
             target_name: Target name for k6 workspace path
             run_id: Run identifier for k6 workspace path
+            outputs: Optional k6 outputs (each passed via --out)
+            tags: Optional k6 tags merged into the CLI invocation
 
         Returns:
             K6RunResult with summary and metadata
@@ -281,6 +286,14 @@ class K6Runner:
                     "-e",
                     f"k6_workspace_root={self.k6_workspace_root}",
                 ]
+                extra_args = self._build_extra_args(outputs, tags)
+                if extra_args:
+                    cmd.extend(
+                        [
+                            "-e",
+                            json.dumps({"k6_extra_args": extra_args}),
+                        ]
+                    )
 
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 end_time = time.time()
@@ -342,6 +355,22 @@ class K6Runner:
             }
 
         return parsed
+
+    @staticmethod
+    def _build_extra_args(
+        outputs: Iterable[str] | None,
+        tags: Mapping[str, str] | None,
+    ) -> str:
+        parts: list[str] = []
+        for output in outputs or []:
+            output_value = str(output).strip()
+            if not output_value:
+                continue
+            parts.extend(["--out", output_value])
+        for key, value in (tags or {}).items():
+            key_value = f"{key}={value}"
+            parts.extend(["--tag", key_value])
+        return " ".join(shlex.quote(part) for part in parts)
 
     def _log(self, message: str) -> None:
         """Log message and call callback if set."""
