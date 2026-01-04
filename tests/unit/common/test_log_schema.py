@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from lb_common.log_schema import StructuredLogEvent
+from lb_common.logs.schema import StructuredLogEvent
 
 
 pytestmark = pytest.mark.unit_runner

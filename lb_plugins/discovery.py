@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Dict
 
-from lb_common.entrypoints import (
+from lb_common.api import (
     discover_entrypoints,
     load_entrypoint,
     load_pending_entrypoints,

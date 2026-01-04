@@ -3,7 +3,7 @@ import logging
 
 import pytest
 
-from lb_common.handlers.jsonl_handler import JsonlLogHandler
+from lb_common.logs.handlers.jsonl_handler import JsonlLogHandler
 
 
 pytestmark = pytest.mark.unit_runner

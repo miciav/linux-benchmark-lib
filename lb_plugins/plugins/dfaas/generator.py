@@ -16,9 +16,12 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlparse, urlunparse
 
-from lb_common.handlers.jsonl_handler import JsonlLogFormatter
-from lb_common.handlers.loki_handler import normalize_loki_endpoint
-from lb_common.logging import attach_jsonl_handler, attach_loki_handler
+from lb_common.api import (
+    JsonlLogFormatter,
+    attach_jsonl_handler,
+    attach_loki_handler,
+    normalize_loki_endpoint,
+)
 from lb_runner.api import LBEventLogHandler, RunEvent, StdoutEmitter
 from .config import DfaasConfig
 from .grafana_assets import (

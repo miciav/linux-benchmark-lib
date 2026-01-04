@@ -2,7 +2,7 @@
 
 import pytest
 
-from lb_common.env_utils import (
+from lb_common.config.env import (
     parse_bool_env,
     parse_float_env,
     parse_int_env,

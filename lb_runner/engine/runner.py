@@ -15,8 +15,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
-from lb_common.handlers.jsonl_handler import JsonlLogFormatter
-from lb_common.logging import attach_jsonl_handler, attach_loki_handler
+from lb_common.api import (
+    JsonlLogFormatter,
+    attach_jsonl_handler,
+    attach_loki_handler,
+)
 from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
 from lb_runner.models.events import RunEvent
 from lb_runner.services.log_handler import LBEventLogHandler
@@ -561,6 +564,7 @@ class LocalRunner:
             host=self._host_name,
             run_id=run_id,
             workload=workload,
+            package="lb_runner",
             repetition=repetition,
             labels=labels,
             batch_size=loki_cfg.batch_size,
@@ -578,6 +582,7 @@ class LocalRunner:
                     host=self._host_name,
                     run_id=run_id,
                     workload=workload,
+                    package="lb_runner",
                     repetition=repetition,
                     tags={"phase": phase} if phase else None,
                 )

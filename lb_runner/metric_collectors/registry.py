@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, Optional
 
-from lb_common.entrypoints import discover_entrypoints, load_pending_entrypoints
+from lb_common.api import discover_entrypoints, load_pending_entrypoints
 from lb_runner.metric_collectors._base_collector import BaseCollector
 from lb_runner.models.config import BenchmarkConfig
 

@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from lb_common.env_utils import parse_bool_env, parse_int_env
+from lb_common.api import parse_bool_env, parse_int_env
 
 from ...interface import BasePluginConfig
 

@@ -7,7 +7,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Mapping
 
-from lb_common.log_schema import StructuredLogEvent
+from lb_common.logs.schema import StructuredLogEvent
 
 
 DEFAULT_JSONL_TEMPLATE = "{output_dir}/logs/{component}-{host}.jsonl"

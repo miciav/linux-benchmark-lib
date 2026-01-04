@@ -66,8 +66,11 @@ from lb_app.services.run_types import (
     _EventDedupe,
     _DashboardLogProxy,
 )
-from lb_common.handlers.jsonl_handler import JsonlLogFormatter
-from lb_common.logging import attach_jsonl_handler, attach_loki_handler
+from lb_common.api import (
+    JsonlLogFormatter,
+    attach_jsonl_handler,
+    attach_loki_handler,
+)
 
 
 class RunService:
@@ -434,7 +437,7 @@ class RunService:
             host=platform.node() or "controller",
             run_id=session.effective_run_id,
             workload="controller",
-            package="lb_app",
+            package="lb_controller",
             repetition=1,
         )
 
@@ -449,7 +452,7 @@ class RunService:
             endpoint=loki_cfg.endpoint,
             component="controller",
             host=platform.node() or "controller",
-            package="lb_app",
+            package="lb_controller",
             run_id=session.effective_run_id,
             workload="controller",
             repetition=1,
@@ -469,6 +472,7 @@ class RunService:
                     host=platform.node() or "controller",
                     run_id=session.effective_run_id,
                     workload="controller",
+                    package="lb_controller",
                     repetition=1,
                 )
             )

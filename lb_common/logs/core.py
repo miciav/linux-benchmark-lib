@@ -10,17 +10,17 @@ from typing import Optional, Mapping, Any
 
 import structlog
 
-from lb_common.env_utils import (
+from lb_common.config.env import (
     parse_bool_env,
     parse_float_env,
     parse_int_env,
     parse_labels_env,
 )
-from lb_common.handlers.jsonl_handler import (
+from lb_common.logs.handlers.jsonl_handler import (
     DEFAULT_JSONL_TEMPLATE,
     JsonlLogHandler,
 )
-from lb_common.handlers.loki_handler import LokiPushHandler
+from lb_common.logs.handlers.loki_handler import LokiPushHandler
 
 
 def _resolve_level(value: str | int | None, debug: bool) -> int:

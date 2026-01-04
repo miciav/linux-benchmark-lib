@@ -5,7 +5,7 @@ This document captures the agreed requirements for Loki/Grafana integration.
 ## Scope
 
 - Centralized system logs for all components (runner, generator, k6, etc.) via Loki.
-- Optional Grafana integration for the dfaas plugin with Prometheus as the data source.
+- Optional Grafana integration via the observability provisioning flow.
 - Preserve the existing synchronous controller API, while keeping the async API
   available for advanced integrations.
 
@@ -16,7 +16,7 @@ This document captures the agreed requirements for Loki/Grafana integration.
 - During teardown/collect, local logs are copied to the controller node.
 - Loki runs on the controller node, not on targets.
 - Loki and Grafana are self-hosted.
-- Grafana is an optional dependency at the plugin level (initially dfaas).
+- Grafana is an optional observability dependency; plugins supply assets (datasources + dashboards).
 - Provide an install script that asks the user how to install Loki
   (brew, apt, docker) and performs the install. Provide an uninstall script.
 - Supported OS targets for the install script: macOS and Ubuntu 24.04+.
@@ -56,12 +56,12 @@ This document captures the agreed requirements for Loki/Grafana integration.
   - docker (macOS/Linux)
 - Provide a matching uninstall script that cleans up the chosen install.
 
-### Grafana (dfaas plugin)
+### Grafana (observability provisioning)
 
-- Grafana is optional and configured at the dfaas plugin level.
-- The dfaas plugin must configure:
-  - Prometheus data source
-  - default Grafana dashboard
+- Grafana is configured via `lb provision loki-grafana` (global provisioning).
+- Plugins that use Grafana must expose:
+  - datasource definitions (e.g., Prometheus URL from plugin config)
+  - dashboard JSON assets
 
 ### Async API Preservation
 
@@ -79,7 +79,7 @@ This document captures the agreed requirements for Loki/Grafana integration.
 
 - Provide a clear configuration surface (file/env/CLI) for:
   - Loki endpoint and labels
-  - Grafana endpoint and credentials (dfaas)
+  - Grafana endpoint and credentials
   - Prometheus endpoint (dfaas)
   - enable/disable flags for Loki and Grafana
 

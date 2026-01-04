@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from lb_common.env_utils import (
+from lb_common.api import (
     parse_bool_env,
     parse_float_env,
     parse_int_env,

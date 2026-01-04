@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from lb_common.handlers.loki_handler import (
+from lb_common.logs.handlers.loki_handler import (
     LokiLogEntry,
     LokiPushHandler,
     build_loki_payload,
@@ -150,7 +150,7 @@ def test_loki_handler_emit_handles_queue_full(
         exc_info=None,
     )
 
-    with caplog.at_level(logging.DEBUG, logger="lb_common.handlers.loki_handler"):
+    with caplog.at_level(logging.DEBUG, logger="lb_common.logs.handlers.loki_handler"):
         handler.emit(record)
 
     assert any("queue full" in rec.message for rec in caplog.records)
