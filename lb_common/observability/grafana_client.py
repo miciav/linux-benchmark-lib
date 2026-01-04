@@ -99,6 +99,17 @@ class GrafanaClient:
         )
         return data if isinstance(data, dict) else None
 
+    def get_dashboard_by_uid(self, uid: str) -> dict[str, Any] | None:
+        """Fetch a dashboard by its UID."""
+        status, data = self._request(
+            "GET",
+            f"/api/dashboards/uid/{uid}",
+            expected_statuses={200, 404},
+        )
+        if status == 200 and isinstance(data, dict):
+            return data
+        return None
+
     def create_annotation(
         self,
         *,

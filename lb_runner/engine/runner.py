@@ -517,6 +517,7 @@ class LocalRunner:
             host=self._host_name,
             run_id=run_id,
             workload=workload,
+            package="lb_runner",
             repetition=repetition,
             tags=tags,
         )

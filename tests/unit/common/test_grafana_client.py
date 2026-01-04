@@ -6,10 +6,10 @@ from urllib.request import Request
 
 import pytest
 
-from lb_plugins.plugins.dfaas.services import grafana_client as grafana_mod
-from lb_plugins.plugins.dfaas.services.grafana_client import GrafanaClient
+from lb_common.observability import grafana_client as grafana_mod
+from lb_common.observability.grafana_client import GrafanaClient
 
-pytestmark = [pytest.mark.unit_plugins]
+pytestmark = [pytest.mark.unit_runner]
 
 
 class DummyResponse:

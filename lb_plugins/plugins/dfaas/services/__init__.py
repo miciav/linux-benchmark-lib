@@ -1,7 +1,7 @@
 """DFaaS plugin services."""
 
 from .cooldown import CooldownManager, CooldownResult, CooldownTimeoutError, MetricsSnapshot
-from .grafana_client import GrafanaClient
+from lb_common.observability import GrafanaClient
 from .k6_runner import K6Runner, K6RunResult
 from .metrics_collector import FunctionMetrics, MetricsCollector, NodeMetrics
 

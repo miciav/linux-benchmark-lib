@@ -24,6 +24,8 @@ class JsonlLogFormatter(logging.Formatter):
         run_id: str,
         event_type: str = "log",
         workload: str | None = None,
+        package: str | None = None,
+        plugin: str | None = None,
         scenario: str | None = None,
         repetition: int | None = None,
         tags: Mapping[str, Any] | None = None,
@@ -34,6 +36,8 @@ class JsonlLogFormatter(logging.Formatter):
         self._run_id = run_id
         self._event_type = event_type
         self._workload = workload
+        self._package = package
+        self._plugin = plugin
         self._scenario = scenario
         self._repetition = repetition
         self._tags = tags
@@ -41,6 +45,8 @@ class JsonlLogFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         event_type = getattr(record, "lb_event_type", None) or self._event_type
         workload = getattr(record, "lb_workload", None) or self._workload
+        package = getattr(record, "lb_package", None) or self._package
+        plugin = getattr(record, "lb_plugin", None) or self._plugin
         scenario = getattr(record, "lb_scenario", None) or self._scenario
         repetition = getattr(record, "lb_repetition", None)
         if repetition is None:
@@ -61,6 +67,8 @@ class JsonlLogFormatter(logging.Formatter):
             run_id=self._run_id,
             event_type=event_type,
             workload=workload,
+            package=package,
+            plugin=plugin,
             scenario=scenario,
             repetition=repetition,
             tags=tags,
@@ -99,6 +107,8 @@ class JsonlLogHandler(RotatingFileHandler):
         path_template: str = DEFAULT_JSONL_TEMPLATE,
         event_type: str = "log",
         workload: str | None = None,
+        package: str | None = None,
+        plugin: str | None = None,
         scenario: str | None = None,
         repetition: int | None = None,
         tags: Mapping[str, Any] | None = None,
@@ -126,6 +136,8 @@ class JsonlLogHandler(RotatingFileHandler):
                 run_id=run_id,
                 event_type=event_type,
                 workload=workload,
+                package=package,
+                plugin=plugin,
                 scenario=scenario,
                 repetition=repetition,
                 tags=tags,

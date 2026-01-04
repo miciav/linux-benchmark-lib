@@ -86,7 +86,7 @@ from lb_plugins.plugins.unixbench.plugin import (
     UnixBenchPlugin,
 )
 from lb_plugins.plugins.yabs.plugin import YabsConfig, YabsGenerator, YabsPlugin
-from lb_plugins.plugins.dfaas.services.grafana_client import GrafanaClient
+from lb_common.observability import GrafanaClient
 
 logger = logging.getLogger(__name__)
 

@@ -11,6 +11,7 @@ from lb_plugins.observability import (
 )
 
 GRAFANA_DASHBOARD_PATH = Path(__file__).parent / "grafana" / "dfaas-dashboard.json"
+GRAFANA_DASHBOARD_UID = "dfaas-overview"
 GRAFANA_PROMETHEUS_DATASOURCE_NAME = "dfaas-prometheus"
 
 GRAFANA_ASSETS = GrafanaAssets(

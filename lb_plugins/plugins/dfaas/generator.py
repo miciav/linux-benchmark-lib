@@ -22,8 +22,7 @@ from lb_common.logging import attach_jsonl_handler, attach_loki_handler
 from lb_runner.api import LBEventLogHandler, RunEvent, StdoutEmitter
 from .config import DfaasConfig
 from .grafana_assets import (
-    GRAFANA_DASHBOARD_PATH,
-    GRAFANA_PROMETHEUS_DATASOURCE_NAME,
+    GRAFANA_DASHBOARD_UID,
 )
 from .exceptions import K6ExecutionError
 from .services import (
@@ -296,7 +295,7 @@ class DfaasGenerator(BaseGenerator):
         target_name = self._exec_ctx.host
         run_id = self._resolve_run_id()
         self._attach_jsonl_handlers(output_dir, run_id)
-        self._configure_grafana(target_name)
+        self._init_grafana()
 
         return _RunContext(
             function_names=function_names,
@@ -323,6 +322,8 @@ class DfaasGenerator(BaseGenerator):
             host=self._exec_ctx.host,
             run_id=run_id,
             workload="dfaas",
+            package="lb_plugins",
+            plugin="dfaas",
             repetition=self._exec_ctx.repetition,
         )
         self._attach_loki_handler(run_id)
@@ -342,6 +343,8 @@ class DfaasGenerator(BaseGenerator):
             host=self._exec_ctx.host,
             run_id=run_id,
             workload="dfaas",
+            package="lb_plugins",
+            plugin="dfaas",
             repetition=self._exec_ctx.repetition,
         )
         self._attach_k6_loki_handler(run_id, k6_logger)
@@ -360,6 +363,8 @@ class DfaasGenerator(BaseGenerator):
             host=self._exec_ctx.host,
             run_id=run_id,
             workload="dfaas",
+            package="lb_plugins",
+            plugin="dfaas",
             repetition=self._exec_ctx.repetition,
         )
         if self._loki_handler:
@@ -369,6 +374,8 @@ class DfaasGenerator(BaseGenerator):
                     host=self._exec_ctx.host,
                     run_id=run_id,
                     workload="dfaas",
+                    package="lb_plugins",
+                    plugin="dfaas",
                     repetition=self._exec_ctx.repetition,
                 )
             )
@@ -389,6 +396,8 @@ class DfaasGenerator(BaseGenerator):
             host=self._exec_ctx.host,
             run_id=run_id,
             workload="dfaas",
+            package="lb_plugins",
+            plugin="dfaas",
             repetition=self._exec_ctx.repetition,
         )
         if self._k6_loki_handler:
@@ -398,11 +407,13 @@ class DfaasGenerator(BaseGenerator):
                     host=self._exec_ctx.host,
                     run_id=run_id,
                     workload="dfaas",
+                    package="lb_plugins",
+                    plugin="dfaas",
                     repetition=self._exec_ctx.repetition,
                 )
             )
 
-    def _configure_grafana(self, target_name: str) -> None:
+    def _init_grafana(self) -> None:
         if not self.config.grafana.enabled:
             self._grafana_client = None
             self._grafana_dashboard_id = None
@@ -414,62 +425,29 @@ class DfaasGenerator(BaseGenerator):
             api_key=self.config.grafana.api_key,
             org_id=self.config.grafana.org_id,
         )
+        
+        # We don't hard-fail on health check here, just warn if not reachable,
+        # so we don't block the benchmark if metrics/logging are working but Grafana is flaky.
         healthy, _ = client.health_check()
         if not healthy:
-            logger.error(
-                "Grafana health check failed at %s; skipping Grafana setup.",
+            logger.warning(
+                "Grafana health check failed at %s; annotations will be disabled.",
                 self.config.grafana.url,
             )
             return
 
-        if not self.config.grafana.api_key:
-            logger.warning(
-                "Grafana API key not set; ensure Grafana allows API access."
-            )
-
         self._grafana_client = client
-        self._grafana_dashboard_id = None
-        self._grafana_dashboard_uid = None
-        prometheus_url = self._resolve_prometheus_url(target_name)
-        if prometheus_url != self.config.prometheus_url:
-            logger.info(
-                "Grafana Prometheus URL adjusted from %s to %s",
-                self.config.prometheus_url,
-                prometheus_url,
-            )
-        datasource_id = client.upsert_datasource(
-            name=GRAFANA_PROMETHEUS_DATASOURCE_NAME,
-            url=prometheus_url,
-            datasource_type="prometheus",
-            access="proxy",
-            is_default=False,
-        )
-        if datasource_id is None:
-            logger.error(
-                "Grafana datasource '%s' could not be created.",
-                GRAFANA_PROMETHEUS_DATASOURCE_NAME,
-            )
-            return
-
+        self._grafana_dashboard_uid = GRAFANA_DASHBOARD_UID
+        
         try:
-            dashboard = self._load_grafana_dashboard()
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.error("Grafana dashboard load failed: %s", exc)
-            return
-
-        import_result = client.import_dashboard(dashboard, overwrite=True)
-        if not import_result:
-            logger.error("Grafana dashboard import failed.")
-            return
-        self._grafana_dashboard_id = import_result.get("id") or import_result.get(
-            "dashboardId"
-        )
-        self._grafana_dashboard_uid = import_result.get("uid")
-        if import_result.get("url"):
-            logger.info("Grafana dashboard ready at %s", import_result["url"])
-
-    def _load_grafana_dashboard(self) -> dict[str, Any]:
-        return json.loads(GRAFANA_DASHBOARD_PATH.read_text())
+            resp = client.get_dashboard_by_uid(GRAFANA_DASHBOARD_UID)
+            if resp and "dashboard" in resp:
+                self._grafana_dashboard_id = resp["dashboard"].get("id")
+                logger.info("Resolved Grafana dashboard ID: %s", self._grafana_dashboard_id)
+            else:
+                logger.warning("Grafana dashboard '%s' not found.", GRAFANA_DASHBOARD_UID)
+        except Exception as exc:
+            logger.warning("Failed to resolve Grafana dashboard: %s", exc)
 
     def _resolve_prometheus_url(self, target_name: str) -> str:
         url = self.config.prometheus_url

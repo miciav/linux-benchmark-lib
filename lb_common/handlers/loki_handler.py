@@ -56,6 +56,8 @@ class LokiPushHandler(logging.Handler):
         host: str,
         run_id: str,
         workload: str | None = None,
+        package: str | None = None,
+        plugin: str | None = None,
         scenario: str | None = None,
         repetition: int | None = None,
         labels: Mapping[str, str] | None = None,
@@ -73,6 +75,8 @@ class LokiPushHandler(logging.Handler):
         self._host = host
         self._run_id = run_id
         self._workload = workload
+        self._package = package
+        self._plugin = plugin
         self._scenario = scenario
         self._repetition = repetition
         self._labels = dict(labels or {})
@@ -142,6 +146,10 @@ class LokiPushHandler(logging.Handler):
             labels["run_id"] = str(self._run_id)
         if self._workload:
             labels["workload"] = str(self._workload)
+        if self._package:
+            labels["package"] = str(self._package)
+        if self._plugin:
+            labels["plugin"] = str(self._plugin)
         if self._scenario:
             labels["scenario"] = str(self._scenario)
         if self._repetition is not None:
@@ -168,6 +176,8 @@ class LokiPushHandler(logging.Handler):
             "host": getattr(record, "lb_host", None),
             "run_id": getattr(record, "lb_run_id", None),
             "workload": getattr(record, "lb_workload", None),
+            "package": getattr(record, "lb_package", None),
+            "plugin": getattr(record, "lb_plugin", None),
             "scenario": getattr(record, "lb_scenario", None),
             "repetition": getattr(record, "lb_repetition", None),
         }

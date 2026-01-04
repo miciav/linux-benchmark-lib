@@ -20,6 +20,8 @@ class StructuredLogEvent(BaseModel):
     message: str = Field(...)
     event_type: str = Field(default="log")
     workload: str | None = None
+    package: str | None = None
+    plugin: str | None = None
     scenario: str | None = None
     repetition: int | None = None
     tags: Mapping[str, Any] | None = None
@@ -36,6 +38,8 @@ class StructuredLogEvent(BaseModel):
         run_id: str,
         event_type: str = "log",
         workload: str | None = None,
+        package: str | None = None,
+        plugin: str | None = None,
         scenario: str | None = None,
         repetition: int | None = None,
         tags: Mapping[str, Any] | None = None,
@@ -53,6 +57,8 @@ class StructuredLogEvent(BaseModel):
             message=message,
             event_type=event_type,
             workload=workload,
+            package=package,
+            plugin=plugin,
             scenario=scenario,
             repetition=repetition,
             tags=tags,

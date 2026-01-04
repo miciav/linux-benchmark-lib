@@ -434,6 +434,7 @@ class RunService:
             host=platform.node() or "controller",
             run_id=session.effective_run_id,
             workload="controller",
+            package="lb_app",
             repetition=1,
         )
 
@@ -448,6 +449,7 @@ class RunService:
             endpoint=loki_cfg.endpoint,
             component="controller",
             host=platform.node() or "controller",
+            package="lb_app",
             run_id=session.effective_run_id,
             workload="controller",
             repetition=1,
