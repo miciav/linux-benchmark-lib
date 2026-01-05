@@ -78,6 +78,9 @@
     - name: "{{ run_prefix }} Stream LB_EVENT lines (polling loop)"
       ansible.builtin.include_tasks: stream_events_step.yml
       loop: "{{ range(workload_runner_poll_max_iterations | default(1000) | int) | list }}"
+      loop_control:
+        loop_var: poll_item
+        label: "polling step"
       when: not workload_runner_finished | default(false)
 
     - name: "{{ run_prefix }} Check stop file"
