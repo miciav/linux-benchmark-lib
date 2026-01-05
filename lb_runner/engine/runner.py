@@ -70,7 +70,6 @@ class LocalRunner:
         host_name: str | None = None,
         stop_token: StopToken | None = None,
         collector_registry: CollectorRegistry | None = None,
-        stdout_emitter: StdoutEmitter | None = None,
     ):
         """
         Initialize the local runner.
@@ -99,11 +98,7 @@ class LocalRunner:
         self._jsonl_handler: logging.Handler | None = None
         self._loki_handler: logging.Handler | None = None
         self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
-        self._progress = RunProgressEmitter(
-            host=self._host_name,
-            callback=progress_callback,
-            stdout_emitter=stdout_emitter
-        )
+        self._progress = RunProgressEmitter(host=self._host_name, callback=progress_callback)
         self._stop_token = stop_token
 
     @staticmethod
@@ -218,7 +213,6 @@ class LocalRunner:
             workload=test_name,
             repetition=repetition,
             total_repetitions=total_repetitions,
-            stdout_emitter=self._progress._stdout_emitter,
         )
         handler.setFormatter(logging.Formatter("%(message)s"))
         logging.getLogger().addHandler(handler)
