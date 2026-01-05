@@ -319,12 +319,6 @@ class LocalRunner:
         duration_seconds = result.get("duration_seconds", 0) or 0
         if duration_seconds:
             logger.info("Repetition %s completed in %.2fs", repetition, duration_seconds)
-        self._emit_progress(
-            test_name,
-            repetition,
-            total_repetitions,
-            "done" if result["success"] else "failed",
-        )
         self._collector_coordinator.collect(
             collectors, workload_dir, rep_dir, test_name, repetition, result
         )
@@ -447,7 +441,15 @@ class LocalRunner:
             if isinstance(generator, BaseGenerator):
                 self._cleanup_generator(generator, test_type, repetition)
             self._process_results(test_type, [result], plugin=plugin)
-            return bool(result.get("success", True))
+            
+            success = bool(result.get("success", True))
+            self._emit_progress(
+                test_type, 
+                repetition, 
+                total_reps, 
+                "done" if success else "failed"
+            )
+            return success
         except StopRequested:
             logger.info("Benchmark interrupted.")
             self._emit_progress(test_type, repetition, total_reps, "stopped")
@@ -492,6 +494,9 @@ class LocalRunner:
         """Run all configured benchmark tests."""
         run_id = self._planner.generate_run_id()
         for test_name, workload in self.config.workloads.items():
+            if not workload.enabled:
+                logger.info("Skipping disabled workload: %s", test_name)
+                continue
             try:
                 self.run_benchmark(test_name, run_id=run_id)
             except Exception as e:

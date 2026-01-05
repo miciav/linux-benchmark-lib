@@ -1,0 +1,73 @@
+"""Unit tests for runner progress events."""
+
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+
+from lb_runner.api import BenchmarkConfig, LocalRunner, WorkloadConfig
+
+
+pytestmark = pytest.mark.unit_runner
+
+
+def _make_runner() -> LocalRunner:
+    cfg = BenchmarkConfig(
+        output_dir=Path("/tmp/out"),
+        report_dir=Path("/tmp/report"),
+        data_export_dir=Path("/tmp/export"),
+        workloads={"dummy": WorkloadConfig(plugin="stress_ng")},
+        warmup_seconds=0,
+        cooldown_seconds=0,
+    )
+    return LocalRunner(cfg, registry=MagicMock())
+
+
+def test_run_single_repetition_emits_done() -> None:
+    runner = _make_runner()
+    runner._planner = MagicMock()
+    runner._planner.resolve_config_input.return_value = {}
+    runner._set_log_phase = MagicMock()
+    runner._run_single_test = MagicMock(return_value={"success": True})
+    runner._cleanup_generator = MagicMock()
+    runner._process_results = MagicMock()
+    runner._emit_progress = MagicMock()
+
+    workload_cfg = WorkloadConfig(plugin="stress_ng")
+
+    result = runner._run_single_repetition(
+        "dummy",
+        workload_cfg,
+        MagicMock(),
+        repetition=1,
+        total_reps=1,
+    )
+
+    assert result is True
+    runner._emit_progress.assert_any_call("dummy", 1, 1, "running")
+    runner._emit_progress.assert_any_call("dummy", 1, 1, "done")
+
+
+def test_run_single_repetition_emits_failed() -> None:
+    runner = _make_runner()
+    runner._planner = MagicMock()
+    runner._planner.resolve_config_input.return_value = {}
+    runner._set_log_phase = MagicMock()
+    runner._run_single_test = MagicMock(return_value={"success": False})
+    runner._cleanup_generator = MagicMock()
+    runner._process_results = MagicMock()
+    runner._emit_progress = MagicMock()
+
+    workload_cfg = WorkloadConfig(plugin="stress_ng")
+
+    result = runner._run_single_repetition(
+        "dummy",
+        workload_cfg,
+        MagicMock(),
+        repetition=1,
+        total_reps=1,
+    )
+
+    assert result is False
+    runner._emit_progress.assert_any_call("dummy", 1, 1, "running")
+    runner._emit_progress.assert_any_call("dummy", 1, 1, "failed")

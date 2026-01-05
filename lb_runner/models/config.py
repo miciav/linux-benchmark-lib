@@ -150,6 +150,8 @@ class GrafanaPlatformConfig(BaseModel):
 class RemoteHostConfig(BaseModel):
     """Configuration for a remote benchmark host."""
 
+    model_config = ConfigDict(extra="ignore")
+
     name: str = Field(description="Unique name for the remote host")
     address: str = Field(description="IP address or hostname of the remote host")
     port: int = Field(default=22, gt=0, description="SSH port for connection")
@@ -187,6 +189,8 @@ class RemoteHostConfig(BaseModel):
 class RemoteExecutionConfig(BaseModel):
     """Configuration for remote execution via Ansible."""
 
+    model_config = ConfigDict(extra="ignore")
+
     enabled: bool = Field(default=False, description="Enable remote execution")
     inventory_path: Optional[Path] = Field(default=None, description="Path to a custom Ansible inventory file")
     lb_workdir: str = Field(
@@ -207,15 +211,18 @@ class RemoteExecutionConfig(BaseModel):
 class WorkloadConfig(BaseModel):
     """Configuration wrapper for workload plugins."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     plugin: str = Field(description="Name of the plugin to use")
+    enabled: bool = Field(default=True, description="Whether this workload is enabled")
     intensity: str = Field(default="user_defined", description="Pre-defined intensity level (low, medium, high, user_defined)")
     options: Dict[str, Any] = Field(default_factory=dict, description="Plugin-specific options for the workload")
 
 
 class BenchmarkConfig(BaseModel):
     """Main configuration for benchmark tests."""
+
+    model_config = ConfigDict(extra="ignore")
 
     # Test execution parameters
     repetitions: int = Field(default=3, gt=0, description="Number of repetitions for each test")
@@ -301,6 +308,8 @@ class BenchmarkConfig(BaseModel):
 
 class PlatformConfig(BaseModel):
     """Platform-level configuration for defaults and plugin enablement."""
+
+    model_config = ConfigDict(extra="ignore")
 
     plugins: Dict[str, bool] = Field(
         default_factory=dict,
