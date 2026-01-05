@@ -1,13 +1,9 @@
-- name: Collect DFaaS k6 logs
+- name: Collect DFaaS generator logs
   hosts: dfaas_k6
   gather_facts: false
   become: false
-
-  vars:
-    output_root: "{{ output_root | default('./benchmark_results') }}"
-
   tasks:
-    - name: Find k6 logs on generator host
+    - name: Find generator logs
       ansible.builtin.find:
         paths: "{{ k6_workspace_root }}"
         patterns: "k6.log"
@@ -17,10 +13,10 @@
       failed_when: false
       changed_when: false
 
-    - name: Fetch k6 logs to controller
+    - name: Fetch generator logs to controller
       ansible.builtin.fetch:
         src: "{{ item.path }}"
-        dest: "{{ output_root }}/logs/k6/{{ inventory_hostname }}/"
+        dest: "{{ output_root | default('./benchmark_results') }}/logs/k6/{{ inventory_hostname }}/"
         flat: false
       loop: "{{ k6_log_files.files | default([]) }}"
       loop_control:

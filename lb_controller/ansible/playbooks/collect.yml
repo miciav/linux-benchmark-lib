@@ -12,7 +12,7 @@
 
   pre_tasks:
     - name: "Derive plugin-specific settings"
-      include_tasks: "plugins/{{ item }}/collect_pre.yml"
+      include_tasks: "../../../lb_plugins/plugins/{{ item }}/ansible/collect/pre.yml"
       loop: "{{ (benchmark_config.workloads.keys() | list) | intersect(['dfaas']) }}"
 
   tasks:
@@ -77,27 +77,6 @@
       when: lb_events_stream_log.stat.exists
       failed_when: false
 
-- name: Collect DFaaS generator logs
-  hosts: dfaas_k6
-  gather_facts: false
-  become: false
-  tasks:
-    - name: Find generator logs
-      ansible.builtin.find:
-        paths: "{{ k6_workspace_root }}"
-        patterns: "k6.log"
-        recurse: true
-        file_type: file
-      register: k6_log_files
-      failed_when: false
-      changed_when: false
-
-    - name: Fetch generator logs to controller
-      ansible.builtin.fetch:
-        src: "{{ item.path }}"
-        dest: "{{ output_root | default('./benchmark_results') }}/logs/k6/{{ inventory_hostname }}/"
-        flat: false
-      loop: "{{ k6_log_files.files | default([]) }}"
-      loop_control:
-        label: "{{ item.path | default('') }}"
-      failed_when: false
+- name: Collect plugin-specific logs
+  import_playbook: "../../../lb_plugins/plugins/dfaas/ansible/collect/post.yml"
+  when: "'dfaas' in (benchmark_config.workloads | default({}))"
