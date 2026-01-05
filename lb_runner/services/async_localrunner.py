@@ -10,8 +10,12 @@ import sys
 import time
 from pathlib import Path
 
-from lb_plugins.api import create_registry
-from lb_runner.api import BenchmarkConfig, LocalRunner, StopToken
+from lb_plugins.api import (
+    create_registry,
+    ensure_workloads_from_plugin_settings,
+    hydrate_plugin_settings,
+)
+from lb_runner.api import BenchmarkConfig, LocalRunner, StopToken, WorkloadConfig
 
 
 def _env(name: str) -> str:
@@ -121,10 +125,13 @@ def main() -> int:
     _configure_stream(log_path)
 
     cfg = BenchmarkConfig.from_dict(json.loads(config_path.read_text()))
+    registry = create_registry()
+    hydrate_plugin_settings(cfg, registry=registry)
+    ensure_workloads_from_plugin_settings(cfg, workload_factory=WorkloadConfig)
     stop_token = StopToken(stop_file=stop_path)
     runner = LocalRunner(
         cfg,
-        registry=create_registry(),
+        registry=registry,
         progress_callback=None,
         host_name=host or "host",
         stop_token=stop_token,

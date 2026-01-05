@@ -185,6 +185,7 @@ def test_upsert_datasource_updates_existing(
 
     assert result == 9
     assert request_mock.call_count == 2
+    assert request_mock.call_args_list[0].args[1] == "/api/datasources/name/prom"
     _, kwargs = request_mock.call_args_list[1]
     payload = kwargs["payload"]
     assert payload["id"] == 9
@@ -209,6 +210,7 @@ def test_upsert_datasource_creates_with_basic_auth(
     )
 
     assert result == 7
+    assert request_mock.call_args_list[0].args[1] == "/api/datasources/name/prom"
     _, kwargs = request_mock.call_args_list[1]
     payload = kwargs["payload"]
     assert payload["basicAuth"] is True

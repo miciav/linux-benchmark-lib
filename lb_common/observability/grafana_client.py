@@ -41,9 +41,10 @@ class GrafanaClient:
         basic_auth: tuple[str, str] | None = None,
         json_data: Mapping[str, Any] | None = None,
     ) -> int | None:
+        safe_name = parse.quote(name, safe="")
         status, data = self._request(
             "GET",
-            f"/api/datasources/name/{name}",
+            f"/api/datasources/name/{safe_name}",
             expected_statuses={200, 404},
         )
         payload = {

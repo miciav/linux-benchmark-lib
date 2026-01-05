@@ -302,3 +302,90 @@ def test_tee_writes_to_log_file(tmp_path: Path) -> None:
 
     finally:
         sys.stdout = original_stdout
+
+
+@pytest.mark.inter_generic
+def test_async_localrunner_merges_plugin_settings_into_workload_options(
+    tmp_path: Path,
+) -> None:
+    """Verify plugin_settings are merged into workload options when options is empty.
+
+    This test ensures that when a config has plugin_settings.baseline but
+    workloads.baseline has no options, the settings are properly merged
+    so the generator receives the correct configuration.
+    """
+    # Config with plugin_settings but NO workload options
+    config = {
+        "repetitions": 1,
+        "test_duration_seconds": 5,
+        "warmup_seconds": 0,
+        "cooldown_seconds": 0,
+        "output_dir": str(tmp_path / "output"),
+        "workloads": {
+            "baseline": {
+                "plugin": "baseline",
+                # NOTE: No "options" field - this is the bug scenario
+            }
+        },
+        "plugin_settings": {
+            "baseline": {
+                "duration": 2,  # This should be merged into workload options
+            }
+        },
+        "collectors": {
+            "psutil_interval": 1.0,
+            "enable_ebpf": False,
+        },
+    }
+
+    config_path = tmp_path / "benchmark_config.generated.json"
+    config_path.write_text(json.dumps(config))
+
+    stream_log_path = tmp_path / "lb_events.stream.log"
+    status_path = tmp_path / "lb_localrunner.status.json"
+    pid_path = tmp_path / "lb_localrunner.pid"
+    stop_path = tmp_path / "STOP"
+
+    env = os.environ.copy()
+    env.update({
+        "LB_RUN_HOST": "test-host",
+        "LB_RUN_WORKLOAD": "baseline",
+        "LB_RUN_REPETITION": "1",
+        "LB_RUN_TOTAL_REPS": "1",
+        "LB_RUN_ID": "plugin-settings-merge-test",
+        "LB_RUN_STOP_FILE": str(stop_path),
+        "LB_BENCH_CONFIG_PATH": str(config_path),
+        "LB_EVENT_STREAM_PATH": str(stream_log_path),
+        "LB_ENABLE_EVENT_LOGGING": "1",
+        "LB_LOG_LEVEL": "INFO",
+        "LB_RUN_STATUS_PATH": str(status_path),
+        "LB_RUN_PID_PATH": str(pid_path),
+    })
+
+    result = subprocess.run(
+        [sys.executable, "-m", "lb_runner.services.async_localrunner"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=str(tmp_path),
+    )
+
+    # The run should succeed (rc=0) - if plugin_settings weren't merged,
+    # the generator would use defaults which might cause validation failures
+    assert result.returncode == 0, (
+        f"LocalRunner failed when plugin_settings should have been merged.\n"
+        f"stdout: {result.stdout}\n"
+        f"stderr: {result.stderr}"
+    )
+
+    # Verify the status file indicates success
+    assert status_path.exists(), "Status file was not created"
+    status = json.loads(status_path.read_text())
+    assert status["rc"] == 0, f"Status indicates failure: {status}"
+
+    # Check stream log for successful completion
+    log_content = stream_log_path.read_text()
+    assert '"status": "done"' in log_content, (
+        f"Run did not complete successfully.\nLog: {log_content}"
+    )
