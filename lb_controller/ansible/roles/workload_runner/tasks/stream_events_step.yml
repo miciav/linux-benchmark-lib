@@ -1,6 +1,5 @@
-- name: "Skip polling if already finished"
-  ansible.builtin.meta: end_host
-  when: workload_runner_finished | default(false)
+# Recursive polling step - calls itself until workload_runner_finished is true
+# This is the proper Ansible pattern for "poll until done"
 
 - name: "Poll LB_EVENT stream"
   ansible.builtin.shell:
@@ -60,7 +59,7 @@
 
       timed_out = (time.time() - poll_start) > poll_timeout
       finished = os.path.exists(status_path) or crashed or timed_out
-      
+
       events = []
       new_offset = offset
       if os.path.exists(log_path):
@@ -84,7 +83,6 @@
       done = False
       for ev_text in events:
           try:
-              # We only need to check if the final event for THIS rep is here
               data = json.loads(ev_text.split("LB_EVENT", 1)[1].strip())
               if data.get("workload") == workload and int(data.get("repetition", 0)) == rep:
                   if data.get("status") in ("done", "failed", "stopped"):
@@ -92,7 +90,6 @@
           except Exception:
               pass
 
-      # Final result for Ansible
       result = {
           "events": events,
           "done": finished or done,
@@ -109,14 +106,14 @@
   ansible.builtin.debug:
     msg: "{{ item }}"
   loop: "{{ (poll_res.stdout | from_json).events }}"
-  when: poll_res.stdout is defined
+  when:
+    - poll_res.stdout is defined
+    - (poll_res.stdout | from_json).events | length > 0
 
 - name: "Update finished status"
   ansible.builtin.set_fact:
-    workload_runner_finished: true
-  when: 
-    - poll_res.stdout is defined
-    - (poll_res.stdout | from_json).done | bool
+    workload_runner_finished: "{{ (poll_res.stdout | from_json).done | bool }}"
+  when: poll_res.stdout is defined
 
 - name: "Clean up polling state"
   ansible.builtin.file:
@@ -124,14 +121,13 @@
     state: absent
   loop:
     - "{{ workload_runner_workdir }}/lb_poll_start.time"
-  when: workload_runner_finished
+  when: workload_runner_finished | default(false)
 
-- name: "Delay"
-  ansible.builtin.command: "sleep {{ workload_runner_poll_delay | default(10) | int }}"
-  changed_when: false
-  when: not workload_runner_finished
+- name: "Wait before next poll"
+  ansible.builtin.wait_for:
+    timeout: "{{ workload_runner_poll_delay | default(30) | int }}"
+  when: not workload_runner_finished | default(false)
 
-- name: "Delay"
-  ansible.builtin.command: "sleep {{ workload_runner_poll_delay | default(10) | int }}"
-  changed_when: false
-  when: not workload_runner_finished
+- name: "Continue polling (recursive)"
+  ansible.builtin.include_tasks: stream_events_step.yml
+  when: not workload_runner_finished | default(false)
