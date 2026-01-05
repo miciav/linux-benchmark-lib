@@ -18,7 +18,8 @@ class LBEventLogHandler(logging.Handler):
         host: str,
         workload: str,
         repetition: int,
-        total_repetitions: int
+        total_repetitions: int,
+        stdout_emitter: Any | None = None,
     ) -> None:
         super().__init__()
         self.run_id = run_id
@@ -26,25 +27,29 @@ class LBEventLogHandler(logging.Handler):
         self.workload = workload
         self.repetition = repetition
         self.total_repetitions = total_repetitions
+        self._stdout_emitter = stdout_emitter
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
             msg = self.format(record)
-            payload = {
-                "run_id": self.run_id,
-                "host": self.host,
-                "workload": self.workload,
-                "repetition": self.repetition,
-                "total_repetitions": self.total_repetitions,
-                "status": "running",
-                "type": "log",
-                "level": record.levelname,
-                "message": msg,
-                "timestamp": record.created,
-                "logger": record.name
-            }
-            # Use direct print to stdout to ensure Ansible captures it
-            # We must flush to ensure real-time streaming
-            print(f"LB_EVENT {json.dumps(payload)}", file=sys.stdout, flush=True)
+            from lb_runner.models.events import RunEvent
+            event = RunEvent(
+                run_id=self.run_id,
+                host=self.host,
+                workload=self.workload,
+                repetition=self.repetition,
+                total_repetitions=self.total_repetitions,
+                status="running",
+                type="log",
+                level=record.levelname,
+                message=msg,
+                timestamp=record.created,
+            )
+            
+            if self._stdout_emitter:
+                self._stdout_emitter.emit(event)
+            else:
+                # Fallback to direct print
+                print(f"LB_EVENT {event.to_json()}", file=sys.stdout, flush=True)
         except Exception:
             self.handleError(record)

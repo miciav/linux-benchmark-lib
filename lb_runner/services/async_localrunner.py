@@ -99,6 +99,16 @@ def _maybe_daemonize(env: dict[str, str]) -> int | None:
     os._exit(0)
 
 
+class _AsyncStdoutEmitter(StdoutEmitter):
+    def __init__(self, original_stdout: Any):
+        self.original_stdout = original_stdout
+
+    def emit(self, event: RunEvent) -> None:
+        # Write directly to the real stdout so Ansible captures it
+        self.original_stdout.write(f"LB_EVENT {event.to_json()}\n")
+        self.original_stdout.flush()
+
+
 def main() -> int:
     try:
         workload = _env("LB_RUN_WORKLOAD")
@@ -121,6 +131,7 @@ def main() -> int:
     if daemon_rc is not None:
         return daemon_rc
 
+    original_stdout = sys.stdout
     _configure_logging_level()
     _configure_stream(log_path)
 
@@ -135,6 +146,7 @@ def main() -> int:
         progress_callback=None,
         host_name=host or "host",
         stop_token=stop_token,
+        stdout_emitter=_AsyncStdoutEmitter(original_stdout),
     )
 
     start = time.time()
