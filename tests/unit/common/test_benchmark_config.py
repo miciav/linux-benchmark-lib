@@ -78,19 +78,19 @@ class TestBenchmarkConfig:
             assert config.report_dir.exists()
             assert config.data_export_dir.exists()
 
-    def test_workload_config_rejects_enabled_field(self):
-        """Legacy workload configs with 'enabled' should be rejected."""
-        with pytest.raises(ValidationError):
-            BenchmarkConfig.model_validate(
-                {
-                    "workloads": {
-                        "stress_ng": {
-                            "plugin": "stress_ng",
-                            "enabled": True,
-                        }
+    def test_workload_config_allows_enabled_field(self):
+        """Legacy workload configs with 'enabled' should now be supported."""
+        cfg = BenchmarkConfig.model_validate(
+            {
+                "workloads": {
+                    "stress_ng": {
+                        "plugin": "stress_ng",
+                        "enabled": False,
                     }
                 }
-            )
+            }
+        )
+        assert cfg.workloads["stress_ng"].enabled is False
 
     def test_config_to_json(self):
         """Test converting config to JSON."""

@@ -70,6 +70,14 @@ def _has_stream_log_fetch_task(tasks: list[dict]) -> bool:
     return False
 
 
+def _has_plugin_derive_task(tasks: list[dict]) -> bool:
+    for task in tasks:
+        inc = task.get("include_tasks")
+        if isinstance(inc, str) and "collect/pre.yml" in inc:
+            return True
+    return False
+
+
 def _has_k6_log_collection(tasks: list[dict]) -> bool:
     found = False
     for task in tasks:
@@ -91,4 +99,13 @@ def test_collect_playbook_has_log_collection_tasks() -> None:
     assert _has_fetch_logs_task(tasks)
     assert _has_logs_dir_task(tasks)
     assert _has_stream_log_fetch_task(tasks)
+    assert _has_plugin_derive_task(tasks)
+
+
+def test_dfaas_plugin_collect_post_playbook() -> None:
+    repo_root = Path(__file__).resolve().parents[3]
+    path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "collect" / "post.yml"
+    data = yaml.safe_load(path.read_text())
+    assert isinstance(data, list)
+    tasks = data[0].get("tasks", [])
     assert _has_k6_log_collection(tasks)
