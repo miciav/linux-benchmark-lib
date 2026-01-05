@@ -98,10 +98,11 @@ def test_configure_grafana_uses_assets() -> None:
 
     assert isinstance(summary, GrafanaConfigSummary)
     assert summary.datasources_configured == 1
-    assert summary.dashboards_configured == 1
+    assert summary.dashboards_configured == 2
     assert client.datasource_calls[0][0] == "loki"
     assert client.datasource_calls[0][1] == "http://loki:3100"
     assert client.datasource_calls[1][0] == "dfaas-prom"
+    assert len(client.dashboard_calls) == 2
 
 
 def test_configure_grafana_requires_api_key() -> None:

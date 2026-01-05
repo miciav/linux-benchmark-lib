@@ -7,7 +7,7 @@ import json
 import time
 from dataclasses import dataclass
 from typing import Any, Mapping
-from urllib import request, error
+from urllib import request, error, parse
 
 
 @dataclass
@@ -151,24 +151,20 @@ class GrafanaClient:
         """Create a Grafana service account and return its token."""
         if not self.basic_auth:
             raise ValueError("Basic auth credentials are required to create a token.")
-        _, data = self._request(
+        status, data = self._request(
             "POST",
             "/api/serviceaccounts",
             payload={"name": name, "role": role},
-            expected_statuses={200, 201},
+            expected_statuses={200, 201, 400},
         )
-        service_id = None
-        if isinstance(data, dict):
+        service_id: int | None = None
+        if status in {200, 201} and isinstance(data, dict):
             service_id = data.get("id")
+        elif status == 400 and self._is_already_exists_error(data):
+            service_id = self._lookup_service_account_id(name)
         if not service_id:
             raise RuntimeError("Grafana service account creation failed.")
-        _, token_data = self._request(
-            "POST",
-            f"/api/serviceaccounts/{service_id}/tokens",
-            payload={"name": name},
-            expected_statuses={200, 201},
-        )
-        token = token_data.get("key") if isinstance(token_data, dict) else None
+        token = self._create_service_account_token(int(service_id), name)
         if not token:
             raise RuntimeError("Grafana service account token creation failed.")
         return token
@@ -186,12 +182,21 @@ class GrafanaClient:
         payload: dict[str, Any] = {"name": name, "role": role}
         if seconds_to_live:
             payload["secondsToLive"] = seconds_to_live
-        _, data = self._request(
+        status, data = self._request(
             "POST",
             "/api/auth/keys",
             payload=payload,
-            expected_statuses={200, 201},
+            expected_statuses={200, 201, 400},
         )
+        if status == 400 and self._is_already_exists_error(data):
+            suffix = int(time.time())
+            payload["name"] = f"{name}-{suffix}"
+            status, data = self._request(
+                "POST",
+                "/api/auth/keys",
+                payload=payload,
+                expected_statuses={200, 201},
+            )
         token = data.get("key") if isinstance(data, dict) else None
         if not token:
             raise RuntimeError("Grafana API key creation failed.")
@@ -251,6 +256,49 @@ class GrafanaClient:
                     continue
                 raise RuntimeError(f"Grafana API request failed: {exc}") from exc
         raise RuntimeError("Grafana API request failed after retries.")
+
+    def _lookup_service_account_id(self, name: str) -> int | None:
+        query = parse.quote(name, safe="")
+        _, data = self._request(
+            "GET",
+            f"/api/serviceaccounts/search?query={query}",
+            expected_statuses={200},
+        )
+        if not isinstance(data, dict):
+            return None
+        accounts = data.get("serviceAccounts") or data.get("serviceaccounts") or []
+        for account in accounts:
+            if isinstance(account, dict) and account.get("name") == name:
+                account_id = account.get("id")
+                if account_id is not None:
+                    return int(account_id)
+        return None
+
+    def _create_service_account_token(self, service_id: int, name: str) -> str | None:
+        status, data = self._request(
+            "POST",
+            f"/api/serviceaccounts/{service_id}/tokens",
+            payload={"name": name},
+            expected_statuses={200, 201, 400},
+        )
+        if status in {200, 201}:
+            return data.get("key") if isinstance(data, dict) else None
+        if status == 400 and self._is_already_exists_error(data):
+            suffix = int(time.time())
+            return self._create_service_account_token(service_id, f"{name}-{suffix}")
+        return None
+
+    @staticmethod
+    def _is_already_exists_error(data: dict[str, Any] | None) -> bool:
+        if not isinstance(data, dict):
+            return False
+        message = str(data.get("message") or "").lower()
+        message_id = str(data.get("messageId") or "")
+        if "already exists" in message:
+            return True
+        if "AlreadyExists" in message_id:
+            return True
+        return False
 
     @staticmethod
     def _parse_json(body: str) -> dict[str, Any] | None:

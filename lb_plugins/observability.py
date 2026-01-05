@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
+
+from lb_common.models.hosts import RemoteHostSpec
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -18,6 +24,9 @@ class GrafanaDatasourceAsset:
     is_default: bool = False
     url: str | None = None
     url_from_config: str | None = None
+    url_template: str | None = None
+    name_template: str | None = None
+    per_host: bool = False
     basic_auth: tuple[str, str] | None = None
     json_data: Mapping[str, Any] | None = None
 
@@ -72,12 +81,94 @@ class GrafanaAssets:
 def resolve_grafana_assets(
     assets: GrafanaAssets,
     config: Any | Mapping[str, Any] | None,
+    hosts: Sequence[Any] | None = None,
 ) -> GrafanaAssets:
     """Resolve datasource URLs using the provided plugin config."""
     resolved: list[GrafanaDatasourceAsset] = []
+    host_specs: list[RemoteHostSpec] = []
+    if hosts:
+        host_specs = [RemoteHostSpec.from_object(host) for host in hosts]
+    cfg_context = _to_namespace(config)
     for datasource in assets.datasources:
         resolved_ds = datasource.resolve(config)
         if resolved_ds is not None:
-            resolved.append(resolved_ds)
+            if resolved_ds.per_host and host_specs:
+                resolved.extend(
+                    _expand_per_host_datasource(resolved_ds, host_specs, cfg_context)
+                )
+            else:
+                resolved.append(resolved_ds)
     return GrafanaAssets(datasources=tuple(resolved), dashboards=tuple(assets.dashboards))
 
+
+def _expand_per_host_datasource(
+    datasource: GrafanaDatasourceAsset,
+    hosts: Sequence[RemoteHostSpec],
+    config: Any | None,
+) -> list[GrafanaDatasourceAsset]:
+    expanded: list[GrafanaDatasourceAsset] = []
+    name_template = datasource.name_template or "{name}-{host.name}"
+    url_template = datasource.url_template or datasource.url or ""
+    if len(hosts) > 1 and not _template_has_host_placeholder(
+        url_template, datasource, hosts[0], config
+    ):
+        logger.warning(
+            "Skipping Grafana datasource %s: per_host requires a {host.*} template",
+            datasource.name,
+        )
+        return []
+    for host in hosts:
+        name = _format_template(name_template, datasource, host, config)
+        url = _format_template(url_template, datasource, host, config)
+        if "{host" in url or "{config" in url or "{name" in url:
+            url = _format_template(url, datasource, host, config)
+        if not url:
+            continue
+        expanded.append(
+            replace(
+                datasource,
+                name=name,
+                url=url,
+                per_host=False,
+                name_template=None,
+                url_template=None,
+            )
+        )
+    return expanded
+
+
+def _format_template(
+    template: str,
+    datasource: GrafanaDatasourceAsset,
+    host: RemoteHostSpec,
+    config: Any | None,
+) -> str:
+    try:
+        return template.format(
+            host=host,
+            config=config,
+            name=datasource.name,
+        )
+    except Exception:
+        return template
+
+
+def _to_namespace(config: Any | Mapping[str, Any] | None) -> Any | None:
+    if config is None:
+        return None
+    if isinstance(config, Mapping):
+        return SimpleNamespace(**config)
+    return config
+
+def _template_has_host_placeholder(
+    template: str,
+    datasource: GrafanaDatasourceAsset,
+    host: RemoteHostSpec,
+    config: Any | None,
+) -> bool:
+    if "{host" in template:
+        return True
+    if "{config" in template or "{name" in template:
+        resolved = _format_template(template, datasource, host, config)
+        return "{host" in resolved
+    return False

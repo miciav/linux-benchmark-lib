@@ -128,6 +128,52 @@ def test_request_handles_expected_http_error(
     assert data == {"message": "missing"}
 
 
+def test_create_service_account_token_reuses_existing_account(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str, dict | None]] = []
+    responses = [
+        (
+            "POST",
+            "/api/serviceaccounts",
+            (400, {"messageId": "serviceaccounts.ErrAlreadyExists", "message": "exists"}),
+        ),
+        (
+            "GET",
+            "/api/serviceaccounts/search?query=lb-observability",
+            (200, {"serviceAccounts": [{"id": 5, "name": "lb-observability"}]}),
+        ),
+        (
+            "POST",
+            "/api/serviceaccounts/5/tokens",
+            (200, {"key": "token-123"}),
+        ),
+    ]
+
+    def fake_request(
+        method: str,
+        path: str,
+        payload: dict | None = None,
+        expected_statuses: set[int] | None = None,
+    ) -> tuple[int, dict | None]:
+        calls.append((method, path, payload))
+        expected_method, expected_path, response = responses.pop(0)
+        assert method == expected_method
+        assert path == expected_path
+        return response
+
+    client = GrafanaClient(
+        base_url="http://grafana",
+        basic_auth=("admin", "secret"),
+    )
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    token = client.create_service_account_token(name="lb-observability")
+
+    assert token == "token-123"
+    assert calls[0][2] == {"name": "lb-observability", "role": "Admin"}
+
+
 def test_upsert_datasource_updates_existing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

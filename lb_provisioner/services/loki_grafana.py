@@ -10,6 +10,7 @@ from urllib import request, error
 from lb_plugins.api import (
     GrafanaAssets,
     GrafanaClient,
+    GrafanaDashboardAsset,
 )
 
 
@@ -17,6 +18,20 @@ DEFAULT_LOKI_DATASOURCE_NAME = "loki"
 DEFAULT_GRAFANA_TOKEN_NAME = "lb-observability"
 _LOKI_READY_PATH = "/ready"
 _LOKI_PUSH_PATH = "/loki/api/v1/push"
+_PLATFORM_DASHBOARD_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "assets"
+    / "grafana"
+    / "platform-logs.json"
+)
+_PLATFORM_ASSETS = GrafanaAssets(
+    dashboards=(
+        GrafanaDashboardAsset(
+            name="platform-logs",
+            path=_PLATFORM_DASHBOARD_PATH,
+        ),
+    )
+)
 
 
 @dataclass(frozen=True)
@@ -175,8 +190,13 @@ def configure_grafana(
     if loki_datasource_id is None:
         raise RuntimeError("Grafana Loki datasource could not be created.")
 
+    merged_assets = GrafanaAssets(
+        datasources=tuple(assets.datasources),
+        dashboards=tuple(_PLATFORM_ASSETS.dashboards) + tuple(assets.dashboards),
+    )
+
     datasources_configured = 0
-    for datasource in assets.datasources:
+    for datasource in merged_assets.datasources:
         url = datasource.url
         if not url:
             continue
@@ -192,7 +212,7 @@ def configure_grafana(
         datasources_configured += 1
 
     dashboards_configured = 0
-    for dashboard_asset in assets.dashboards:
+    for dashboard_asset in merged_assets.dashboards:
         dashboard = dashboard_asset.load()
         result = client.import_dashboard(dashboard, overwrite=True)
         if not result:

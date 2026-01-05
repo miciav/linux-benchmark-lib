@@ -22,7 +22,6 @@ TARGET_K6_KEY_PATH="${DFAAS_TARGET_K6_KEY_PATH:-/home/ubuntu/.ssh/dfaas_k6_key}"
 
 CONFIG_PATH="${DFAAS_CONFIG_PATH:-${ROOT_DIR}/benchmark_config.dfaas_multipass.json}"
 ENABLE_LOKI="1"
-INSTALL_LOKI="1"
 LOKI_ENDPOINT=""
 
 require_cmd() {
@@ -39,8 +38,6 @@ Usage: $0 [options]
 Options:
   --loki                Enable Loki (default)
   --no-loki             Disable Loki
-  --install-loki        Install Loki on the controller (default)
-  --no-install-loki     Skip Loki installation
   --loki-endpoint URL   Loki endpoint (e.g. http://<controller-ip>:3100)
   -h, --help            Show this help message
 EOF
@@ -55,14 +52,6 @@ parse_args() {
         ;;
       --no-loki)
         ENABLE_LOKI="0"
-        shift
-        ;;
-      --install-loki)
-        INSTALL_LOKI="1"
-        shift
-        ;;
-      --no-install-loki)
-        INSTALL_LOKI="0"
         shift
         ;;
       --loki-endpoint)
@@ -189,17 +178,6 @@ controller_ip_local() {
   echo ""
 }
 
-maybe_install_loki() {
-  if ! is_enabled "$INSTALL_LOKI"; then
-    return 0
-  fi
-  if [ ! -x "${ROOT_DIR}/scripts/install_loki.sh" ]; then
-    echo "Loki install script not found: ${ROOT_DIR}/scripts/install_loki.sh" >&2
-    return 1
-  fi
-  "${ROOT_DIR}/scripts/install_loki.sh"
-}
-
 inject_key() {
   local name="$1"
   local pub_key
@@ -270,7 +248,7 @@ config = {
             "k6_ssh_key": k6_key_path,
             "k6_port": 22,
             "gateway_url": f"http://{target_ip}:31112",
-            "prometheus_url": f"http://{target_ip}:30411",
+            "prometheus_url": "http://{host.address}:30411",
             "functions": [
                 {
                     "name": "env",
@@ -318,12 +296,11 @@ main() {
       if [ -z "$controller_ip" ]; then
         controller_ip="$(controller_ip_local)"
       fi
-      if [ -n "$controller_ip" ]; then
-        LOKI_ENDPOINT="http://${controller_ip}:3100"
-      fi
+    if [ -n "$controller_ip" ]; then
+      LOKI_ENDPOINT="http://${controller_ip}:3100"
     fi
-    maybe_install_loki
   fi
+fi
 
   write_config "$target_ip" "$generator_ip"
 

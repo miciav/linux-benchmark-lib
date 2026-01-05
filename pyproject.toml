@@ -68,6 +68,9 @@ lb_plugins = [
 lb_controller = [
     "ansible/**/*",
 ]
+lb_provisioner = [
+    "assets/**/*",
+]
 
 [project.scripts]
 lb = "lb_ui.cli.main:main"

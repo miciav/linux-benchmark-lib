@@ -194,6 +194,7 @@ def collect_grafana_assets(
     registry: PluginRegistry,
     plugin_settings: Dict[str, Any] | None = None,
     enabled_plugins: Dict[str, bool] | None = None,
+    remote_hosts: list[Any] | None = None,
 ) -> GrafanaAssets:
     """Collect Grafana assets from enabled plugins, resolving datasource URLs."""
     settings = plugin_settings or {}
@@ -211,7 +212,11 @@ def collect_grafana_assets(
                 config = plugin.config_cls()
             except Exception:
                 config = None
-        resolved = resolve_grafana_assets(assets, config)
+        resolved = resolve_grafana_assets(
+            assets,
+            config,
+            hosts=remote_hosts,
+        )
         datasources.extend(resolved.datasources)
         dashboards.extend(resolved.dashboards)
     return GrafanaAssets(datasources=tuple(datasources), dashboards=tuple(dashboards))

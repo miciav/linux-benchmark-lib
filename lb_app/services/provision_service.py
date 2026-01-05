@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from lb_app.services.config_service import ConfigService
-from lb_plugins.api import collect_grafana_assets, create_registry
+from lb_controller.api import GrafanaPlatformConfig, LokiConfig
+from lb_plugins.api import GrafanaAssets, collect_grafana_assets, create_registry
 from lb_provisioner.api import (
     GrafanaConfigSummary,
     check_grafana_ready,
@@ -34,15 +36,19 @@ class ProvisionConfigSummary:
     loki_datasource_id: int | None
     datasources_configured: int
     dashboards_configured: int
+    warnings: tuple[str, ...] = field(default_factory=tuple)
 
     @classmethod
     def from_grafana(
-        cls, summary: GrafanaConfigSummary
+        cls,
+        summary: GrafanaConfigSummary,
+        warnings: tuple[str, ...] = (),
     ) -> "ProvisionConfigSummary":
         return cls(
             loki_datasource_id=summary.loki_datasource_id,
             datasources_configured=summary.datasources_configured,
             dashboards_configured=summary.dashboards_configured,
+            warnings=warnings,
         )
 
 
@@ -51,6 +57,7 @@ class ProvisionService:
 
     def __init__(self, config_service: ConfigService) -> None:
         self._config_service = config_service
+        self._logger = logging.getLogger(__name__)
 
     def _resolve_platform_settings(
         self,
@@ -80,6 +87,39 @@ class ProvisionService:
         )
         return resolved_loki, resolved_grafana, resolved_api_key, resolved_org_id
 
+    def _persist_observability_defaults(
+        self,
+        *,
+        loki_endpoint: str,
+        grafana_url: str,
+        grafana_api_key: str | None,
+        grafana_org_id: int,
+    ) -> None:
+        platform_cfg, target = self._config_service.load_platform_for_write()
+        updated = False
+
+        if platform_cfg.loki:
+            platform_cfg.loki.endpoint = loki_endpoint
+            platform_cfg.loki.enabled = True
+        else:
+            platform_cfg.loki = LokiConfig(
+                enabled=True,
+                endpoint=loki_endpoint,
+            )
+        updated = True
+
+        grafana_cfg = platform_cfg.grafana or GrafanaPlatformConfig()
+        grafana_cfg.url = grafana_url
+        grafana_cfg.org_id = grafana_org_id
+        if grafana_api_key:
+            grafana_cfg.api_key = grafana_api_key
+        platform_cfg.grafana = grafana_cfg
+        updated = True
+
+        if updated:
+            self._config_service.ensure_home()
+            platform_cfg.save(target)
+
     def install_loki_grafana(
         self,
         *,
@@ -105,6 +145,13 @@ class ProvisionService:
 
         install_loki_grafana(mode=mode)
 
+        self._persist_observability_defaults(
+            loki_endpoint=resolved_loki,
+            grafana_url=resolved_grafana,
+            grafana_api_key=resolved_api_key,
+            grafana_org_id=resolved_org_id,
+        )
+
         if not configure_assets:
             return None
         if not resolved_api_key:
@@ -119,15 +166,25 @@ class ProvisionService:
             name: platform_cfg.is_plugin_enabled(name)
             for name in registry.available(load_entrypoints=True)
         }
-        if config_path:
+        warnings: list[str] = []
+        assets: GrafanaAssets = GrafanaAssets()
+        try:
             run_cfg, _, _ = self._config_service.load_for_read(config_path)
-        else:
-            run_cfg = self._config_service.create_default_config()
-        assets = collect_grafana_assets(
-            registry,
-            plugin_settings=run_cfg.plugin_settings,
-            enabled_plugins=enabled_map,
-        )
+            assets = collect_grafana_assets(
+                registry,
+                plugin_settings=run_cfg.plugin_settings,
+                enabled_plugins=enabled_map,
+                remote_hosts=run_cfg.remote_hosts,
+            )
+        except Exception as exc:
+            if config_path:
+                raise
+            warning = (
+                "Skipping plugin Grafana assets because the default config "
+                f"could not be loaded: {exc}. Provide --config to configure plugins."
+            )
+            self._logger.warning(warning)
+            warnings.append(warning)
 
         summary = configure_grafana(
             grafana_url=resolved_grafana,
@@ -139,7 +196,7 @@ class ProvisionService:
             loki_endpoint=resolved_loki,
             assets=assets,
         )
-        return ProvisionConfigSummary.from_grafana(summary)
+        return ProvisionConfigSummary.from_grafana(summary, warnings=tuple(warnings))
 
     def remove_loki_grafana(self, *, remove_data: bool = False) -> None:
         remove_loki_grafana(remove_data=remove_data)

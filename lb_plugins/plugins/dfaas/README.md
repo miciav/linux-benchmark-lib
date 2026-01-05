@@ -271,7 +271,7 @@ All fields live under `plugins.dfaas` unless noted.
 
 ### OpenFaaS and Prometheus
 - `gateway_url` (str, default `http://127.0.0.1:31112`): OpenFaaS gateway URL.
-- `prometheus_url` (str, default `http://127.0.0.1:30411`): Prometheus base URL.
+- `prometheus_url` (str, default `http://127.0.0.1:30411`): Prometheus base URL. For multi-host Grafana provisioning, use a template like `http://{host.address}:30411`.
 
 ### Grafana (optional)
 - `grafana.enabled` (bool, default false): enable Grafana integration.

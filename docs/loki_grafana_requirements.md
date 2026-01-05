@@ -62,6 +62,9 @@ This document captures the agreed requirements for Loki/Grafana integration.
 - Plugins that use Grafana must expose:
   - datasource definitions (e.g., Prometheus URL from plugin config)
   - dashboard JSON assets
+- Provisioning installs a default platform logs dashboard for controller/runner.
+- DFaaS provisions per-host Prometheus datasources and a k6 logs dashboard.
+- Per-host datasources require a URL template (e.g. `http://{host.address}:30411`).
 
 ### Async API Preservation
 

@@ -99,6 +99,8 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
             f"{summary.datasources_configured} datasource(s), "
             f"{summary.dashboards_configured} dashboard(s)."
         )
+        for warning in summary.warnings:
+            ctx.ui.present.warning(warning)
 
     @loki_grafana_app.command("remove")
     def loki_grafana_remove(
