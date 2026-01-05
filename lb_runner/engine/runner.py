@@ -21,7 +21,7 @@ from lb_common.api import (
     attach_loki_handler,
 )
 from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
-from lb_runner.models.events import RunEvent
+from lb_runner.models.events import RunEvent, StdoutEmitter
 from lb_runner.services.log_handler import LBEventLogHandler
 from lb_runner.services.storage import (
     workload_output_dir,

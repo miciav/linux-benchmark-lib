@@ -9,13 +9,21 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 from lb_plugins.api import (
     create_registry,
     ensure_workloads_from_plugin_settings,
     hydrate_plugin_settings,
 )
-from lb_runner.api import BenchmarkConfig, LocalRunner, StopToken, WorkloadConfig
+from lb_runner.api import (
+    BenchmarkConfig,
+    LocalRunner,
+    RunEvent,
+    StopToken,
+    StdoutEmitter,
+    WorkloadConfig,
+)
 
 
 def _env(name: str) -> str:
