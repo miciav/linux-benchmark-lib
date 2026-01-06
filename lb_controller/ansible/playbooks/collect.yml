@@ -8,6 +8,12 @@
     remote_output_root: "{{ remote_output_root | default('/tmp/benchmark_results') }}"
     data_export_root: "{{ data_export_root | default('/tmp/data_exports') }}"
     per_host_output: "{{ per_host_output | default({}) }}"
+    output_root: "{{ output_root | default('./benchmark_results') }}"
+
+  pre_tasks:
+    - name: "Derive plugin-specific settings"
+      include_tasks: "../../../lb_plugins/plugins/{{ item }}/ansible/collect/pre.yml"
+      loop: "{{ (benchmark_config.workloads.keys() | list) | intersect(['dfaas']) }}"
 
   tasks:
     - name: Ensure local host output dir exists
@@ -26,3 +32,51 @@
       loop:
         - system_info.json
         - system_info.csv
+
+    - name: Ensure controller log output dir exists
+      ansible.builtin.file:
+        path: "{{ output_root }}/logs"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      run_once: false
+
+    - name: Find JSONL logs on remote host
+      ansible.builtin.find:
+        paths: "{{ remote_output_root }}/{{ inventory_hostname }}"
+        patterns: "*.jsonl"
+        recurse: true
+        file_type: file
+      register: workload_runner_log_files
+      failed_when: false
+      changed_when: false
+
+    - name: Fetch JSONL logs to controller
+      ansible.builtin.fetch:
+        src: "{{ item.path }}"
+        dest: "{{ output_root }}/logs/"
+        flat: true
+      loop: "{{ workload_runner_log_files.files | default([]) }}"
+      loop_control:
+        label: "{{ item.path | default('') }}"
+      failed_when: false
+
+    - name: Check LB_EVENT stream log exists
+      ansible.builtin.stat:
+        path: "{{ remote_output_root }}/{{ inventory_hostname }}/lb_events.stream.log"
+      register: lb_events_stream_log
+      failed_when: false
+      changed_when: false
+
+    - name: Fetch LB_EVENT stream log to controller
+      ansible.builtin.fetch:
+        src: "{{ remote_output_root }}/{{ inventory_hostname }}/lb_events.stream.log"
+        dest: "{{ output_root }}/logs/lb_events-{{ inventory_hostname }}.stream.log"
+        flat: true
+      when: lb_events_stream_log.stat.exists
+      failed_when: false
+
+- name: Collect plugin-specific logs
+  import_playbook: "../../../lb_plugins/plugins/dfaas/ansible/collect/post.yml"
+  when: "'dfaas' in (benchmark_config.workloads | default({}))"

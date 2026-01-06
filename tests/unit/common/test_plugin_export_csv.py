@@ -69,7 +69,7 @@ def test_plugin_export_hook_writes_csv(monkeypatch, tmp_path):
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",
         data_export_dir=tmp_path / "exp",
-        workloads={"dummy": WorkloadConfig(plugin="dummy", enabled=True)},
+        workloads={"dummy": WorkloadConfig(plugin="dummy")},
     )
     plugin = DummyPlugin()
     registry = DummyRegistry(plugin)

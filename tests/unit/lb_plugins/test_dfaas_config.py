@@ -51,3 +51,17 @@ def test_invalid_rate_bounds_rejected() -> None:
 def test_invalid_duration_rejected() -> None:
     with pytest.raises(ValidationError):
         DfaasConfig(duration="30")
+
+
+def test_grafana_env_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LB_GRAFANA_ENABLED", "1")
+    monkeypatch.setenv("LB_GRAFANA_URL", "http://grafana.local:3000")
+    monkeypatch.setenv("LB_GRAFANA_API_KEY", "token")
+    monkeypatch.setenv("LB_GRAFANA_ORG_ID", "2")
+
+    config = DfaasConfig()
+
+    assert config.grafana.enabled is True
+    assert config.grafana.url == "http://grafana.local:3000"
+    assert config.grafana.api_key == "token"
+    assert config.grafana.org_id == 2

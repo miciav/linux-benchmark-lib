@@ -17,6 +17,8 @@ from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import RemoteHostConfig
 
 logger = logging.getLogger(__name__)
+setup_logger = logging.LoggerAdapter(logger, {"lb_phase": "setup"})
+teardown_logger = logging.LoggerAdapter(logger, {"lb_phase": "teardown"})
 
 
 def run_global_setup(
@@ -41,6 +43,7 @@ def run_global_setup(
     ui_log("Phase: Global Setup")
     if controller.output_formatter:
         controller.output_formatter.set_phase("Global Setup")
+    setup_logger.info("Executing global setup playbook")
     phases["setup_global"] = controller.executor.run_playbook(
         controller.config.remote_execution.setup_playbook,
         inventory=state.inventory,
@@ -95,6 +98,7 @@ def run_workload_setup(
     setup_extravars = extravars.copy()
     if plugin_assets:
         setup_extravars.update(plugin_assets.setup_extravars)
+    setup_logger.info("Executing setup playbook for %s (%s)", test_name, plugin_name)
     res = controller.executor.run_playbook(
         setup_pb,
         inventory=inventory,
@@ -123,24 +127,29 @@ def run_workload_execution(
     """Execute run/collect/teardown for a workload."""
     if not pending_reps:
         return
-    execute_run_playbook(
-        controller,
-        test_name,
-        pending_hosts,
-        pending_reps,
-        state,
-        phases,
-        flags,
-        ui_log,
-    )
+    try:
+        execute_run_playbook(
+            controller,
+            test_name,
+            pending_hosts,
+            pending_reps,
+            state,
+            phases,
+            flags,
+            ui_log,
+        )
+    finally:
+        try:
+            handle_collect_phase(
+                controller, test_name, pending_hosts, state, phases, flags, ui_log
+            )
+        except Exception as exc:
+            ui_log(f"Collect failed for {test_name}: {exc}")
     if controller.stop_token and controller.stop_token.should_stop():
         controller._handle_stop_during_workloads(
             state.inventory, state.extravars, flags, ui_log
         )
         return
-    handle_collect_phase(
-        controller, test_name, pending_hosts, state, phases, flags, ui_log
-    )
     run_teardown_playbook(controller, plugin_assets, plugin_name, state.inventory, state.extravars)
 
 
@@ -280,6 +289,7 @@ def run_teardown_playbook(
     td_extravars = extravars.copy()
     if plugin_assets:
         td_extravars.update(plugin_assets.teardown_extravars)
+    teardown_logger.info("Executing teardown playbook for %s", plugin_name)
     controller.executor.run_playbook(
         teardown_pb,
         inventory=inventory,
@@ -323,6 +333,7 @@ def run_global_teardown(
     ui_log("Phase: Global Teardown")
     if controller.output_formatter:
         controller.output_formatter.set_phase("Global Teardown")
+    teardown_logger.info("Executing global teardown playbook")
 
     if not controller.config.remote_execution.teardown_playbook:
         ui_log("No teardown playbook configured.")

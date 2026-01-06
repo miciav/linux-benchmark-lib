@@ -24,6 +24,12 @@ from lb_plugins.interface import (
     WorkloadIntensity,
     WorkloadPlugin,
 )
+from lb_plugins.observability import (
+    GrafanaAssets,
+    GrafanaDashboardAsset,
+    GrafanaDatasourceAsset,
+    resolve_grafana_assets,
+)
 from lb_plugins.installer import PluginInstaller
 from lb_plugins.plugin_assets import PluginAssetConfig
 from lb_plugins.registry import PluginRegistry
@@ -80,6 +86,7 @@ from lb_plugins.plugins.unixbench.plugin import (
     UnixBenchPlugin,
 )
 from lb_plugins.plugins.yabs.plugin import YabsConfig, YabsGenerator, YabsPlugin
+from lb_common.observability import GrafanaClient
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +190,38 @@ def apply_plugin_assets(
     config.plugin_assets = assets
 
 
+def collect_grafana_assets(
+    registry: PluginRegistry,
+    plugin_settings: Dict[str, Any] | None = None,
+    enabled_plugins: Dict[str, bool] | None = None,
+    remote_hosts: list[Any] | None = None,
+) -> GrafanaAssets:
+    """Collect Grafana assets from enabled plugins, resolving datasource URLs."""
+    settings = plugin_settings or {}
+    datasources: list[GrafanaDatasourceAsset] = []
+    dashboards: list[GrafanaDashboardAsset] = []
+    for name, plugin in registry.available(load_entrypoints=True).items():
+        if enabled_plugins is not None and not enabled_plugins.get(name, True):
+            continue
+        assets = plugin.get_grafana_assets()
+        if not assets:
+            continue
+        config = settings.get(name)
+        if config is None:
+            try:
+                config = plugin.config_cls()
+            except Exception:
+                config = None
+        resolved = resolve_grafana_assets(
+            assets,
+            config,
+            hosts=remote_hosts,
+        )
+        datasources.extend(resolved.datasources)
+        dashboards.extend(resolved.dashboards)
+    return GrafanaAssets(datasources=tuple(datasources), dashboards=tuple(dashboards))
+
+
 __all__ = [
     "BaseGenerator",
     "CommandGenerator",
@@ -215,6 +254,12 @@ __all__ = [
     "SupportsWorkloads",
     "WorkloadFactory",
     "PluginAssetConfig",
+    "GrafanaAssets",
+    "GrafanaDashboardAsset",
+    "GrafanaDatasourceAsset",
+    "resolve_grafana_assets",
+    "collect_grafana_assets",
+    "GrafanaClient",
     "BaselineConfig",
     "BaselineGenerator",
     "BaselinePlugin",

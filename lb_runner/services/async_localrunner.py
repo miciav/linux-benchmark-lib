@@ -9,9 +9,21 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
-from lb_plugins.api import create_registry
-from lb_runner.api import BenchmarkConfig, LocalRunner, StopToken
+from lb_plugins.api import (
+    create_registry,
+    ensure_workloads_from_plugin_settings,
+    hydrate_plugin_settings,
+)
+from lb_runner.api import (
+    BenchmarkConfig,
+    LocalRunner,
+    RunEvent,
+    StopToken,
+    StdoutEmitter,
+    WorkloadConfig,
+)
 
 
 def _env(name: str) -> str:
@@ -96,6 +108,10 @@ def _maybe_daemonize(env: dict[str, str]) -> int | None:
 
 
 def main() -> int:
+    # Set up a fallback logger for early startup errors
+    logging.basicConfig(level=logging.ERROR)
+    start_ts = time.time()
+    
     try:
         workload = _env("LB_RUN_WORKLOAD")
         repetition = int(_env("LB_RUN_REPETITION"))
@@ -110,28 +126,34 @@ def main() -> int:
         status_path_raw = os.environ.get("LB_RUN_STATUS_PATH")
         status_path = Path(status_path_raw) if status_path_raw else None
     except Exception as exc:
-        sys.stderr.write(f"{exc}\n")
+        sys.stderr.write(f"Startup error: {exc}\n")
         return 2
 
     daemon_rc = _maybe_daemonize(os.environ)
     if daemon_rc is not None:
         return daemon_rc
 
+    # Child process continues here
     _configure_logging_level()
     _configure_stream(log_path)
 
-    cfg = BenchmarkConfig.from_dict(json.loads(config_path.read_text()))
-    stop_token = StopToken(stop_file=stop_path)
-    runner = LocalRunner(
-        cfg,
-        registry=create_registry(),
-        progress_callback=None,
-        host_name=host or "host",
-        stop_token=stop_token,
-    )
-
-    start = time.time()
     try:
+        cfg = BenchmarkConfig.from_dict(json.loads(config_path.read_text()))
+        registry = create_registry()
+        hydrate_plugin_settings(cfg, registry=registry)
+        ensure_workloads_from_plugin_settings(cfg, workload_factory=WorkloadConfig)
+        stop_token = StopToken(stop_file=stop_path)
+        
+        # LocalRunner will use default StdoutEmitter which uses print()
+        # and since we redirected sys.stdout to _Tee, it will go to the log file.
+        runner = LocalRunner(
+            cfg,
+            registry=registry,
+            progress_callback=None,
+            host_name=host or "host",
+            stop_token=stop_token,
+        )
+
         success = runner.run_benchmark(
             workload,
             repetition_override=repetition,
@@ -139,7 +161,7 @@ def main() -> int:
             run_id=run_id,
         )
     except Exception as exc:  # noqa: BLE001
-        duration = time.time() - start
+        duration = time.time() - start_ts
         payload = {
             "run_id": run_id,
             "host": host,
@@ -153,7 +175,7 @@ def main() -> int:
         _write_status(status_path, 1)
         return 1
 
-    duration = time.time() - start
+    duration = time.time() - start_ts
     if not success:
         payload = {
             "run_id": run_id,
@@ -167,6 +189,7 @@ def main() -> int:
         print("LB_EVENT " + json.dumps(payload), flush=True)
         _write_status(status_path, 1)
         return 1
+        
     payload = {
         "run_id": run_id,
         "host": host,

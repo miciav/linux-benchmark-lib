@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from lb_app.api import RunService
-from lb_runner.api import BenchmarkConfig, WorkloadConfig
+from lb_runner.api import BenchmarkConfig, PlatformConfig, WorkloadConfig
 
 
 @dataclass
@@ -52,7 +52,6 @@ def _service(registry) -> RunService:
 def test_get_run_plan_remote_status_and_details():
     workload = WorkloadConfig(
         plugin="dummy",
-        enabled=True,
         intensity="low",
         options={"timeout": 10, "cpu_workers": 2},
     )
@@ -72,7 +71,7 @@ def test_get_run_plan_remote_status_and_details():
 
 def test_get_run_plan_missing_plugin_marks_missing():
     workload = WorkloadConfig(
-        plugin="missing", enabled=True, intensity="user_defined", options={}
+        plugin="missing", intensity="user_defined", options={}
     )
     cfg = _make_config(workload)
     registry = DummyRegistry({})
@@ -87,7 +86,7 @@ def test_get_run_plan_missing_plugin_marks_missing():
 
 def test_get_run_plan_config_error_surfaces_message():
     workload = WorkloadConfig(
-        plugin="broken", enabled=True, intensity="user_defined", options={}
+        plugin="broken", intensity="user_defined", options={}
     )
     cfg = _make_config(workload)
     registry = DummyRegistry({"broken": BrokenPlugin()})
@@ -111,3 +110,24 @@ def test_get_run_plan_unknown_workload_uses_defaults():
     assert plan[0]["plugin"] == "unknown"
     assert plan[0]["status"] == "[yellow]?[/yellow]"
     assert plan[0]["details"] == "-"
+
+
+def test_get_run_plan_skips_when_disabled_by_platform():
+    workload = WorkloadConfig(
+        plugin="dummy",
+        intensity="user_defined",
+        options={},
+    )
+    cfg = _make_config(workload)
+    registry = DummyRegistry({"dummy": DummyPlugin()})
+    platform_cfg = PlatformConfig(plugins={"dummy": False})
+
+    plan = _service(registry).get_run_plan(
+        cfg,
+        ["task"],
+        execution_mode="remote",
+        registry=registry,
+        platform_config=platform_cfg,
+    )
+
+    assert plan[0]["status"] == "[yellow]skipped (disabled by platform)[/yellow]"

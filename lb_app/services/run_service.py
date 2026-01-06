@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+import platform
 import time
 import threading
 import queue
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from lb_controller.api import BenchmarkConfig, ControllerOptions, StopToken
+from lb_controller.api import BenchmarkConfig, ControllerOptions, PlatformConfig, StopToken
 from lb_plugins.api import PluginRegistry, apply_plugin_assets, create_registry
 from lb_runner.api import RunEvent
 from lb_controller.api import (
@@ -64,6 +66,11 @@ from lb_app.services.run_types import (
     _EventDedupe,
     _DashboardLogProxy,
 )
+from lb_common.api import (
+    JsonlLogFormatter,
+    attach_jsonl_handler,
+    attach_loki_handler,
+)
 
 
 class RunService:
@@ -95,6 +102,7 @@ class RunService:
         tests: List[str],
         execution_mode: str = "remote",
         registry: PluginRegistry | None = None,
+        platform_config: PlatformConfig | None = None,
     ) -> List[Dict[str, Any]]:
         """
         Build a detailed plan for the workloads to be run.
@@ -107,6 +115,7 @@ class RunService:
             tests,
             execution_mode=execution_mode,
             registry=registry,
+            platform_config=platform_config,
         )
 
     @staticmethod
@@ -140,9 +149,7 @@ class RunService:
     ) -> RunContext:
         """Compute the run context and registry."""
         registry = self._registry_factory()
-        target_tests = tests or [
-            name for name, workload in cfg.workloads.items() if workload.enabled
-        ]
+        target_tests = tests or list(cfg.workloads.keys())
         return RunContext(
             config=cfg,
             target_tests=target_tests,
@@ -181,11 +188,15 @@ class RunService:
         cfg, resolved = self._load_or_default_config(
             config_service, config_path, ui_adapter, preloaded_config
         )
+        platform_config, _, _ = config_service.load_platform_config()
+        self._apply_platform_defaults(cfg, platform_config)
         apply_playbook_defaults(cfg)
         self._apply_setup_overrides(
             cfg, setup, repetitions, intensity, ui_adapter, debug
         )
-        target_tests = self._resolve_target_tests(cfg, tests)
+        target_tests = self._resolve_target_tests(
+            cfg, tests, platform_config, ui_adapter
+        )
         context = self.build_context(
             cfg,
             target_tests,
@@ -224,6 +235,20 @@ class RunService:
                 )
         return cfg, resolved
 
+    @staticmethod
+    def _apply_platform_defaults(
+        cfg: BenchmarkConfig, platform_config: PlatformConfig
+    ) -> None:
+        """Apply platform defaults without mutating workload selection."""
+        if platform_config.output_dir:
+            cfg.output_dir = platform_config.output_dir
+        if platform_config.report_dir:
+            cfg.report_dir = platform_config.report_dir
+        if platform_config.data_export_dir:
+            cfg.data_export_dir = platform_config.data_export_dir
+        if platform_config.loki:
+            cfg.loki = platform_config.loki
+
     def _apply_setup_overrides(
         self,
         cfg: BenchmarkConfig,
@@ -249,15 +274,34 @@ class RunService:
 
     @staticmethod
     def _resolve_target_tests(
-        cfg: BenchmarkConfig, tests: Optional[List[str]]
+        cfg: BenchmarkConfig,
+        tests: Optional[List[str]],
+        platform_config: PlatformConfig,
+        ui_adapter: UIAdapter | None,
     ) -> List[str]:
-        """Determine which workloads to run, raising if none are enabled/selected."""
-        target_tests = tests or [
-            name for name, wl in cfg.workloads.items() if wl.enabled
-        ]
+        """Determine which workloads to run, skipping those disabled by platform."""
+        target_tests = tests or list(cfg.workloads.keys())
         if not target_tests:
             raise ValueError("No workloads selected to run.")
-        return target_tests
+
+        disabled: list[str] = []
+        allowed: list[str] = []
+        for name in target_tests:
+            workload = cfg.workloads.get(name)
+            plugin_name = workload.plugin if workload else name
+            if not platform_config.is_plugin_enabled(plugin_name):
+                disabled.append(name)
+                continue
+            allowed.append(name)
+
+        if disabled and ui_adapter:
+            ui_adapter.show_warning(
+                "Skipping workloads disabled by platform config: "
+                + ", ".join(sorted(disabled))
+            )
+        if not allowed:
+            raise ValueError("All selected workloads are disabled by platform config.")
+        return allowed
 
     def execute(
         self,
@@ -313,57 +357,131 @@ class RunService:
         if not context.config.plugin_assets:
             apply_plugin_assets(context.config, context.registry)
         session = self._prepare_remote_session(context, run_id, ui_adapter, stop_token)
+        jsonl_handler = self._attach_controller_jsonl(context, session)
+        loki_handler = self._attach_controller_loki(context, session)
 
-        if not session.stop_token.should_stop() and not pending_exists(
-            session.journal,
-            context.target_tests,
-            context.config.remote_hosts or [],
-            context.config.repetitions,
-            allow_skipped=session.resume_requested,
-        ):
-            return self._short_circuit_empty_run(context, session, ui_adapter)
+        try:
+            if not session.stop_token.should_stop() and not pending_exists(
+                session.journal,
+                context.target_tests,
+                context.config.remote_hosts or [],
+                context.config.repetitions,
+                allow_skipped=session.resume_requested,
+            ):
+                return self._short_circuit_empty_run(context, session, ui_adapter)
 
-        pipeline = self._build_event_pipeline(
-            context, session, formatter, output_callback, ui_adapter, emit_timing
+            pipeline = self._build_event_pipeline(
+                context, session, formatter, output_callback, ui_adapter, emit_timing
+            )
+
+            controller = BenchmarkController(
+                context.config,
+                ControllerOptions(
+                    output_callback=pipeline.output_cb,
+                    output_formatter=formatter,
+                    journal_refresh=session.dashboard.refresh if session.dashboard else None,
+                    stop_token=session.stop_token,
+                    state_machine=session.controller_state,
+                ),
+            )
+            pipeline.controller_ref["controller"] = controller
+            if formatter:
+                formatter.host_label = ",".join(
+                    h.name for h in context.config.remote_hosts
+                )
+
+            tailer = maybe_start_event_tailer(
+                controller,
+                pipeline.event_from_payload,
+                pipeline.ingest_event,
+                formatter,
+            )
+
+            summary = self._run_controller_loop(
+                controller=controller,
+                context=context,
+                session=session,
+                pipeline=pipeline,
+                ui_adapter=ui_adapter,
+            )
+
+            if tailer:
+                tailer.stop()
+            session.sink.close()
+            session.stop_token.restore()
+            return RunResult(
+                context=context,
+                summary=summary,
+                journal_path=session.journal_path,
+                log_path=session.log_path,
+                ui_log_path=session.ui_stream_log_path,
+            )
+        finally:
+            for handler in (jsonl_handler, loki_handler):
+                if not handler:
+                    continue
+                logging.getLogger().removeHandler(handler)
+                try:
+                    handler.close()
+                except Exception:
+                    pass
+
+    @staticmethod
+    def _attach_controller_jsonl(
+        context: RunContext, session: _RemoteSession
+    ) -> logging.Handler:
+        # We attach to the specific controller logger to ensure we capture INFO logs
+        # even if the root logger is at WARNING.
+        controller_logger = logging.getLogger("lb_controller")
+        controller_logger.setLevel(logging.INFO)
+        
+        return attach_jsonl_handler(
+            controller_logger,
+            output_dir=session.journal_path.parent,
+            component="controller",
+            host=platform.node() or "controller",
+            run_id=session.effective_run_id,
+            workload="controller",
+            package="lb_controller",
+            repetition=1,
         )
 
-        controller = BenchmarkController(
-            context.config,
-            ControllerOptions(
-                output_callback=pipeline.output_cb,
-                output_formatter=formatter,
-                journal_refresh=session.dashboard.refresh if session.dashboard else None,
-                stop_token=session.stop_token,
-                state_machine=session.controller_state,
-            ),
+    @staticmethod
+    def _attach_controller_loki(
+        context: RunContext, session: _RemoteSession
+    ) -> logging.Handler | None:
+        loki_cfg = context.config.loki
+        handler = attach_loki_handler(
+            logging.getLogger(),
+            enabled=loki_cfg.enabled,
+            endpoint=loki_cfg.endpoint,
+            component="controller",
+            host=platform.node() or "controller",
+            package="lb_controller",
+            run_id=session.effective_run_id,
+            workload="controller",
+            repetition=1,
+            labels=loki_cfg.labels,
+            batch_size=loki_cfg.batch_size,
+            flush_interval_ms=loki_cfg.flush_interval_ms,
+            timeout_seconds=loki_cfg.timeout_seconds,
+            max_retries=loki_cfg.max_retries,
+            max_queue_size=loki_cfg.max_queue_size,
+            backoff_base=loki_cfg.backoff_base,
+            backoff_factor=loki_cfg.backoff_factor,
         )
-        pipeline.controller_ref["controller"] = controller
-        if formatter:
-            formatter.host_label = ",".join(h.name for h in context.config.remote_hosts)
-
-        tailer = maybe_start_event_tailer(
-            controller, pipeline.event_from_payload, pipeline.ingest_event, formatter
-        )
-
-        summary = self._run_controller_loop(
-            controller=controller,
-            context=context,
-            session=session,
-            pipeline=pipeline,
-            ui_adapter=ui_adapter,
-        )
-
-        if tailer:
-            tailer.stop()
-        session.sink.close()
-        session.stop_token.restore()
-        return RunResult(
-            context=context,
-            summary=summary,
-            journal_path=session.journal_path,
-            log_path=session.log_path,
-            ui_log_path=session.ui_stream_log_path,
-        )
+        if handler:
+            handler.setFormatter(
+                JsonlLogFormatter(
+                    component="controller",
+                    host=platform.node() or "controller",
+                    run_id=session.effective_run_id,
+                    workload="controller",
+                    package="lb_controller",
+                    repetition=1,
+                )
+            )
+        return handler
 
     def _prepare_remote_session(
         self,

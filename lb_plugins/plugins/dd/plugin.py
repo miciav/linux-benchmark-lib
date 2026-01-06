@@ -186,13 +186,11 @@ class DDPlugin(SimpleWorkloadPlugin):
             return DDConfig(
                 bs="1M",
                 count=1024, # 1GB
-                oflag="direct"
             )
         elif level == WorkloadIntensity.MEDIUM:
             return DDConfig(
                 bs="4M",
                 count=2048, # 8GB
-                oflag="direct"
             )
         elif level == WorkloadIntensity.HIGH:
             return DDConfig(

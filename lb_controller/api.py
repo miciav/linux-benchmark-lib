@@ -6,6 +6,9 @@ from lb_controller.adapters.remote_runner import ControllerRunner
 from lb_controller.models.state import ControllerState, ControllerStateMachine
 from lb_controller.models.contracts import (
     BenchmarkConfig,
+    GrafanaPlatformConfig,
+    LokiConfig,
+    PlatformConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
@@ -39,6 +42,9 @@ from lb_runner.api import RunEvent, StopToken, workload_output_dir
 
 __all__ = [
     "BenchmarkConfig",
+    "GrafanaPlatformConfig",
+    "LokiConfig",
+    "PlatformConfig",
     "BenchmarkController",
     "CallbackModule",
     "ControllerRunner",

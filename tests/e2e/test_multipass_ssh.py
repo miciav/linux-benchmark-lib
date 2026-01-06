@@ -424,7 +424,7 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             (
                 f"test -x {lb_workdir}/.venv/bin/python "
                 f"&& test -f {lb_workdir}/lb_controller/__init__.py "
-                f"&& test -f {lb_workdir}/lb_common/logging.py"
+                f"&& test -f {lb_workdir}/lb_common/logs/core.py"
             ),
         ]
         subprocess.run(ssh_cmd, check=True)
@@ -435,7 +435,6 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             "workloads": {
                 "stress_ng": {
                     "plugin": "stress_ng", 
-                    "enabled": True, 
                     "options": {"vm_workers": 0, "cpu_workers": 1, "timeout": 3, "metrics_brief": True}
                 }
             },

@@ -311,7 +311,6 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         plugin_settings["stress_ng"] = stress_cfg
         workload_defs["stress_ng"] = WorkloadConfig(
             plugin="stress_ng",
-            enabled=True,
             options=stress_cfg.model_dump(mode="json"),
         )
     
@@ -324,7 +323,6 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         plugin_settings["dd"] = dd_cfg
         workload_defs["dd"] = WorkloadConfig(
             plugin="dd",
-            enabled=True,
             options=dd_cfg.model_dump(mode="json"),
         )
 
@@ -343,7 +341,6 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         plugin_settings["fio"] = fio_cfg
         workload_defs["fio"] = WorkloadConfig(
             plugin="fio",
-            enabled=True,
             options=fio_cfg.model_dump(mode="json"),
         )
 

@@ -45,7 +45,7 @@ def register_run_command(
     def run(
         tests: List[str] = typer.Argument(
             None,
-            help="Workload names to run; defaults to enabled workloads in the config.",
+            help="Workload names to run; defaults to configured workloads in the config.",
         ),
         config: Optional[Path] = typer.Option(
             None,
@@ -265,14 +265,21 @@ def register_run_command(
         else:
             resolved_node_count = len(cfg.remote_hosts or []) or 1
 
+        from lb_ui.services.notifier import send_notification
+        from lb_ui.services.tray import TrayManager
+
+        tray = TrayManager()
+        tray.start()
+
         result = None
+        run_success = False
         try:
             from lb_app.api import RunRequest
 
-            selected_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+            selected_tests = tests or list(cfg.workloads.keys())
             if not selected_tests:
                 ctx.ui.present.error("No workloads selected to run.")
-                ctx.ui.present.info("Enable workloads first with `lb plugin list --enable NAME` or use `lb config select-workloads`.")
+                ctx.ui.present.info("Add workloads first with `lb config enable-workload NAME` or use `lb config select-workloads`.")
                 raise typer.Exit(1)
 
             run_request = RunRequest(
@@ -312,6 +319,7 @@ def register_run_command(
 
             run_result = ctx.app_client.start_run(run_request, _Hooks())
             result = run_result
+            run_success = True
 
         except ValueError as e:
             ctx.ui.present.warning(str(e))
@@ -319,6 +327,15 @@ def register_run_command(
         except Exception as exc:
             ctx.ui.present.error(f"Run failed: {exc}")
             raise typer.Exit(1)
+        finally:
+            tray.stop()
+            status_msg = "completed successfully" if run_success else "failed"
+            notif_title = f"Benchmark Run {run_id if run_id else ''} {status_msg.split()[0].upper()}"
+            send_notification(
+                title=notif_title,
+                message=f"The benchmark run has {status_msg}.",
+                success=run_success
+            )
 
         if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):
             _print_run_journal_summary(result.journal_path, log_path=result.log_path, ui_log_path=result.ui_log_path)

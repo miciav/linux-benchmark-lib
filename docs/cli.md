@@ -37,6 +37,8 @@ Order used by commands that need a config:
   Run analytics on an existing run.
 - `lb plugin ...`
   Inspect and manage workload plugins.
+- `lb provision loki-grafana install|remove|status [--mode local|docker] [--grafana-url URL] [--grafana-api-key KEY] [--loki-endpoint URL] [--no-configure]`
+  Install/remove Loki + Grafana and configure datasources/dashboards.
 - `lb config ...`
   Create and manage benchmark configuration files.
 - `lb doctor ...`
@@ -46,10 +48,11 @@ Order used by commands that need a config:
 
 ## Plugin management (`lb plugin ...`)
 
-- `lb plugin list [--select] [--enable NAME | --disable NAME] [-c FILE] [--set-default]`
-- `lb plugin select [-c FILE] [--set-default]`
+- `lb plugin list [--select] [--enable NAME | --disable NAME]`
+- `lb plugin select`
 
 Running `lb plugin` with no subcommand is equivalent to `lb plugin list`.
+Plugin enablement is stored in the platform config (`~/.config/lb/platform.json`); workloads live in the run config.
 
 ## Config management (`lb config ...`)
 

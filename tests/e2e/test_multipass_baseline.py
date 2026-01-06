@@ -17,7 +17,7 @@ from lb_runner.api import (
     WorkloadConfig,
 )
 from lb_controller.api import AnsibleRunnerExecutor, BenchmarkController, ControllerOptions
-import tests.e2e.test_multipass_benchmark as _multipass_benchmark  # noqa: F401
+from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
 from tests.helpers.multipass import make_test_ansible_env, stage_private_key
 
 pytestmark = [
@@ -162,7 +162,6 @@ def test_multipass_baseline_three_reps(multipass_vm, tmp_path: Path) -> None:
     baseline_cfg = BaselineConfig(duration=5)
     workload_cfg = WorkloadConfig(
         plugin="baseline",
-        enabled=True,
         options=baseline_cfg.model_dump(mode="json"),
     )
     

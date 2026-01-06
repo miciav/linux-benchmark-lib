@@ -40,7 +40,7 @@ class FakeExecutor:
 def test_resume_runs_pending_repetitions_only(tmp_path):
     cfg = BenchmarkConfig()
     cfg.output_dir = tmp_path / "benchmark_results"
-    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng", enabled=True)}
+    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
     cfg.repetitions = 3
     cfg.remote_hosts = [RemoteHostConfig(name="node-1", address="10.0.0.1")]
     cfg.remote_execution.run_setup = False

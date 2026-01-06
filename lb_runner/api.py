@@ -3,8 +3,11 @@
 from lb_runner.models.config import (
     DEFAULT_LB_WORKDIR,
     BenchmarkConfig,
+    GrafanaPlatformConfig,
+    LokiConfig,
     MetricCollectorConfig,
     PerfConfig,
+    PlatformConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
@@ -26,8 +29,11 @@ from lb_runner.services.system_info_io import write_outputs
 __all__ = [
     "BenchmarkConfig",
     "DEFAULT_LB_WORKDIR",
+    "GrafanaPlatformConfig",
+    "LokiConfig",
     "MetricCollectorConfig",
     "PerfConfig",
+    "PlatformConfig",
     "RemoteExecutionConfig",
     "RemoteHostConfig",
     "WorkloadConfig",

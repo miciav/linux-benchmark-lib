@@ -15,8 +15,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
+from lb_common.api import (
+    JsonlLogFormatter,
+    attach_jsonl_handler,
+    attach_loki_handler,
+)
 from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
-from lb_runner.models.events import RunEvent
+from lb_runner.models.events import RunEvent, StdoutEmitter
 from lb_runner.services.log_handler import LBEventLogHandler
 from lb_runner.services.storage import (
     workload_output_dir,
@@ -45,6 +50,15 @@ from lb_runner.services import system_info
 logger = logging.getLogger(__name__)
 
 
+class _ExcludeLoggerPrefixFilter(logging.Filter):
+    def __init__(self, prefixes: tuple[str, ...]) -> None:
+        super().__init__()
+        self._prefixes = prefixes
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not any(record.name.startswith(prefix) for prefix in self._prefixes)
+
+
 class LocalRunner:
     """Local agent for executing benchmarks on a single node."""
     
@@ -69,10 +83,12 @@ class LocalRunner:
         self.plugin_registry = self._resolve_registry(registry, collector_registry)
         workloads = getattr(self.config, "workloads", {})
         repetitions = getattr(self.config, "repetitions", 1)
+        plugin_settings = getattr(self.config, "plugin_settings", {})
         self._planner = RunPlanner(
             workloads=workloads,
             repetitions=repetitions,
             logger=logger,
+            plugin_settings=plugin_settings,
         )
         self._scope_manager = RunScopeManager(self.config, logger)
         self._collector_coordinator = CollectorCoordinator(self.plugin_registry)
@@ -80,6 +96,9 @@ class LocalRunner:
         self._current_run_id: Optional[str] = None
         self._output_root: Optional[Path] = None
         self._data_export_root: Optional[Path] = None
+        self._log_file_handler_attached = False
+        self._jsonl_handler: logging.Handler | None = None
+        self._loki_handler: logging.Handler | None = None
         self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
         self._progress = RunProgressEmitter(host=self._host_name, callback=progress_callback)
         self._stop_token = stop_token
@@ -210,6 +229,11 @@ class LocalRunner:
         repetition: int,
         stop_token: StopToken | None = None,
     ) -> tuple[datetime | None, datetime | None]:
+        self._set_log_phase(
+            "setup",
+            workload=test_name,
+            repetition=repetition,
+        )
         self._pre_test_cleanup()
         if stop_token and stop_token.should_stop():
             raise StopRequested("Stopped by user")
@@ -219,12 +243,27 @@ class LocalRunner:
 
         test_start_time = datetime.now()
         generator.start()
+        self._set_log_phase(
+            None,
+            workload=test_name,
+            repetition=repetition,
+        )
         logger.info("Running test for %s seconds", duration)
 
         test_end_time = self._wait_for_generator(
             generator, duration, test_name, repetition, stop_token
         )
+        self._set_log_phase(
+            "teardown",
+            workload=test_name,
+            repetition=repetition,
+        )
         self._cleanup_after_run(generator, collectors)
+        self._set_log_phase(
+            None,
+            workload=test_name,
+            repetition=repetition,
+        )
         return test_start_time, test_end_time
 
     def _prepare_generator(self, generator: Any) -> None:
@@ -282,12 +321,6 @@ class LocalRunner:
         duration_seconds = result.get("duration_seconds", 0) or 0
         if duration_seconds:
             logger.info("Repetition %s completed in %.2fs", repetition, duration_seconds)
-        self._emit_progress(
-            test_name,
-            repetition,
-            total_repetitions,
-            "done" if result["success"] else "failed",
-        )
         self._collector_coordinator.collect(
             collectors, workload_dir, rep_dir, test_name, repetition, result
         )
@@ -313,18 +346,23 @@ class LocalRunner:
             repetition_override: When set, run only this repetition index.
             total_repetitions: Total repetitions planned (for display purposes).
         """
-        logger.info(f"Starting benchmark: {test_type}")
+        total_reps = total_repetitions or self.config.repetitions
+        reps = self._planner.select_repetitions(repetition_override, pending_reps)
+        first_rep = reps[0] if reps else 1
 
-        self._prepare_run_scope(run_id)
+        self._prepare_run_scope(
+            run_id,
+            workload=test_type,
+            repetition=first_rep,
+            phase="setup",
+        )
+        logger.info(f"Starting benchmark: {test_type}")
 
         if self.config.collect_system_info and not self.system_info:
             self.collect_system_info()
 
         workload_cfg = self._planner.resolve_workload(test_type)
         plugin: WorkloadPlugin = self.plugin_registry.get(workload_cfg.plugin)
-
-        total_reps = total_repetitions or self.config.repetitions
-        reps = self._planner.select_repetitions(repetition_override, pending_reps)
 
         success_overall = True
         for idx, rep in enumerate(reps):
@@ -347,13 +385,27 @@ class LocalRunner:
         logger.info(f"Completed benchmark: {test_type}")
         return success_overall
 
-    def _prepare_run_scope(self, run_id: str | None) -> None:
+    def _prepare_run_scope(
+        self,
+        run_id: str | None,
+        workload: str | None = None,
+        repetition: int | None = None,
+        phase: str | None = None,
+    ) -> None:
         scope = self._scope_manager.prepare(run_id)
         self._current_run_id = scope.run_id
         self._output_root = scope.output_root
         self._data_export_root = scope.data_export_root
         self._progress.set_run_id(scope.run_id)
         self._result_persister.set_run_id(scope.run_id)
+        self._sync_loki_env()
+        if self._output_root:
+            self._attach_jsonl_logger(
+                scope.run_id,
+                workload=workload,
+                repetition=repetition,
+                phase=phase,
+            )
 
     def _run_single_repetition(
         self,
@@ -363,6 +415,11 @@ class LocalRunner:
         repetition: int,
         total_reps: int,
     ) -> bool:
+        self._set_log_phase(
+            "setup",
+            workload=test_type,
+            repetition=repetition,
+        )
         if self._stop_token and self._stop_token.should_stop():
             logger.info("Stop requested; aborting remaining repetitions.")
             self._emit_progress(test_type, repetition, total_reps, "stopped")
@@ -386,7 +443,15 @@ class LocalRunner:
             if isinstance(generator, BaseGenerator):
                 self._cleanup_generator(generator, test_type, repetition)
             self._process_results(test_type, [result], plugin=plugin)
-            return bool(result.get("success", True))
+            
+            success = bool(result.get("success", True))
+            self._emit_progress(
+                test_type, 
+                repetition, 
+                total_reps, 
+                "done" if success else "failed"
+            )
+            return success
         except StopRequested:
             logger.info("Benchmark interrupted.")
             self._emit_progress(test_type, repetition, total_reps, "stopped")
@@ -432,9 +497,143 @@ class LocalRunner:
         run_id = self._planner.generate_run_id()
         for test_name, workload in self.config.workloads.items():
             if not workload.enabled:
-                logger.info("Skipping disabled workload '%s'", test_name)
+                logger.info("Skipping disabled workload: %s", test_name)
                 continue
             try:
                 self.run_benchmark(test_name, run_id=run_id)
             except Exception as e:
                 logger.error(f"Failed to run {test_name} benchmark: {e}", exc_info=True)
+
+    def _attach_jsonl_logger(
+        self,
+        run_id: str,
+        *,
+        workload: str | None = None,
+        repetition: int | None = None,
+        phase: str | None = None,
+    ) -> None:
+        if self._jsonl_handler:
+            logging.getLogger().removeHandler(self._jsonl_handler)
+            try:
+                self._jsonl_handler.close()
+            except Exception:
+                pass
+        root_logger = logging.getLogger()
+        tags = {"phase": phase} if phase else None
+        self._jsonl_handler = attach_jsonl_handler(
+            root_logger,
+            output_dir=self._output_root or self.config.output_dir,
+            component="runner",
+            host=self._host_name,
+            run_id=run_id,
+            workload=workload,
+            package="lb_runner",
+            repetition=repetition,
+            tags=tags,
+        )
+        if self._jsonl_handler:
+            self._jsonl_handler.addFilter(
+                _ExcludeLoggerPrefixFilter(("lb_plugins.",))
+            )
+        self._attach_loki_logger(
+            run_id,
+            workload=workload,
+            repetition=repetition,
+            phase=phase,
+        )
+
+    def _attach_loki_logger(
+        self,
+        run_id: str,
+        *,
+        workload: str | None = None,
+        repetition: int | None = None,
+        phase: str | None = None,
+    ) -> None:
+        root_logger = logging.getLogger()
+        if self._loki_handler:
+            root_logger.removeHandler(self._loki_handler)
+            try:
+                self._loki_handler.close()
+            except Exception:
+                pass
+            self._loki_handler = None
+
+        loki_cfg = self.config.loki
+        labels = dict(loki_cfg.labels)
+        if phase:
+            labels.setdefault("phase", phase)
+        self._loki_handler = attach_loki_handler(
+            root_logger,
+            enabled=loki_cfg.enabled,
+            endpoint=loki_cfg.endpoint,
+            component="runner",
+            host=self._host_name,
+            run_id=run_id,
+            workload=workload,
+            package="lb_runner",
+            repetition=repetition,
+            labels=labels,
+            batch_size=loki_cfg.batch_size,
+            flush_interval_ms=loki_cfg.flush_interval_ms,
+            timeout_seconds=loki_cfg.timeout_seconds,
+            max_retries=loki_cfg.max_retries,
+            max_queue_size=loki_cfg.max_queue_size,
+            backoff_base=loki_cfg.backoff_base,
+            backoff_factor=loki_cfg.backoff_factor,
+        )
+        if self._loki_handler:
+            self._loki_handler.setFormatter(
+                JsonlLogFormatter(
+                    component="runner",
+                    host=self._host_name,
+                    run_id=run_id,
+                    workload=workload,
+                    package="lb_runner",
+                    repetition=repetition,
+                    tags={"phase": phase} if phase else None,
+                )
+            )
+            self._loki_handler.addFilter(
+                _ExcludeLoggerPrefixFilter(("lb_plugins.",))
+            )
+
+    def _sync_loki_env(self) -> None:
+        if not self.config.loki.enabled:
+            return
+        loki_cfg = self.config.loki
+        os.environ.setdefault("LB_LOKI_ENABLED", "1")
+        os.environ.setdefault("LB_LOKI_ENDPOINT", loki_cfg.endpoint)
+        if loki_cfg.labels:
+            labels = ",".join(
+                f"{key}={value}"
+                for key, value in loki_cfg.labels.items()
+                if value is not None
+            )
+            if labels:
+                os.environ.setdefault("LB_LOKI_LABELS", labels)
+        os.environ.setdefault("LB_LOKI_BATCH_SIZE", str(loki_cfg.batch_size))
+        os.environ.setdefault(
+            "LB_LOKI_FLUSH_INTERVAL_MS", str(loki_cfg.flush_interval_ms)
+        )
+        os.environ.setdefault("LB_LOKI_TIMEOUT_SECONDS", str(loki_cfg.timeout_seconds))
+        os.environ.setdefault("LB_LOKI_MAX_RETRIES", str(loki_cfg.max_retries))
+        os.environ.setdefault("LB_LOKI_MAX_QUEUE_SIZE", str(loki_cfg.max_queue_size))
+        os.environ.setdefault("LB_LOKI_BACKOFF_BASE", str(loki_cfg.backoff_base))
+        os.environ.setdefault("LB_LOKI_BACKOFF_FACTOR", str(loki_cfg.backoff_factor))
+
+    def _set_log_phase(
+        self,
+        phase: str | None,
+        *,
+        workload: str,
+        repetition: int,
+    ) -> None:
+        if not self._current_run_id:
+            return
+        self._attach_jsonl_logger(
+            self._current_run_id,
+            workload=workload,
+            repetition=repetition,
+            phase=phase,
+        )

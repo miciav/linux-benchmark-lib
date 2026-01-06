@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from lb_common.api import parse_bool_env, parse_int_env
 
 from ...interface import BasePluginConfig
 
@@ -140,6 +143,43 @@ class DfaasOverloadConfig(BaseModel):
     model_config = {"extra": "ignore"}
 
 
+class GrafanaConfig(BaseModel):
+    """Optional Grafana integration settings."""
+
+    enabled: bool = Field(default=False, description="Enable Grafana integration")
+    url: str = Field(default="http://localhost:3000", description="Grafana base URL")
+    api_key: str | None = Field(default=None, description="Grafana API key (optional)")
+    org_id: int = Field(default=1, ge=1, description="Grafana organization id")
+
+    model_config = {"extra": "ignore"}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_env_overrides(cls, values: Any) -> Any:
+        if isinstance(values, cls):
+            return values
+        if values is None:
+            values = {}
+        if not isinstance(values, dict):
+            return values
+
+        env_enabled = parse_bool_env(os.environ.get("LB_GRAFANA_ENABLED"))
+        env_url = os.environ.get("LB_GRAFANA_URL")
+        env_api_key = os.environ.get("LB_GRAFANA_API_KEY")
+        env_org = parse_int_env(os.environ.get("LB_GRAFANA_ORG_ID"))
+
+        if env_enabled is not None:
+            values["enabled"] = env_enabled
+        if env_url:
+            values["url"] = env_url
+        if env_api_key:
+            values["api_key"] = env_api_key
+        if env_org is not None:
+            values["org_id"] = env_org
+
+        return values
+
+
 class DfaasConfig(BasePluginConfig):
     """Configuration for DFaaS workload generation."""
 
@@ -163,6 +203,17 @@ class DfaasConfig(BasePluginConfig):
     k6_log_stream: bool = Field(
         default=True,
         description="Stream k6 log output via SSH while each config runs",
+    )
+    k6_outputs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Optional k6 outputs passed via --out, e.g. "
+            "'loki=http://<controller>:3100/loki/api/v1/push'"
+        ),
+    )
+    k6_tags: dict[str, str] = Field(
+        default_factory=dict,
+        description="Additional k6 tags merged with run_id/component/workload/repetition",
     )
     openfaas_port: int = Field(
         default=31112, ge=1, le=65535, description="OpenFaaS gateway NodePort"
@@ -216,6 +267,10 @@ class DfaasConfig(BasePluginConfig):
     function_pid_regexes: dict[str, str] = Field(
         default_factory=dict,
         description="Optional PID regex per function for Scaphandre queries",
+    )
+    grafana: GrafanaConfig = Field(
+        default_factory=GrafanaConfig,
+        description="Grafana integration settings",
     )
 
     @model_validator(mode="before")

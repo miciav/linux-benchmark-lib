@@ -22,9 +22,10 @@ plugins, entry point plugins, and user plugins from the configured plugin direct
 ## CLI workflow
 
 - List plugins: `lb plugin list`
-- Enable a workload: `lb plugin list --enable stress_ng`
-- Interactive selection: `lb plugin select`
-- Enable/disable with config helpers: `lb config enable-workload <name>` / `lb config disable-workload <name>`
+- Enable/disable a plugin (platform config): `lb plugin list --enable stress_ng` / `lb plugin list --disable stress_ng`
+- Add/remove workloads in a run config: `lb config enable-workload <name>` / `lb config disable-workload <name>`
+- Interactive plugin selection (platform config): `lb plugin select`
+- Interactive workload selection (run config): `lb config select-workloads`
 
 Note: there is no CLI install/uninstall command at the moment. Use the user plugin
 directory or the Python API (`lb_plugins.api.PluginInstaller`) if you need to add
@@ -38,7 +39,6 @@ Workloads live in the config under `workloads`:
 "workloads": {
   "stress_ng": {
     "plugin": "stress_ng",
-    "enabled": true,
     "intensity": "user_defined",
     "options": {
       "cpu_workers": 4,
@@ -149,7 +149,6 @@ config_model:
     plugin_assets: "map[str, PluginAssetConfig]"
   WorkloadConfig:
     plugin: string
-    enabled: bool
     intensity: "low|medium|high|user_defined"
     options: "dict"
   PluginAssetConfig:

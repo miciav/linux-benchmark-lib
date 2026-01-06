@@ -1,6 +1,6 @@
 [project]
 name = "linux-benchmark-lib"
-version = "0.62.0"
+version = "0.63.0"
 description = "A robust and configurable Python library for benchmarking Linux computational node performance"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -15,6 +15,10 @@ dependencies = [
     "PyYAML>=6.0",
     "pydantic>=2.0.0", # Added pydantic
     "structlog>=24.2.0",
+    "plyer>=2.1.0",
+    "pystray>=0.19.5",
+    "pillow>=12.0.0",
+    "desktop-notifier>=6.2.0",
 ]
 
 [project.optional-dependencies]
@@ -67,6 +71,9 @@ lb_plugins = [
 ]
 lb_controller = [
     "ansible/**/*",
+]
+lb_provisioner = [
+    "assets/**/*",
 ]
 
 [project.scripts]

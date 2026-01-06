@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import pytest
 from typer.testing import CliRunner
 
-from lb_runner.api import BenchmarkConfig, WorkloadConfig
+from lb_runner.api import BenchmarkConfig, PlatformConfig, WorkloadConfig
 
 @dataclass
 class MockDoctorReport:
@@ -22,6 +22,7 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Import the CLI module with an isolated config home and cwd."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
     monkeypatch.setenv("LB_ENABLE_TEST_CLI", "1")
+    monkeypatch.delenv("LB_CONFIG_PATH", raising=False)
     monkeypatch.chdir(tmp_path)
     # Clear all submodules to ensure fresh initialization of services
     for mod in list(sys.modules.keys()):
@@ -33,9 +34,7 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 def _ensure_workload_enabled(cfg: BenchmarkConfig, name: str) -> None:
     if name not in cfg.workloads:
-        cfg.workloads[name] = WorkloadConfig(plugin=name, enabled=True)
-        return
-    cfg.workloads[name].enabled = True
+        cfg.workloads[name] = WorkloadConfig(plugin=name, options={})
 
 
 @pytest.mark.unit_ui
@@ -50,18 +49,8 @@ def test_plugins_enable_disable_persists_config(monkeypatch: pytest.MonkeyPatch,
     runner = CliRunner()
 
 
-    config_path = tmp_path / "cfg.json"
-
-
-
-
-
     result = runner.invoke(
-
-
-        cli.app, ["plugin", "list", "--enable", "stress_ng", "-c", str(config_path)]
-
-
+        cli.app, ["plugin", "list", "--enable", "stress_ng"]
     )
 
 
@@ -71,24 +60,16 @@ def test_plugins_enable_disable_persists_config(monkeypatch: pytest.MonkeyPatch,
 
 
 
-    cfg = BenchmarkConfig.load(config_path)
-
-
-    assert "stress_ng" in cfg.workloads
-
-
-    assert cfg.workloads["stress_ng"].enabled is True
+    platform_path = tmp_path / "xdg" / "lb" / "platform.json"
+    platform_cfg = PlatformConfig.load(platform_path)
+    assert platform_cfg.is_plugin_enabled("stress_ng") is True
 
 
 
 
 
     result = runner.invoke(
-
-
-        cli.app, ["plugin", "list", "--disable", "stress_ng", "-c", str(config_path)]
-
-
+        cli.app, ["plugin", "list", "--disable", "stress_ng"]
     )
 
 
@@ -98,10 +79,8 @@ def test_plugins_enable_disable_persists_config(monkeypatch: pytest.MonkeyPatch,
 
 
 
-    cfg = BenchmarkConfig.load(config_path)
-
-
-    assert cfg.workloads["stress_ng"].enabled is False
+    platform_cfg = PlatformConfig.load(platform_path)
+    assert platform_cfg.is_plugin_enabled("stress_ng") is False
 
 
 
@@ -268,19 +247,12 @@ def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, 
 
 
 
-    cfg_path = tmp_path / "xdg" / "lb" / "config.json"
+    platform_path = tmp_path / "xdg" / "lb" / "platform.json"
+    cfg = PlatformConfig.load(platform_path)
 
-
-    cfg = BenchmarkConfig.load(cfg_path)
-
-
-    assert cfg.workloads["stress_ng"].enabled is True
-
-
-    assert cfg.workloads["dd"].enabled is True
-
-
-    assert cfg.workloads["fio"].enabled is False
+    assert cfg.is_plugin_enabled("stress_ng") is True
+    assert cfg.is_plugin_enabled("dd") is True
+    assert cfg.is_plugin_enabled("fio") is False
 
 
 
@@ -324,16 +296,11 @@ def test_plugin_select_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 
 
-    cfg_path = tmp_path / "xdg" / "lb" / "config.json"
+    platform_path = tmp_path / "xdg" / "lb" / "platform.json"
+    cfg = PlatformConfig.load(platform_path)
 
-
-    cfg = BenchmarkConfig.load(cfg_path)
-
-
-    assert cfg.workloads["fio"].enabled is True
-
-
-    assert cfg.workloads["stress_ng"].enabled is False
+    assert cfg.is_plugin_enabled("fio") is True
+    assert cfg.is_plugin_enabled("stress_ng") is False
 
 
 
@@ -462,7 +429,7 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cfg = BenchmarkConfig()
 
 
-    # Ensure at least one workload is enabled so run does not exit early
+    # Ensure at least one workload is configured so run does not exit early
 
 
     _ensure_workload_enabled(cfg, "stress_ng")
@@ -714,7 +681,7 @@ def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatc
 
 
     cfg = BenchmarkConfig()
-    cfg.workloads["stress_ng"] = WorkloadConfig(plugin="stress_ng", enabled=False)
+    cfg.workloads["stress_ng"] = WorkloadConfig(plugin="stress_ng")
 
 
     cfg_path = tmp_path / "myconfig.json"
@@ -747,10 +714,7 @@ def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatc
     assert "stress_ng" in result.output
 
 
-    # Default config keeps workloads disabled until explicitly toggled
-
-
-    assert "no" in result.output
+    assert "Enabled" not in result.output
 
 
 

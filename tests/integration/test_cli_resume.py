@@ -16,6 +16,7 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Import the CLI module with an isolated config home and cwd."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
     monkeypatch.setenv("LB_ENABLE_TEST_CLI", "1")
+    monkeypatch.delenv("LB_CONFIG_PATH", raising=False)
     monkeypatch.chdir(tmp_path)
     for mod in list(sys.modules.keys()):
         if mod.startswith(("lb_ui.cli", "lb_ui.api")):
@@ -25,9 +26,7 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 def _ensure_workload_enabled(cfg: BenchmarkConfig, name: str) -> None:
     if name not in cfg.workloads:
-        cfg.workloads[name] = WorkloadConfig(plugin=name, enabled=True)
-        return
-    cfg.workloads[name].enabled = True
+        cfg.workloads[name] = WorkloadConfig(plugin=name, options={})
 
 
 def test_resume_command_uses_journal_metadata(

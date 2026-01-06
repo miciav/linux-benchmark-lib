@@ -434,8 +434,6 @@
           ansible.builtin.fail:
             msg: |-
               setup_k6.yml failed.
-              stdout:
-              {{ k6_setup_result.stdout | default('') }}
-              stderr:
-              {{ k6_setup_result.stderr | default('') }}
+              {{ k6_setup_result.stdout | default('No stdout') }}
+              {{ k6_setup_result.stderr | default('No stderr') }}
       when: k6_setup_enabled

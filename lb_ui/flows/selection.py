@@ -10,7 +10,6 @@ from lb_app.api import (
     BenchmarkConfig,
     ConfigService,
     PluginRegistry,
-    WorkloadConfig,
     build_plugin_table,
 )
 from lb_ui.tui.system.protocols import UI
@@ -42,11 +41,11 @@ def select_workloads_interactively(
     ]
 
     # Prepare items for picker with variants as intensities
+    configured_plugins = set()
     for name, wl in sorted(cfg.workloads.items()):
+        configured_plugins.add(wl.plugin)
         plugin_obj = available_plugins.get(wl.plugin)
-        is_missing = plugin_obj is None
-        is_disabled = is_missing or not wl.enabled
-        if is_missing:
+        if plugin_obj is None:
             missing_plugins.add(wl.plugin)
         description = getattr(plugin_obj, "description", "") if plugin_obj else "missing plugin"
         current_intensity = wl.intensity if wl.intensity else "user_defined"
@@ -65,8 +64,7 @@ def select_workloads_interactively(
                     tags=variant.tags,
                     search_blob=variant.search_blob or label,
                     preview=variant.preview,
-                    selected=wl.enabled and variant.id == current_intensity and not is_disabled,
-                    disabled=is_disabled,
+                    selected=variant.id == current_intensity,
                 )
             )
 
@@ -77,22 +75,36 @@ def select_workloads_interactively(
             payload=wl,
             variants=variant_list,
             search_blob=f"{name} {wl.plugin} {description}",
-            selected=wl.enabled and not is_disabled,
-            disabled=is_disabled,
+            selected=True,
         )
         items.append(item)
+
+    # Add unconfigured plugins as disabled items
+    for plugin_name in sorted(available_plugins.keys()):
+        if plugin_name in configured_plugins:
+            continue
+
+        plugin_obj = available_plugins[plugin_name]
+        description = getattr(plugin_obj, "description", "")
+
+        items.append(
+            PickItem(
+                id=plugin_name,
+                title=f"[red]{plugin_name}[/red]",
+                description=f"{description} (Not enabled - use 'lb config enable-workload')",
+                disabled=True,
+                selected=False,
+            )
+        )
 
     if missing_plugins:
         missing_list = ", ".join(sorted(missing_plugins))
         ui.present.warning(
-            f"Missing plugins (disabled in picker): {missing_list}. "
-            "Install them to enable selection."
+            f"Missing plugins: {missing_list}. "
+            "Install them or remove the workloads from the config."
         )
-    elif items and all(item.disabled for item in items):
-        ui.present.warning(
-            "All workloads are disabled. Enable workloads first with "
-            "`lb plugin list --enable NAME`."
-        )
+    elif not items:
+        ui.present.warning("No plugins installed.")
 
     selection = ui.picker.pick_many(items, title="Select Configured Workloads")
     if selection is None:
@@ -111,16 +123,15 @@ def select_workloads_interactively(
 
     if not selection:
         ui.present.warning("Selection cancelled or empty.")
-        if not ui.form.confirm("Do you want to proceed with NO workloads enabled?", default=False):
+        if not ui.form.confirm("Do you want to proceed with NO workloads configured?", default=False):
             sys.exit(1)
 
     cfg_write, target, stale, _ = config_service.load_for_write(config, allow_create=True)
-    disabled_names = {item.id for item in items if item.disabled}
-    for name, wl in cfg_write.workloads.items():
-        if name in disabled_names:
+    for name, wl in list(cfg_write.workloads.items()):
+        if name not in selected_names:
+            cfg_write.workloads.pop(name, None)
             continue
-        wl.enabled = name in selected_names
-        if wl.enabled and name in intensities:
+        if name in intensities:
             wl.intensity = intensities[name]
         cfg_write.workloads[name] = wl
     cfg_write.save(target)
@@ -173,24 +184,10 @@ def apply_plugin_selection(
     config_service: ConfigService,
     registry: PluginRegistry,
     selection: Set[str],
-    config: Optional[Path],
-    set_default: bool,
 ) -> Dict[str, bool]:
     """
     Persist the selected plugins to the config and return the updated enabled map.
     """
-    cfg, target, stale, _ = config_service.load_for_write(config, allow_create=True)
-    for name in registry.available():
-        workload = cfg.workloads.get(name) or WorkloadConfig(plugin=name, options={})
-        workload.enabled = name in selection
-        cfg.workloads[name] = workload
-    cfg.save(target)
-    if set_default:
-        config_service.write_saved_config_path(target)
-    if stale:
-        ui.present.warning(f"Saved default config not found: {stale}")
+    cfg, target = config_service.set_plugin_selection(selection, registry)
     ui.present.success(f"Plugin selection saved to {target}")
-    return {
-        name: cfg.workloads.get(name, WorkloadConfig(plugin=name)).enabled
-        for name in registry.available()
-    }
+    return {name: cfg.is_plugin_enabled(name) for name in registry.available()}

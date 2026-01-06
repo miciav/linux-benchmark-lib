@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
-from lb_controller.api import BenchmarkConfig
+from lb_controller.api import BenchmarkConfig, PlatformConfig
 from lb_plugins.api import PluginRegistry, WorkloadIntensity
 
 
@@ -15,10 +15,14 @@ def build_run_plan(
     *,
     execution_mode: str = "remote",
     registry: PluginRegistry,
+    platform_config: PlatformConfig | None = None,
 ) -> list[dict[str, Any]]:
     """Build a detailed plan for the workloads to be run."""
     mode = (execution_mode or "remote").lower()
-    return [build_plan_item(cfg, name, mode, registry) for name in tests]
+    return [
+        build_plan_item(cfg, name, mode, registry, platform_config)
+        for name in tests
+    ]
 
 
 def build_plan_item(
@@ -26,6 +30,7 @@ def build_plan_item(
     name: str,
     mode: str,
     registry: PluginRegistry,
+    platform_config: PlatformConfig | None = None,
 ) -> dict[str, Any]:
     """Assemble a single plan item for display."""
     workload = cfg.workloads.get(name)
@@ -39,6 +44,12 @@ def build_plan_item(
     }
     if workload is None:
         return item
+
+    if platform_config is not None:
+        plugin_name = workload.plugin or name
+        if not platform_config.is_plugin_enabled(plugin_name):
+            item["status"] = "[yellow]skipped (disabled by platform)[/yellow]"
+            return item
 
     plugin = safe_get_plugin(registry, workload.plugin)
     if plugin is None:

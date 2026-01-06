@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from lb_common.api import (
+    parse_bool_env,
+    parse_float_env,
+    parse_int_env,
+    parse_labels_env,
+)
 from lb_plugins.api import PluginAssetConfig
 
 # --- Pydantic Models for Configuration ---
@@ -54,8 +61,96 @@ class MetricCollectorConfig(BaseModel):
     enable_ebpf: bool = Field(default=False, description="Enable eBPF-based metric collection")
 
 
+class LokiConfig(BaseModel):
+    """Configuration for Loki log shipping."""
+
+    enabled: bool = Field(default=False, description="Enable Loki log push")
+    endpoint: str = Field(
+        default="http://localhost:3100",
+        description="Loki base URL or push endpoint",
+    )
+    labels: Dict[str, str] = Field(
+        default_factory=dict, description="Static labels sent with Loki logs"
+    )
+    batch_size: int = Field(default=100, gt=0, description="Logs per batch")
+    flush_interval_ms: int = Field(
+        default=1000, gt=0, description="Flush interval in milliseconds"
+    )
+    timeout_seconds: float = Field(
+        default=5.0, gt=0, description="HTTP timeout for Loki push"
+    )
+    max_retries: int = Field(default=3, ge=0, description="Max retries on failure")
+    max_queue_size: int = Field(
+        default=10000, gt=0, description="Max pending logs in queue"
+    )
+    backoff_base: float = Field(
+        default=0.5, ge=0, description="Base backoff delay in seconds"
+    )
+    backoff_factor: float = Field(
+        default=2.0, ge=1.0, description="Backoff multiplier"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_env_overrides(cls, values: Any) -> Any:
+        if isinstance(values, cls):
+            return values
+        if not isinstance(values, dict):
+            return values
+
+        env_enabled = parse_bool_env(os.environ.get("LB_LOKI_ENABLED"))
+        env_endpoint = os.environ.get("LB_LOKI_ENDPOINT")
+        env_labels = parse_labels_env(os.environ.get("LB_LOKI_LABELS"))
+        env_batch_size = parse_int_env(os.environ.get("LB_LOKI_BATCH_SIZE"))
+        env_flush_ms = parse_int_env(os.environ.get("LB_LOKI_FLUSH_INTERVAL_MS"))
+        env_timeout = parse_float_env(os.environ.get("LB_LOKI_TIMEOUT_SECONDS"))
+        env_retries = parse_int_env(os.environ.get("LB_LOKI_MAX_RETRIES"))
+        env_queue = parse_int_env(os.environ.get("LB_LOKI_MAX_QUEUE_SIZE"))
+        env_backoff_base = parse_float_env(os.environ.get("LB_LOKI_BACKOFF_BASE"))
+        env_backoff_factor = parse_float_env(
+            os.environ.get("LB_LOKI_BACKOFF_FACTOR")
+        )
+
+        if env_enabled is not None:
+            values["enabled"] = env_enabled
+        if env_endpoint:
+            values["endpoint"] = env_endpoint
+        if env_labels:
+            merged = dict(values.get("labels") or {})
+            merged.update(env_labels)
+            values["labels"] = merged
+        if env_batch_size is not None:
+            values["batch_size"] = env_batch_size
+        if env_flush_ms is not None:
+            values["flush_interval_ms"] = env_flush_ms
+        if env_timeout is not None:
+            values["timeout_seconds"] = env_timeout
+        if env_retries is not None:
+            values["max_retries"] = env_retries
+        if env_queue is not None:
+            values["max_queue_size"] = env_queue
+        if env_backoff_base is not None:
+            values["backoff_base"] = env_backoff_base
+        if env_backoff_factor is not None:
+            values["backoff_factor"] = env_backoff_factor
+
+        return values
+
+
+class GrafanaPlatformConfig(BaseModel):
+    """Platform-level Grafana connection settings."""
+
+    url: str = Field(default="http://localhost:3000", description="Grafana base URL")
+    api_key: str | None = Field(default=None, description="Grafana API key (optional)")
+    org_id: int = Field(default=1, ge=1, description="Grafana organization id")
+
+    model_config = {"extra": "ignore"}
+
+
 class RemoteHostConfig(BaseModel):
     """Configuration for a remote benchmark host."""
+
+    model_config = ConfigDict(extra="ignore")
 
     name: str = Field(description="Unique name for the remote host")
     address: str = Field(description="IP address or hostname of the remote host")
@@ -94,6 +189,8 @@ class RemoteHostConfig(BaseModel):
 class RemoteExecutionConfig(BaseModel):
     """Configuration for remote execution via Ansible."""
 
+    model_config = ConfigDict(extra="ignore")
+
     enabled: bool = Field(default=False, description="Enable remote execution")
     inventory_path: Optional[Path] = Field(default=None, description="Path to a custom Ansible inventory file")
     lb_workdir: str = Field(
@@ -114,14 +211,18 @@ class RemoteExecutionConfig(BaseModel):
 class WorkloadConfig(BaseModel):
     """Configuration wrapper for workload plugins."""
 
+    model_config = ConfigDict(extra="ignore")
+
     plugin: str = Field(description="Name of the plugin to use")
-    enabled: bool = Field(default=True, description="Enable or disable this workload")
+    enabled: bool = Field(default=True, description="Whether this workload is enabled")
     intensity: str = Field(default="user_defined", description="Pre-defined intensity level (low, medium, high, user_defined)")
     options: Dict[str, Any] = Field(default_factory=dict, description="Plugin-specific options for the workload")
 
 
 class BenchmarkConfig(BaseModel):
     """Main configuration for benchmark tests."""
+
+    model_config = ConfigDict(extra="ignore")
 
     # Test execution parameters
     repetitions: int = Field(default=3, gt=0, description="Number of repetitions for each test")
@@ -154,6 +255,11 @@ class BenchmarkConfig(BaseModel):
 
     # System information collection
     collect_system_info: bool = Field(default=True, description="Collect system information before running benchmarks")
+
+    # Loki configuration (optional)
+    loki: LokiConfig = Field(
+        default_factory=LokiConfig, description="Loki log shipping configuration"
+    )
 
     # InfluxDB configuration (optional)
     influxdb_enabled: bool = Field(default=False, description="Enable InfluxDB integration")
@@ -198,3 +304,40 @@ class BenchmarkConfig(BaseModel):
         return cls.model_validate_json(filepath.read_text())
 
     # Removed _normalize_playbook_paths as its logic is now within RemoteExecutionConfig's model_validator
+
+
+class PlatformConfig(BaseModel):
+    """Platform-level configuration for defaults and plugin enablement."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    plugins: Dict[str, bool] = Field(
+        default_factory=dict,
+        description="Plugin enable/disable map (missing entries default to enabled)",
+    )
+    output_dir: Optional[Path] = Field(
+        default=None, description="Default benchmark output directory"
+    )
+    report_dir: Optional[Path] = Field(
+        default=None, description="Default report directory"
+    )
+    data_export_dir: Optional[Path] = Field(
+        default=None, description="Default data export directory"
+    )
+    loki: Optional[LokiConfig] = Field(
+        default=None, description="Optional Loki defaults for the platform"
+    )
+    grafana: Optional[GrafanaPlatformConfig] = Field(
+        default=None, description="Optional Grafana defaults for the platform"
+    )
+
+    def is_plugin_enabled(self, name: str) -> bool:
+        """Return True when the plugin is enabled or not explicitly disabled."""
+        return self.plugins.get(name, True)
+
+    def save(self, filepath: Path) -> None:
+        filepath.write_text(self.model_dump_json(indent=2))
+
+    @classmethod
+    def load(cls, filepath: Path) -> "PlatformConfig":
+        return cls.model_validate_json(filepath.read_text())
