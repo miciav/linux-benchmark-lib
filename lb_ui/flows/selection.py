@@ -41,7 +41,9 @@ def select_workloads_interactively(
     ]
 
     # Prepare items for picker with variants as intensities
+    configured_plugins = set()
     for name, wl in sorted(cfg.workloads.items()):
+        configured_plugins.add(wl.plugin)
         plugin_obj = available_plugins.get(wl.plugin)
         if plugin_obj is None:
             missing_plugins.add(wl.plugin)
@@ -77,6 +79,24 @@ def select_workloads_interactively(
         )
         items.append(item)
 
+    # Add unconfigured plugins as disabled items
+    for plugin_name in sorted(available_plugins.keys()):
+        if plugin_name in configured_plugins:
+            continue
+
+        plugin_obj = available_plugins[plugin_name]
+        description = getattr(plugin_obj, "description", "")
+
+        items.append(
+            PickItem(
+                id=plugin_name,
+                title=f"[red]{plugin_name}[/red]",
+                description=f"{description} (Not enabled - use 'lb config enable-workload')",
+                disabled=True,
+                selected=False,
+            )
+        )
+
     if missing_plugins:
         missing_list = ", ".join(sorted(missing_plugins))
         ui.present.warning(
@@ -84,7 +104,7 @@ def select_workloads_interactively(
             "Install them or remove the workloads from the config."
         )
     elif not items:
-        ui.present.warning("No workloads configured yet.")
+        ui.present.warning("No plugins installed.")
 
     selection = ui.picker.pick_many(items, title="Select Configured Workloads")
     if selection is None:
