@@ -28,16 +28,18 @@ class TestNotifier:
             assert kwargs["app_icon"] == "/tmp/icon.png"
 
     def test_send_notification_macos(self):
-        """Test notification via osascript on macOS."""
+        """Test notification via desktop-notifier on macOS."""
         with patch("platform.system", return_value="Darwin"), \
-             patch("subprocess.run") as mock_run:
+             patch("lb_ui.services.notifier.DesktopNotifier") as mock_notifier_cls:
+            
+            mock_instance = mock_notifier_cls.return_value
             notifier.send_notification("Title", "Message")
             
-            mock_run.assert_called_once()
-            args, _ = mock_run.call_args
-            cmd = args[0]
-            assert cmd[0] == "osascript"
-            assert 'display notification "Message" with title "Title"' in cmd[2]
+            mock_notifier_cls.assert_called_once()
+            mock_instance.send_sync.assert_called_once()
+            _, kwargs = mock_instance.send_sync.call_args
+            assert kwargs["title"] == "Title"
+            assert kwargs["message"] == "Message"
 
     def test_send_notification_plyer_missing(self):
         """Test behavior when plyer is not installed (notification module is None) on Linux."""
