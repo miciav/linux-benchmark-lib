@@ -44,9 +44,22 @@ def resolve_workload(name: str, workloads: dict[str, WorkloadConfig]) -> Workloa
 
 
 def resolve_config_input(
-    workload_cfg: WorkloadConfig, plugin: WorkloadPlugin, logger: logging.Logger
+    workload_cfg: WorkloadConfig,
+    plugin: WorkloadPlugin,
+    logger: logging.Logger,
+    plugin_settings: dict[str, Any] | None = None,
 ) -> Any:
-    config_input: Any = workload_cfg.options
+    # Start with global plugin settings as base
+    base_settings = {}
+    if plugin_settings:
+        base_settings = plugin_settings.get(workload_cfg.plugin, {}).copy()
+
+    # Workload-specific options override global settings
+    user_options = workload_cfg.options
+    
+    # Merge strategy: shallow merge is usually sufficient for config dicts here
+    config_input = {**base_settings, **user_options}
+
     if workload_cfg.intensity and workload_cfg.intensity != "user_defined":
         try:
             level = WorkloadIntensity(workload_cfg.intensity)
@@ -75,10 +88,12 @@ class RunPlanner:
         workloads: dict[str, WorkloadConfig],
         repetitions: int,
         logger: logging.Logger,
+        plugin_settings: dict[str, Any] | None = None,
     ) -> None:
         self._workloads = workloads
         self._repetitions = repetitions
         self._logger = logger
+        self._plugin_settings = plugin_settings or {}
 
     def generate_run_id(self) -> str:
         return generate_run_id()
@@ -96,4 +111,6 @@ class RunPlanner:
     def resolve_config_input(
         self, workload_cfg: WorkloadConfig, plugin: WorkloadPlugin
     ) -> Any:
-        return resolve_config_input(workload_cfg, plugin, self._logger)
+        return resolve_config_input(
+            workload_cfg, plugin, self._logger, self._plugin_settings
+        )

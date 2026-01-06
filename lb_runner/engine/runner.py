@@ -83,10 +83,12 @@ class LocalRunner:
         self.plugin_registry = self._resolve_registry(registry, collector_registry)
         workloads = getattr(self.config, "workloads", {})
         repetitions = getattr(self.config, "repetitions", 1)
+        plugin_settings = getattr(self.config, "plugin_settings", {})
         self._planner = RunPlanner(
             workloads=workloads,
             repetitions=repetitions,
             logger=logger,
+            plugin_settings=plugin_settings,
         )
         self._scope_manager = RunScopeManager(self.config, logger)
         self._collector_coordinator = CollectorCoordinator(self.plugin_registry)
