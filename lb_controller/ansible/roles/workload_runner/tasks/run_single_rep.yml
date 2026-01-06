@@ -57,6 +57,7 @@
         chdir: "{{ workload_runner_workdir }}"
       environment:
         LB_RUN_HOST: "{{ inventory_hostname }}"
+        LB_RUN_HOST_ADDRESS: "{{ ansible_host | default(inventory_hostname) }}"
         LB_RUN_WORKLOAD: "{{ workload_runner_current_workload }}"
         LB_RUN_REPETITION: "{{ workload_runner_current_rep }}"
         LB_RUN_TOTAL_REPS: "{{ workload_runner_total_reps }}"

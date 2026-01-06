@@ -52,7 +52,19 @@ def resolve_config_input(
     # Start with global plugin settings as base
     base_settings = {}
     if plugin_settings:
-        base_settings = plugin_settings.get(workload_cfg.plugin, {}).copy()
+        raw_settings = plugin_settings.get(workload_cfg.plugin)
+        if raw_settings:
+            if hasattr(raw_settings, "model_dump"):
+                base_settings = raw_settings.model_dump()
+            elif hasattr(raw_settings, "dict"):
+                base_settings = raw_settings.dict()
+            elif isinstance(raw_settings, dict):
+                base_settings = raw_settings.copy()
+            else:
+                try:
+                    base_settings = dict(raw_settings)
+                except (TypeError, ValueError):
+                    base_settings = {}
 
     # Workload-specific options override global settings
     user_options = workload_cfg.options

@@ -8,6 +8,7 @@ import logging
 import math
 import os
 import re
+import socket
 import subprocess
 import threading
 import time
@@ -52,11 +53,13 @@ class ExecutionContext:
     repetition: int
     total_repetitions: int
     event_logging_enabled: bool = False
+    host_address: str | None = None
 
     @classmethod
     def from_environment(cls) -> "ExecutionContext":
         """Create context from environment variables."""
         host = os.environ.get("LB_RUN_HOST") or os.uname().nodename
+        host_address = os.environ.get("LB_RUN_HOST_ADDRESS")
         repetition = _parse_int(os.environ.get("LB_RUN_REPETITION"), 1)
         total = _parse_int(os.environ.get("LB_RUN_TOTAL_REPS"), repetition)
         raw = os.environ.get("LB_ENABLE_EVENT_LOGGING", "1").strip().lower()
@@ -66,6 +69,7 @@ class ExecutionContext:
             repetition=repetition,
             total_repetitions=total,
             event_logging_enabled=event_logging,
+            host_address=host_address,
         )
 
 
@@ -206,14 +210,14 @@ class DfaasGenerator(BaseGenerator):
             k6_ssh_key=config.k6_ssh_key,
             k6_port=config.k6_port,
             k6_workspace_root=config.k6_workspace_root,
-            gateway_url=config.gateway_url,
+            gateway_url=self._resolve_url_template(config.gateway_url, self._exec_ctx.host),
             duration=config.duration,
             log_stream_enabled=config.k6_log_stream,
             log_callback=self._emit_k6_log_event,
             log_to_logger=True,
         )
         self._metrics_collector = MetricsCollector(
-            prometheus_url=config.prometheus_url,
+            prometheus_url=self._resolve_url_template(config.prometheus_url, self._exec_ctx.host),
             queries_path=config.queries_path,
             duration=config.duration,
             scaphandre_enabled=config.scaphandre_enabled,
@@ -452,17 +456,43 @@ class DfaasGenerator(BaseGenerator):
         except Exception as exc:
             logger.warning("Failed to resolve Grafana dashboard: %s", exc)
 
-    def _resolve_prometheus_url(self, target_name: str) -> str:
-        url = self.config.prometheus_url
+    def _get_local_ip(self) -> str:
+        """Resolve the primary local IP address."""
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # doesn't even have to be reachable
+            s.connect(('10.255.255.255', 1))
+            IP = s.getsockname()[0]
+        except Exception:
+            IP = '127.0.0.1'
+        finally:
+            s.close()
+        return IP
+
+    def _resolve_url_template(self, url: str, target_name: str) -> str:
+        """Resolve {host.address} in URL with best available address."""
+        if "{host.address}" in url:
+            replacement = (
+                self._exec_ctx.host_address
+                or target_name
+                or self._get_local_ip()
+            )
+            url = url.replace("{host.address}", replacement)
+        
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
             return url
+        
+        # Fallback for localhost replacement logic
         host = parsed.hostname
         if host in {"127.0.0.1", "localhost", "0.0.0.0"} and target_name:
             port = parsed.port
             netloc = f"{target_name}:{port}" if port else target_name
             return urlunparse(parsed._replace(netloc=netloc))
         return url
+
+    def _resolve_prometheus_url(self, target_name: str) -> str:
+        return self._resolve_url_template(self.config.prometheus_url, target_name)
 
     def _base_grafana_tags(self, run_id: str) -> list[str]:
         return [

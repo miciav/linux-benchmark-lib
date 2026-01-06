@@ -247,7 +247,7 @@ config = {
             "k6_user": "ubuntu",
             "k6_ssh_key": k6_key_path,
             "k6_port": 22,
-            "gateway_url": f"http://{target_ip}:31112",
+            "gateway_url": "http://{host.address}:31112",
             "prometheus_url": "http://{host.address}:30411",
             "functions": [
                 {
