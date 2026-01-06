@@ -39,6 +39,18 @@ def test_resolve_prometheus_url_rewrites_localhost() -> None:
     assert resolved == "http://10.0.0.5:30411"
 
 
+def test_resolve_prometheus_url_replaces_host_address(monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = DfaasConfig(prometheus_url="http://{host.address}:30411")
+    generator = DfaasGenerator(cfg)
+    
+    # Mock _get_local_ip to return a stable IP
+    monkeypatch.setattr(generator, "_get_local_ip", lambda: "192.168.1.50")
+
+    resolved = generator._resolve_prometheus_url("ignored-target")
+
+    assert resolved == "http://192.168.1.50:30411"
+
+
 def test_init_grafana_resolves_dashboard(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

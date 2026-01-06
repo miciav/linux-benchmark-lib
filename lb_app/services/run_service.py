@@ -430,8 +430,13 @@ class RunService:
     def _attach_controller_jsonl(
         context: RunContext, session: _RemoteSession
     ) -> logging.Handler:
+        # We attach to the specific controller logger to ensure we capture INFO logs
+        # even if the root logger is at WARNING.
+        controller_logger = logging.getLogger("lb_controller")
+        controller_logger.setLevel(logging.INFO)
+        
         return attach_jsonl_handler(
-            logging.getLogger(),
+            controller_logger,
             output_dir=session.journal_path.parent,
             component="controller",
             host=platform.node() or "controller",

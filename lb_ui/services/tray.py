@@ -57,14 +57,14 @@ def _resolve_icon_paths() -> tuple[Path | None, Path]:
     try:
         current_file = Path(__file__)
         project_root = current_file.parents[2]
-        maybe_source = project_root / "docs" / "img" / "lb_mark.png"
+        maybe_source = project_root / "docs" / "img" / "logo_sys2.png"
         if maybe_source.exists():
             source_path = maybe_source.absolute()
     except Exception:
         pass
     
-    # Using 128x128 for better high-DPI support
-    cache_path = _get_cache_dir() / "tray_icon_128.png"
+    # Using v7 and 64px height for the new logo_sys2.png
+    cache_path = _get_cache_dir() / "tray_icon_v7_64.png"
     return source_path, cache_path
 
 
@@ -85,38 +85,28 @@ def _run_tray_icon(stop_event: multiprocessing.Event) -> None:
             if source_image.mode != "RGBA":
                 source_image = source_image.convert("RGBA")
 
-            # CROP: Remove empty transparent space around the logo
-            # This is crucial to make the icon appear larger in the tray
-            bbox = source_image.getbbox()
+            # ADVANCED CROP: Remove transparent or near-transparent pixels
+            # We use a threshold on the alpha channel (ignore alpha < 10)
+            alpha = source_image.getchannel('A')
+            mask = alpha.point(lambda p: 255 if p > 10 else 0)
+            bbox = mask.getbbox()
             if bbox:
                 source_image = source_image.crop(bbox)
 
-            target_size = (128, 128)
+            # Target height 64px is standard for high-res tray icons
+            # We resize directly without forcing a square background
+            # This allows the OS to scale the content to fill the bar height
+            target_h = 64
             width, height = source_image.size
-            aspect = width / height
+            ratio = target_h / height
+            new_size = (int(width * ratio), target_h)
             
-            if aspect > 1:
-                # Wider than tall
-                new_width = target_size[0]
-                new_height = int(target_size[0] / aspect)
-            else:
-                # Taller than wide
-                new_height = target_size[1]
-                new_width = int(target_size[1] * aspect)
-                
-            resized_img = source_image.resize(
-                (new_width, new_height), 
+            final_image = source_image.resize(
+                new_size, 
                 resample=Image.Resampling.LANCZOS
             )
             
-            final_image = Image.new("RGBA", target_size, (0, 0, 0, 0))
-            offset = (
-                (target_size[0] - new_width) // 2,
-                (target_size[1] - new_height) // 2
-            )
-            final_image.paste(resized_img, offset)
-            
-            # Save to cache for next time
+            # Save to cache
             final_image.save(cache_path, "PNG")
         else:
             return
@@ -136,7 +126,6 @@ def _run_tray_icon(stop_event: multiprocessing.Event) -> None:
 
         icon.run()
     except Exception:
-        # Silently fail in headless or problematic environments
         pass
 
 
