@@ -1,6 +1,6 @@
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY
 import logging
 
 # We import the module under test inside tests to facilitate patching imports if needed,
@@ -30,16 +30,28 @@ class TestNotifier:
     def test_send_notification_macos(self):
         """Test notification via desktop-notifier on macOS."""
         with patch("platform.system", return_value="Darwin"), \
-             patch("lb_ui.services.notifier.DesktopNotifier") as mock_notifier_cls:
+             patch("lb_ui.services.notifier.DesktopNotifier") as mock_notifier_cls, \
+             patch("asyncio.run") as mock_asyncio_run:
             
             mock_instance = mock_notifier_cls.return_value
             notifier.send_notification("Title", "Message")
             
             mock_notifier_cls.assert_called_once()
-            mock_instance.send_sync.assert_called_once()
-            _, kwargs = mock_instance.send_sync.call_args
+            mock_asyncio_run.assert_called_once()
+            # The argument to asyncio.run is the coroutine from mock_instance.send
+            mock_instance.send.assert_called_once()
+            _, kwargs = mock_instance.send.call_args
             assert kwargs["title"] == "Title"
             assert kwargs["message"] == "Message"
+
+    def test_send_notification_macos_fallback(self):
+        """Test fallback to osascript if desktop-notifier fails."""
+        with patch("platform.system", return_value="Darwin"), \
+             patch("lb_ui.services.notifier.DesktopNotifier", side_effect=Exception("API Error")), \
+             patch("lb_ui.services.notifier._send_macos_osascript") as mock_osascript:
+            
+            notifier.send_notification("Title", "Message")
+            mock_osascript.assert_called_once_with("Title", "Message", ANY)
 
     def test_send_notification_plyer_missing(self):
         """Test behavior when plyer is not installed (notification module is None) on Linux."""

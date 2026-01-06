@@ -1,6 +1,8 @@
 import logging
 import platform
 import os
+import subprocess
+import asyncio
 from pathlib import Path
 from typing import Optional
 
@@ -30,19 +32,37 @@ def _get_cache_dir() -> Path:
 def _resolve_icon_path() -> str | None:
     """Resolve the path to the best available application icon."""
     try:
-        # Priority 1: Optimized cached icon (v4, cropped, 64x64)
-        cache_icon = _get_cache_dir() / "tray_icon_v4_64.png"
+        # Priority 1: Optimized cached icon (v7, logo_sys2)
+        cache_icon = _get_cache_dir() / "tray_icon_v7_64.png"
         if cache_icon.exists():
             return str(cache_icon.absolute())
 
         # Priority 2: Older cached versions
-        for old_name in ["tray_icon_128.png", "tray_icon_64.png"]:
+        for old_name in ["tray_icon_v6_64.png", "tray_icon_v5_64.png", "tray_icon_v4_64.png"]:
             old_path = _get_cache_dir() / old_name
             if old_path.exists():
                 return str(old_path.absolute())
+
+        # Priority 3: Original source icon
+        current_file = Path(__file__)
+        project_root = current_file.parents[2]
+        source_icon = project_root / "docs" / "img" / "logo_sys2.png"
+        if source_icon.exists():
+            return str(source_icon.absolute())
     except Exception:
         pass
     return None
+
+
+def _send_macos_osascript(title: str, message: str, icon_path: str | None = None) -> None:
+    """Fallback macOS notification using osascript."""
+    safe_title = title.replace('"', '\\"')
+    safe_message = message.replace('"', '\\"')
+    script = f'display notification "{safe_message}" with title "{safe_title}"'
+    if icon_path:
+        script += f' with icon file (POSIX file "{icon_path}")'
+    
+    subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
 
 
 def send_notification(
@@ -64,15 +84,23 @@ def send_notification(
     try:
         icon_path = _resolve_icon_path()
 
-        # macOS specific implementation using desktop-notifier (Native API)
-        if platform.system() == "Darwin" and DesktopNotifier is not None:
-            notifier = DesktopNotifier(app_name=app_name)
-            # send_sync is perfect for CLI tools
-            notifier.send_sync(
-                title=title,
-                message=message,
-                icon=icon_path,
-            )
+        # macOS specific implementation
+        if platform.system() == "Darwin":
+            if DesktopNotifier is not None:
+                try:
+                    notifier = DesktopNotifier(app_name=app_name)
+                    # desktop-notifier 6.x is async only
+                    asyncio.run(notifier.send(
+                        title=title,
+                        message=message,
+                        icon=icon_path,
+                    ))
+                    return
+                except Exception as exc:
+                    logger.debug(f"desktop-notifier failed, falling back to osascript: {exc}")
+            
+            # Robust fallback for macOS
+            _send_macos_osascript(title, message, icon_path)
             return
 
         # Fallback to plyer for Linux/Windows
