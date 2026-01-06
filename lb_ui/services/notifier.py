@@ -54,11 +54,33 @@ def _resolve_icon_path() -> str | None:
     return None
 
 
+def _play_notification_sound() -> None:
+    """Play a system notification sound."""
+    try:
+        if platform.system() == "Darwin":
+            # Standard macOS notification sound
+            subprocess.Popen(
+                ["afplay", "/System/Library/Sounds/Note.aiff"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        elif platform.system() == "Linux":
+            # Standard freedesktop notification sound
+            subprocess.Popen(
+                ["canberra-gtk-play", "--id=message-new-instant"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+    except Exception:
+        pass
+
+
 def _send_macos_osascript(title: str, message: str, icon_path: str | None = None) -> None:
     """Fallback macOS notification using osascript."""
     safe_title = title.replace('"', '\\"')
     safe_message = message.replace('"', '\\"')
-    script = f'display notification "{safe_message}" with title "{safe_title}"'
+    # Adding 'sound name' to the script
+    script = f'display notification "{safe_message}" with title "{safe_title}" sound name "Glass"'
     if icon_path:
         script += f' with icon file (POSIX file "{icon_path}")'
     
@@ -72,7 +94,7 @@ def send_notification(
     app_name: str = "Linux Benchmark Lib",
     timeout: int = 10,
 ) -> None:
-    """Send a desktop notification with icon support.
+    """Send a desktop notification with icon and sound support.
 
     Args:
         title: Notification title
@@ -83,12 +105,14 @@ def send_notification(
     """
     try:
         icon_path = _resolve_icon_path()
+        _play_notification_sound()
 
         # macOS specific implementation
         if platform.system() == "Darwin":
             if DesktopNotifier is not None:
                 try:
-                    notifier = DesktopNotifier(app_name=app_name)
+                    # Passing app_icon to constructor helps with Notification Center visibility
+                    notifier = DesktopNotifier(app_name=app_name, app_icon=icon_path)
                     # desktop-notifier 6.x is async only
                     asyncio.run(notifier.send(
                         title=title,
