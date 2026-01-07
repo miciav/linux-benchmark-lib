@@ -226,6 +226,8 @@ config_path = Path(os.environ["DFAAS_CONFIG_PATH"])
 loki_enabled = os.environ.get("DFAAS_LOKI_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 loki_endpoint = os.environ.get("DFAAS_LOKI_ENDPOINT", "").strip()
 
+# We use {host.address} templates for URLs to support multi-target scenarios.
+# These placeholders are resolved at runtime by the DFaaS generator.
 config = {
     "remote_hosts": [
         {
