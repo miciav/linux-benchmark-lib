@@ -290,17 +290,24 @@ main() {
 
   target_ip="$(wait_for_ip "$TARGET_NAME")"
   generator_ip="$(wait_for_ip "$GENERATOR_NAME")"
+  
   if is_enabled "$ENABLE_LOKI"; then
     if [ -z "$LOKI_ENDPOINT" ]; then
       controller_ip="$(controller_ip_from_vm "$TARGET_NAME")"
       if [ -z "$controller_ip" ]; then
         controller_ip="$(controller_ip_local)"
       fi
-    if [ -n "$controller_ip" ]; then
-      LOKI_ENDPOINT="http://${controller_ip}:3100"
+      
+      if [ -n "$controller_ip" ]; then
+        LOKI_ENDPOINT="http://${controller_ip}:3100"
+      else
+        echo "WARNING: Could not determine controller IP for Loki." >&2
+        echo "The remote runner may not be able to send logs." >&2
+        echo "Please rerun with --loki-endpoint http://<YOUR_IP>:3100" >&2
+        LOKI_ENDPOINT="http://localhost:3100"
+      fi
     fi
   fi
-fi
 
   write_config "$target_ip" "$generator_ip"
 

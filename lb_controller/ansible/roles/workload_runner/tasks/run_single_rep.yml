@@ -70,6 +70,8 @@
         LB_RUN_DAEMONIZE: "1"
         LB_RUN_PID_PATH: "{{ workload_runner_workdir }}/lb_localrunner.pid"
         LB_RUN_STATUS_PATH: "{{ workload_runner_workdir }}/lb_localrunner.status.json"
+        LB_LOKI_ENABLED: "{{ (workload_runner_config.loki.enabled | default(false)) | ternary('1', '0') }}"
+        LB_LOKI_ENDPOINT: "{{ workload_runner_config.loki.endpoint | default('') }}"
       register: workload_runner_async
       changed_when: true
       async: 45
