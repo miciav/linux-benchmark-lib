@@ -64,10 +64,8 @@ class DesktopEngine(NotificationEngine):
     def _play_sound(self) -> None:
         """Play system notification sound."""
         try:
-            if platform.system() == "Darwin":
-                subprocess.Popen(["afplay", "/System/Library/Sounds/Note.aiff"], 
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            elif platform.system() == "Linux":
+            if platform.system() == "Linux":
+                # Standard freedesktop notification sound
                 subprocess.Popen(["canberra-gtk-play", "--id=message-new-instant"],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
@@ -85,11 +83,19 @@ class DesktopEngine(NotificationEngine):
             if DesktopNotifier is not None:
                 try:
                     notifier = DesktopNotifier(app_name=self.app_name, app_icon=icon_path)
+                    # desktop-notifier 6.x is async only
                     asyncio.run(notifier.send(title=title, message=message, icon=icon_path))
+                    
+                    # Give macOS time to load the icon and sound before the process exits
+                    import time
+                    time.sleep(3)
                     return
                 except Exception as exc:
-                    logger.debug(f"desktop-notifier failed: {exc}")
+                    logger.debug(f"desktop-notifier failed, falling back to osascript: {exc}")
+            
             self._send_macos_osascript(title, message, icon_path)
+            import time
+            time.sleep(3)
             return
 
         # Linux/Other Path
