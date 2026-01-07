@@ -119,6 +119,8 @@ def register_run_command(
         ),
     ) -> None:
         """Run workloads using Ansible on remote, Docker, or Multipass targets."""
+        import time
+        start_ts = time.time()
         from lb_common.api import configure_logging
 
         if not ctx.dev_mode and (docker or multipass):
@@ -329,12 +331,20 @@ def register_run_command(
             raise typer.Exit(1)
         finally:
             tray.stop()
-            status_msg = "completed successfully" if run_success else "failed"
-            notif_title = f"Benchmark Run {run_id if run_id else ''} {status_msg.split()[0].upper()}"
+            
+            # Calculate total duration if start time was captured
+            import time
+            total_duration = time.time() - start_ts if 'start_ts' in locals() else None
+            
+            status_word = "SUCCESS" if run_success else "FAILED"
+            msg_body = f"Benchmark execution finished with status: {status_word}"
+            
             send_notification(
-                title=notif_title,
-                message=f"The benchmark run has {status_msg}.",
-                success=run_success
+                title=f"Benchmark {status_word}",
+                message=msg_body,
+                success=run_success,
+                run_id=run_id,
+                duration_s=total_duration
             )
 
         if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):

@@ -15,40 +15,9 @@ except ImportError:
     Image = None
     pystray = None
 
+from lb_ui.services.assets import get_cache_dir, resolve_icon_path
+
 logger = logging.getLogger(__name__)
-
-
-def _resolve_icon_path() -> Path | None:
-    """Resolve the path to the application icon."""
-    try:
-        # Reusing the logic from notifier.py
-        current_file = Path(__file__)
-        project_root = current_file.parents[2]
-        icon_path = project_root / "docs" / "img" / "lb_mark.png"
-        if icon_path.exists():
-            return icon_path.absolute()
-    except Exception:
-        pass
-    return None
-
-
-def _get_cache_dir() -> Path:
-    """Get or create the user cache directory for LB."""
-    # Use standard XDG_CACHE_HOME or fallback to ~/.cache
-    cache_base = os.environ.get("XDG_CACHE_HOME")
-    if cache_base:
-        path = Path(cache_base) / "lb"
-    else:
-        path = Path.home() / ".cache" / "lb"
-    
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        # Fallback to system temp if home is not writable
-        import tempfile
-        path = Path(tempfile.gettempdir()) / "lb_cache"
-        path.mkdir(parents=True, exist_ok=True)
-    return path
 
 
 def _resolve_icon_paths() -> tuple[Path | None, Path]:
@@ -63,8 +32,8 @@ def _resolve_icon_paths() -> tuple[Path | None, Path]:
     except Exception:
         pass
     
-    # Using v7 and 64px height for the new logo_sys2.png
-    cache_path = _get_cache_dir() / "tray_icon_v7_64.png"
+    # We maintain the knowledge of the current variant name here
+    cache_path = get_cache_dir() / "tray_icon_v7_64.png"
     return source_path, cache_path
 
 
