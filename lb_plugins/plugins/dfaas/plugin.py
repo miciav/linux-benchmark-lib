@@ -20,7 +20,7 @@ class DfaasPlugin(SimpleWorkloadPlugin):
     DESCRIPTION = "DFaaS k6 + OpenFaaS workload"
     CONFIG_CLS = DfaasConfig
     GENERATOR_CLS = DfaasGenerator
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_target.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_global.yml"
     GRAFANA_ASSETS = GRAFANA_ASSETS
 
     def export_results_to_csv(
