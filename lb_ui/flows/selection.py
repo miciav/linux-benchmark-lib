@@ -10,6 +10,7 @@ from lb_app.api import (
     BenchmarkConfig,
     ConfigService,
     PluginRegistry,
+    WorkloadConfig,
     build_plugin_table,
 )
 from lb_ui.tui.system.protocols import UI
@@ -42,6 +43,8 @@ def select_workloads_interactively(
 
     # Prepare items for picker with variants as intensities
     configured_plugins = set()
+    platform_cfg, _, _ = config_service.load_platform_config()
+
     for name, wl in sorted(cfg.workloads.items()):
         configured_plugins.add(wl.plugin)
         plugin_obj = available_plugins.get(wl.plugin)
@@ -79,23 +82,38 @@ def select_workloads_interactively(
         )
         items.append(item)
 
-    # Add unconfigured plugins as disabled items
+    # Add unconfigured plugins as selectable or disabled items
     for plugin_name in sorted(available_plugins.keys()):
         if plugin_name in configured_plugins:
             continue
 
         plugin_obj = available_plugins[plugin_name]
         description = getattr(plugin_obj, "description", "")
+        is_plugin_platform_enabled = platform_cfg.is_plugin_enabled(plugin_name)
 
-        items.append(
-            PickItem(
-                id=plugin_name,
-                title=f"[red]{plugin_name}[/red]",
-                description=f"{description} (Not enabled - use 'lb config enable-workload')",
-                disabled=True,
-                selected=False,
+        if is_plugin_platform_enabled:
+            # Shown as selectable, but not currently in workloads.
+            # No [red] tags, the UI will show this as a normal, selectable item.
+            items.append(
+                PickItem(
+                    id=plugin_name,
+                    title=plugin_name,
+                    description=f"{description} (Available - click to add to config)",
+                    disabled=False,
+                    selected=False,
+                )
             )
-        )
+        else:
+            # Only plugins explicitly disabled in platform.json appear as disabled (red).
+            items.append(
+                PickItem(
+                    id=plugin_name,
+                    title=plugin_name,
+                    description=f"{description} (Disabled in platform configuration)",
+                    disabled=True,
+                    selected=False,
+                )
+            )
 
     if missing_plugins:
         missing_list = ", ".join(sorted(missing_plugins))
@@ -127,13 +145,31 @@ def select_workloads_interactively(
             sys.exit(1)
 
     cfg_write, target, stale, _ = config_service.load_for_write(config, allow_create=True)
-    for name, wl in list(cfg_write.workloads.items()):
+    
+    # 1. Remove workloads that were deselected
+    for name in list(cfg_write.workloads.keys()):
         if name not in selected_names:
             cfg_write.workloads.pop(name, None)
-            continue
-        if name in intensities:
-            wl.intensity = intensities[name]
-        cfg_write.workloads[name] = wl
+
+    # 2. Add or update selected workloads
+    for name in selected_names:
+        if name in cfg_write.workloads:
+            wl = cfg_write.workloads[name]
+            if name in intensities:
+                wl.intensity = intensities[name]
+        else:
+            # New workload from an enabled plugin
+            # Name matches plugin_name here for new ones
+            from lb_controller.api import WorkloadConfig
+            wl = WorkloadConfig(plugin=name, options={}, intensity=intensities.get(name, "medium"))
+            cfg_write.workloads[name] = wl
+            
+            # Ensure plugin settings are populated
+            if name not in cfg_write.plugin_settings:
+                plugin = registry.get(name)
+                if hasattr(plugin, "config_cls"):
+                    cfg_write.plugin_settings[name] = plugin.config_cls()
+
     cfg_write.save(target)
     if set_default:
         config_service.write_saved_config_path(target)
