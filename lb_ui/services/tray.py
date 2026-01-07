@@ -15,26 +15,9 @@ except ImportError:
     Image = None
     pystray = None
 
-from lb_ui.services.assets import get_cache_dir, resolve_icon_path
+from lb_ui.services.assets import resolve_icon_path
 
 logger = logging.getLogger(__name__)
-
-
-def _resolve_icon_paths() -> tuple[Path | None, Path]:
-    """Resolve the source icon path and the target cache path."""
-    source_path = None
-    try:
-        current_file = Path(__file__)
-        project_root = current_file.parents[2]
-        maybe_source = project_root / "docs" / "img" / "logo_sys2.png"
-        if maybe_source.exists():
-            source_path = maybe_source.absolute()
-    except Exception:
-        pass
-    
-    # We maintain the knowledge of the current variant name here
-    cache_path = get_cache_dir() / "tray_icon_v7_64.png"
-    return source_path, cache_path
 
 
 def _run_tray_icon(stop_event: multiprocessing.Event) -> None:
@@ -42,43 +25,13 @@ def _run_tray_icon(stop_event: multiprocessing.Event) -> None:
     if pystray is None or Image is None:
         return
 
-    source_path, cache_path = _resolve_icon_paths()
+    icon_path = resolve_icon_path()
+    if not icon_path:
+        return
     
     try:
-        # Try to load from cache first
-        if cache_path.exists():
-            final_image = Image.open(cache_path)
-        elif source_path:
-            # Generate and cache
-            source_image = Image.open(source_path)
-            if source_image.mode != "RGBA":
-                source_image = source_image.convert("RGBA")
-
-            # ADVANCED CROP: Remove transparent or near-transparent pixels
-            # We use a threshold on the alpha channel (ignore alpha < 10)
-            alpha = source_image.getchannel('A')
-            mask = alpha.point(lambda p: 255 if p > 10 else 0)
-            bbox = mask.getbbox()
-            if bbox:
-                source_image = source_image.crop(bbox)
-
-            # Target height 64px is standard for high-res tray icons
-            # We resize directly without forcing a square background
-            # This allows the OS to scale the content to fill the bar height
-            target_h = 64
-            width, height = source_image.size
-            ratio = target_h / height
-            new_size = (int(width * ratio), target_h)
-            
-            final_image = source_image.resize(
-                new_size, 
-                resample=Image.Resampling.LANCZOS
-            )
-            
-            # Save to cache
-            final_image.save(cache_path, "PNG")
-        else:
-            return
+        # Load the pre-optimized icon from cache
+        final_image = Image.open(icon_path)
 
         # Define a simple menu
         menu = pystray.Menu(

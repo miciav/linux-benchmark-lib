@@ -267,7 +267,7 @@ def register_run_command(
         else:
             resolved_node_count = len(cfg.remote_hosts or []) or 1
 
-        from lb_ui.services.notifier import send_notification
+        from lb_ui.notifications import send_notification
         from lb_ui.services.tray import TrayManager
 
         tray = TrayManager()
