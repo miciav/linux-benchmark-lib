@@ -4,27 +4,35 @@
         "imports": [
             "lb_controller",
             "lb_controller.adapters",
+            "lb_controller.adapters.ansible_helpers",
             "lb_controller.adapters.ansible_runner",
             "lb_controller.adapters.playbooks",
             "lb_controller.adapters.remote_runner",
             "lb_controller.api",
             "lb_controller.engine",
             "lb_controller.engine.controller",
+            "lb_controller.engine.controller_protocols",
             "lb_controller.engine.interrupts",
             "lb_controller.engine.lifecycle",
+            "lb_controller.engine.run_state",
             "lb_controller.engine.stop_logic",
             "lb_controller.engine.stops",
             "lb_controller.models",
             "lb_controller.models.contracts",
+            "lb_controller.models.controller_options",
             "lb_controller.models.pending",
             "lb_controller.models.state",
             "lb_controller.models.types",
             "lb_controller.services",
+            "lb_controller.services.controller_context",
             "lb_controller.services.journal",
             "lb_controller.services.journal_sync",
             "lb_controller.services.paths",
             "lb_controller.services.run_catalog_service",
-            "lb_controller.services.setup_service"
+            "lb_controller.services.setup_service",
+            "lb_controller.services.teardown_service",
+            "lb_controller.services.ui_notifier",
+            "lb_controller.services.workload_runner"
         ],
         "name": "__main__",
         "path": null
@@ -43,7 +51,8 @@
             "lb_common",
             "lb_common.api",
             "lb_controller.api",
-            "lb_controller.services.run_catalog_service"
+            "lb_controller.services.run_catalog_service",
+            "lb_plugins.api"
         ],
         "imports": [
             "lb_common",
@@ -69,15 +78,22 @@
         "bacon": 1,
         "imported_by": [
             "__main__",
+            "lb_controller.adapters.ansible_helpers",
             "lb_controller.adapters.ansible_runner",
             "lb_controller.adapters.playbooks",
             "lb_controller.adapters.remote_runner",
             "lb_controller.api",
             "lb_controller.engine.controller",
+            "lb_controller.engine.controller_protocols",
+            "lb_controller.engine.run_state",
             "lb_controller.engine.stop_logic",
+            "lb_controller.models.controller_options",
             "lb_controller.models.pending",
             "lb_controller.models.types",
-            "lb_controller.services.journal_sync"
+            "lb_controller.services.controller_context",
+            "lb_controller.services.journal_sync",
+            "lb_controller.services.teardown_service",
+            "lb_controller.services.workload_runner"
         ],
         "name": "lb_controller",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/__init__.py"
@@ -86,22 +102,45 @@
         "bacon": 1,
         "imported_by": [
             "__main__",
+            "lb_controller.adapters.ansible_runner",
             "lb_controller.api",
-            "lb_controller.engine.controller"
+            "lb_controller.engine.controller",
+            "lb_controller.models.controller_options",
+            "lb_controller.services.controller_context",
+            "lb_controller.services.teardown_service",
+            "lb_controller.services.workload_runner"
         ],
         "name": "lb_controller.adapters",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/adapters/__init__.py"
+    },
+    "lb_controller.adapters.ansible_helpers": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_controller.adapters.ansible_runner"
+        ],
+        "imports": [
+            "lb_controller",
+            "lb_controller.models",
+            "lb_controller.models.types",
+            "lb_runner",
+            "lb_runner.api"
+        ],
+        "name": "lb_controller.adapters.ansible_helpers",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/adapters/ansible_helpers.py"
     },
     "lb_controller.adapters.ansible_runner": {
         "bacon": 1,
         "imported_by": [
             "__main__",
             "lb_controller.api",
-            "lb_controller.engine.controller"
+            "lb_controller.models.controller_options"
         ],
         "imports": [
             "ansible_runner",
             "lb_controller",
+            "lb_controller.adapters",
+            "lb_controller.adapters.ansible_helpers",
             "lb_controller.models",
             "lb_controller.models.types",
             "lb_runner",
@@ -114,13 +153,17 @@
         "bacon": 1,
         "imported_by": [
             "__main__",
-            "lb_controller.engine.controller"
+            "lb_controller.engine.controller",
+            "lb_controller.services.controller_context",
+            "lb_controller.services.teardown_service",
+            "lb_controller.services.workload_runner"
         ],
         "imports": [
             "lb_controller",
             "lb_controller.engine",
-            "lb_controller.engine.controller",
+            "lb_controller.engine.controller_protocols",
             "lb_controller.engine.lifecycle",
+            "lb_controller.engine.run_state",
             "lb_controller.models",
             "lb_controller.models.state",
             "lb_controller.models.types",
@@ -170,6 +213,7 @@
             "lb_controller.engine.stops",
             "lb_controller.models",
             "lb_controller.models.contracts",
+            "lb_controller.models.controller_options",
             "lb_controller.models.pending",
             "lb_controller.models.state",
             "lb_controller.models.types",
@@ -190,7 +234,11 @@
             "lb_controller.adapters.playbooks",
             "lb_controller.api",
             "lb_controller.engine.controller",
-            "lb_controller.engine.stop_logic"
+            "lb_controller.engine.controller_protocols",
+            "lb_controller.engine.stop_logic",
+            "lb_controller.services.controller_context",
+            "lb_controller.services.teardown_service",
+            "lb_controller.services.workload_runner"
         ],
         "name": "lb_controller.engine",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/engine/__init__.py"
@@ -199,26 +247,27 @@
         "bacon": 1,
         "imported_by": [
             "__main__",
-            "lb_controller.adapters.playbooks",
-            "lb_controller.api",
-            "lb_controller.engine.stop_logic"
+            "lb_controller.api"
         ],
         "imports": [
             "lb_controller",
             "lb_controller.adapters",
-            "lb_controller.adapters.ansible_runner",
             "lb_controller.adapters.playbooks",
             "lb_controller.engine",
             "lb_controller.engine.lifecycle",
-            "lb_controller.engine.stop_logic",
+            "lb_controller.engine.run_state",
             "lb_controller.engine.stops",
             "lb_controller.models",
-            "lb_controller.models.pending",
+            "lb_controller.models.controller_options",
             "lb_controller.models.state",
             "lb_controller.models.types",
             "lb_controller.services",
+            "lb_controller.services.controller_context",
             "lb_controller.services.journal",
             "lb_controller.services.paths",
+            "lb_controller.services.teardown_service",
+            "lb_controller.services.ui_notifier",
+            "lb_controller.services.workload_runner",
             "lb_plugins",
             "lb_plugins.api",
             "lb_runner",
@@ -226,6 +275,28 @@
         ],
         "name": "lb_controller.engine.controller",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/engine/controller.py"
+    },
+    "lb_controller.engine.controller_protocols": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_controller.adapters.playbooks",
+            "lb_controller.engine.stop_logic"
+        ],
+        "imports": [
+            "lb_controller",
+            "lb_controller.engine",
+            "lb_controller.engine.lifecycle",
+            "lb_controller.engine.run_state",
+            "lb_controller.engine.stops",
+            "lb_controller.models",
+            "lb_controller.models.state",
+            "lb_controller.models.types",
+            "lb_runner",
+            "lb_runner.api"
+        ],
+        "name": "lb_controller.engine.controller_protocols",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/engine/controller_protocols.py"
     },
     "lb_controller.engine.interrupts": {
         "bacon": 1,
@@ -242,21 +313,47 @@
             "__main__",
             "lb_controller.adapters.playbooks",
             "lb_controller.api",
-            "lb_controller.engine.controller"
+            "lb_controller.engine.controller",
+            "lb_controller.engine.controller_protocols",
+            "lb_controller.services.controller_context",
+            "lb_controller.services.workload_runner"
         ],
         "name": "lb_controller.engine.lifecycle",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/engine/lifecycle.py"
+    },
+    "lb_controller.engine.run_state": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_controller.adapters.playbooks",
+            "lb_controller.engine.controller",
+            "lb_controller.engine.controller_protocols",
+            "lb_controller.engine.stop_logic",
+            "lb_controller.services.controller_context",
+            "lb_controller.services.teardown_service",
+            "lb_controller.services.workload_runner"
+        ],
+        "imports": [
+            "lb_controller",
+            "lb_controller.models",
+            "lb_controller.models.types",
+            "lb_controller.services",
+            "lb_controller.services.journal"
+        ],
+        "name": "lb_controller.engine.run_state",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/engine/run_state.py"
     },
     "lb_controller.engine.stop_logic": {
         "bacon": 1,
         "imported_by": [
             "__main__",
-            "lb_controller.engine.controller"
+            "lb_controller.services.controller_context"
         ],
         "imports": [
             "lb_controller",
             "lb_controller.engine",
-            "lb_controller.engine.controller",
+            "lb_controller.engine.controller_protocols",
+            "lb_controller.engine.run_state",
             "lb_controller.engine.stops",
             "lb_controller.models",
             "lb_controller.models.state",
@@ -271,7 +368,9 @@
             "__main__",
             "lb_controller.api",
             "lb_controller.engine.controller",
-            "lb_controller.engine.stop_logic"
+            "lb_controller.engine.controller_protocols",
+            "lb_controller.engine.stop_logic",
+            "lb_controller.services.controller_context"
         ],
         "imports": [
             "lb_runner",
@@ -284,13 +383,20 @@
         "bacon": 1,
         "imported_by": [
             "__main__",
+            "lb_controller.adapters.ansible_helpers",
             "lb_controller.adapters.ansible_runner",
             "lb_controller.adapters.playbooks",
             "lb_controller.adapters.remote_runner",
             "lb_controller.api",
             "lb_controller.engine.controller",
+            "lb_controller.engine.controller_protocols",
+            "lb_controller.engine.run_state",
             "lb_controller.engine.stop_logic",
-            "lb_controller.models.types"
+            "lb_controller.models.controller_options",
+            "lb_controller.models.types",
+            "lb_controller.services.controller_context",
+            "lb_controller.services.teardown_service",
+            "lb_controller.services.workload_runner"
         ],
         "name": "lb_controller.models",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/models/__init__.py"
@@ -308,12 +414,32 @@
         "name": "lb_controller.models.contracts",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/models/contracts.py"
     },
-    "lb_controller.models.pending": {
+    "lb_controller.models.controller_options": {
         "bacon": 1,
         "imported_by": [
             "__main__",
             "lb_controller.api",
             "lb_controller.engine.controller"
+        ],
+        "imports": [
+            "lb_controller",
+            "lb_controller.adapters",
+            "lb_controller.adapters.ansible_runner",
+            "lb_controller.models",
+            "lb_controller.models.state",
+            "lb_controller.models.types",
+            "lb_runner",
+            "lb_runner.api"
+        ],
+        "name": "lb_controller.models.controller_options",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/models/controller_options.py"
+    },
+    "lb_controller.models.pending": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_controller.api",
+            "lb_controller.services.workload_runner"
         ],
         "imports": [
             "lb_controller",
@@ -333,8 +459,11 @@
             "lb_controller.adapters.remote_runner",
             "lb_controller.api",
             "lb_controller.engine.controller",
+            "lb_controller.engine.controller_protocols",
             "lb_controller.engine.stop_logic",
-            "lb_controller.models.types"
+            "lb_controller.models.controller_options",
+            "lb_controller.models.types",
+            "lb_controller.services.controller_context"
         ],
         "name": "lb_controller.models.state",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/models/state.py"
@@ -343,11 +472,18 @@
         "bacon": 1,
         "imported_by": [
             "__main__",
+            "lb_controller.adapters.ansible_helpers",
             "lb_controller.adapters.ansible_runner",
             "lb_controller.adapters.playbooks",
             "lb_controller.api",
             "lb_controller.engine.controller",
-            "lb_controller.engine.stop_logic"
+            "lb_controller.engine.controller_protocols",
+            "lb_controller.engine.run_state",
+            "lb_controller.engine.stop_logic",
+            "lb_controller.models.controller_options",
+            "lb_controller.services.controller_context",
+            "lb_controller.services.teardown_service",
+            "lb_controller.services.workload_runner"
         ],
         "imports": [
             "lb_controller",
@@ -366,14 +502,43 @@
             "lb_controller.adapters.playbooks",
             "lb_controller.api",
             "lb_controller.engine.controller",
+            "lb_controller.engine.run_state",
             "lb_controller.models.pending",
-            "lb_controller.services.journal_sync"
+            "lb_controller.services.journal_sync",
+            "lb_controller.services.teardown_service",
+            "lb_controller.services.workload_runner"
         ],
         "imports": [
             "lb_controller.services.run_catalog_service"
         ],
         "name": "lb_controller.services",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/services/__init__.py"
+    },
+    "lb_controller.services.controller_context": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_controller.engine.controller",
+            "lb_controller.services.teardown_service",
+            "lb_controller.services.workload_runner"
+        ],
+        "imports": [
+            "lb_controller",
+            "lb_controller.adapters",
+            "lb_controller.adapters.playbooks",
+            "lb_controller.engine",
+            "lb_controller.engine.lifecycle",
+            "lb_controller.engine.run_state",
+            "lb_controller.engine.stop_logic",
+            "lb_controller.engine.stops",
+            "lb_controller.models",
+            "lb_controller.models.state",
+            "lb_controller.models.types",
+            "lb_runner",
+            "lb_runner.api"
+        ],
+        "name": "lb_controller.services.controller_context",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/services/controller_context.py"
     },
     "lb_controller.services.journal": {
         "bacon": 1,
@@ -382,6 +547,7 @@
             "lb_controller.adapters.playbooks",
             "lb_controller.api",
             "lb_controller.engine.controller",
+            "lb_controller.engine.run_state",
             "lb_controller.models.pending",
             "lb_controller.services.journal_sync"
         ],
@@ -450,12 +616,70 @@
         "name": "lb_controller.services.setup_service",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/services/setup_service.py"
     },
+    "lb_controller.services.teardown_service": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_controller.engine.controller"
+        ],
+        "imports": [
+            "lb_controller",
+            "lb_controller.adapters",
+            "lb_controller.adapters.playbooks",
+            "lb_controller.engine",
+            "lb_controller.engine.run_state",
+            "lb_controller.models",
+            "lb_controller.models.types",
+            "lb_controller.services",
+            "lb_controller.services.controller_context"
+        ],
+        "name": "lb_controller.services.teardown_service",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/services/teardown_service.py"
+    },
+    "lb_controller.services.ui_notifier": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_controller.engine.controller",
+            "lb_controller.services.workload_runner"
+        ],
+        "name": "lb_controller.services.ui_notifier",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/services/ui_notifier.py"
+    },
+    "lb_controller.services.workload_runner": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_controller.engine.controller"
+        ],
+        "imports": [
+            "lb_controller",
+            "lb_controller.adapters",
+            "lb_controller.adapters.playbooks",
+            "lb_controller.engine",
+            "lb_controller.engine.lifecycle",
+            "lb_controller.engine.run_state",
+            "lb_controller.models",
+            "lb_controller.models.pending",
+            "lb_controller.models.types",
+            "lb_controller.services",
+            "lb_controller.services.controller_context",
+            "lb_controller.services.ui_notifier",
+            "lb_plugins",
+            "lb_plugins.api",
+            "lb_runner",
+            "lb_runner.api"
+        ],
+        "name": "lb_controller.services.workload_runner",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_controller/services/workload_runner.py"
+    },
     "lb_plugins": {
         "bacon": 2,
         "imported_by": [
             "lb_controller.adapters.playbooks",
             "lb_controller.engine.controller",
             "lb_controller.services.setup_service",
+            "lb_controller.services.workload_runner",
             "lb_plugins",
             "lb_plugins.api"
         ],
@@ -472,9 +696,11 @@
             "lb_controller.adapters.playbooks",
             "lb_controller.engine.controller",
             "lb_controller.services.setup_service",
+            "lb_controller.services.workload_runner",
             "lb_plugins"
         ],
         "imports": [
+            "lb_common",
             "lb_plugins"
         ],
         "name": "lb_plugins.api",
@@ -483,19 +709,24 @@
     "lb_runner": {
         "bacon": 2,
         "imported_by": [
+            "lb_controller.adapters.ansible_helpers",
             "lb_controller.adapters.ansible_runner",
             "lb_controller.adapters.playbooks",
             "lb_controller.adapters.remote_runner",
             "lb_controller.api",
             "lb_controller.engine.controller",
+            "lb_controller.engine.controller_protocols",
             "lb_controller.engine.stops",
             "lb_controller.models.contracts",
+            "lb_controller.models.controller_options",
             "lb_controller.models.pending",
             "lb_controller.models.types",
+            "lb_controller.services.controller_context",
             "lb_controller.services.journal",
             "lb_controller.services.journal_sync",
             "lb_controller.services.paths",
             "lb_controller.services.setup_service",
+            "lb_controller.services.workload_runner",
             "lb_runner.api"
         ],
         "name": "lb_runner",
@@ -504,19 +735,24 @@
     "lb_runner.api": {
         "bacon": 2,
         "imported_by": [
+            "lb_controller.adapters.ansible_helpers",
             "lb_controller.adapters.ansible_runner",
             "lb_controller.adapters.playbooks",
             "lb_controller.adapters.remote_runner",
             "lb_controller.api",
             "lb_controller.engine.controller",
+            "lb_controller.engine.controller_protocols",
             "lb_controller.engine.stops",
             "lb_controller.models.contracts",
+            "lb_controller.models.controller_options",
             "lb_controller.models.pending",
             "lb_controller.models.types",
+            "lb_controller.services.controller_context",
             "lb_controller.services.journal",
             "lb_controller.services.journal_sync",
             "lb_controller.services.paths",
-            "lb_controller.services.setup_service"
+            "lb_controller.services.setup_service",
+            "lb_controller.services.workload_runner"
         ],
         "imports": [
             "lb_runner"

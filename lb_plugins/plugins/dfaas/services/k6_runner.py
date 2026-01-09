@@ -19,7 +19,7 @@ from invoke.exceptions import UnexpectedExit
 from ..exceptions import K6ExecutionError
 
 if TYPE_CHECKING:
-    from ..plugin import DfaasFunctionConfig
+    from ..config import DfaasFunctionConfig
 
 logger = logging.getLogger(__name__)
 

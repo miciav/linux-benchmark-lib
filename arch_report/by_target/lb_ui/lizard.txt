@@ -1,27 +1,19 @@
 ================================================
   NLOC    CCN   token  PARAM  length  location  
 ------------------------------------------------
-       2      1     14      2       2 __init__@13-14@lb_ui/tui/adapters/tui_adapter.py
-       2      1     21      2       2 show_info@16-17@lb_ui/tui/adapters/tui_adapter.py
-       2      1     21      2       2 show_warning@19-20@lb_ui/tui/adapters/tui_adapter.py
-       2      1     21      2       2 show_error@22-23@lb_ui/tui/adapters/tui_adapter.py
-       2      1     21      2       2 show_success@25-26@lb_ui/tui/adapters/tui_adapter.py
-       2      1     41      4       2 show_panel@28-29@lb_ui/tui/adapters/tui_adapter.py
-       2      1     21      2       2 show_rule@31-32@lb_ui/tui/adapters/tui_adapter.py
-       3      2     66      4       3 show_table@34-36@lb_ui/tui/adapters/tui_adapter.py
-       2      1     25      2       2 status@38-39@lb_ui/tui/adapters/tui_adapter.py
-       2      1     19      3       5 create_progress@41-45@lb_ui/tui/adapters/tui_adapter.py
-       2      1     52      4       5 create_dashboard@47-51@lb_ui/tui/adapters/tui_adapter.py
-      10      5    127      3      15 prompt_multipass_scenario@53-67@lb_ui/tui/adapters/tui_adapter.py
-       5      1     59      2       5 __init__@83-87@lb_ui/tui/adapters/tui_adapter.py
-      12      3     87      1      12 live@90-101@lb_ui/tui/adapters/tui_adapter.py
-      16      6     94      1      16 _run@103-118@lb_ui/tui/adapters/tui_adapter.py
-       2      1     29      2       2 add_log@120-121@lb_ui/tui/adapters/tui_adapter.py
-       2      1     24      1       2 refresh@123-124@lb_ui/tui/adapters/tui_adapter.py
-       2      1     29      2       2 mark_event@126-127@lb_ui/tui/adapters/tui_adapter.py
-       2      1     40      3       2 set_warning@129-130@lb_ui/tui/adapters/tui_adapter.py
-       2      1     24      1       2 clear_warning@132-133@lb_ui/tui/adapters/tui_adapter.py
-       2      1     29      2       2 set_controller_state@135-136@lb_ui/tui/adapters/tui_adapter.py
+       2      1     14      2       2 __init__@12-13@lb_ui/tui/adapters/tui_adapter.py
+       2      1     21      2       2 show_info@15-16@lb_ui/tui/adapters/tui_adapter.py
+       2      1     21      2       2 show_warning@18-19@lb_ui/tui/adapters/tui_adapter.py
+       2      1     21      2       2 show_error@21-22@lb_ui/tui/adapters/tui_adapter.py
+       2      1     21      2       2 show_success@24-25@lb_ui/tui/adapters/tui_adapter.py
+       2      1     41      4       2 show_panel@27-28@lb_ui/tui/adapters/tui_adapter.py
+       2      1     21      2       2 show_rule@30-31@lb_ui/tui/adapters/tui_adapter.py
+       3      2     66      4       3 show_table@33-35@lb_ui/tui/adapters/tui_adapter.py
+       2      1     25      2       2 status@37-38@lb_ui/tui/adapters/tui_adapter.py
+       2      1     19      3       5 create_progress@40-44@lb_ui/tui/adapters/tui_adapter.py
+       2      1     52      4       5 create_dashboard@46-50@lb_ui/tui/adapters/tui_adapter.py
+      14      5    128      3      19 prompt_multipass_scenario@52-70@lb_ui/tui/adapters/tui_adapter.py
+       2      1     21      2       2 __init__@86-87@lb_ui/tui/adapters/tui_adapter.py
        3      3     50      1       3 search_blob@46-48@lb_ui/tui/system/components/picker.py
       41      2    315      4      46 __init__@61-106@lb_ui/tui/system/components/picker.py
        2      1     17      1       2 _current@108-109@lb_ui/tui/system/components/picker.py
@@ -100,13 +92,21 @@
        2      1     15      1       2 run@865-866@lb_ui/tui/system/components/picker.py
       21      8    133      4      22 pick_one@870-891@lb_ui/tui/system/components/picker.py
       22      7    133      4      22 pick_many@893-914@lb_ui/tui/system/components/picker.py
-       2      1     14      2       2 __init__@8-9@lb_ui/tui/system/components/presenter.py
-       2      1     20      2       2 info@11-12@lb_ui/tui/system/components/presenter.py
-       2      1     20      2       2 warning@14-15@lb_ui/tui/system/components/presenter.py
-       2      1     20      2       2 error@17-18@lb_ui/tui/system/components/presenter.py
-       2      1     20      2       2 success@20-21@lb_ui/tui/system/components/presenter.py
-       2      1     46      4       2 panel@23-24@lb_ui/tui/system/components/presenter.py
-       2      1     22      2       2 rule@26-27@lb_ui/tui/system/components/presenter.py
+       2      1     16      2       2 __init__@15-16@lb_ui/tui/system/components/presenter.py
+       3      1     40      3       3 emit@18-20@lb_ui/tui/system/components/presenter.py
+       7      1     43      4       7 emit_panel@22-28@lb_ui/tui/system/components/presenter.py
+       2      1     22      2       2 emit_rule@30-31@lb_ui/tui/system/components/presenter.py
+       2      1     22      2       2 __init__@35-36@lb_ui/tui/system/components/presenter.py
+       9      2    105      3       9 __init__@12-20@lb_ui/tui/system/components/dashboard_adapter.py
+      20      4    119      1      20 live@23-42@lb_ui/tui/system/components/dashboard_adapter.py
+      18      6    108      1      18 _run@44-61@lb_ui/tui/system/components/dashboard_adapter.py
+       6      2     64      4       6 _dispatch@63-68@lb_ui/tui/system/components/dashboard_adapter.py
+       2      1     19      2       2 add_log@70-71@lb_ui/tui/system/components/dashboard_adapter.py
+       2      1     13      1       2 refresh@73-74@lb_ui/tui/system/components/dashboard_adapter.py
+       2      1     19      2       2 mark_event@76-77@lb_ui/tui/system/components/dashboard_adapter.py
+       2      1     31      3       2 set_warning@79-80@lb_ui/tui/system/components/dashboard_adapter.py
+       2      1     13      1       2 clear_warning@82-83@lb_ui/tui/system/components/dashboard_adapter.py
+       2      1     19      2       2 set_controller_state@85-86@lb_ui/tui/system/components/dashboard_adapter.py
       12      5     71      1      12 _console_width@13-24@lb_ui/tui/system/components/table_layout.py
        2      2     34      1       3 build_rich_table._cell_width@66-68@lb_ui/tui/system/components/table_layout.py
       55     11    372      7      73 build_rich_table@27-99@lb_ui/tui/system/components/table_layout.py
@@ -125,21 +125,27 @@
       20     11    145      3      23 _filter_items@151-173@lb_ui/tui/system/components/flat_picker_panel.py
        8      3     72      1       8 _render_list@175-182@lb_ui/tui/system/components/flat_picker_panel.py
       12      4     81      1      14 _render_preview@184-197@lb_ui/tui/system/components/flat_picker_panel.py
-      26      1    178      5      26 __init__@35-60@lb_ui/tui/system/components/dashboard.py
-      15      3     60      1      16 live@63-78@lb_ui/tui/system/components/dashboard.py
-       3      2     29      1       4 refresh@80-83@lb_ui/tui/system/components/dashboard.py
-      14      3    182      1      16 render@85-100@lb_ui/tui/system/components/dashboard.py
-      10      2    100      1      11 _render_logs@102-112@lb_ui/tui/system/components/dashboard.py
-      16      6    112      1      17 _render_status@114-130@lb_ui/tui/system/components/dashboard.py
-      38      8    308      1      48 _render_journal@132-179@lb_ui/tui/system/components/dashboard.py
-      13      6    104      2      15 add_log@181-195@lb_ui/tui/system/components/dashboard.py
-       3      2     28      2       4 mark_event@197-200@lb_ui/tui/system/components/dashboard.py
-       2      1     17      2       3 set_controller_state@202-204@lb_ui/tui/system/components/dashboard.py
-       3      1     36      3       4 set_warning@206-209@lb_ui/tui/system/components/dashboard.py
-       3      1     18      1       4 clear_warning@211-214@lb_ui/tui/system/components/dashboard.py
-       4      1     20      1       4 _event_status_line@216-219@lb_ui/tui/system/components/dashboard.py
-       2      1     14      2       2 __init__@222-223@lb_ui/tui/system/components/dashboard.py
-       2      1     47      4       2 create@225-226@lb_ui/tui/system/components/dashboard.py
+      28      1    212      5      28 __init__@47-74@lb_ui/tui/system/components/dashboard.py
+      15      3     60      1      16 live@77-92@lb_ui/tui/system/components/dashboard.py
+       3      2     29      1       4 refresh@94-97@lb_ui/tui/system/components/dashboard.py
+      14      3    182      1      16 render@99-114@lb_ui/tui/system/components/dashboard.py
+      10      2    100      1      11 _render_logs@116-126@lb_ui/tui/system/components/dashboard.py
+      16      6    112      1      17 _render_status@128-144@lb_ui/tui/system/components/dashboard.py
+      38      8    308      1      48 _render_journal@146-193@lb_ui/tui/system/components/dashboard.py
+      11      4     70      2      12 add_log@195-206@lb_ui/tui/system/components/dashboard.py
+       2      1     25      1       2 _normalize_log_line@209-210@lb_ui/tui/system/components/dashboard.py
+      20      8    162      1      20 _parse_bullet_line@213-232@lb_ui/tui/system/components/dashboard.py
+      64     23    442      2      64 _maybe_rollup_polling@234-297@lb_ui/tui/system/components/dashboard.py
+      32     14    328      3      34 _update_polling_summary@299-332@lb_ui/tui/system/components/dashboard.py
+       8      3     41      2       8 _write_ui_log@334-341@lb_ui/tui/system/components/dashboard.py
+       4      2     43      1       4 _trim_log_buffer@343-346@lb_ui/tui/system/components/dashboard.py
+       3      2     28      2       4 mark_event@348-351@lb_ui/tui/system/components/dashboard.py
+       2      1     17      2       3 set_controller_state@353-355@lb_ui/tui/system/components/dashboard.py
+       3      1     36      3       4 set_warning@357-360@lb_ui/tui/system/components/dashboard.py
+       3      1     18      1       4 clear_warning@362-365@lb_ui/tui/system/components/dashboard.py
+       4      1     20      1       4 _event_status_line@367-370@lb_ui/tui/system/components/dashboard.py
+       2      1     14      2       2 __init__@373-374@lb_ui/tui/system/components/dashboard.py
+       2      1     47      4       2 create@376-377@lb_ui/tui/system/components/dashboard.py
        8      3     66      1       8 build_intensity_map@24-31@lb_ui/tui/system/components/dashboard_helpers.py
        2      1     16      1       2 target_repetitions@34-35@lb_ui/tui/system/components/dashboard_helpers.py
        8      3     58      1       8 unique_pairs@38-45@lb_ui/tui/system/components/dashboard_helpers.py
@@ -151,9 +157,9 @@
        5      1     49      2       6 computed_journal_height@87-92@lb_ui/tui/system/components/dashboard_helpers.py
        8      3     64      1       8 split_timing@95-102@lb_ui/tui/system/components/dashboard_helpers.py
        6      3     46      2       6 event_status_line@105-110@lb_ui/tui/system/components/dashboard_helpers.py
-       2      1     14      2       2 __init__@7-8@lb_ui/tui/system/components/form.py
-       7      3     66      4      10 ask@10-19@lb_ui/tui/system/components/form.py
-       2      1     34      3       2 confirm@21-22@lb_ui/tui/system/components/form.py
+       2      1     14      2       2 __init__@6-7@lb_ui/tui/system/components/form.py
+       7      3     66      4      10 ask@9-18@lb_ui/tui/system/components/form.py
+       2      1     34      3       2 confirm@20-21@lb_ui/tui/system/components/form.py
        2      1     14      2       2 __init__@7-8@lb_ui/tui/system/components/table.py
       10      1     48      2      10 show@10-19@lb_ui/tui/system/components/table.py
        2      1     14      2       2 __init__@6-7@lb_ui/tui/system/components/progress.py
@@ -173,49 +179,58 @@
       18      1     84      1      66 _keybindings@123-188@lb_ui/tui/system/components/hierarchical_picker.py
        2      1     17      1       2 run@190-191@lb_ui/tui/system/components/hierarchical_picker.py
       10      3     54      3      10 pick_one@195-204@lb_ui/tui/system/components/hierarchical_picker.py
-       8      1     61      1       8 __post_init__@26-33@lb_ui/tui/system/headless.py
-       2      1     14      2       2 __init__@36-37@lb_ui/tui/system/headless.py
-       2      1     34      4       2 pick_one@39-40@lb_ui/tui/system/headless.py
-       2      1     37      4       2 pick_many@42-43@lb_ui/tui/system/headless.py
-       2      1     14      2       2 __init__@46-47@lb_ui/tui/system/headless.py
-       6      3     62      3       6 pick_one@49-54@lb_ui/tui/system/headless.py
-      12      6     88      3      14 _pick_by_path@57-70@lb_ui/tui/system/headless.py
-       8      5     49      2       8 _find_child@73-80@lb_ui/tui/system/headless.py
-       8      4     46      2       8 _first_leaf@83-90@lb_ui/tui/system/headless.py
-       2      1     14      2       2 __init__@93-94@lb_ui/tui/system/headless.py
-       2      1     24      2       2 show@96-97@lb_ui/tui/system/headless.py
-       2      1     14      2       2 __init__@100-101@lb_ui/tui/system/headless.py
-       2      1     22      2       2 info@103-104@lb_ui/tui/system/headless.py
-       2      1     22      2       2 warning@106-107@lb_ui/tui/system/headless.py
-       2      1     22      2       2 error@109-110@lb_ui/tui/system/headless.py
-       2      1     22      2       2 success@112-113@lb_ui/tui/system/headless.py
-       2      1     38      4       2 panel@115-116@lb_ui/tui/system/headless.py
-       2      1     22      2       2 rule@118-119@lb_ui/tui/system/headless.py
-       2      1     14      2       2 __init__@122-123@lb_ui/tui/system/headless.py
-       2      1     31      4       2 ask@125-126@lb_ui/tui/system/headless.py
-       2      1     23      3       2 confirm@128-129@lb_ui/tui/system/headless.py
-       2      1     14      2       2 __init__@132-133@lb_ui/tui/system/headless.py
-       3      1     29      2       3 status@135-137@lb_ui/tui/system/headless.py
-       2      1     14      2       2 __init__@140-141@lb_ui/tui/system/headless.py
-       3      1     24      1       3 live@143-145@lb_ui/tui/system/headless.py
-       2      1     21      2       2 add_log@147-148@lb_ui/tui/system/headless.py
-       2      1      8      1       2 refresh@150-151@lb_ui/tui/system/headless.py
-       2      1     12      2       2 mark_event@153-154@lb_ui/tui/system/headless.py
-       2      1     20      3       2 set_warning@156-157@lb_ui/tui/system/headless.py
-       2      1      8      1       2 clear_warning@159-160@lb_ui/tui/system/headless.py
-       2      1     12      2       2 set_controller_state@162-163@lb_ui/tui/system/headless.py
-       2      1     14      2       2 __init__@166-167@lb_ui/tui/system/headless.py
-       8      1     48      4       8 create@169-176@lb_ui/tui/system/headless.py
+       2      1     16      2       2 __init__@22-23@lb_ui/tui/system/components/presenter_base.py
+       2      1     21      2       2 info@25-26@lb_ui/tui/system/components/presenter_base.py
+       2      1     21      2       2 warning@28-29@lb_ui/tui/system/components/presenter_base.py
+       2      1     21      2       2 error@31-32@lb_ui/tui/system/components/presenter_base.py
+       2      1     21      2       2 success@34-35@lb_ui/tui/system/components/presenter_base.py
+       7      1     40      4       7 panel@37-43@lb_ui/tui/system/components/presenter_base.py
+       2      1     19      2       2 rule@45-46@lb_ui/tui/system/components/presenter_base.py
+       8      1     61      1       8 __post_init__@28-35@lb_ui/tui/system/headless.py
+       2      1     14      2       2 __init__@38-39@lb_ui/tui/system/headless.py
+       2      1     34      4       2 pick_one@41-42@lb_ui/tui/system/headless.py
+       2      1     37      4       2 pick_many@44-45@lb_ui/tui/system/headless.py
+       2      1     14      2       2 __init__@48-49@lb_ui/tui/system/headless.py
+       6      3     62      3       6 pick_one@51-56@lb_ui/tui/system/headless.py
+      12      6     88      3      14 _pick_by_path@59-72@lb_ui/tui/system/headless.py
+       8      5     49      2       8 _find_child@75-82@lb_ui/tui/system/headless.py
+       8      4     46      2       8 _first_leaf@85-92@lb_ui/tui/system/headless.py
+       2      1     14      2       2 __init__@95-96@lb_ui/tui/system/headless.py
+       2      1     24      2       2 show@98-99@lb_ui/tui/system/headless.py
+       2      1     16      2       2 __init__@102-103@lb_ui/tui/system/headless.py
+       2      1     26      3       2 emit@105-106@lb_ui/tui/system/headless.py
+       7      1     35      4       7 emit_panel@108-114@lb_ui/tui/system/headless.py
+       2      1     22      2       2 emit_rule@116-117@lb_ui/tui/system/headless.py
+       2      1     22      2       2 __init__@120-121@lb_ui/tui/system/headless.py
+       2      1     14      2       2 __init__@124-125@lb_ui/tui/system/headless.py
+       2      1     31      4       2 ask@127-128@lb_ui/tui/system/headless.py
+       2      1     23      3       2 confirm@130-131@lb_ui/tui/system/headless.py
+       2      1     14      2       2 __init__@134-135@lb_ui/tui/system/headless.py
+       3      1     29      2       3 status@137-139@lb_ui/tui/system/headless.py
+       2      1     16      2       2 __init__@142-143@lb_ui/tui/system/headless.py
+       3      1     24      1       3 live@145-147@lb_ui/tui/system/headless.py
+       2      1     21      2       2 add_log@149-150@lb_ui/tui/system/headless.py
+       2      1      8      1       2 refresh@152-153@lb_ui/tui/system/headless.py
+       2      1     12      2       2 mark_event@155-156@lb_ui/tui/system/headless.py
+       2      1     20      3       2 set_warning@158-159@lb_ui/tui/system/headless.py
+       2      1      8      1       2 clear_warning@161-162@lb_ui/tui/system/headless.py
+       2      1     12      2       2 set_controller_state@164-165@lb_ui/tui/system/headless.py
+       2      1     14      2       2 __init__@168-169@lb_ui/tui/system/headless.py
+       8      1     51      4       8 create@171-178@lb_ui/tui/system/headless.py
        9      2    100      2       9 __init__@25-33@lb_ui/tui/system/facade.py
        3      2     65      4       4 show_table@35-38@lb_ui/tui/system/facade.py
       19      5    126      3      22 register_run_command._print_run_journal_summary@21-42@lb_ui/cli/commands/run.py
-       2      1     19      2       2 register_run_command.register_run_command.run.on_log@201-202@lb_ui/cli/commands/run.py
-       2      1     20      2       2 register_run_command.register_run_command.run.on_status@204-205@lb_ui/cli/commands/run.py
-       2      1     27      3       2 register_run_command.register_run_command.run.on_warning@207-208@lb_ui/cli/commands/run.py
-       2      1     10      2       2 register_run_command.register_run_command.run.on_event@210-211@lb_ui/cli/commands/run.py
-       2      1     10      2       2 register_run_command.register_run_command.run.on_journal@213-214@lb_ui/cli/commands/run.py
-     156     29    854      2     185 register_run_command.run@45-229@lb_ui/cli/commands/run.py
-       7      1     28      2     215 register_run_command@15-229@lb_ui/cli/commands/run.py
+       8      4     29      0       8 register_run_command.register_run_command.run._explicit_execution_mode@171-178@lb_ui/cli/commands/run.py
+      15      9    104      0      15 register_run_command.register_run_command.run._load_resume_journal_path@180-194@lb_ui/cli/commands/run.py
+      22      4    112      0      23 register_run_command.register_run_command.run._resolve_resume_execution_mode@196-218@lb_ui/cli/commands/run.py
+      22      4    108      0      22 register_run_command.register_run_command.run._resolve_resume_node_count@220-241@lb_ui/cli/commands/run.py
+       2      1     19      2       2 register_run_command.register_run_command.run.on_log@307-308@lb_ui/cli/commands/run.py
+       2      1     20      2       2 register_run_command.register_run_command.run.on_status@310-311@lb_ui/cli/commands/run.py
+       2      1     27      3       2 register_run_command.register_run_command.run.on_warning@313-314@lb_ui/cli/commands/run.py
+       2      1     10      2       2 register_run_command.register_run_command.run.on_event@316-317@lb_ui/cli/commands/run.py
+       2      1     10      2       2 register_run_command.register_run_command.run.on_journal@319-320@lb_ui/cli/commands/run.py
+     205     41   1092      2     309 register_run_command.run@45-353@lb_ui/cli/commands/run.py
+       7      1     28      2     339 register_run_command@15-353@lb_ui/cli/commands/run.py
        9      3     71      1      11 create_config_app._load_config@19-29@lb_ui/cli/commands/config.py
       13      2     64      2      14 create_config_app.config_edit@32-45@lb_ui/cli/commands/config.py
       39      5    206      2      43 create_config_app.config_init@48-90@lb_ui/cli/commands/config.py
@@ -223,37 +238,63 @@
        9      2     77      2      10 create_config_app.config_set_default@120-129@lb_ui/cli/commands/config.py
        6      2     44      0       7 create_config_app.config_show_default@132-138@lb_ui/cli/commands/config.py
        3      1     24      0       4 create_config_app.config_unset_default@141-144@lb_ui/cli/commands/config.py
-      13      3     97      2      14 create_config_app.config_list_workloads@147-160@lb_ui/cli/commands/config.py
-      17      3    134      2      18 create_config_app.config_enable_workload@163-180@lb_ui/cli/commands/config.py
-      13      2    107      2      14 create_config_app.config_disable_workload@183-196@lb_ui/cli/commands/config.py
-       7      1     44      4       8 create_config_app._select_workloads_interactively@198-205@lb_ui/cli/commands/config.py
-      16      2     85      2      18 create_config_app.config_select_workloads@208-225@lb_ui/cli/commands/config.py
-      25      1    122      1     213 create_config_app@15-227@lb_ui/cli/commands/config.py
-       8      1     31      2       8 create_test_app.test_multipass@26-33@lb_ui/cli/commands/test.py
-      77     14    581      1      99 create_test_app@15-113@lb_ui/cli/commands/test.py
-       9      3     68      1       9 create_plugin_app._load_config@18-26@lb_ui/cli/commands/plugin.py
-      36     14    297      5      41 create_plugin_app._list_plugins_command@28-68@lb_ui/cli/commands/plugin.py
-      31      2    141      3      31 create_plugin_app.plugin_root@71-101@lb_ui/cli/commands/plugin.py
-      25      1    129      2      26 create_plugin_app.plugin_list@104-129@lb_ui/cli/commands/plugin.py
-      17      1     70      2      18 create_plugin_app.plugin_select@132-149@lb_ui/cli/commands/plugin.py
-      11      1     61      1     138 create_plugin_app@14-151@lb_ui/cli/commands/plugin.py
-      38      7    230      2      39 create_runs_app.runs_list@21-59@lb_ui/cli/commands/runs.py
-      37      9    285      2      38 create_runs_app.runs_show@62-99@lb_ui/cli/commands/runs.py
-       7      1     46      1      86 create_runs_app@16-101@lb_ui/cli/commands/runs.py
-      88     20    628      2      97 register_analyze_command.analyze@111-207@lb_ui/cli/commands/runs.py
-       6      1     26      2     104 register_analyze_command@104-207@lb_ui/cli/commands/runs.py
+      10      2     87      2      11 create_config_app.config_list_workloads@147-157@lb_ui/cli/commands/config.py
+      17      3    132      2      18 create_config_app.config_enable_workload@160-177@lb_ui/cli/commands/config.py
+      17      4    131      2      18 create_config_app.config_disable_workload@180-197@lb_ui/cli/commands/config.py
+       7      1     44      4       8 create_config_app._select_workloads_interactively@199-206@lb_ui/cli/commands/config.py
+      16      2     85      2      18 create_config_app.config_select_workloads@209-226@lb_ui/cli/commands/config.py
+      25      1    122      1     214 create_config_app@15-228@lb_ui/cli/commands/config.py
+       9      3     66      1       9 register_resume_command._load_config@23-31@lb_ui/cli/commands/resume.py
+       7      3     35      1       7 register_resume_command._load_journal@33-39@lb_ui/cli/commands/resume.py
+       7      3     39      1       7 register_resume_command._load_journal_data@41-47@lb_ui/cli/commands/resume.py
+      11      4     66      1      11 register_resume_command._extract_created_at@49-59@lb_ui/cli/commands/resume.py
+      16      7    133      1      16 register_resume_command._extract_hosts_workloads@61-76@lb_ui/cli/commands/resume.py
+       2      3     32      1       2 register_resume_command._fallback_hosts@78-79@lb_ui/cli/commands/resume.py
+      12      6     83      2      12 register_resume_command._fallback_workloads@81-92@lb_ui/cli/commands/resume.py
+      25      9    170      1      25 register_resume_command._build_run_info@94-118@lb_ui/cli/commands/resume.py
+      16      6    106      1      16 register_resume_command._discover_runs@120-135@lb_ui/cli/commands/resume.py
+      16      8    156      1      17 register_resume_command._journal_status@137-153@lb_ui/cli/commands/resume.py
+      42     12    245      1      44 register_resume_command._select_run_id@155-198@lb_ui/cli/commands/resume.py
+      22      7    137      2      23 register_resume_command._resolve_run_or_pick@200-222@lb_ui/cli/commands/resume.py
+      10      4     43      3      10 register_resume_command._explicit_execution_mode@224-233@lb_ui/cli/commands/resume.py
+      18      4    110      2      18 register_resume_command._execution_mode_from_journal@235-252@lb_ui/cli/commands/resume.py
+      21      4    116      2      21 register_resume_command._node_count_from_journal@254-274@lb_ui/cli/commands/resume.py
+       2      1     19      2       2 register_resume_command.register_resume_command.resume.on_log@434-435@lb_ui/cli/commands/resume.py
+       2      1     20      2       2 register_resume_command.register_resume_command.resume.on_status@437-438@lb_ui/cli/commands/resume.py
+       2      1     27      3       2 register_resume_command.register_resume_command.resume.on_warning@440-441@lb_ui/cli/commands/resume.py
+       2      1     10      2       2 register_resume_command.register_resume_command.resume.on_event@443-444@lb_ui/cli/commands/resume.py
+       2      1     10      2       2 register_resume_command.register_resume_command.resume.on_journal@446-447@lb_ui/cli/commands/resume.py
+     155     28    804      2     181 register_resume_command.resume@277-457@lb_ui/cli/commands/resume.py
+      18      1     55      2     438 register_resume_command@20-457@lb_ui/cli/commands/resume.py
+       8      1     31      2       8 create_test_app.test_multipass@27-34@lb_ui/cli/commands/test.py
+      80     14    579      1     102 create_test_app@16-117@lb_ui/cli/commands/test.py
+      84      5    365      2      86 create_provision_app.loki_grafana_install@18-103@lb_ui/cli/commands/provision.py
+      14      2     79      2      14 create_provision_app.loki_grafana_remove@106-119@lb_ui/cli/commands/provision.py
+      38      5    192      2      41 create_provision_app.loki_grafana_status@122-162@lb_ui/cli/commands/provision.py
+      11      1     75      1     155 create_provision_app@11-165@lb_ui/cli/commands/provision.py
+       7      2     46      0       7 create_plugin_app._load_platform@17-23@lb_ui/cli/commands/plugin.py
+      45     16    300      3      50 create_plugin_app._list_plugins_command@25-74@lb_ui/cli/commands/plugin.py
+      21      2     94      3      21 create_plugin_app.plugin_root@77-97@lb_ui/cli/commands/plugin.py
+      17      1     81      2      18 create_plugin_app.plugin_list@100-117@lb_ui/cli/commands/plugin.py
+       7      1     22      0       8 create_plugin_app.plugin_select@120-127@lb_ui/cli/commands/plugin.py
+      11      1     61      1     117 create_plugin_app@13-129@lb_ui/cli/commands/plugin.py
+      38      7    230      2      39 create_runs_app.runs_list@20-58@lb_ui/cli/commands/runs.py
+      37      9    285      2      38 create_runs_app.runs_show@61-98@lb_ui/cli/commands/runs.py
+       7      1     46      1      86 create_runs_app@15-100@lb_ui/cli/commands/runs.py
+      88     20    628      2      97 register_analyze_command.analyze@110-206@lb_ui/cli/commands/runs.py
+       6      1     26      2     104 register_analyze_command@103-206@lb_ui/cli/commands/runs.py
        6      3     48      1       6 create_doctor_app.doctor_root@14-19@lb_ui/cli/commands/doctor.py
        5      2     37      0       6 create_doctor_app.doctor_all@22-27@lb_ui/cli/commands/doctor.py
        5      2     37      0       6 create_doctor_app.doctor_controller@30-35@lb_ui/cli/commands/doctor.py
        5      2     37      0       6 create_doctor_app.doctor_local@38-43@lb_ui/cli/commands/doctor.py
        5      2     37      0       6 create_doctor_app.doctor_multipass@46-51@lb_ui/cli/commands/doctor.py
       13      1     75      1      45 create_doctor_app@9-53@lb_ui/cli/commands/doctor.py
-      11     10     90      1      11 __getattr__@7-17@lb_ui/cli/__init__.py
-      12      4     81      2      13 __setattr__@19-31@lb_ui/cli/__init__.py
-      19      2     88      3      25 entry@46-70@lb_ui/cli/main.py
-       6      1     25      0       7 _test_disabled@84-90@lb_ui/cli/main.py
-       2      1     15      0       3 list_plugins@104-106@lb_ui/cli/main.py
-       2      1     10      0       3 main@109-111@lb_ui/cli/main.py
+      20     10     90      1      20 __getattr__@10-29@lb_ui/cli/__init__.py
+      19      4     82      2      21 __setattr__@32-52@lb_ui/cli/__init__.py
+      19      2     88      3      25 entry@47-71@lb_ui/cli/main.py
+       6      1     25      0       7 _test_disabled@87-93@lb_ui/cli/main.py
+       2      1     17      0       3 list_plugins@107-109@lb_ui/cli/main.py
+       2      1     10      0       3 main@112-114@lb_ui/cli/main.py
       17      2     93      1      18 build_run_plan_table@9-26@lb_ui/presenters/plan.py
        6      5     59      1       6 _target_repetitions@11-16@lb_ui/presenters/journal.py
       24     15    178      2      26 _summarize_progress@18-43@lb_ui/presenters/journal.py
@@ -281,49 +322,88 @@
        2      1     14      2       2 app_client@108-109@lb_ui/wiring/dependencies.py
       16      7    104      1      17 load_dev_mode@112-128@lb_ui/wiring/dependencies.py
       20      1    137      2      22 run_config_wizard@9-30@lb_ui/flows/config_wizard.py
-     100     31    658      6     112 select_workloads_interactively@20-131@lb_ui/flows/selection.py
-      29      8    206      3      35 select_plugins_interactively@134-168@lb_ui/flows/selection.py
-      23      6    172      6      26 apply_plugin_selection@171-196@lb_ui/flows/selection.py
+     130     29    818      6     159 select_workloads_interactively@20-178@lb_ui/flows/selection.py
+      29      8    206      3      35 select_plugins_interactively@181-215@lb_ui/flows/selection.py
+       9      2     71      4      12 apply_plugin_selection@218-229@lb_ui/flows/selection.py
+       3      1     25      3       3 __init__@19-21@lb_ui/notifications/providers/webhook.py
+      19      4    124      2      23 send@23-45@lb_ui/notifications/providers/webhook.py
+      15      4     89      2      20 _build_payload@47-66@lb_ui/notifications/providers/webhook.py
+       2      1     14      2       2 __init__@32-33@lb_ui/notifications/providers/desktop.py
+      10      4     59      2      12 send@35-46@lb_ui/notifications/providers/desktop.py
+       4      3     40      1       5 _is_headless@48-52@lb_ui/notifications/providers/desktop.py
+      10      3     45      1      11 _play_sound@54-64@lb_ui/notifications/providers/desktop.py
+      14      3     70      2      16 _send_linux@66-81@lb_ui/notifications/providers/desktop.py
+      18      3     94      2      23 _send_macos@83-105@lb_ui/notifications/providers/desktop.py
+      18      3     88      2      23 _send_macos_osascript@107-129@lb_ui/notifications/providers/desktop.py
+      14      1     61      5      15 send_notification@8-22@lb_ui/notifications/__init__.py
+       8      1     90      2      12 __init__@23-34@lb_ui/notifications/manager.py
+       5      2     45      1       7 _initialize_providers@36-42@lb_ui/notifications/manager.py
+       8      3     46      1      11 _worker_loop@44-54@lb_ui/notifications/manager.py
+       8      3     39      2       9 _dispatch@56-64@lb_ui/notifications/manager.py
+      22      3    102      6      27 send@66-92@lb_ui/notifications/manager.py
+       5      2     45      2       8 shutdown@94-101@lb_ui/notifications/manager.py
+       2      1     13      2       3 send@27-29@lb_ui/notifications/base.py
+      21      5    106      1      29 _run_tray_icon@23-51@lb_ui/services/tray.py
+       3      1     33      1       3 __init__@57-59@lb_ui/services/tray.py
+      13      3     68      1      17 start@61-77@lb_ui/services/tray.py
+       7      4     59      1       8 stop@79-86@lb_ui/services/tray.py
+      13      3     86      0      15 get_cache_dir@19-33@lb_ui/services/assets.py
+       6      2     61      1       7 _calculate_file_hash@36-42@lb_ui/services/assets.py
+      20      6    151      2      27 _generate_optimized_icon@45-71@lb_ui/services/assets.py
+       7      4     43      2       8 _cleanup_old_icons@74-81@lb_ui/services/assets.py
+      25      7    149      0      42 resolve_icon_path@84-125@lb_ui/services/assets.py
        2      1     14      1       2 __getattr__@18-19@lb_ui/api.py
-35 file analyzed.
+47 file analyzed.
 ==============================================================
 NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
 --------------------------------------------------------------
-     96       3.7     1.6       41.1        21     lb_ui/tui/adapters/tui_adapter.py
+     55       3.0     1.4       36.2        13     lb_ui/tui/adapters/tui_adapter.py
       2       0.0     0.0        0.0         0     lb_ui/tui/adapters/__init__.py
     766       9.5     3.4       70.7        78     lb_ui/tui/system/components/picker.py
-     20       2.0     1.0       23.1         7     lb_ui/tui/system/components/presenter.py
+     28       3.2     1.0       28.6         5     lb_ui/tui/system/components/presenter.py
+     73       6.5     2.0       51.0        10     lb_ui/tui/system/components/dashboard_adapter.py
      75      23.0     6.0      159.0         3     lb_ui/tui/system/components/table_layout.py
     137       7.4     2.8       57.9        15     lb_ui/tui/system/components/flat_picker_panel.py
-    178      10.3     2.6       83.5        15     lb_ui/tui/system/components/dashboard.py
+    320      13.5     4.2      109.2        21     lb_ui/tui/system/components/dashboard.py
      81       6.0     2.7       47.5        11     lb_ui/tui/system/components/dashboard_helpers.py
-     16       3.7     1.7       38.0         3     lb_ui/tui/system/components/form.py
+     15       3.7     1.7       38.0         3     lb_ui/tui/system/components/form.py
      17       6.0     1.0       31.0         2     lb_ui/tui/system/components/table.py
       8       2.0     1.0       18.5         2     lb_ui/tui/system/components/progress.py
     168      10.3     1.9       69.9        15     lb_ui/tui/system/components/hierarchical_picker.py
-    136       3.2     1.4       27.2        33     lb_ui/tui/system/headless.py
+     32       2.7     1.0       22.7         7     lb_ui/tui/system/components/presenter_base.py
+    140       3.5     1.5       27.8        31     lb_ui/tui/system/headless.py
      33       6.0     2.0       82.5         2     lb_ui/tui/system/facade.py
      27       0.0     0.0        0.0         0     lb_ui/tui/system/models.py
      61       0.0     0.0        0.0         0     lb_ui/tui/system/protocols.py
      13       0.0     0.0        0.0         0     lb_ui/tui/__init__.py
-    194      24.0     5.0      136.8         8     lb_ui/cli/commands/run.py
-    187      14.6     2.4       94.3        13     lb_ui/cli/commands/config.py
+    306      25.7     6.1      140.4        12     lb_ui/cli/commands/run.py
+    188      14.7     2.5       95.2        13     lb_ui/cli/commands/config.py
+    409      19.0     5.3      112.8        22     lb_ui/cli/commands/resume.py
       0       0.0     0.0        0.0         0     lb_ui/cli/commands/__init__.py
-     93      42.5     7.5      306.0         2     lb_ui/cli/commands/test.py
-    132      21.5     3.7      127.7         6     lb_ui/cli/commands/plugin.py
-    181      35.2     7.6      243.0         5     lb_ui/cli/commands/runs.py
+     97      44.0     7.5      305.0         2     lb_ui/cli/commands/test.py
+    149      36.8     3.2      177.8         4     lb_ui/cli/commands/provision.py
+    110      18.0     3.8      100.7         6     lb_ui/cli/commands/plugin.py
+    180      35.2     7.6      243.0         5     lb_ui/cli/commands/runs.py
      38       6.5     2.0       45.2         6     lb_ui/cli/commands/doctor.py
-     25      11.5     7.0       85.5         2     lb_ui/cli/__init__.py
-     70       7.2     1.2       34.5         4     lb_ui/cli/main.py
+     42      19.5     7.0       86.0         2     lb_ui/cli/__init__.py
+     73       7.2     1.2       35.0         4     lb_ui/cli/main.py
      20      17.0     2.0       93.0         1     lb_ui/presenters/plan.py
      83      19.8    10.0      160.2         4     lb_ui/presenters/journal.py
      66      15.8     8.0      127.2         4     lb_ui/presenters/viewmodels.py
      26      11.0     4.0       73.0         2     lb_ui/presenters/doctor.py
+      2       0.0     0.0        0.0         0     lb_ui/wiring/__init__.py
     109       4.1     1.9       27.3        15     lb_ui/wiring/dependencies.py
      23      20.0     1.0      137.0         1     lb_ui/flows/config_wizard.py
-    165      50.7    15.0      345.3         3     lb_ui/flows/selection.py
+    181      56.0    13.0      365.0         3     lb_ui/flows/selection.py
+     47      12.3     3.0       79.3         3     lb_ui/notifications/providers/webhook.py
+     95      10.9     2.9       58.6         7     lb_ui/notifications/providers/desktop.py
+     16      14.0     1.0       61.0         1     lb_ui/notifications/__init__.py
+     69       9.3     2.3       61.2         6     lb_ui/notifications/manager.py
+     17       2.0     1.0       13.0         1     lb_ui/notifications/base.py
+     59      11.0     3.2       66.5         4     lb_ui/services/tray.py
+     82      14.2     4.4       98.0         5     lb_ui/services/assets.py
       2       0.0     0.0        0.0         0     lb_ui/__init__.py
-     37       2.0     1.0       14.0         1     lb_ui/api.py
+     28       2.0     1.0       14.0         1     lb_ui/api.py
 
 ==========================================================================================================
 !!!! Warnings (cyclomatic_complexity > 10 or length > 200 or nloc > 1000000 or parameter_count > 100) !!!!
@@ -337,16 +417,21 @@ NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
       25     11    142      3      28 _render_row@678-705@lb_ui/tui/system/components/picker.py
       55     11    372      7      73 build_rich_table@27-99@lb_ui/tui/system/components/table_layout.py
       20     11    145      3      23 _filter_items@151-173@lb_ui/tui/system/components/flat_picker_panel.py
-     156     29    854      2     185 register_run_command.run@45-229@lb_ui/cli/commands/run.py
-       7      1     28      2     215 register_run_command@15-229@lb_ui/cli/commands/run.py
-      25      1    122      1     213 create_config_app@15-227@lb_ui/cli/commands/config.py
-      77     14    581      1      99 create_test_app@15-113@lb_ui/cli/commands/test.py
-      36     14    297      5      41 create_plugin_app._list_plugins_command@28-68@lb_ui/cli/commands/plugin.py
-      88     20    628      2      97 register_analyze_command.analyze@111-207@lb_ui/cli/commands/runs.py
+      64     23    442      2      64 _maybe_rollup_polling@234-297@lb_ui/tui/system/components/dashboard.py
+      32     14    328      3      34 _update_polling_summary@299-332@lb_ui/tui/system/components/dashboard.py
+     205     41   1092      2     309 register_run_command.run@45-353@lb_ui/cli/commands/run.py
+       7      1     28      2     339 register_run_command@15-353@lb_ui/cli/commands/run.py
+      25      1    122      1     214 create_config_app@15-228@lb_ui/cli/commands/config.py
+      42     12    245      1      44 register_resume_command._select_run_id@155-198@lb_ui/cli/commands/resume.py
+     155     28    804      2     181 register_resume_command.resume@277-457@lb_ui/cli/commands/resume.py
+      18      1     55      2     438 register_resume_command@20-457@lb_ui/cli/commands/resume.py
+      80     14    579      1     102 create_test_app@16-117@lb_ui/cli/commands/test.py
+      45     16    300      3      50 create_plugin_app._list_plugins_command@25-74@lb_ui/cli/commands/plugin.py
+      88     20    628      2      97 register_analyze_command.analyze@110-206@lb_ui/cli/commands/runs.py
       24     15    178      2      26 _summarize_progress@18-43@lb_ui/presenters/journal.py
       24     15    178      2      26 summarize_progress@18-43@lb_ui/presenters/viewmodels.py
-     100     31    658      6     112 select_workloads_interactively@20-131@lb_ui/flows/selection.py
+     130     29    818      6     159 select_workloads_interactively@20-178@lb_ui/flows/selection.py
 ==========================================================================================
 Total nloc   Avg.NLOC  AvgCCN  Avg.token   Fun Cnt  Warning cnt   Fun Rt   nloc Rt
 ------------------------------------------------------------------------------------------
-      3285       9.9     3.0       72.1      284           16      0.06    0.26
+      4568      11.3     3.3       77.5      352           21      0.06    0.28

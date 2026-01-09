@@ -1,7 +1,7 @@
 """Stable application-layer API surface."""
 
 from lb_app.client import ApplicationClient
-from lb_app.interfaces import AppClient, RunRequest, UIHooks
+from lb_app.interfaces import RunRequest, UIHooks
 from lb_app.services.config_service import ConfigService
 from lb_app.services.doctor_service import DoctorService
 from lb_app.services.doctor_types import (
@@ -44,6 +44,8 @@ from lb_plugins.api import PluginRegistry, WorkloadIntensity, build_plugin_table
 from lb_analytics.api import AnalyticsRequest, AnalyticsService, AnalyticsKind
 from lb_common.api import RemoteHostSpec, RunInfo
 from lb_provisioner.api import MAX_NODES
+
+AppClient = ApplicationClient
 
 __all__ = [
     "AppClient",

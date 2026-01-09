@@ -22,6 +22,7 @@ You MUST run these scripts from repo root and consume their outputs:
 TARGETS
 - Detect the top-level packages automatically by scanning repo root for directories containing __init__.py.
 - Run the scripts at least for the main packages. If there are many, choose the top 2-4 by size (number of .py files) and justify your selection.
+- Additionally, always include: lb_app, lb_runner, lb_common.
 - For each target, store outputs under arch_report/ (already done by scripts). If you run multiple targets, keep the most recent output, and also summarize differences between targets.
 
 EXECUTION PLAN (MANDATORY)

@@ -7,14 +7,22 @@ from unittest.mock import Mock
 
 import pytest
 
-from lb_plugins.plugins.dfaas.generator import (
-    DfaasGenerator,
+from lb_plugins.plugins.dfaas.generator import DfaasGenerator
+from lb_plugins.plugins.dfaas.context import ExecutionContext
+from lb_plugins.plugins.dfaas.services.k6_runner import K6Runner
+from lb_plugins.plugins.dfaas.services.annotation_service import DfaasAnnotationService
+from lb_plugins.plugins.dfaas.services.plan_builder import (
+    DfaasPlanBuilder,
     dominates,
     generate_configurations,
     generate_rates_list,
 )
-from lb_plugins.plugins.dfaas.services.k6_runner import K6Runner
-from lb_plugins.plugins.dfaas.config import DfaasConfig, DfaasFunctionConfig
+from lb_plugins.plugins.dfaas.config import (
+    DfaasCombinationConfig,
+    DfaasConfig,
+    DfaasFunctionConfig,
+    DfaasRatesConfig,
+)
 
 pytestmark = [pytest.mark.unit_plugins]
 
@@ -41,6 +49,34 @@ def test_generate_configurations_respects_per_function_rates() -> None:
         for name, rate in config:
             if name == "a":
                 assert rate in rates_by_function["a"]
+
+
+def test_plan_builder_generates_deterministic_configs() -> None:
+    config = DfaasConfig(
+        functions=[
+            DfaasFunctionConfig(name="b", method="GET", body=""),
+            DfaasFunctionConfig(name="a", method="GET", body=""),
+        ],
+        rates=DfaasRatesConfig(min_rate=0, max_rate=10, step=10),
+        combinations=DfaasCombinationConfig(min_functions=1, max_functions=2),
+    )
+    builder = DfaasPlanBuilder(config)
+    function_names = builder.build_function_names()
+    rates = builder.build_rates()
+    configs = builder.build_configurations(
+        function_names,
+        rates,
+        rates_by_function=builder.build_rates_by_function(rates),
+    )
+
+    assert function_names == ["a", "b"]
+    assert rates == [0, 10]
+    assert configs == [
+        [("a", 0)],
+        [("a", 10)],
+        [("b", 0)],
+        [("b", 10)],
+    ]
 
 
 def test_dominates_checks_per_function() -> None:
@@ -147,61 +183,55 @@ def test_k6_outputs_returns_configured_outputs(
     assert not any(output.startswith("loki=") for output in outputs)
 
 
-def test_dfaas_generator_grafana_annotations(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Generator should create Grafana annotations for run events."""
-    from lb_plugins.plugins.dfaas.generator import DfaasGenerator, _RunContext, ExecutionContext
+def test_dfaas_annotations_emit_grafana_tags(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Annotation service should create Grafana annotations for run events."""
     from lb_plugins.plugins.dfaas.config import DfaasConfig, GrafanaConfig
     from unittest.mock import MagicMock
 
     config = DfaasConfig(
         grafana=GrafanaConfig(enabled=True, url="http://grafana", api_key="key"),
     )
-    # Inject execution context with known host
     exec_ctx = ExecutionContext(host="localhost", repetition=1, total_repetitions=1)
-    generator = DfaasGenerator(config, execution_context=exec_ctx)
-    
-    # Mock Grafana client
+    annotations = DfaasAnnotationService(config.grafana, exec_ctx)
     mock_client = MagicMock()
-    generator._grafana_client = mock_client
-    generator._grafana_dashboard_id = 123
+    annotations._client = mock_client
+    annotations._dashboard_id = 123
 
-    # Create dummy context
-    ctx = MagicMock(spec=_RunContext)
-    ctx.run_id = "test-run"
-    
-    # Test run start
-    generator._annotate_run_start(ctx)
-    # Threading used, so we need to wait or mock threading/queue
-    # The current impl uses threading.Thread(daemon=True).start()
-    # We can mock threading.Thread to run synchronously
-    
     with monkeypatch.context() as m:
         m.setattr("threading.Thread", lambda target, daemon: MagicMock(start=target))
-        
-        generator._annotate_run_start(ctx)
+
+        annotations.annotate_run_start("test-run")
         mock_client.create_annotation.assert_called_with(
             text="DFaaS run start (test-run)",
-            tags=['run_id:test-run', 'workload:dfaas', 'component:dfaas', 'repetition:1', 'host:localhost', 'phase:run', 'event:run_start'],
+            tags=[
+                "run_id:test-run",
+                "workload:dfaas",
+                "component:dfaas",
+                "repetition:1",
+                "host:localhost",
+                "phase:run",
+                "event:run_start",
+            ],
             dashboard_id=123,
-            time_ms=pytest.approx(int(time.time() * 1000), abs=1000)
+            time_ms=pytest.approx(int(time.time() * 1000), abs=1000),
         )
 
-        generator._annotate_run_end(ctx)
+        annotations.annotate_run_end("test-run")
         assert "event:run_end" in mock_client.create_annotation.call_args[1]["tags"]
 
-        generator._annotate_config_change(ctx, "cfg1", "a=1")
+        annotations.annotate_config_change("test-run", "cfg1", "a=1")
         assert "event:config" in mock_client.create_annotation.call_args[1]["tags"]
 
-        generator._annotate_overload(ctx, "cfg1", "a=1", 1)
+        annotations.annotate_overload("test-run", "cfg1", "a=1", 1)
         assert "event:overload" in mock_client.create_annotation.call_args[1]["tags"]
 
-        generator._annotate_error(ctx, "cfg1", "oops")
+        annotations.annotate_error("test-run", "cfg1", "oops")
         assert "event:error" in mock_client.create_annotation.call_args[1]["tags"]
 
 
 def test_k6_log_event_skips_when_lb_event_handler_present() -> None:
     from lb_runner.services.log_handler import LBEventLogHandler
-    from lb_plugins.plugins.dfaas.generator import ExecutionContext
+    from lb_plugins.plugins.dfaas.services.log_manager import DfaasLogManager
 
     cfg = DfaasConfig()
     exec_ctx = ExecutionContext(
@@ -210,8 +240,13 @@ def test_k6_log_event_skips_when_lb_event_handler_present() -> None:
         total_repetitions=1,
         event_logging_enabled=True,
     )
-    generator = DfaasGenerator(cfg, execution_context=exec_ctx)
-    generator._event_emitter = Mock()
+    log_manager = DfaasLogManager(
+        config=cfg,
+        exec_ctx=exec_ctx,
+        logger=logging.getLogger("dfaas-test"),
+        event_emitter=Mock(),
+    )
+    log_manager.set_run_id("run-1")
 
     root_logger = logging.getLogger()
     handler = LBEventLogHandler(
@@ -223,8 +258,8 @@ def test_k6_log_event_skips_when_lb_event_handler_present() -> None:
     )
     root_logger.addHandler(handler)
     try:
-        generator._emit_k6_log_event("hello")
-        generator._event_emitter.emit.assert_not_called()
+        log_manager.emit_k6_log("hello")
+        log_manager.event_emitter.emit.assert_not_called()
     finally:
         root_logger.removeHandler(handler)
 

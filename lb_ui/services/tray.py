@@ -20,7 +20,7 @@ from lb_ui.services.assets import resolve_icon_path
 logger = logging.getLogger(__name__)
 
 
-def _run_tray_icon(stop_event: multiprocessing.Event) -> None:
+def _run_tray_icon() -> None:
     """The entry point for the tray icon process."""
     if pystray is None or Image is None:
         return
@@ -56,7 +56,6 @@ class TrayManager:
 
     def __init__(self) -> None:
         self._process: Optional[multiprocessing.Process] = None
-        self._stop_event = multiprocessing.get_context("spawn").Event()
 
     def start(self) -> None:
         """Start the tray icon in a separate process."""
@@ -68,7 +67,6 @@ class TrayManager:
         ctx = multiprocessing.get_context("spawn")
         self._process = ctx.Process(
             target=_run_tray_icon,
-            args=(self._stop_event,),
             daemon=True
         )
         try:

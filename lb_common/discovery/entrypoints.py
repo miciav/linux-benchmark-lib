@@ -18,8 +18,11 @@ def discover_entrypoints(
     for group in groups:
         try:
             eps = importlib.metadata.entry_points().select(group=group)
-        except Exception:
-            continue
+        except Exception as exc:
+            logger.debug(
+                "Failed to read entry points for group %s: %s", group, exc
+            )
+            eps = ()
         for entry_point in eps:
             pending.setdefault(entry_point.name, entry_point)
     return pending

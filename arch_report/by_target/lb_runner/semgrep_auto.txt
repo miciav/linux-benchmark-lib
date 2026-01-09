@@ -5,12 +5,12 @@
 ┌─────────────┐
 │ Scan Status │
 └─────────────┘
-  Scanning 27 files tracked by git with 1063 Code rules:
+  Scanning 33 files tracked by git with 1063 Code rules:
                                                                                                                         
   Language      Rules   Files          Origin      Rules                                                                
  ─────────────────────────────        ───────────────────                                                               
-  python          243      27          Community    1063                                                                
-  <multilang>      48      27                                                                                           
+  python          243      33          Community    1063                                                                
+  <multilang>      48      33                                                                                           
                                                                                                                         
                 
                 
@@ -20,7 +20,7 @@
 Some files were skipped or only partially analyzed.
   Scan was limited to files tracked by git.
 
-Ran 291 rules on 27 files: 3 findings.
+Ran 291 rules on 33 files: 3 findings.
 
 A new version of Semgrep is available. See https://semgrep.dev/docs/upgrading
                    
@@ -55,5 +55,5 @@ A new version of Semgrep is available. See https://semgrep.dev/docs/upgrading
           Details: https://sg.run/J92w                                                                       
                                                                                                              
            ▶▶┆ Autofix ▶ False
-           52┆ shell=True,
+           51┆ shell=True,
 

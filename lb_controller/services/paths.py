@@ -31,10 +31,10 @@ def prepare_run_dirs(
     output_root = (config.output_dir / run_id).resolve()
     report_root = (config.report_dir / run_id).resolve()
     data_export_root = (config.data_export_dir / run_id).resolve()
-    
+
     # Only create output_root; report/export dirs are created on demand by analytics.
     output_root.mkdir(parents=True, exist_ok=True)
-    
+
     return output_root, report_root, data_export_root
 
 

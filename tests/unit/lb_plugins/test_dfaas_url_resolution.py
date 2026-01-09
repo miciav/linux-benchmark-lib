@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 from unittest.mock import patch
-from lb_plugins.plugins.dfaas.generator import DfaasGenerator, ExecutionContext
+from lb_plugins.plugins.dfaas.generator import DfaasGenerator
+from lb_plugins.plugins.dfaas.context import ExecutionContext
 from lb_plugins.plugins.dfaas.config import DfaasConfig, DfaasFunctionConfig
 
 @pytest.fixture

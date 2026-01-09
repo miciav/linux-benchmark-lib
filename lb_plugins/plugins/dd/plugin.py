@@ -15,7 +15,8 @@ from typing import Any, List, Optional
 from pydantic import Field
 
 from ...interface import SimpleWorkloadPlugin, WorkloadIntensity, BasePluginConfig
-from ...base_generator import CommandGenerator, CommandSpec
+from ...base_generator import CommandSpec
+from ..command_base import ProcessCommandGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +75,10 @@ class _DDCommandBuilder:
         return CommandSpec(cmd=cmd)
 
 
-class DDGenerator(CommandGenerator):
+class DDGenerator(ProcessCommandGenerator):
     """Workload generator using dd command."""
+
+    tool_name = "dd"
 
     def __init__(self, config: DDConfig, name: str = "DDGenerator"):
         """
@@ -93,12 +96,6 @@ class DDGenerator(CommandGenerator):
 
     def _popen_kwargs(self) -> dict[str, Any]:
         return {"stdout": subprocess.DEVNULL, "stderr": subprocess.PIPE, "text": True}
-
-    def _consume_process_output(
-        self, proc: subprocess.Popen[str]
-    ) -> tuple[str, str]:
-        stdout, stderr = proc.communicate(timeout=self._timeout_seconds())
-        return stdout or "", stderr or ""
 
     def _log_command(self, cmd: list[str]) -> None:
         if self.config.debug:
@@ -139,13 +136,7 @@ class DDGenerator(CommandGenerator):
         Returns:
             True if dd is available and path is writable, False otherwise
         """
-        try:
-            result = subprocess.run(["which", "dd"], capture_output=True, text=True)
-            if result.returncode != 0:
-                logger.error("dd command not found")
-                return False
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Error checking for dd: %s", exc)
+        if not super()._validate_environment():
             return False
 
         if not self.config.of_path:

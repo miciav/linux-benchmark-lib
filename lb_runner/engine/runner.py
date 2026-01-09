@@ -15,18 +15,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
-from lb_common.api import (
-    JsonlLogFormatter,
-    attach_jsonl_handler,
-    attach_loki_handler,
-)
 from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
-from lb_runner.models.events import RunEvent, StdoutEmitter
+from lb_runner.models.events import RunEvent
 from lb_runner.services.log_handler import LBEventLogHandler
-from lb_runner.services.storage import (
-    workload_output_dir,
-    write_system_info_artifacts,
-)
+from lb_runner.services.runner_log_manager import RunnerLogManager
+from lb_runner.services.runner_output_manager import RunnerOutputManager
 from lb_plugins.api import BaseGenerator, PluginRegistry, WorkloadPlugin
 from lb_runner.metric_collectors.builtin import builtin_collectors
 from lb_runner.metric_collectors.registry import CollectorRegistry
@@ -48,15 +41,6 @@ from lb_runner.services.results import build_rep_result
 from lb_runner.engine.stop_token import StopToken
 from lb_runner.services import system_info
 logger = logging.getLogger(__name__)
-
-
-class _ExcludeLoggerPrefixFilter(logging.Filter):
-    def __init__(self, prefixes: tuple[str, ...]) -> None:
-        super().__init__()
-        self._prefixes = prefixes
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        return not any(record.name.startswith(prefix) for prefix in self._prefixes)
 
 
 class LocalRunner:
@@ -94,14 +78,19 @@ class LocalRunner:
         self._collector_coordinator = CollectorCoordinator(self.plugin_registry)
         self._result_persister = ResultPersister()
         self._current_run_id: Optional[str] = None
-        self._output_root: Optional[Path] = None
-        self._data_export_root: Optional[Path] = None
-        self._log_file_handler_attached = False
-        self._jsonl_handler: logging.Handler | None = None
-        self._loki_handler: logging.Handler | None = None
         self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
         self._progress = RunProgressEmitter(host=self._host_name, callback=progress_callback)
         self._stop_token = stop_token
+        self._output_manager = RunnerOutputManager(
+            config=self.config,
+            persister=self._result_persister,
+            logger=logger,
+        )
+        self._log_manager = RunnerLogManager(
+            config=self.config,
+            host_name=self._host_name,
+            logger=logger,
+        )
 
     @staticmethod
     def _resolve_registry(
@@ -126,8 +115,7 @@ class LocalRunner:
         self.system_info = collected.to_dict()
 
         # Persist JSON/CSV alongside run outputs when available
-        if self._output_root:
-            write_system_info_artifacts(collected, self._output_root, logger)
+        self._output_manager.write_system_info(collected)
 
         return self.system_info
 
@@ -137,9 +125,7 @@ class LocalRunner:
 
         Ensures the directory exists so collectors and plugins can write into it.
         """
-        base = self._output_root or self.config.output_dir
-        path = workload_output_dir(base, workload, ensure=True)
-        return path
+        return self._output_manager.workload_output_dir(workload)
 
     def _run_single_test(
         self,
@@ -324,7 +310,7 @@ class LocalRunner:
         self._collector_coordinator.collect(
             collectors, workload_dir, rep_dir, test_name, repetition, result
         )
-        self._result_persister.persist_rep_result(rep_dir, result)
+        self._output_manager.persist_rep_result(rep_dir, result)
         return result
     
     def _pre_test_cleanup(self) -> None:
@@ -394,14 +380,17 @@ class LocalRunner:
     ) -> None:
         scope = self._scope_manager.prepare(run_id)
         self._current_run_id = scope.run_id
-        self._output_root = scope.output_root
-        self._data_export_root = scope.data_export_root
         self._progress.set_run_id(scope.run_id)
-        self._result_persister.set_run_id(scope.run_id)
-        self._sync_loki_env()
-        if self._output_root:
-            self._attach_jsonl_logger(
-                scope.run_id,
+        self._output_manager.set_scope(
+            scope.run_id,
+            scope.output_root,
+            scope.data_export_root,
+        )
+        self._log_manager.sync_loki_env()
+        if scope.output_root:
+            self._log_manager.attach(
+                output_dir=scope.output_root,
+                run_id=scope.run_id,
                 workload=workload,
                 repetition=repetition,
                 phase=phase,
@@ -479,7 +468,7 @@ class LocalRunner:
     ) -> None:
         """Process and save test results."""
         target_root = self._workload_output_dir(test_name)
-        self._result_persister.process_results(
+        self._output_manager.process_results(
             plugin=plugin,
             results=results,
             target_root=target_root,
@@ -504,124 +493,6 @@ class LocalRunner:
             except Exception as e:
                 logger.error(f"Failed to run {test_name} benchmark: {e}", exc_info=True)
 
-    def _attach_jsonl_logger(
-        self,
-        run_id: str,
-        *,
-        workload: str | None = None,
-        repetition: int | None = None,
-        phase: str | None = None,
-    ) -> None:
-        if self._jsonl_handler:
-            logging.getLogger().removeHandler(self._jsonl_handler)
-            try:
-                self._jsonl_handler.close()
-            except Exception:
-                pass
-        root_logger = logging.getLogger()
-        tags = {"phase": phase} if phase else None
-        self._jsonl_handler = attach_jsonl_handler(
-            root_logger,
-            output_dir=self._output_root or self.config.output_dir,
-            component="runner",
-            host=self._host_name,
-            run_id=run_id,
-            workload=workload,
-            package="lb_runner",
-            repetition=repetition,
-            tags=tags,
-        )
-        if self._jsonl_handler:
-            self._jsonl_handler.addFilter(
-                _ExcludeLoggerPrefixFilter(("lb_plugins.",))
-            )
-        self._attach_loki_logger(
-            run_id,
-            workload=workload,
-            repetition=repetition,
-            phase=phase,
-        )
-
-    def _attach_loki_logger(
-        self,
-        run_id: str,
-        *,
-        workload: str | None = None,
-        repetition: int | None = None,
-        phase: str | None = None,
-    ) -> None:
-        root_logger = logging.getLogger()
-        if self._loki_handler:
-            root_logger.removeHandler(self._loki_handler)
-            try:
-                self._loki_handler.close()
-            except Exception:
-                pass
-            self._loki_handler = None
-
-        loki_cfg = self.config.loki
-        labels = dict(loki_cfg.labels)
-        if phase:
-            labels.setdefault("phase", phase)
-        self._loki_handler = attach_loki_handler(
-            root_logger,
-            enabled=loki_cfg.enabled,
-            endpoint=loki_cfg.endpoint,
-            component="runner",
-            host=self._host_name,
-            run_id=run_id,
-            workload=workload,
-            package="lb_runner",
-            repetition=repetition,
-            labels=labels,
-            batch_size=loki_cfg.batch_size,
-            flush_interval_ms=loki_cfg.flush_interval_ms,
-            timeout_seconds=loki_cfg.timeout_seconds,
-            max_retries=loki_cfg.max_retries,
-            max_queue_size=loki_cfg.max_queue_size,
-            backoff_base=loki_cfg.backoff_base,
-            backoff_factor=loki_cfg.backoff_factor,
-        )
-        if self._loki_handler:
-            self._loki_handler.setFormatter(
-                JsonlLogFormatter(
-                    component="runner",
-                    host=self._host_name,
-                    run_id=run_id,
-                    workload=workload,
-                    package="lb_runner",
-                    repetition=repetition,
-                    tags={"phase": phase} if phase else None,
-                )
-            )
-            self._loki_handler.addFilter(
-                _ExcludeLoggerPrefixFilter(("lb_plugins.",))
-            )
-
-    def _sync_loki_env(self) -> None:
-        if not self.config.loki.enabled:
-            return
-        loki_cfg = self.config.loki
-        os.environ.setdefault("LB_LOKI_ENABLED", "1")
-        os.environ.setdefault("LB_LOKI_ENDPOINT", loki_cfg.endpoint)
-        if loki_cfg.labels:
-            labels = ",".join(
-                f"{key}={value}"
-                for key, value in loki_cfg.labels.items()
-                if value is not None
-            )
-            if labels:
-                os.environ.setdefault("LB_LOKI_LABELS", labels)
-        os.environ.setdefault("LB_LOKI_BATCH_SIZE", str(loki_cfg.batch_size))
-        os.environ.setdefault(
-            "LB_LOKI_FLUSH_INTERVAL_MS", str(loki_cfg.flush_interval_ms)
-        )
-        os.environ.setdefault("LB_LOKI_TIMEOUT_SECONDS", str(loki_cfg.timeout_seconds))
-        os.environ.setdefault("LB_LOKI_MAX_RETRIES", str(loki_cfg.max_retries))
-        os.environ.setdefault("LB_LOKI_MAX_QUEUE_SIZE", str(loki_cfg.max_queue_size))
-        os.environ.setdefault("LB_LOKI_BACKOFF_BASE", str(loki_cfg.backoff_base))
-        os.environ.setdefault("LB_LOKI_BACKOFF_FACTOR", str(loki_cfg.backoff_factor))
-
     def _set_log_phase(
         self,
         phase: str | None,
@@ -631,8 +502,10 @@ class LocalRunner:
     ) -> None:
         if not self._current_run_id:
             return
-        self._attach_jsonl_logger(
-            self._current_run_id,
+        output_dir = self._output_manager.output_root() or self.config.output_dir
+        self._log_manager.attach(
+            output_dir=output_dir,
+            run_id=self._current_run_id,
             workload=workload,
             repetition=repetition,
             phase=phase,

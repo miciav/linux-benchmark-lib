@@ -1,11 +1,12 @@
 ================================================
   NLOC    CCN   token  PARAM  length  location  
 ------------------------------------------------
+       9      2     44      1       9 build_executor@26-34@lb_controller/models/controller_options.py
        2      1     14      1       3 success@31-33@lb_controller/models/types.py
       11      1     65      7      12 run_playbook@54-65@lb_controller/models/types.py
-      13      4     78      4      14 pending_hosts_for@11-24@lb_controller/models/pending.py
-      15      5     96      4      16 pending_repetitions@27-42@lb_controller/models/pending.py
-      12      5     69      4      13 pending_exists@45-57@lb_controller/models/pending.py
+      17      4     90      5      18 pending_hosts_for@11-28@lb_controller/models/pending.py
+      19      5    108      5      20 pending_repetitions@31-50@lb_controller/models/pending.py
+      16      5     81      5      17 pending_exists@53-69@lb_controller/models/pending.py
        5      1     56      1       5 __init__@104-108@lb_controller/models/state.py
        3      1     16      1       3 state@111-113@lb_controller/models/state.py
        3      1     19      1       3 reason@116-118@lb_controller/models/state.py
@@ -16,50 +17,63 @@
        3      1     28      1       3 snapshot@158-160@lb_controller/models/state.py
        2      1     19      3       2 __init__@26-27@lb_controller/ansible/callback_plugins/lb_events.py
       33     10    191      1      35 _extract_lb_event@30-64@lb_controller/ansible/callback_plugins/lb_events.py
-       6      2     65      1       6 __init__@77-82@lb_controller/ansible/callback_plugins/lb_events.py
-       2      1     20      3       2 v2_runner_on_ok@84-85@lb_controller/ansible/callback_plugins/lb_events.py
-       2      1     20      3       2 v2_runner_on_failed@87-88@lb_controller/ansible/callback_plugins/lb_events.py
-       2      1     20      3       2 v2_runner_on_unreachable@90-91@lb_controller/ansible/callback_plugins/lb_events.py
-       2      1     20      3       2 v2_runner_on_skipped@93-94@lb_controller/ansible/callback_plugins/lb_events.py
-       6      2     45      3       6 v2_playbook_on_task_start@96-101@lb_controller/ansible/callback_plugins/lb_events.py
-       8      4     81      3       8 _handle_result@105-112@lb_controller/ansible/callback_plugins/lb_events.py
-       6      3     46      2       6 _events_from_result@114-119@lb_controller/ansible/callback_plugins/lb_events.py
-      20     12    172      2      21 _candidate_texts@121-141@lb_controller/ansible/callback_plugins/lb_events.py
-       6      2     51      2       7 _write_event@143-149@lb_controller/ansible/callback_plugins/lb_events.py
-      24      8    153      4      24 _emit_task_timing@151-174@lb_controller/ansible/callback_plugins/lb_events.py
+      10      4    120      1      12 __init__@77-88@lb_controller/ansible/callback_plugins/lb_events.py
+       2      1     20      3       2 v2_runner_on_ok@90-91@lb_controller/ansible/callback_plugins/lb_events.py
+       2      1     20      3       2 v2_runner_on_failed@93-94@lb_controller/ansible/callback_plugins/lb_events.py
+       2      1     20      3       2 v2_runner_on_unreachable@96-97@lb_controller/ansible/callback_plugins/lb_events.py
+       2      1     20      3       2 v2_runner_on_skipped@99-100@lb_controller/ansible/callback_plugins/lb_events.py
+       6      2     45      3       6 v2_playbook_on_task_start@102-107@lb_controller/ansible/callback_plugins/lb_events.py
+      21     12    235      3      21 _handle_result@111-131@lb_controller/ansible/callback_plugins/lb_events.py
+       6      3     46      2       6 _events_from_result@133-138@lb_controller/ansible/callback_plugins/lb_events.py
+      20     12    172      2      21 _candidate_texts@140-160@lb_controller/ansible/callback_plugins/lb_events.py
+       6      2     51      2       7 _write_event@162-168@lb_controller/ansible/callback_plugins/lb_events.py
+      24      8    153      4      24 _emit_task_timing@170-193@lb_controller/ansible/callback_plugins/lb_events.py
        3      1     34      3       3 __init__@28-30@lb_controller/ansible/collections/ansible_collections/community/docker/plugins/connection/docker.py
        5      2     25      1       5 _connect@32-36@lb_controller/ansible/collections/ansible_collections/community/docker/plugins/connection/docker.py
       15      3    119      4      15 exec_command@38-52@lb_controller/ansible/collections/ansible_collections/community/docker/plugins/connection/docker.py
        8      2     66      3       8 put_file@54-61@lb_controller/ansible/collections/ansible_collections/community/docker/plugins/connection/docker.py
       10      3     88      3      10 fetch_file@63-72@lb_controller/ansible/collections/ansible_collections/community/docker/plugins/connection/docker.py
-      46      6    247      5      49 run_global_setup@24-72@lb_controller/adapters/playbooks.py
-      35      6    205     10      36 run_workload_setup@75-110@lb_controller/adapters/playbooks.py
-      33      4    158     10      34 run_workload_execution@113-146@lb_controller/adapters/playbooks.py
-      49      8    263      8      54 execute_run_playbook@149-202@lb_controller/adapters/playbooks.py
-      63      7    289      7      64 handle_collect_phase@205-268@lb_controller/adapters/playbooks.py
-      19      4     87      5      20 run_teardown_playbook@271-290@lb_controller/adapters/playbooks.py
-      48     12    284      5      52 run_global_teardown@293-344@lb_controller/adapters/playbooks.py
-      20      2     99      6      21 run_for_hosts@347-367@lb_controller/adapters/playbooks.py
-       3      1     32      2       3 __init__._default_cb@62-64@lb_controller/adapters/ansible_runner.py
-      25      4    195      7      43 __init__@26-68@lb_controller/adapters/ansible_runner.py
-      83     14    525      7      94 run_playbook@70-163@lb_controller/adapters/ansible_runner.py
-      12      3     74      2      14 _prepare_inventory@165-178@lb_controller/adapters/ansible_runner.py
-       9      2     33      0      10 _import_runner@181-190@lb_controller/adapters/ansible_runner.py
-      21      2    139      8      26 _run_subprocess_playbook@192-217@lb_controller/adapters/ansible_runner.py
-      18      3     99      5      18 _build_playbook_cmd@219-236@lb_controller/adapters/ansible_runner.py
-       6      1     53      2       6 _write_extravars@238-243@lb_controller/adapters/ansible_runner.py
-       4      1     36      1       4 _build_env@246-249@lb_controller/adapters/ansible_runner.py
-       3      1     42      2       3 _log_subprocess_command@252-254@lb_controller/adapters/ansible_runner.py
-      20      5    149      4      20 _run_streaming_subprocess@256-275@lb_controller/adapters/ansible_runner.py
-      18      3    117      3      18 _run_capture_subprocess@277-294@lb_controller/adapters/ansible_runner.py
-      28      8    146      3      28 _stream_process_output@296-323@lb_controller/adapters/ansible_runner.py
-       6      2     46      2       6 _emit_stream_line@325-330@lb_controller/adapters/ansible_runner.py
-       9      3     56      3       9 _finalize_process@332-340@lb_controller/adapters/ansible_runner.py
-       5      2     27      2       5 _terminate_process@342-346@lb_controller/adapters/ansible_runner.py
-       5      4     37      2       5 _should_stop@348-352@lb_controller/adapters/ansible_runner.py
-      15      5     72      1      16 interrupt@354-369@lb_controller/adapters/ansible_runner.py
-       5      3     37      1       6 is_running@372-377@lb_controller/adapters/ansible_runner.py
-       9      3     69      1      10 _render_inventory@380-389@lb_controller/adapters/ansible_runner.py
+      47      6    255      5      50 run_global_setup@24-73@lb_controller/adapters/playbooks.py
+      36      6    215     10      37 run_workload_setup@76-112@lb_controller/adapters/playbooks.py
+      38      6    174     10      39 run_workload_execution@115-153@lb_controller/adapters/playbooks.py
+      49      8    263      8      54 execute_run_playbook@156-209@lb_controller/adapters/playbooks.py
+      63      7    289      7      64 handle_collect_phase@212-275@lb_controller/adapters/playbooks.py
+      20      4     95      5      21 run_teardown_playbook@278-298@lb_controller/adapters/playbooks.py
+      51     13    309      5      57 run_global_teardown@301-357@lb_controller/adapters/playbooks.py
+      20      2     99      6      21 run_for_hosts@360-380@lb_controller/adapters/playbooks.py
+       2      1     16      2       2 __init__@25-26@lb_controller/adapters/ansible_helpers.py
+      12      3     73      2      13 prepare@28-40@lb_controller/adapters/ansible_helpers.py
+       9      3     69      1      10 render_inventory@43-52@lb_controller/adapters/ansible_helpers.py
+       2      1     16      2       2 __init__@58-59@lb_controller/adapters/ansible_helpers.py
+       6      1     53      2       6 write@61-66@lb_controller/adapters/ansible_helpers.py
+      17      3     97      4      17 build@73-89@lb_controller/adapters/ansible_helpers.py
+      13      1     55      6      13 __init__@95-107@lb_controller/adapters/ansible_helpers.py
+      26      3    178      1      26 build@109-134@lb_controller/adapters/ansible_helpers.py
+       4      1     36      1       4 merge_env@137-140@lb_controller/adapters/ansible_helpers.py
+      14      1     90      5      14 __init__@146-159@lb_controller/adapters/ansible_helpers.py
+       2      1     14      1       2 clear_interrupt@161-162@lb_controller/adapters/ansible_helpers.py
+       5      4     37      2       5 should_stop@164-168@lb_controller/adapters/ansible_helpers.py
+       6      2     54      4       6 run@170-175@lb_controller/adapters/ansible_helpers.py
+      14      5     66      1      14 interrupt@177-190@lb_controller/adapters/ansible_helpers.py
+       5      3     31      1       5 is_running@192-196@lb_controller/adapters/ansible_helpers.py
+       3      1     28      2       3 set_active_process@198-200@lb_controller/adapters/ansible_helpers.py
+       3      1     23      1       3 get_active_process@202-204@lb_controller/adapters/ansible_helpers.py
+      19      5    145      4      19 _run_streaming@206-224@lb_controller/adapters/ansible_helpers.py
+      16      3    117      3      16 _run_capture@226-241@lb_controller/adapters/ansible_helpers.py
+      27      8    142      3      27 _stream_process_output@243-269@lb_controller/adapters/ansible_helpers.py
+       6      2     46      2       6 _emit_stream_line@271-276@lb_controller/adapters/ansible_helpers.py
+       9      3     54      2       9 _finalize_process@279-287@lb_controller/adapters/ansible_helpers.py
+       5      2     25      1       5 _terminate_process@290-294@lb_controller/adapters/ansible_helpers.py
+       3      1     32      2       3 __init__._default_cb@60-62@lb_controller/adapters/ansible_runner.py
+      37      4    250      7      55 __init__@27-81@lb_controller/adapters/ansible_runner.py
+      59     10    374      7      68 run_playbook@83-150@lb_controller/adapters/ansible_runner.py
+       9      2     33      0      10 _import_runner@153-162@lb_controller/adapters/ansible_runner.py
+      19      1    135      8      24 _run_subprocess_playbook@164-187@lb_controller/adapters/ansible_runner.py
+       3      1     42      2       3 _log_subprocess_command@190-192@lb_controller/adapters/ansible_runner.py
+       3      1     20      1       4 interrupt@194-197@lb_controller/adapters/ansible_runner.py
+       4      2     26      1       5 is_running@200-204@lb_controller/adapters/ansible_runner.py
+       2      1     13      1       2 _active_process@207-208@lb_controller/adapters/ansible_runner.py
+       2      1     15      2       2 _active_process@211-212@lb_controller/adapters/ansible_runner.py
       16      3    110      5      22 __init__@19-40@lb_controller/adapters/remote_runner.py
        2      1     13      1       2 state@43-44@lb_controller/adapters/remote_runner.py
        2      1     11      1       2 result@47-48@lb_controller/adapters/remote_runner.py
@@ -68,32 +82,16 @@
        7      3     47      2       8 wait@61-68@lb_controller/adapters/remote_runner.py
       10      4     54      2      12 arm_stop@70-81@lb_controller/adapters/remote_runner.py
       27     11    154      1      28 _run@83-110@lb_controller/adapters/remote_runner.py
-      31      4    208     11      33 __init__@75-107@lb_controller/engine/controller.py
-       3      2     25      2       4 on_event@109-112@lb_controller/engine/controller.py
-       5      2     51      3       6 _transition@114-119@lb_controller/engine/controller.py
-       5      2     36      2       6 _arm_stop@121-126@lb_controller/engine/controller.py
-       5      3     31      1       6 _stop_requested@128-133@lb_controller/engine/controller.py
-       7      3     35      1       8 _refresh_journal@135-142@lb_controller/engine/controller.py
-       2      1     15      1       2 run.ui_log@172-173@lb_controller/engine/controller.py
-      32      8    221      6      52 run@144-195@lb_controller/engine/controller.py
-      76     12    419      5      82 _prepare_run_state@197-278@lb_controller/engine/controller.py
-       8      1     51      5       8 _run_global_setup@280-287@lb_controller/engine/controller.py
-      17      4     99      5      18 _run_workloads@289-306@lb_controller/engine/controller.py
-      62      8    269      6      69 _process_single_workload@308-376@lb_controller/engine/controller.py
-       8      1     49      5       8 _handle_stop_during_workloads@378-385@lb_controller/engine/controller.py
-      13      2     57      5      13 _get_plugin_assets@387-399@lb_controller/engine/controller.py
-      24      1     94     10      24 _run_workload_setup@401-424@lb_controller/engine/controller.py
-      24      1     92     10      24 _run_workload_execution@426-449@lb_controller/engine/controller.py
-      20      1     78      8      20 _execute_run_playbook@451-470@lb_controller/engine/controller.py
-      18      1     64      7      18 _handle_collect_phase@472-489@lb_controller/engine/controller.py
-       8      1     48      5       8 _run_global_teardown@491-498@lb_controller/engine/controller.py
-      34      7    166      5      34 _build_summary@500-533@lb_controller/engine/controller.py
-       7      1     44      4      14 _handle_stop_protocol@535-548@lb_controller/engine/controller.py
-       7      3     31      1       7 _interrupt_executor@550-556@lb_controller/engine/controller.py
-       5      2     42      1       7 _collector_apt_packages@558-564@lb_controller/engine/controller.py
-       9      1     59      6       9 _run_for_hosts@566-574@lb_controller/engine/controller.py
-      19      1     92      5      20 handle_stop_during_workloads@18-37@lb_controller/engine/stop_logic.py
-      52      6    233      4      66 handle_stop_protocol@40-105@lb_controller/engine/stop_logic.py
+      41      4    262      3      41 __init__@36-76@lb_controller/engine/controller.py
+       3      2     25      2       4 on_event@78-81@lb_controller/engine/controller.py
+       2      1     15      1       2 coordinator@84-85@lb_controller/engine/controller.py
+       2      1     20      2       2 coordinator@88-89@lb_controller/engine/controller.py
+       2      1     17      1       2 run.ui_log@120-121@lb_controller/engine/controller.py
+      35      8    242      6      55 run@91-145@lb_controller/engine/controller.py
+      75     11    426      5      81 _prepare_run_state@147-227@lb_controller/engine/controller.py
+       7      1     45      4       7 _handle_stop_protocol@229-235@lb_controller/engine/controller.py
+      19      1     92      5      20 handle_stop_during_workloads@17-36@lb_controller/engine/stop_logic.py
+      53      6    233      4      67 handle_stop_protocol@39-105@lb_controller/engine/stop_logic.py
       12      1     73      4      18 __init__@28-45@lb_controller/engine/stops.py
        6      2     40      1       7 initiate_stop@47-53@lb_controller/engine/stops.py
       12      8    107      2      23 process_event@57-79@lb_controller/engine/stops.py
@@ -123,23 +121,27 @@
        5      3     47      2       5 get_tasks_by_host@93-97@lb_controller/services/journal.py
        3      1     36      4       4 get_task@99-102@lb_controller/services/journal.py
       20      4    103      7      20 update_task@104-123@lb_controller/services/journal.py
-       5      2     52      4      11 should_run@125-135@lb_controller/services/journal.py
-       7      5     83      3       7 _update_task_timings@138-144@lb_controller/services/journal.py
-       9      3    100      2      13 save@146-158@lb_controller/services/journal.py
-      28     10    192      3      31 load@161-191@lb_controller/services/journal.py
-       8      4     45      1      11 rehydrate_config@193-203@lb_controller/services/journal.py
-      10      2     72      4      10 __init__@209-218@lb_controller/services/journal.py
-       3      1     24      2       4 emit@220-223@lb_controller/services/journal.py
-       3      2     25      2       3 emit_many@225-227@lb_controller/services/journal.py
-       7      3     30      1       7 close@229-235@lb_controller/services/journal.py
-      17      2    107      2      18 _update_journal@237-254@lb_controller/services/journal.py
-      21      9    113      2      22 _write_log@256-277@lb_controller/services/journal.py
-      10      4     62      1      11 _config_dump@280-290@lb_controller/services/journal.py
-       6      2     63      1       7 _config_hash@293-299@lb_controller/services/journal.py
+      14      3     72      5      20 should_run@125-144@lb_controller/services/journal.py
+       7      5     83      3       7 _update_task_timings@147-153@lb_controller/services/journal.py
+       9      3    100      2      13 save@155-167@lb_controller/services/journal.py
+      28     10    192      3      31 load@170-200@lb_controller/services/journal.py
+       8      4     45      1      11 rehydrate_config@202-212@lb_controller/services/journal.py
+      10      2     72      4      10 __init__@218-227@lb_controller/services/journal.py
+       3      1     24      2       4 emit@229-232@lb_controller/services/journal.py
+       3      2     25      2       3 emit_many@234-236@lb_controller/services/journal.py
+       7      3     30      1       7 close@238-244@lb_controller/services/journal.py
+      17      2    107      2      18 _update_journal@246-263@lb_controller/services/journal.py
+      21      9    113      2      22 _write_log@265-286@lb_controller/services/journal.py
+      10      4     62      1      11 _config_dump@289-299@lb_controller/services/journal.py
+       6      2     63      1       7 _config_hash@302-308@lb_controller/services/journal.py
        2      1     18      0       3 generate_run_id@21-23@lb_controller/services/paths.py
        9      1     79      2      13 prepare_run_dirs@26-38@lb_controller/services/paths.py
       11      2     72      3      12 prepare_per_host_dirs@41-52@lb_controller/services/paths.py
        8      4     65      1       9 apply_playbook_defaults@55-63@lb_controller/services/paths.py
+       7      1     40      4       7 __init__@14-20@lb_controller/services/ui_notifier.py
+       3      2     24      2       3 set_phase@22-24@lb_controller/services/ui_notifier.py
+       7      3     34      1       7 refresh_journal@26-32@lb_controller/services/ui_notifier.py
+       2      1     17      2       2 log@34-35@lb_controller/services/ui_notifier.py
       22      2     99      9      23 update_journal_tasks@18-40@lb_controller/services/journal_sync.py
       25      3    105      9      26 update_all_reps@43-68@lb_controller/services/journal_sync.py
       16      4     99      6      17 backfill_timings_from_results@71-87@lb_controller/services/journal_sync.py
@@ -149,6 +151,21 @@
       12      6    116      2      12 _update_task_timings@133-144@lb_controller/services/journal_sync.py
       10      5     99      2      10 _update_task_status@147-156@lb_controller/services/journal_sync.py
       10      5     85      3      10 _format_error_message@159-168@lb_controller/services/journal_sync.py
+       9      1     35      4       9 __init__@25-33@lb_controller/services/workload_runner.py
+      20      4    111      6      20 run_workloads@35-54@lb_controller/services/workload_runner.py
+      73      8    299      7      80 _process_single_workload@56-135@lb_controller/services/workload_runner.py
+      12      2     53      4      12 _get_plugin_assets@137-148@lb_controller/services/workload_runner.py
+      21      3    127     10      21 __init__@32-52@lb_controller/services/controller_context.py
+       9      2     51      3       9 _transition@54-62@lb_controller/services/controller_context.py
+       5      2     35      2       5 _arm_stop@64-68@lb_controller/services/controller_context.py
+       5      3     30      1       5 _stop_requested@70-74@lb_controller/services/controller_context.py
+       7      3     31      1       7 _interrupt_executor@76-82@lb_controller/services/controller_context.py
+       7      3     34      1       7 _refresh_journal@84-90@lb_controller/services/controller_context.py
+      34      7    166      5      34 _build_summary@92-125@lb_controller/services/controller_context.py
+       8      1     49      5       8 _handle_stop_during_workloads@127-134@lb_controller/services/controller_context.py
+       7      1     43      4       7 _handle_stop_protocol@136-142@lb_controller/services/controller_context.py
+      16      1     59      6      16 _run_for_hosts@144-159@lb_controller/services/controller_context.py
+       5      2     41      1       5 _collector_apt_packages@161-165@lb_controller/services/controller_context.py
        9      3     65      4       9 __init__@20-28@lb_controller/services/run_catalog_service.py
       18      7    117      1      21 list_runs@30-50@lb_controller/services/run_catalog_service.py
       24      6    173      2      29 get_run@52-80@lb_controller/services/run_catalog_service.py
@@ -160,56 +177,66 @@
       18      7    139      1      18 _extract_hosts_workloads@121-138@lb_controller/services/run_catalog_service.py
        2      3     32      1       2 _fallback_hosts@141-142@lb_controller/services/run_catalog_service.py
       10      5     75      2      10 _fallback_workloads@145-154@lb_controller/services/run_catalog_service.py
-       4      2     44      2       5 __init__@29-33@lb_controller/services/setup_service.py
-      12      1     64      1      14 _get_local_inventory@35-48@lb_controller/services/setup_service.py
-      19      3     97      2      26 provision_global@50-75@lb_controller/services/setup_service.py
-      23      6    128      4      29 provision_workload@77-105@lb_controller/services/setup_service.py
-      25      6    125      4      31 teardown_workload@107-137@lb_controller/services/setup_service.py
-      16      3     85      2      21 teardown_global@139-159@lb_controller/services/setup_service.py
-28 file analyzed.
+       4      2     44      2       5 __init__@31-35@lb_controller/services/setup_service.py
+      12      1     64      1      14 _get_local_inventory@37-50@lb_controller/services/setup_service.py
+      22      4    113      3      29 provision_global@52-80@lb_controller/services/setup_service.py
+      23      6    128      4      29 provision_workload@82-110@lb_controller/services/setup_service.py
+      25      6    125      4      31 teardown_workload@112-142@lb_controller/services/setup_service.py
+      22      4    109      3      27 teardown_global@144-170@lb_controller/services/setup_service.py
+       2      1     16      2       2 __init__@16-17@lb_controller/services/teardown_service.py
+       8      1     50      5       8 run_global_teardown@19-26@lb_controller/services/teardown_service.py
+36 file analyzed.
 ==============================================================
 NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
 --------------------------------------------------------------
+     25       9.0     2.0       44.0         1     lb_controller/models/controller_options.py
       0       0.0     0.0        0.0         0     lb_controller/models/__init__.py
      41       6.5     1.0       39.5         2     lb_controller/models/types.py
-     44      13.3     4.7       81.0         3     lb_controller/models/pending.py
-     13       0.0     0.0        0.0         0     lb_controller/models/contracts.py
+     56      17.3     4.7       93.0         3     lb_controller/models/pending.py
+     19       0.0     0.0        0.0         0     lb_controller/models/contracts.py
     136       5.8     1.5       38.2         8     lb_controller/models/state.py
-    134       9.2     3.7       69.5        13     lb_controller/ansible/callback_plugins/lb_events.py
+    151      10.5     4.5       85.5        13     lb_controller/ansible/callback_plugins/lb_events.py
       0       0.0     0.0        0.0         0     lb_controller/ansible/collections/ansible_collections/community/docker/plugins/connection/__init__.py
      49       8.2     2.2       66.4         5     lb_controller/ansible/collections/ansible_collections/community/docker/plugins/connection/docker.py
       0       0.0     0.0        0.0         0     lb_controller/ansible/collections/ansible_collections/community/docker/plugins/__init__.py
       0       0.0     0.0        0.0         0     lb_controller/ansible/collections/ansible_collections/community/docker/__init__.py
       0       0.0     0.0        0.0         0     lb_controller/ansible/collections/ansible_collections/community/__init__.py
       0       0.0     0.0        0.0         0     lb_controller/ansible/collections/ansible_collections/__init__.py
-    328      39.1     6.1      204.0         8     lb_controller/adapters/playbooks.py
-    323      15.2     3.5       99.2        20     lb_controller/adapters/ansible_runner.py
+    340      40.5     6.5      212.4         8     lb_controller/adapters/playbooks.py
+    248       9.8     2.5       63.7        23     lb_controller/adapters/ansible_helpers.py
+    162      14.1     2.4       94.0        10     lb_controller/adapters/ansible_runner.py
      81       8.9     3.4       56.6         8     lb_controller/adapters/remote_runner.py
-    481      17.9     3.0       95.2        24     lb_controller/engine/controller.py
-     81      35.5     3.5      162.5         2     lb_controller/engine/stop_logic.py
+     24       0.0     0.0        0.0         0     lb_controller/engine/run_state.py
+    189      20.9     3.6      131.5         8     lb_controller/engine/controller.py
+     82      36.0     3.5      162.5         2     lb_controller/engine/stop_logic.py
+     45       0.0     0.0        0.0         0     lb_controller/engine/controller_protocols.py
      55       7.2     3.0       55.0         6     lb_controller/engine/stops.py
      43       2.3     1.3       19.1         9     lb_controller/engine/lifecycle.py
      78       7.0     2.5       49.2         8     lb_controller/engine/interrupts.py
-    233      10.4     3.4       71.8        19     lb_controller/services/journal.py
+    242      10.8     3.5       72.9        19     lb_controller/services/journal.py
      42       7.5     2.0       58.5         4     lb_controller/services/paths.py
+     24       4.8     1.8       28.8         4     lb_controller/services/ui_notifier.py
     137      14.2     4.0       90.1         9     lb_controller/services/journal_sync.py
       4       0.0     0.0        0.0         0     lb_controller/services/__init__.py
+    129      28.5     3.8      124.5         4     lb_controller/services/workload_runner.py
+    146      11.3     2.5       60.5        11     lb_controller/services/controller_context.py
     124      10.0     4.1       74.4        11     lb_controller/services/run_catalog_service.py
-    111      16.5     3.5       90.5         6     lb_controller/services/setup_service.py
+    122      18.0     3.8       97.2         6     lb_controller/services/setup_service.py
+     17       5.0     1.0       33.0         2     lb_controller/services/teardown_service.py
       0       0.0     0.0        0.0         0     lb_controller/__init__.py
-     74       0.0     0.0        0.0         0     lb_controller/api.py
+     82       0.0     0.0        0.0         0     lb_controller/api.py
 
 ==========================================================================================================
 !!!! Warnings (cyclomatic_complexity > 10 or length > 200 or nloc > 1000000 or parameter_count > 100) !!!!
 ================================================
   NLOC    CCN   token  PARAM  length  location  
 ------------------------------------------------
-      20     12    172      2      21 _candidate_texts@121-141@lb_controller/ansible/callback_plugins/lb_events.py
-      48     12    284      5      52 run_global_teardown@293-344@lb_controller/adapters/playbooks.py
-      83     14    525      7      94 run_playbook@70-163@lb_controller/adapters/ansible_runner.py
+      21     12    235      3      21 _handle_result@111-131@lb_controller/ansible/callback_plugins/lb_events.py
+      20     12    172      2      21 _candidate_texts@140-160@lb_controller/ansible/callback_plugins/lb_events.py
+      51     13    309      5      57 run_global_teardown@301-357@lb_controller/adapters/playbooks.py
       27     11    154      1      28 _run@83-110@lb_controller/adapters/remote_runner.py
-      76     12    419      5      82 _prepare_run_state@197-278@lb_controller/engine/controller.py
+      75     11    426      5      81 _prepare_run_state@147-227@lb_controller/engine/controller.py
 ==========================================================================================
 Total nloc   Avg.NLOC  AvgCCN  Avg.token   Fun Cnt  Warning cnt   Fun Rt   nloc Rt
 ------------------------------------------------------------------------------------------
-      2612      12.9     3.3       80.0      165            5      0.03    0.12
+      2893      12.3     3.1       76.9      184            5      0.03    0.09

@@ -2,74 +2,34 @@ from __future__ import annotations
 
 import ast
 import csv
-import hashlib
 import json
 import logging
-import os
-import re
 import socket
 import subprocess
-import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 from urllib.parse import urlparse, urlunparse
 
-from lb_common.api import (
-    JsonlLogFormatter,
-    attach_jsonl_handler,
-    attach_loki_handler,
-)
-from lb_runner.api import LBEventLogHandler, RunEvent, StdoutEmitter
 from .config import DfaasConfig
-from .grafana_assets import (
-    GRAFANA_DASHBOARD_UID,
-)
+from .context import ExecutionContext
 from .exceptions import K6ExecutionError
 from .services import (
     CooldownManager,
     CooldownTimeoutError,
     DfaasResultBuilder,
-    GrafanaClient,
+    DfaasAnnotationService,
+    DfaasLogManager,
+    DfaasPlanBuilder,
     MetricsCollector,
     MetricsSnapshot,
 )
 from .services.k6_runner import K6Runner
+from .services.plan_builder import config_id, config_key, dominates, parse_duration_seconds
 from ...base_generator import BaseGenerator
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ExecutionContext:
-    """Encapsulates runtime context for DFaaS execution.
-
-    Use `from_environment()` to create from env vars, or inject directly for testing.
-    """
-
-    host: str
-    repetition: int
-    total_repetitions: int
-    event_logging_enabled: bool = False
-    host_address: str | None = None
-
-    @classmethod
-    def from_environment(cls) -> "ExecutionContext":
-        """Create context from environment variables."""
-        host = os.environ.get("LB_RUN_HOST") or os.uname().nodename
-        host_address = os.environ.get("LB_RUN_HOST_ADDRESS")
-        repetition = _parse_int(os.environ.get("LB_RUN_REPETITION"), 1)
-        total = _parse_int(os.environ.get("LB_RUN_TOTAL_REPS"), repetition)
-        raw = os.environ.get("LB_ENABLE_EVENT_LOGGING", "1").strip().lower()
-        event_logging = raw not in {"0", "false", "no"}
-        return cls(
-            host=host,
-            repetition=repetition,
-            total_repetitions=total,
-            event_logging_enabled=event_logging,
-            host_address=host_address,
-        )
 
 
 @dataclass
@@ -93,94 +53,6 @@ class _RunContext:
     script_entries: list[dict[str, Any]] = field(default_factory=list)
     overloaded_configs: list[list[tuple[str, int]]] = field(default_factory=list)
 
-_DURATION_RE = re.compile(r"^(?P<value>[0-9]+)(?P<unit>ms|s|m|h)$")
-
-def _parse_duration_seconds(duration: str) -> int:
-    match = _DURATION_RE.match(duration.strip())
-    if not match:
-        raise ValueError(f"Invalid duration format: {duration!r}")
-    value = int(match.group("value"))
-    unit = match.group("unit")
-    if unit == "ms":
-        return max(1, int(value / 1000))
-    if unit == "s":
-        return value
-    if unit == "m":
-        return value * 60
-    if unit == "h":
-        return value * 3600
-    raise ValueError(f"Unsupported duration unit: {unit}")
-
-
-def generate_rates_list(min_rate: int, max_rate: int, step: int) -> list[int]:
-    return list(range(min_rate, max_rate + 1, step))
-
-
-def generate_function_combinations(
-    functions: list[str], min_functions: int, max_functions: int
-) -> list[tuple[str, ...]]:
-    from itertools import combinations
-
-    sorted_functions = sorted(functions)
-    combos: list[tuple[str, ...]] = []
-    for size in range(min_functions, max_functions):
-        combos.extend(combinations(sorted_functions, size))
-    return combos
-
-
-def generate_configurations(
-    functions: list[str],
-    rates: list[int],
-    min_functions: int,
-    max_functions: int,
-    rates_by_function: dict[str, list[int]] | None = None,
-) -> list[list[tuple[str, int]]]:
-    from itertools import product
-
-    configs: list[list[tuple[str, int]]] = []
-    combos = generate_function_combinations(functions, min_functions, max_functions)
-    for combo in combos:
-        rate_sets: list[list[tuple[str, int]]] = []
-        for fn in combo:
-            fn_rates = rates_by_function.get(fn, rates) if rates_by_function else rates
-            rate_sets.append([(fn, rate) for rate in fn_rates])
-        for selection in product(*rate_sets):
-            configs.append(list(selection))
-    return configs
-
-
-def config_key(config: Iterable[tuple[str, int]]) -> tuple[tuple[str, ...], tuple[int, ...]]:
-    sorted_config = sorted(config, key=lambda pair: pair[0])
-    names = tuple(fn for fn, _ in sorted_config)
-    rates = tuple(rate for _, rate in sorted_config)
-    return names, rates
-
-
-def config_id(config: Iterable[tuple[str, int]]) -> str:
-    names, rates = config_key(config)
-    payload = "|".join(f"{name}:{rate}" for name, rate in zip(names, rates))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
-
-
-def dominates(
-    base_config: Iterable[tuple[str, int]] | None,
-    candidate_config: Iterable[tuple[str, int]],
-) -> bool:
-    if base_config is None:
-        return False
-    base_names, base_rates = config_key(base_config)
-    candidate_names, candidate_rates = config_key(candidate_config)
-    if base_names != candidate_names:
-        return False
-    better = False
-    for base_rate, candidate_rate in zip(base_rates, candidate_rates):
-        if candidate_rate < base_rate:
-            return False
-        if candidate_rate > base_rate:
-            better = True
-    return better
-
-
 class DfaasGenerator(BaseGenerator):
     """DFaaS generator that orchestrates one config at a time."""
 
@@ -193,16 +65,14 @@ class DfaasGenerator(BaseGenerator):
         super().__init__(name)
         self.config = config
         self._exec_ctx = execution_context or ExecutionContext.from_environment()
-        self._jsonl_handler: logging.Handler | None = None
-        self._k6_jsonl_handler: logging.Handler | None = None
-        self._loki_handler: logging.Handler | None = None
-        self._k6_loki_handler: logging.Handler | None = None
-        self._grafana_client: GrafanaClient | None = None
-        self._grafana_dashboard_id: int | None = None
-        self._grafana_dashboard_uid: str | None = None
+        self._planner = DfaasPlanBuilder(config)
         self.expected_runtime_seconds = self._estimate_runtime()
-        self._event_emitter = StdoutEmitter()
-        self._event_run_id: str | None = None
+        self._log_manager = DfaasLogManager(
+            config=config,
+            exec_ctx=self._exec_ctx,
+            logger=logger,
+        )
+        self._annotations = DfaasAnnotationService(config.grafana, self._exec_ctx)
         self._k6_runner = K6Runner(
             k6_host=config.k6_host,
             k6_user=config.k6_user,
@@ -212,7 +82,7 @@ class DfaasGenerator(BaseGenerator):
             gateway_url=self._resolve_url_template(config.gateway_url, self._exec_ctx.host),
             duration=config.duration,
             log_stream_enabled=config.k6_log_stream,
-            log_callback=self._emit_k6_log_event,
+            log_callback=self._log_manager.emit_k6_log,
             log_to_logger=True,
         )
         self._metrics_collector = MetricsCollector(
@@ -223,24 +93,10 @@ class DfaasGenerator(BaseGenerator):
             function_pid_regexes=config.function_pid_regexes,
         )
         self._result_builder = DfaasResultBuilder(config.overload)
-        self._duration_seconds = _parse_duration_seconds(config.duration)
+        self._duration_seconds = parse_duration_seconds(config.duration)
 
     def _estimate_runtime(self) -> int:
-        duration = _parse_duration_seconds(self.config.duration)
-        rates = generate_rates_list(
-            self.config.rates.min_rate,
-            self.config.rates.max_rate,
-            self.config.rates.step,
-        )
-        rates_by_function = self._build_rates_by_function(rates)
-        configs = generate_configurations(
-            [fn.name for fn in self.config.functions],
-            rates,
-            self.config.combinations.min_functions,
-            self.config.combinations.max_functions,
-            rates_by_function=rates_by_function,
-        )
-        return max(1, duration * max(1, self.config.iterations) * max(1, len(configs)))
+        return self._planner.estimate_runtime_seconds()
 
     def _validate_environment(self) -> bool:
         required = ["ansible-playbook", "faas-cli"]
@@ -287,11 +143,11 @@ class DfaasGenerator(BaseGenerator):
     def _run_command(self) -> None:
         """Execute DFaaS benchmark run."""
         ctx = self._prepare_run()
-        self._annotate_run_start(ctx)
+        self._annotations.annotate_run_start(ctx.run_id)
         try:
             self._execute_configs(ctx)
         finally:
-            self._annotate_run_end(ctx)
+            self._annotations.annotate_run_end(ctx.run_id)
         self._finalize_results(ctx)
 
     def _prepare_run(self) -> _RunContext:
@@ -301,18 +157,12 @@ class DfaasGenerator(BaseGenerator):
             _RunContext with configurations and initialized services
         """
         output_dir = self._resolve_output_dir()
-        function_names = sorted(fn.name for fn in self.config.functions)
-        rates = generate_rates_list(
-            self.config.rates.min_rate,
-            self.config.rates.max_rate,
-            self.config.rates.step,
-        )
-        rates_by_function = self._build_rates_by_function(rates)
-        configs = generate_configurations(
+        function_names = self._planner.build_function_names()
+        rates = self._planner.build_rates()
+        rates_by_function = self._planner.build_rates_by_function(rates)
+        configs = self._planner.build_configurations(
             function_names,
             rates,
-            self.config.combinations.min_functions,
-            self.config.combinations.max_functions,
             rates_by_function=rates_by_function,
         )
 
@@ -329,8 +179,8 @@ class DfaasGenerator(BaseGenerator):
 
         target_name = self._exec_ctx.host
         run_id = self._resolve_run_id()
-        self._attach_jsonl_handlers(output_dir, run_id)
-        self._init_grafana()
+        self._log_manager.attach_handlers(output_dir, run_id)
+        self._annotations.setup()
 
         return _RunContext(
             function_names=function_names,
@@ -341,158 +191,6 @@ class DfaasGenerator(BaseGenerator):
             target_name=target_name,
             run_id=run_id,
         )
-
-    def _attach_jsonl_handlers(self, output_dir: Path, run_id: str) -> None:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        if self._jsonl_handler:
-            logger.removeHandler(self._jsonl_handler)
-            try:
-                self._jsonl_handler.close()
-            except Exception:
-                pass
-        self._jsonl_handler = attach_jsonl_handler(
-            logger,
-            output_dir=output_dir,
-            component="dfaas",
-            host=self._exec_ctx.host,
-            run_id=run_id,
-            workload="dfaas",
-            package="lb_plugins",
-            plugin="dfaas",
-            repetition=self._exec_ctx.repetition,
-        )
-        self._attach_loki_handler(run_id)
-        k6_logger = logging.getLogger(
-            "lb_plugins.plugins.dfaas.services.k6_runner"
-        )
-        if self._k6_jsonl_handler:
-            k6_logger.removeHandler(self._k6_jsonl_handler)
-            try:
-                self._k6_jsonl_handler.close()
-            except Exception:
-                pass
-        self._k6_jsonl_handler = attach_jsonl_handler(
-            k6_logger,
-            output_dir=output_dir,
-            component="k6",
-            host=self._exec_ctx.host,
-            run_id=run_id,
-            workload="dfaas",
-            package="lb_plugins",
-            plugin="dfaas",
-            repetition=self._exec_ctx.repetition,
-        )
-        self._attach_k6_loki_handler(run_id, k6_logger)
-
-    def _attach_loki_handler(self, run_id: str) -> None:
-        if self._loki_handler:
-            logger.removeHandler(self._loki_handler)
-            try:
-                self._loki_handler.close()
-            except Exception:
-                pass
-            self._loki_handler = None
-        # Use explicit config values - attach_loki_handler uses env vars only as fallbacks
-        loki_cfg = self.config.loki
-        self._loki_handler = attach_loki_handler(
-            logger,
-            enabled=loki_cfg.enabled,
-            endpoint=loki_cfg.endpoint,
-            labels=loki_cfg.labels,
-            component="dfaas",
-            host=self._exec_ctx.host,
-            run_id=run_id,
-            workload="dfaas",
-            package="lb_plugins",
-            plugin="dfaas",
-            repetition=self._exec_ctx.repetition,
-        )
-        if self._loki_handler:
-            self._loki_handler.setFormatter(
-                JsonlLogFormatter(
-                    component="dfaas",
-                    host=self._exec_ctx.host,
-                    run_id=run_id,
-                    workload="dfaas",
-                    package="lb_plugins",
-                    plugin="dfaas",
-                    repetition=self._exec_ctx.repetition,
-                )
-            )
-
-    def _attach_k6_loki_handler(
-        self, run_id: str, k6_logger: logging.Logger
-    ) -> None:
-        if self._k6_loki_handler:
-            k6_logger.removeHandler(self._k6_loki_handler)
-            try:
-                self._k6_loki_handler.close()
-            except Exception:
-                pass
-            self._k6_loki_handler = None
-        # Use explicit config values - attach_loki_handler uses env vars only as fallbacks
-        loki_cfg = self.config.loki
-        self._k6_loki_handler = attach_loki_handler(
-            k6_logger,
-            enabled=loki_cfg.enabled,
-            endpoint=loki_cfg.endpoint,
-            labels=loki_cfg.labels,
-            component="k6",
-            host=self._exec_ctx.host,
-            run_id=run_id,
-            workload="dfaas",
-            package="lb_plugins",
-            plugin="dfaas",
-            repetition=self._exec_ctx.repetition,
-        )
-        if self._k6_loki_handler:
-            self._k6_loki_handler.setFormatter(
-                JsonlLogFormatter(
-                    component="k6",
-                    host=self._exec_ctx.host,
-                    run_id=run_id,
-                    workload="dfaas",
-                    package="lb_plugins",
-                    plugin="dfaas",
-                    repetition=self._exec_ctx.repetition,
-                )
-            )
-
-    def _init_grafana(self) -> None:
-        if not self.config.grafana.enabled:
-            self._grafana_client = None
-            self._grafana_dashboard_id = None
-            self._grafana_dashboard_uid = None
-            return
-
-        client = GrafanaClient(
-            base_url=self.config.grafana.url,
-            api_key=self.config.grafana.api_key,
-            org_id=self.config.grafana.org_id,
-        )
-        
-        # We don't hard-fail on health check here, just warn if not reachable,
-        # so we don't block the benchmark if metrics/logging are working but Grafana is flaky.
-        healthy, _ = client.health_check()
-        if not healthy:
-            logger.warning(
-                "Grafana health check failed at %s; annotations will be disabled.",
-                self.config.grafana.url,
-            )
-            return
-
-        self._grafana_client = client
-        self._grafana_dashboard_uid = GRAFANA_DASHBOARD_UID
-        
-        try:
-            resp = client.get_dashboard_by_uid(GRAFANA_DASHBOARD_UID)
-            if resp and "dashboard" in resp:
-                self._grafana_dashboard_id = resp["dashboard"].get("id")
-                logger.info("Resolved Grafana dashboard ID: %s", self._grafana_dashboard_id)
-            else:
-                logger.warning("Grafana dashboard '%s' not found.", GRAFANA_DASHBOARD_UID)
-        except Exception as exc:
-            logger.warning("Failed to resolve Grafana dashboard: %s", exc)
 
     def _get_local_ip(self) -> str:
         """Resolve the primary local IP address."""
@@ -531,96 +229,6 @@ class DfaasGenerator(BaseGenerator):
 
     def _resolve_prometheus_url(self, target_name: str) -> str:
         return self._resolve_url_template(self.config.prometheus_url, target_name)
-
-    def _base_grafana_tags(self, run_id: str) -> list[str]:
-        return [
-            f"run_id:{run_id}",
-            "workload:dfaas",
-            "component:dfaas",
-            f"repetition:{self._exec_ctx.repetition}",
-            f"host:{self._exec_ctx.host}",
-            "phase:run",
-        ]
-
-    def _queue_grafana_annotation(
-        self, *, text: str, tags: list[str]
-    ) -> None:
-        client = self._grafana_client
-        if not client:
-            return
-        dashboard_id = self._grafana_dashboard_id
-        time_ms = int(time.time() * 1000)
-
-        def _send() -> None:
-            try:
-                client.create_annotation(
-                    text=text,
-                    tags=tags,
-                    dashboard_id=dashboard_id,
-                    time_ms=time_ms,
-                )
-            except Exception as exc:
-                logger.debug("Grafana annotation failed: %s", exc)
-
-        threading.Thread(target=_send, daemon=True).start()
-
-    def _annotate_run_start(self, ctx: _RunContext) -> None:
-        tags = self._base_grafana_tags(ctx.run_id)
-        tags.append("event:run_start")
-        self._queue_grafana_annotation(
-            text=f"DFaaS run start ({ctx.run_id})",
-            tags=tags,
-        )
-
-    def _annotate_run_end(self, ctx: _RunContext) -> None:
-        tags = self._base_grafana_tags(ctx.run_id)
-        tags.append("event:run_end")
-        self._queue_grafana_annotation(
-            text=f"DFaaS run end ({ctx.run_id})",
-            tags=tags,
-        )
-
-    def _annotate_config_change(
-        self, ctx: _RunContext, cfg_id: str, pairs_label: str
-    ) -> None:
-        tags = self._base_grafana_tags(ctx.run_id)
-        tags.extend([f"config_id:{cfg_id}", "event:config"])
-        self._queue_grafana_annotation(
-            text=f"Config {cfg_id}: {pairs_label}",
-            tags=tags,
-        )
-
-    def _annotate_overload(
-        self,
-        ctx: _RunContext,
-        cfg_id: str,
-        pairs_label: str,
-        iteration: int,
-    ) -> None:
-        tags = self._base_grafana_tags(ctx.run_id)
-        tags.extend(
-            [
-                f"config_id:{cfg_id}",
-                f"iteration:{iteration}",
-                "event:overload",
-            ]
-        )
-        self._queue_grafana_annotation(
-            text=(
-                f"Overload detected ({cfg_id}) iter {iteration}: {pairs_label}"
-            ),
-            tags=tags,
-        )
-
-    def _annotate_error(
-        self, ctx: _RunContext, cfg_id: str, message: str
-    ) -> None:
-        tags = self._base_grafana_tags(ctx.run_id)
-        tags.extend([f"config_id:{cfg_id}", "event:error"])
-        self._queue_grafana_annotation(
-            text=f"Config {cfg_id} error: {message}",
-            tags=tags,
-        )
 
     def _build_k6_tags(self, run_id: str) -> dict[str, str]:
         tags = {key: str(value) for key, value in self.config.k6_tags.items()}
@@ -691,7 +299,7 @@ class DfaasGenerator(BaseGenerator):
             )
             return
 
-        self._annotate_config_change(ctx, cfg_id, pairs_label)
+        self._annotations.annotate_config_change(ctx.run_id, cfg_id, pairs_label)
 
         # Build k6 script
         script, metric_ids = self._k6_runner.build_script(
@@ -725,8 +333,8 @@ class DfaasGenerator(BaseGenerator):
                 "Config %s skipped: cooldown timeout after %ds (max: %ds)",
                 cfg_id, exc.waited_seconds, exc.max_seconds
             )
-            self._annotate_error(
-                ctx,
+            self._annotations.annotate_error(
+                ctx.run_id,
                 cfg_id,
                 f"Cooldown timeout after {exc.waited_seconds}s (max {exc.max_seconds}s)",
             )
@@ -739,8 +347,8 @@ class DfaasGenerator(BaseGenerator):
             logger.error("Config %s failed: k6 execution error: %s", cfg_id, exc)
             if exc.stderr:
                 logger.debug("k6 stderr: %s", exc.stderr)
-            self._annotate_error(
-                ctx,
+            self._annotations.annotate_error(
+                ctx.run_id,
                 cfg_id,
                 f"k6 execution error: {exc}",
             )
@@ -751,8 +359,8 @@ class DfaasGenerator(BaseGenerator):
             )
         except (OSError, json.JSONDecodeError, RuntimeError) as exc:
             logger.error("Config %s failed: %s: %s", cfg_id, type(exc).__name__, exc)
-            self._annotate_error(
-                ctx,
+            self._annotations.annotate_error(
+                ctx.run_id,
                 cfg_id,
                 f"{type(exc).__name__}: {exc}",
             )
@@ -798,7 +406,7 @@ class DfaasGenerator(BaseGenerator):
                 f"({cfg_id}) skipped={skip_reason}: {pairs_label}"
             )
             logger.info("%s", message)
-            self._emit_log_event(message)
+            self._log_manager.emit_log(message)
         ctx.skipped_rows.append(
             self._result_builder.build_skipped_row(
                 ctx.function_names, config_pairs
@@ -829,7 +437,7 @@ class DfaasGenerator(BaseGenerator):
             f"({cfg_id}): {pairs_label}"
         )
         logger.info("%s", message)
-        self._emit_log_event(message)
+        self._log_manager.emit_log(message)
 
         # Wait for cooldown
         logger.info("DFaaS cooldown start (%s)", cfg_id)
@@ -889,7 +497,9 @@ class DfaasGenerator(BaseGenerator):
         )
 
         if overloaded:
-            self._annotate_overload(ctx, cfg_id, pairs_label, iteration)
+            self._annotations.annotate_overload(
+                ctx.run_id, cfg_id, pairs_label, iteration
+            )
 
         # Store results
         ctx.results_rows.append(row)
@@ -928,14 +538,6 @@ class DfaasGenerator(BaseGenerator):
             "dfaas_metrics": ctx.metrics_entries,
             "dfaas_scripts": ctx.script_entries,
         }
-
-    def _build_rates_by_function(self, rates: list[int]) -> dict[str, list[int]]:
-        rates_by_function: dict[str, list[int]] = {}
-        for fn in self.config.functions:
-            if fn.max_rate is None:
-                continue
-            rates_by_function[fn.name] = [rate for rate in rates if rate <= fn.max_rate]
-        return rates_by_function
 
     def _resolve_output_dir(self) -> Path:
         if self.config.output_dir:
@@ -1046,62 +648,3 @@ class DfaasGenerator(BaseGenerator):
             except (json.JSONDecodeError, OSError, TypeError) as exc:
                 logger.debug("Could not parse config for run_id: %s", exc)
         return f"run-{int(time.time())}"
-
-    def _ensure_event_context(self) -> None:
-        if self._event_run_id is not None:
-            return
-        self._event_run_id = self._resolve_run_id()
-
-    def _emit_log_event(self, message: str, *, level: str = "INFO") -> None:
-        if not self._exec_ctx.event_logging_enabled:
-            return
-        root_logger = logging.getLogger()
-        if any(isinstance(handler, LBEventLogHandler) for handler in root_logger.handlers):
-            return
-        self._ensure_event_context()
-        if self._event_run_id is None:
-            return
-        event = RunEvent(
-            run_id=self._event_run_id,
-            host=self._exec_ctx.host,
-            workload="dfaas",
-            repetition=self._exec_ctx.repetition,
-            total_repetitions=self._exec_ctx.total_repetitions,
-            status="running",
-            message=message,
-            timestamp=time.time(),
-            type="log",
-            level=level,
-        )
-        self._event_emitter.emit(event)
-
-    def _emit_k6_log_event(self, message: str, *, level: str = "INFO") -> None:
-        if not self._exec_ctx.event_logging_enabled:
-            return
-        root_logger = logging.getLogger()
-        if any(isinstance(handler, LBEventLogHandler) for handler in root_logger.handlers):
-            return
-        self._ensure_event_context()
-        if self._event_run_id is None:
-            return
-        event = RunEvent(
-            run_id=self._event_run_id,
-            host=self._exec_ctx.host,
-            workload="dfaas",
-            repetition=self._exec_ctx.repetition,
-            total_repetitions=self._exec_ctx.total_repetitions,
-            status="running",
-            message=message,
-            timestamp=time.time(),
-            type="log",
-            level=level,
-        )
-        self._event_emitter.emit(event)
-
-
-def _parse_int(value: str | None, default: int) -> int:
-    try:
-        return int(value) if value is not None else default
-    except (TypeError, ValueError):
-        return default
-

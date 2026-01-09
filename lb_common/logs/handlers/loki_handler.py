@@ -10,6 +10,9 @@ import time
 from dataclasses import dataclass
 from typing import Iterable, Mapping, Any
 from urllib import request, error
+from urllib.parse import urlparse
+
+from lb_common.logs.handlers.loki_helpers import LokiLabelBuilder, LokiWorker
 
 _logger = logging.getLogger(__name__)
 
@@ -26,9 +29,17 @@ class LokiLogEntry:
 def normalize_loki_endpoint(endpoint: str) -> str:
     """Return a Loki push URL (ending with /loki/api/v1/push)."""
     trimmed = endpoint.rstrip("/")
+    _validate_http_url(trimmed, "Loki endpoint")
     if trimmed.endswith("/loki/api/v1/push"):
         return trimmed
     return f"{trimmed}/loki/api/v1/push"
+
+
+def _validate_http_url(url: str, label: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"{label} must be an http(s) URL, got: {url}")
+    return url
 
 
 def build_loki_payload(entries: Iterable[LokiLogEntry]) -> dict[str, Any]:
@@ -91,12 +102,30 @@ class LokiPushHandler(logging.Handler):
             maxsize=self._max_queue_size
         )
         self._stop_event = threading.Event()
-        self._worker = threading.Thread(
-            target=self._run_worker,
+        self._label_builder = LokiLabelBuilder(
+            component=self._component,
+            host=self._host,
+            run_id=self._run_id,
+            workload=self._workload,
+            package=self._package,
+            plugin=self._plugin,
+            scenario=self._scenario,
+            repetition=self._repetition,
+            labels=self._labels,
+        )
+        self._worker = LokiWorker(
+            queue=self._queue,
+            stop_event=self._stop_event,
+            batch_size=self._batch_size,
+            flush_interval=self._flush_interval,
+            push_entries=self._push_entries,
+        )
+        self._thread = threading.Thread(
+            target=self._worker.run,
             name="loki-push-handler",
             daemon=True,
         )
-        self._worker.start()
+        self._thread.start()
 
     def emit(self, record: logging.LogRecord) -> None:
         """Enqueue a log record for async push."""
@@ -121,8 +150,8 @@ class LokiPushHandler(logging.Handler):
             )
         except queue.Full:
             pass
-        if self._worker.is_alive():
-            self._worker.join(timeout=self._flush_interval * 2)
+        if self._thread.is_alive():
+            self._thread.join(timeout=self._flush_interval * 2)
         super().close()
 
     def _build_entry(self, record: logging.LogRecord) -> LokiLogEntry | None:
@@ -137,77 +166,7 @@ class LokiPushHandler(logging.Handler):
         return LokiLogEntry(labels=labels, timestamp_ns=timestamp_ns, line=line)
 
     def _build_labels(self, record: logging.LogRecord) -> dict[str, str]:
-        labels: dict[str, str] = {}
-        if self._component:
-            labels["component"] = str(self._component)
-        if self._host:
-            labels["host"] = str(self._host)
-        if self._run_id:
-            labels["run_id"] = str(self._run_id)
-        if self._workload:
-            labels["workload"] = str(self._workload)
-        if self._package:
-            labels["package"] = str(self._package)
-        if self._plugin:
-            labels["plugin"] = str(self._plugin)
-        if self._scenario:
-            labels["scenario"] = str(self._scenario)
-        if self._repetition is not None:
-            labels["repetition"] = str(self._repetition)
-
-        record_labels = getattr(record, "lb_labels", None)
-        if isinstance(record_labels, Mapping):
-            for key, value in record_labels.items():
-                if value is None:
-                    continue
-                labels[str(key)] = str(value)
-
-        phase = getattr(record, "lb_phase", None)
-        if phase is not None:
-            labels["phase"] = str(phase)
-
-        for key, value in self._labels.items():
-            if value is None:
-                continue
-            labels[str(key)] = str(value)
-
-        overrides = {
-            "component": getattr(record, "lb_component", None),
-            "host": getattr(record, "lb_host", None),
-            "run_id": getattr(record, "lb_run_id", None),
-            "workload": getattr(record, "lb_workload", None),
-            "package": getattr(record, "lb_package", None),
-            "plugin": getattr(record, "lb_plugin", None),
-            "scenario": getattr(record, "lb_scenario", None),
-            "repetition": getattr(record, "lb_repetition", None),
-        }
-        for key, value in overrides.items():
-            if value is not None:
-                labels[key] = str(value)
-
-        return labels
-
-    def _run_worker(self) -> None:
-        pending: list[LokiLogEntry] = []
-        next_flush = time.monotonic() + self._flush_interval
-        while not self._stop_event.is_set() or not self._queue.empty() or pending:
-            timeout = max(0.0, next_flush - time.monotonic())
-            try:
-                entry = self._queue.get(timeout=timeout)
-                if entry.line or entry.labels:
-                    pending.append(entry)
-                self._queue.task_done()
-            except queue.Empty:
-                pass
-
-            now = time.monotonic()
-            if pending and (len(pending) >= self._batch_size or now >= next_flush):
-                self._push_entries(pending)
-                pending = []
-                next_flush = now + self._flush_interval
-
-        if pending:
-            self._push_entries(pending)
+        return self._label_builder.build(record)
 
     def _push_entries(self, entries: list[LokiLogEntry]) -> None:
         payload = build_loki_payload(entries)
@@ -217,7 +176,9 @@ class LokiPushHandler(logging.Handler):
 
         for attempt in range(self._max_retries + 1):
             try:
-                with request.urlopen(req, timeout=self._timeout_seconds) as resp:
+                with request.urlopen(  # nosec B310
+                    req, timeout=self._timeout_seconds
+                ) as resp:
                     if 200 <= resp.status < 300:
                         return
             except error.HTTPError as exc:

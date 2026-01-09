@@ -1,0 +1,1 @@
+lb_ui/services/tray.py:23: unused variable 'stop_event' (100% confidence)

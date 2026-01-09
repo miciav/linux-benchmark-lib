@@ -1,68 +1,22 @@
-...........F
-=================================== FAILURES ===================================
-________________ test_config_set_default_and_workloads_listing _________________
-
-monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x110120120>
-tmp_path = PosixPath('/private/var/folders/q1/5ln0gtyj3fv55055frjp0nx80000gn/T/pytest-of-micheleciavotta/pytest-82/test_config_set_default_and_wo0')
-
-    @pytest.mark.unit_ui
-    
-    
-    def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    
-    
-        cli = _load_cli(monkeypatch, tmp_path)
-    
-    
-        runner = CliRunner()
-    
-    
-    
-    
-    
-        cfg = BenchmarkConfig()
-    
-    
-        cfg_path = tmp_path / "myconfig.json"
-    
-    
-        cfg.save(cfg_path)
-    
-    
-    
-    
-    
-        result = runner.invoke(cli.app, ["config", "set-default", str(cfg_path)])
-    
-    
-        assert result.exit_code == 0, result.output
-    
-    
-    
-    
-    
-        # workloads listing should pick default config and show known workload
-    
-    
-        result = runner.invoke(cli.app, ["config", "workloads"])
-    
-    
-        assert result.exit_code == 0, result.output
-    
-    
->       assert "stress_ng" in result.output
-E       AssertionError: assert 'stress_ng' in '✔ Loaded config: \n/private/var/folders/q1/5ln0gtyj3fv55055frjp0nx80000gn/T/pytest-of-micheleciavot\nta/pytest-82/tes...──────┼────────────────────────────┤\n╰────────────────────┴──────────────────────────┴────────────────────────────╯\n'
-E        +  where '✔ Loaded config: \n/private/var/folders/q1/5ln0gtyj3fv55055frjp0nx80000gn/T/pytest-of-micheleciavot\nta/pytest-82/tes...──────┼────────────────────────────┤\n╰────────────────────┴──────────────────────────┴────────────────────────────╯\n' = <Result okay>.output
-
-/Users/micheleciavotta/Downloads/linux-benchmark-lib/tests/test_cli.py:740: AssertionError
+...sss..sTearing down VM: benchmark-test-vm...
 
 
-                       Test Statistics by Marker                        
-┏━━━━━━━━━┳━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━┓
-┃ Marker  ┃ Total ┃ Passed ┃ Failed ┃ Skipped ┃ Duration (s) ┃ Avg (s) ┃
-┡━━━━━━━━━╇━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━┩
-│ unit_ui │    12 │     11 │      1 │       0 │         0.34 │    0.03 │
-└─────────┴───────┴────────┴────────┴─────────┴──────────────┴─────────┘
+
+                           Test Statistics by Marker                            
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━┓
+┃ Marker          ┃ Total ┃ Passed ┃ Failed ┃ Skipped ┃ Duration (s) ┃ Avg (s) ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━┩
+│ inter_e2e       │     9 │      5 │      0 │       4 │       121.82 │   13.54 │
+│ inter_multipass │     6 │      2 │      0 │       4 │       113.64 │   18.94 │
+│ inter_plugins   │     6 │      2 │      0 │       4 │       113.64 │   18.94 │
+│ slow            │     3 │      3 │      0 │       0 │         8.18 │    2.73 │
+│ slowest         │     6 │      2 │      0 │       4 │       113.64 │   18.94 │
+└─────────────────┴───────┴────────┴────────┴─────────┴──────────────┴─────────┘
 =========================== short test summary info ============================
-FAILED tests/test_cli.py::test_config_set_default_and_workloads_listing - Ass...
-!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+SKIPPED [1] tests/e2e/test_dfaas_multipass_e2e.py:101: setup_target playbook failed (context: setup_target)
+SKIPPED [1] tests/e2e/test_dfaas_multipass_e2e.py:101: setup_target playbook failed (context: setup_target_streaming)
+SKIPPED [1] tests/e2e/test_dfaas_multipass_e2e.py:101: setup_target failed (context: setup_target_events)
+SKIPPED [1] tests/e2e/test_dfaas_multipass_e2e.py:101: setup_target playbook failed (context: setup_target_cli)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/selectors.py:548: KeyboardInterrupt
+(to show a full traceback on KeyboardInterrupt use --full-trace)
