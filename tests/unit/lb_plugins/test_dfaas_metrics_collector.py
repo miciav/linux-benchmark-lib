@@ -81,6 +81,52 @@ class TestMetricsCollectorInit:
             assert "power_usage_node" in collector._queries
             assert "power_usage_function" in collector._queries
 
+    def test_missing_required_queries_raises(self, tmp_path: Path) -> None:
+        queries_file = tmp_path / "queries.yml"
+        queries_file.write_text(
+            """
+queries:
+  - name: cpu_usage_node
+    query: "avg(rate(node_cpu_seconds_total{mode!='idle'}[{time_span}]))*100"
+"""
+        )
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner"):
+            with pytest.raises(ValueError, match="Missing required Prometheus queries"):
+                MetricsCollector(
+                    prometheus_url="http://localhost:9090",
+                    queries_path=queries_file,
+                    duration="30s",
+                    scaphandre_enabled=False,
+                )
+
+    def test_missing_power_queries_raises_when_scaphandre_enabled(
+        self, tmp_path: Path
+    ) -> None:
+        queries_file = tmp_path / "queries.yml"
+        queries_file.write_text(
+            """
+queries:
+  - name: cpu_usage_node
+    query: "avg(rate(node_cpu_seconds_total{mode!='idle'}[{time_span}]))*100"
+  - name: ram_usage_node
+    query: "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes"
+  - name: ram_usage_node_pct
+    query: "(1 - node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes)*100"
+  - name: cpu_usage_function
+    query: "sum(rate(container_cpu_usage_seconds_total{container='{function_name}'}[{time_span}]))*100"
+  - name: ram_usage_function
+    query: "sum(container_memory_usage_bytes{container='{function_name}'})"
+"""
+        )
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner"):
+            with pytest.raises(ValueError, match="Missing required Prometheus queries"):
+                MetricsCollector(
+                    prometheus_url="http://localhost:9090",
+                    queries_path=queries_file,
+                    duration="30s",
+                    scaphandre_enabled=True,
+                )
+
 
 class TestGetNodeSnapshot:
     def test_returns_metrics_snapshot(self, queries_path: Path) -> None:

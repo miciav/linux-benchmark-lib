@@ -5,7 +5,6 @@ import csv
 import hashlib
 import json
 import logging
-import math
 import os
 import re
 import socket
@@ -31,6 +30,7 @@ from .exceptions import K6ExecutionError
 from .services import (
     CooldownManager,
     CooldownTimeoutError,
+    DfaasResultBuilder,
     GrafanaClient,
     MetricsCollector,
     MetricsSnapshot,
@@ -222,6 +222,7 @@ class DfaasGenerator(BaseGenerator):
             scaphandre_enabled=config.scaphandre_enabled,
             function_pid_regexes=config.function_pid_regexes,
         )
+        self._result_builder = DfaasResultBuilder(config.overload)
         self._duration_seconds = _parse_duration_seconds(config.duration)
 
     def _estimate_runtime(self) -> int:
@@ -730,7 +731,9 @@ class DfaasGenerator(BaseGenerator):
                 f"Cooldown timeout after {exc.waited_seconds}s (max {exc.max_seconds}s)",
             )
             ctx.skipped_rows.append(
-                self._build_skipped_row(ctx.function_names, config_pairs)
+                self._result_builder.build_skipped_row(
+                    ctx.function_names, config_pairs
+                )
             )
         except K6ExecutionError as exc:
             logger.error("Config %s failed: k6 execution error: %s", cfg_id, exc)
@@ -742,7 +745,9 @@ class DfaasGenerator(BaseGenerator):
                 f"k6 execution error: {exc}",
             )
             ctx.skipped_rows.append(
-                self._build_skipped_row(ctx.function_names, config_pairs)
+                self._result_builder.build_skipped_row(
+                    ctx.function_names, config_pairs
+                )
             )
         except (OSError, json.JSONDecodeError, RuntimeError) as exc:
             logger.error("Config %s failed: %s: %s", cfg_id, type(exc).__name__, exc)
@@ -752,7 +757,9 @@ class DfaasGenerator(BaseGenerator):
                 f"{type(exc).__name__}: {exc}",
             )
             ctx.skipped_rows.append(
-                self._build_skipped_row(ctx.function_names, config_pairs)
+                self._result_builder.build_skipped_row(
+                    ctx.function_names, config_pairs
+                )
             )
 
     def _check_skip_reason(
@@ -793,7 +800,9 @@ class DfaasGenerator(BaseGenerator):
             logger.info("%s", message)
             self._emit_log_event(message)
         ctx.skipped_rows.append(
-            self._build_skipped_row(ctx.function_names, config_pairs)
+            self._result_builder.build_skipped_row(
+                ctx.function_names, config_pairs
+            )
         )
 
     def _execute_iteration(
@@ -852,7 +861,13 @@ class DfaasGenerator(BaseGenerator):
         end_time = time.time()
 
         # Collect metrics
-        summary_metrics = self._k6_runner.parse_summary(summary_data, metric_ids)
+        try:
+            summary_metrics = self._k6_runner.parse_summary(summary_data, metric_ids)
+        except ValueError as exc:
+            raise K6ExecutionError(
+                cfg_id,
+                f"missing k6 summary metrics: {exc}",
+            ) from exc
         replicas = self._get_function_replicas(getattr(ctx, "function_names", []))
         config_fn_names = [name for name, _ in config_pairs]
         metrics = self._metrics_collector.collect_all_metrics(
@@ -863,7 +878,7 @@ class DfaasGenerator(BaseGenerator):
         )
 
         # Build result row
-        row, overloaded = self._build_result_row(
+        row, overloaded = self._result_builder.build_result_row(
             getattr(ctx, "function_names", []),
             config_pairs,
             summary_metrics,
@@ -963,101 +978,6 @@ class DfaasGenerator(BaseGenerator):
             logger.warning("Invalid data in index file %s: %s", index_path, exc)
             return set()
 
-    def _build_result_row(
-        self,
-        all_functions: list[str],
-        config_pairs: list[tuple[str, int]],
-        summary_metrics: dict[str, dict[str, float]],
-        replicas: dict[str, int],
-        metrics: dict[str, Any],
-        idle_snapshot: MetricsSnapshot,
-        rest_seconds: int,
-    ) -> tuple[dict[str, Any], bool]:
-        row: dict[str, Any] = {}
-        config_map = {name: rate for name, rate in config_pairs}
-        overloaded_any = False
-        avg_success_rate = 0.0
-        present_count = 0
-
-        for name in all_functions:
-            if name in config_map:
-                success = summary_metrics.get(name, {}).get("success_rate", 1.0)
-                latency = summary_metrics.get(name, {}).get("avg_latency", 0.0)
-                cpu = metrics["functions"].get(name, {}).get("cpu", float("nan"))
-                ram = metrics["functions"].get(name, {}).get("ram", float("nan"))
-                power = metrics["functions"].get(name, {}).get("power", float("nan"))
-                replica = int(replicas.get(name, 0))
-                overloaded_function = int(
-                    success < self.config.overload.success_rate_function_min
-                    or replica >= self.config.overload.replicas_overload_threshold
-                )
-                if overloaded_function:
-                    overloaded_any = True
-                avg_success_rate += success
-                present_count += 1
-
-                row[f"function_{name}"] = name
-                row[f"rate_function_{name}"] = config_map[name]
-                row[f"success_rate_function_{name}"] = _format_float(success)
-                row[f"cpu_usage_function_{name}"] = _format_float(cpu)
-                row[f"ram_usage_function_{name}"] = _format_float(ram)
-                row[f"power_usage_function_{name}"] = _format_float(power)
-                row[f"replica_{name}"] = replica
-                row[f"overloaded_function_{name}"] = overloaded_function
-                row[f"medium_latency_function_{name}"] = int(latency)
-            else:
-                row[f"function_{name}"] = ""
-                row[f"rate_function_{name}"] = ""
-                row[f"success_rate_function_{name}"] = ""
-                row[f"cpu_usage_function_{name}"] = ""
-                row[f"ram_usage_function_{name}"] = ""
-                row[f"power_usage_function_{name}"] = ""
-                row[f"replica_{name}"] = ""
-                row[f"overloaded_function_{name}"] = ""
-                row[f"medium_latency_function_{name}"] = ""
-
-        avg_success_rate = (
-            avg_success_rate / present_count if present_count else 1.0
-        )
-        node_cpu = float(metrics.get("cpu_usage_node", float("nan")))
-        node_ram = float(metrics.get("ram_usage_node", float("nan")))
-        node_ram_pct = float(metrics.get("ram_usage_node_pct", float("nan")))
-        node_power = float(metrics.get("power_usage_node", float("nan")))
-
-        overloaded_node = int(
-            avg_success_rate < self.config.overload.success_rate_node_min
-            or node_cpu > self.config.overload.cpu_overload_pct_of_capacity
-            or node_ram_pct > self.config.overload.ram_overload_pct
-            or overloaded_any
-        )
-
-        row["cpu_usage_idle_node"] = _format_float(idle_snapshot.cpu)
-        row["cpu_usage_node"] = _format_float(node_cpu)
-        row["ram_usage_idle_node"] = _format_float(idle_snapshot.ram)
-        row["ram_usage_node"] = _format_float(node_ram)
-        row["ram_usage_idle_node_percentage"] = _format_float(idle_snapshot.ram_pct)
-        row["ram_usage_node_percentage"] = _format_float(node_ram_pct)
-        row["power_usage_idle_node"] = _format_float(idle_snapshot.power)
-        row["power_usage_node"] = _format_float(node_power)
-        row["rest_seconds"] = rest_seconds
-        row["overloaded_node"] = overloaded_node
-
-        return row, bool(overloaded_node)
-
-    def _build_skipped_row(
-        self, all_functions: list[str], config_pairs: list[tuple[str, int]]
-    ) -> dict[str, Any]:
-        row: dict[str, Any] = {}
-        config_map = {name: rate for name, rate in config_pairs}
-        for name in all_functions:
-            if name in config_map:
-                row[f"function_{name}"] = name
-                row[f"rate_function_{name}"] = config_map[name]
-            else:
-                row[f"function_{name}"] = ""
-                row[f"rate_function_{name}"] = ""
-        return row
-
     def _get_function_replicas(self, function_names: list[str]) -> dict[str, int]:
         replicas = {name: 0 for name in function_names}
         # Use the resolved gateway URL (same as K6Runner uses)
@@ -1077,15 +997,39 @@ class DfaasGenerator(BaseGenerator):
             logger.error("faas-cli list failed: %s", exc)
             return replicas
 
-        lines = result.stdout.strip().splitlines()
-        for line in lines[1:]:
+        return self._parse_faas_cli_replicas(result.stdout, function_names)
+
+    def _parse_faas_cli_replicas(
+        self, output: str, function_names: list[str]
+    ) -> dict[str, int]:
+        replicas = {name: 0 for name in function_names}
+        lines = [line for line in output.splitlines() if line.strip()]
+        if not lines:
+            return replicas
+
+        header_tokens = lines[0].split()
+        header_upper = [token.upper() for token in header_tokens]
+        replica_index = (
+            header_upper.index("REPLICAS") if "REPLICAS" in header_upper else None
+        )
+
+        data_lines = lines
+        if header_tokens and header_upper[0] == "NAME":
+            data_lines = lines[1:]
+            if replica_index is None:
+                replica_index = len(header_tokens) - 1
+
+        for line in data_lines:
             parts = line.split()
-            if len(parts) < 3:
+            if not parts:
                 continue
-            name, _, replica = parts[0], parts[1], parts[2]
+            idx = replica_index if replica_index is not None else len(parts) - 1
+            if idx < 0 or idx >= len(parts):
+                continue
+            name = parts[0]
             if name in replicas:
                 try:
-                    replicas[name] = int(replica)
+                    replicas[name] = int(parts[idx])
                 except ValueError:
                     replicas[name] = 0
         return replicas
@@ -1134,6 +1078,9 @@ class DfaasGenerator(BaseGenerator):
     def _emit_k6_log_event(self, message: str, *, level: str = "INFO") -> None:
         if not self._exec_ctx.event_logging_enabled:
             return
+        root_logger = logging.getLogger()
+        if any(isinstance(handler, LBEventLogHandler) for handler in root_logger.handlers):
+            return
         self._ensure_event_context()
         if self._event_run_id is None:
             return
@@ -1158,8 +1105,3 @@ def _parse_int(value: str | None, default: int) -> int:
     except (TypeError, ValueError):
         return default
 
-
-def _format_float(value: float) -> str:
-    if math.isnan(value):
-        return "nan"
-    return f"{value:.3f}"

@@ -73,6 +73,7 @@ class MetricsCollector:
 
         self._runner = PrometheusQueryRunner(prometheus_url)
         self._queries = self._load_queries(Path(queries_path))
+        self._validate_required_queries(self._queries, Path(queries_path))
 
     def _load_queries(self, queries_path: Path) -> dict[str, QueryDefinition]:
         """Load and filter queries from YAML file."""
@@ -81,6 +82,25 @@ class MetricsCollector:
             queries, scaphandre_enabled=self.scaphandre_enabled
         )
         return {query.name: query for query in active_queries}
+
+    def _validate_required_queries(
+        self, queries: dict[str, QueryDefinition], queries_path: Path
+    ) -> None:
+        required = {
+            "cpu_usage_node",
+            "ram_usage_node",
+            "ram_usage_node_pct",
+            "cpu_usage_function",
+            "ram_usage_function",
+        }
+        if self.scaphandre_enabled:
+            required.update({"power_usage_node", "power_usage_function"})
+        missing = sorted(name for name in required if name not in queries)
+        if missing:
+            joined = ", ".join(missing)
+            raise ValueError(
+                f"Missing required Prometheus queries in {queries_path}: {joined}"
+            )
 
     def get_node_snapshot(
         self,

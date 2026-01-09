@@ -316,19 +316,35 @@ class K6Runner:
         summary: dict[str, Any],
         metric_ids: dict[str, str],
     ) -> dict[str, dict[str, float]]:
-        metrics = summary.get("metrics", {})
+        metrics = summary.get("metrics")
+        if not isinstance(metrics, dict):
+            raise ValueError("Missing 'metrics' in k6 summary.")
         parsed: dict[str, dict[str, float]] = {}
+        missing: list[str] = []
 
         for name, metric_id in metric_ids.items():
-            success_metric = metrics.get(f"success_rate_{metric_id}", {}).get("values", {})
-            latency_metric = metrics.get(f"latency_{metric_id}", {}).get("values", {})
-            count_metric = metrics.get(f"request_count_{metric_id}", {}).get("values", {})
-
-            success_rate = float(success_metric.get("rate", 1.0))
-            latency_avg = float(latency_metric.get("avg", 0.0))
-            request_count = float(
-                count_metric.get("count", count_metric.get("rate", 0.0))
+            success_rate = self._extract_metric_value(
+                metrics.get(f"success_rate_{metric_id}"), "rate"
             )
+            latency_avg = self._extract_metric_value(
+                metrics.get(f"latency_{metric_id}"), "avg"
+            )
+            request_count = self._extract_metric_value(
+                metrics.get(f"request_count_{metric_id}"), "count"
+            )
+            if request_count is None:
+                request_count = self._extract_metric_value(
+                    metrics.get(f"request_count_{metric_id}"), "rate"
+                )
+
+            if success_rate is None:
+                missing.append(f"{name}:success_rate")
+            if latency_avg is None:
+                missing.append(f"{name}:latency")
+            if request_count is None:
+                missing.append(f"{name}:request_count")
+            if success_rate is None or latency_avg is None or request_count is None:
+                continue
 
             parsed[name] = {
                 "success_rate": success_rate,
@@ -336,4 +352,21 @@ class K6Runner:
                 "request_count": request_count,
             }
 
+        if missing:
+            joined = ", ".join(missing)
+            raise ValueError(f"Missing k6 summary metrics: {joined}")
+
         return parsed
+
+    def _extract_metric_value(
+        self, metric: dict[str, Any] | None, key: str
+    ) -> float | None:
+        if not isinstance(metric, dict):
+            return None
+        values = metric.get("values")
+        if not isinstance(values, dict):
+            return None
+        value = values.get(key)
+        if value is None:
+            return None
+        return float(value)

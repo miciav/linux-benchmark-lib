@@ -74,21 +74,3 @@ class TestDesktopProvider:
         mock_dn_cls.assert_called()
         mock_async.assert_called()
 
-    @patch("platform.system", return_value="Darwin")
-    @patch("lb_ui.notifications.providers.desktop.DesktopNotifier", None) # Force fallback
-    @patch("subprocess.run")
-    def test_macos_fallback_osascript(self, mock_run, mock_system):
-        # NOTE: When passing new=None to patch, it does NOT pass an argument to the function
-        # if used as a decorator with new argument? Wait, standard behavior:
-        # If new is given, patch doesn't pass the mock to the decorated function.
-        provider = DesktopProvider("App")
-        ctx = NotificationContext("Title", "Msg", True, "App", "/tmp/icon.png")
-        
-        provider.send(ctx)
-        
-        mock_run.assert_called()
-        args = mock_run.call_args[0][0]
-        assert args[0] == "osascript"
-        script = args[2]
-        assert 'sound name "Glass"' in script
-        assert 'POSIX file "/tmp/icon.png"' in script

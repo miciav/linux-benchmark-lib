@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
+from unittest.mock import Mock
+
 import pytest
 
 from lb_plugins.plugins.dfaas.generator import (
@@ -93,6 +96,21 @@ def test_parse_k6_summary_extracts_metrics() -> None:
     assert parsed["figlet"]["request_count"] == 5
 
 
+def test_parse_k6_summary_missing_metrics_raises() -> None:
+    k6_runner = K6Runner(
+        k6_host="127.0.0.1",
+        k6_user="ubuntu",
+        k6_ssh_key="~/.ssh/id_rsa",
+        k6_port=22,
+        k6_workspace_root="/home/ubuntu/.dfaas-k6",
+        gateway_url="http://example.com:31112",
+        duration="30s",
+    )
+    summary = {"metrics": {}}
+    with pytest.raises(ValueError, match="Missing k6 summary metrics"):
+        k6_runner.parse_summary(summary, {"figlet": "fn_figlet"})
+
+
 def test_build_k6_command_includes_outputs_and_tags() -> None:
     """Test that _build_k6_command properly formats outputs and tags."""
     k6_runner = K6Runner(
@@ -181,6 +199,36 @@ def test_dfaas_generator_grafana_annotations(monkeypatch: pytest.MonkeyPatch) ->
         assert "event:error" in mock_client.create_annotation.call_args[1]["tags"]
 
 
+def test_k6_log_event_skips_when_lb_event_handler_present() -> None:
+    from lb_runner.services.log_handler import LBEventLogHandler
+    from lb_plugins.plugins.dfaas.generator import ExecutionContext
+
+    cfg = DfaasConfig()
+    exec_ctx = ExecutionContext(
+        host="localhost",
+        repetition=1,
+        total_repetitions=1,
+        event_logging_enabled=True,
+    )
+    generator = DfaasGenerator(cfg, execution_context=exec_ctx)
+    generator._event_emitter = Mock()
+
+    root_logger = logging.getLogger()
+    handler = LBEventLogHandler(
+        run_id="run-1",
+        host="localhost",
+        workload="dfaas",
+        repetition=1,
+        total_repetitions=1,
+    )
+    root_logger.addHandler(handler)
+    try:
+        generator._emit_k6_log_event("hello")
+        generator._event_emitter.emit.assert_not_called()
+    finally:
+        root_logger.removeHandler(handler)
+
+
 def test_k6_runner_execute_passes_outputs_and_tags(monkeypatch: pytest.MonkeyPatch) -> None:
     """K6Runner.execute() should include outputs and tags in the k6 command."""
     from unittest.mock import MagicMock, patch
@@ -223,3 +271,28 @@ def test_k6_runner_execute_passes_outputs_and_tags(monkeypatch: pytest.MonkeyPat
     assert "loki=http://loki" in k6_cmd
     assert "--tag" in k6_cmd
     assert "custom=tag" in k6_cmd
+
+
+def test_get_function_replicas_parses_replicas_column(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = (
+        "NAME IMAGE INVOCATIONS REPLICAS\n"
+        "figlet ghcr.io/openfaas/figlet:latest 10 3\n"
+        "eat-memory ghcr.io/openfaas/eat-memory:latest 5 1\n"
+    )
+    monkeypatch.setattr(
+        "lb_plugins.plugins.dfaas.generator.subprocess.run",
+        lambda *args, **kwargs: Mock(stdout=output),
+    )
+    cfg = DfaasConfig(
+        functions=[
+            DfaasFunctionConfig(name="figlet"),
+            DfaasFunctionConfig(name="eat-memory"),
+        ]
+    )
+    generator = DfaasGenerator(cfg)
+    replicas = generator._get_function_replicas(["figlet", "eat-memory"])
+
+    assert replicas["figlet"] == 3
+    assert replicas["eat-memory"] == 1
