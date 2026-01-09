@@ -25,6 +25,7 @@ _ALLOWED_HTTP_METHODS = {
 }
 _DURATION_RE = re.compile(r"^(?P<value>[0-9]+)(?P<unit>ms|s|m|h)$")
 _DEFAULT_K6_WORKSPACE_ROOT = "/home/ubuntu/.dfaas-k6"
+_DEFAULT_QUERIES_PATH = str(Path(__file__).parent / "queries.yml")
 
 
 def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
@@ -50,6 +51,13 @@ def _load_config_data(config_path: Path) -> dict[str, Any]:
     if not isinstance(common, dict) or not isinstance(plugin_data, dict):
         raise ValueError("Config sections 'common' and 'plugins.dfaas' must be mappings.")
     return _deep_merge(common, plugin_data)
+
+
+def _looks_like_default_queries_path(path: Path) -> bool:
+    """Return True if the path matches the default repo layout."""
+    normalized = tuple(part.lower() for part in path.parts)
+    tail = ("lb_plugins", "plugins", "dfaas", "queries.yml")
+    return len(normalized) >= len(tail) and normalized[-len(tail) :] == tail
 
 
 class DfaasFunctionConfig(BaseModel):
@@ -308,7 +316,7 @@ class DfaasConfig(BasePluginConfig):
         default_factory=DfaasOverloadConfig, description="Overload thresholds"
     )
     queries_path: str = Field(
-        default="lb_plugins/plugins/dfaas/queries.yml",
+        default=_DEFAULT_QUERIES_PATH,
         description="Path to Prometheus queries file",
     )
     deploy_functions: bool = Field(
@@ -393,4 +401,16 @@ class DfaasConfig(BasePluginConfig):
             self.k6_workspace_root = "/root/.dfaas-k6"
         elif self.k6_user != "ubuntu":
             self.k6_workspace_root = f"/home/{self.k6_user}/.dfaas-k6"
+        return self
+
+    @model_validator(mode="after")
+    def _normalize_queries_path(self) -> "DfaasConfig":
+        raw_path = Path(self.queries_path).expanduser()
+        if raw_path.exists():
+            self.queries_path = str(raw_path)
+            return self
+        fallback = Path(__file__).parent / "queries.yml"
+        if fallback.exists() and _looks_like_default_queries_path(raw_path):
+            # Handle configs materialized on another host with absolute paths.
+            self.queries_path = str(fallback)
         return self
