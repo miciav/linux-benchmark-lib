@@ -10,7 +10,7 @@ import queue
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from lb_controller.api import BenchmarkConfig, ControllerOptions, PlatformConfig, StopToken
+from lb_controller.api import BenchmarkConfig, PlatformConfig, StopToken
 from lb_plugins.api import PluginRegistry, apply_plugin_assets, create_registry
 from lb_runner.api import RunEvent
 from lb_controller.api import (
@@ -22,7 +22,6 @@ from lb_controller.api import (
     RunJournal,
     RunStatus,
     SigintDoublePressHandler,
-    pending_exists,
     apply_playbook_defaults,
 )
 from lb_app.ui_interfaces import UIAdapter, DashboardHandle, NoOpDashboardHandle
@@ -47,7 +46,6 @@ from lb_app.services.run_pipeline import (
     make_ingest_event,
     make_output_tee,
     make_progress_handler,
-    maybe_start_event_tailer,
     parse_progress_line,
     pipeline_output_callback,
 )
@@ -57,6 +55,7 @@ from lb_app.services.run_output import (  # noqa: F401
 )
 from lb_app.services.run_plan import build_run_plan
 from lb_app.services.run_system_info import attach_system_info
+from lb_app.services.remote_run_coordinator import RemoteRunCoordinator
 from lb_app.services.run_types import (
     RunContext,
     RunResult,
@@ -353,78 +352,16 @@ class RunService:
         emit_timing: bool = True,
     ) -> RunResult:
         """Execute a remote run using the controller with journal integration."""
-        apply_playbook_defaults(context.config)
-        if not context.config.plugin_assets:
-            apply_plugin_assets(context.config, context.registry)
-        session = self._prepare_remote_session(context, run_id, ui_adapter, stop_token)
-        jsonl_handler = self._attach_controller_jsonl(context, session)
-        loki_handler = self._attach_controller_loki(context, session)
-
-        try:
-            if not session.stop_token.should_stop() and not pending_exists(
-                session.journal,
-                context.target_tests,
-                context.config.remote_hosts or [],
-                context.config.repetitions,
-                allow_skipped=session.resume_requested,
-            ):
-                return self._short_circuit_empty_run(context, session, ui_adapter)
-
-            pipeline = self._build_event_pipeline(
-                context, session, formatter, output_callback, ui_adapter, emit_timing
-            )
-
-            controller = BenchmarkController(
-                context.config,
-                ControllerOptions(
-                    output_callback=pipeline.output_cb,
-                    output_formatter=formatter,
-                    journal_refresh=session.dashboard.refresh if session.dashboard else None,
-                    stop_token=session.stop_token,
-                    state_machine=session.controller_state,
-                ),
-            )
-            pipeline.controller_ref["controller"] = controller
-            if formatter:
-                formatter.host_label = ",".join(
-                    h.name for h in context.config.remote_hosts
-                )
-
-            tailer = maybe_start_event_tailer(
-                controller,
-                pipeline.event_from_payload,
-                pipeline.ingest_event,
-                formatter,
-            )
-
-            summary = self._run_controller_loop(
-                controller=controller,
-                context=context,
-                session=session,
-                pipeline=pipeline,
-                ui_adapter=ui_adapter,
-            )
-
-            if tailer:
-                tailer.stop()
-            session.sink.close()
-            session.stop_token.restore()
-            return RunResult(
-                context=context,
-                summary=summary,
-                journal_path=session.journal_path,
-                log_path=session.log_path,
-                ui_log_path=session.ui_stream_log_path,
-            )
-        finally:
-            for handler in (jsonl_handler, loki_handler):
-                if not handler:
-                    continue
-                logging.getLogger().removeHandler(handler)
-                try:
-                    handler.close()
-                except Exception:
-                    pass
+        coordinator = RemoteRunCoordinator(self)
+        return coordinator.run(
+            context,
+            run_id,
+            output_callback,
+            formatter,
+            ui_adapter,
+            stop_token=stop_token,
+            emit_timing=emit_timing,
+        )
 
     @staticmethod
     def _attach_controller_jsonl(

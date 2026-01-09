@@ -33,6 +33,11 @@ def test_normalize_loki_endpoint_strips_trailing_slash() -> None:
     assert endpoint == "http://localhost:3100/loki/api/v1/push"
 
 
+def test_normalize_loki_endpoint_rejects_non_http() -> None:
+    with pytest.raises(ValueError):
+        normalize_loki_endpoint("file:///tmp/loki")
+
+
 def test_loki_payload_groups_streams() -> None:
     payload = build_loki_payload(
         [

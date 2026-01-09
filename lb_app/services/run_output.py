@@ -4,142 +4,13 @@ from __future__ import annotations
 
 import json
 import re
-import time
 from typing import Any, Callable
 
 from rich.markup import escape
 
-
-def _slug_phase_label(phase: str) -> str:
-    """Normalize phase labels for consistent rendering."""
-    cleaned = phase.replace(":", "-").strip()
-    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", cleaned)
-    cleaned = re.sub(r"-{2,}", "-", cleaned)
-    return cleaned.strip("-").lower() or "run"
-
-
-def format_bullet_line(
-    phase: str,
-    message: str,
-    host_label: str | None = None,
-) -> str:
-    """Format a log line with a phase tag and optional host label."""
-    phase_clean = _slug_phase_label(phase)
-    host_prefix = f"({host_label}) " if host_label else ""
-    return f"• [{phase_clean}] {host_prefix}{message}"
-
-
-class _TaskTimer:
-    """Track task durations based on Ansible task boundaries."""
-
-    def __init__(self) -> None:
-        self._task_phase: str | None = None
-        self._task_message: str | None = None
-        self._started_at: float | None = None
-
-    def start(self, phase: str, message: str) -> tuple[str, str] | None:
-        now = time.monotonic()
-        previous = None
-        if self._task_message and self._started_at is not None:
-            previous = self._finish(now)
-        self._task_phase = phase
-        self._task_message = message
-        self._started_at = now
-        return previous
-
-    def flush(self) -> tuple[str, str] | None:
-        return self._finish(time.monotonic())
-
-    def _finish(self, now: float) -> tuple[str, str] | None:
-        if not self._task_message or self._started_at is None:
-            return None
-        elapsed = now - self._started_at
-        phase = self._task_phase or "run"
-        message = f"{self._task_message} done in {elapsed:.1f}s"
-        self._task_phase = None
-        self._task_message = None
-        self._started_at = None
-        return phase, message
-
-
-def _extract_lb_event_data(line: str, token: str = "LB_EVENT") -> dict[str, Any] | None:
-    """Extract LB_EVENT JSON payloads from noisy Ansible output."""
-    token_idx = line.find(token)
-    if token_idx == -1:
-        return None
-
-    payload = line[token_idx + len(token) :].strip()
-    start = payload.find("{")
-    if start == -1:
-        return None
-
-    # Walk the payload to find the matching closing brace to avoid picking up
-    # trailing characters from debug output (e.g., quotes + extra braces).
-    depth = 0
-    end: int | None = None
-    for idx, ch in enumerate(payload[start:], start):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                end = idx + 1
-                break
-    if end is None:
-        return None
-
-    raw = payload[start:end]
-    candidates = (
-        raw,
-        raw.strip("\"'"),
-        raw.replace(r"\"", '"'),
-        raw.strip("\"'").replace(r"\"", '"'),
-    )
-    for candidate in candidates:
-        try:
-            return json.loads(candidate)
-        except Exception:
-            continue
-    return None
-
-
-def _extract_lb_task_data(line: str, token: str = "LB_TASK") -> dict[str, Any] | None:
-    """Extract LB_TASK JSON payloads from Ansible callback output."""
-    token_idx = line.find(token)
-    if token_idx == -1:
-        return None
-
-    payload = line[token_idx + len(token) :].strip()
-    start = payload.find("{")
-    if start == -1:
-        return None
-
-    depth = 0
-    end: int | None = None
-    for idx, ch in enumerate(payload[start:], start):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                end = idx + 1
-                break
-    if end is None:
-        return None
-
-    raw = payload[start:end]
-    candidates = (
-        raw,
-        raw.strip("\"'"),
-        raw.replace(r"\"", '"'),
-        raw.strip("\"'").replace(r"\"", '"'),
-    )
-    for candidate in candidates:
-        try:
-            return json.loads(candidate)
-        except Exception:
-            continue
-    return None
+from .run_output_formatting import _slug_phase_label, format_bullet_line
+from .run_output_parsing import _extract_lb_event_data, _extract_lb_task_data
+from .run_output_timing import TaskTimer
 
 
 class AnsibleOutputFormatter:
@@ -155,7 +26,7 @@ class AnsibleOutputFormatter:
         self.host_label: str = ""
         self.emit_task_timings = False
         self.emit_task_starts = False
-        self._task_timer = _TaskTimer()
+        self._task_timer = TaskTimer()
         self._last_timing_line: str | None = None
         self._always_show_tasks = (
             "workload_runner : Build repetitions list",

@@ -1,82 +1,76 @@
 
 import pytest
 from unittest.mock import patch, MagicMock, ANY
-import logging
+import os
+from lb_ui.notifications.manager import NotificationManager
+from lb_ui.notifications.providers.desktop import DesktopProvider
+from lb_ui.notifications.providers.webhook import WebhookProvider
+from lb_ui.notifications.base import NotificationContext
 
-# We import the module under test inside tests to facilitate patching imports if needed,
-# but standard patching of the imported symbol usually works better.
-from lb_ui.services import notifier
+class TestNotificationManager:
+    def test_manager_initializes_default_providers(self):
+        manager = NotificationManager()
+        # Should have at least DesktopProvider
+        assert any(isinstance(p, DesktopProvider) for p in manager._providers)
 
-class TestNotifier:
-    def test_send_notification_success_linux(self):
-        """Test standard successful notification via plyer (Linux)."""
-        with patch("lb_ui.services.notifier.notification") as mock_notification, \
-             patch("platform.system", return_value="Linux"), \
-             patch("lb_ui.services.notifier._resolve_icon_path", return_value="/tmp/icon.png"):
-            
-            notifier.send_notification(
-                title="Test Title",
-                message="Test Message",
-                success=True
-            )
-            
-            mock_notification.notify.assert_called_once()
-            args, kwargs = mock_notification.notify.call_args
-            assert kwargs["title"] == "Test Title"
-            assert kwargs["message"] == "Test Message"
-            assert kwargs["app_name"] == "Linux Benchmark Lib"
-            assert kwargs["app_icon"] == "/tmp/icon.png"
+    def test_manager_adds_webhook_if_env_set(self):
+        with patch.dict(os.environ, {"LB_WEBHOOK_URL": "http://test"}):
+            manager = NotificationManager()
+            assert any(isinstance(p, WebhookProvider) for p in manager._providers)
 
-    def test_send_notification_macos(self):
-        """Test notification via desktop-notifier on macOS."""
-        with patch("platform.system", return_value="Darwin"), \
-             patch("lb_ui.services.notifier.DesktopNotifier") as mock_notifier_cls, \
-             patch("asyncio.run") as mock_asyncio_run:
-            
-            mock_instance = mock_notifier_cls.return_value
-            notifier.send_notification("Title", "Message")
-            
-            mock_notifier_cls.assert_called_once()
-            mock_asyncio_run.assert_called_once()
-            # The argument to asyncio.run is the coroutine from mock_instance.send
-            mock_instance.send.assert_called_once()
-            _, kwargs = mock_instance.send.call_args
-            assert kwargs["title"] == "Title"
-            assert kwargs["message"] == "Message"
+    @patch("threading.Thread")
+    @patch("lb_ui.notifications.providers.desktop.DesktopProvider.send")
+    def test_manager_dispatches_context(self, mock_send, mock_thread):
+        manager = NotificationManager()
+        # Mock providers list to only contain the mocked desktop provider
+        mock_provider = MagicMock()
+        manager._providers = [mock_provider]
+        
+        # Test logic directly via _dispatch to avoid threading issues
+        context = NotificationContext("Title", "Msg", True, "App", None, "123", 10.0)
+        manager._dispatch(context)
+        
+        mock_provider.send.assert_called_once_with(context)
+        assert context.title == "Title"
+        assert "Msg" in context.message
 
-    def test_send_notification_macos_fallback(self):
-        """Test fallback to osascript if desktop-notifier fails."""
-        with patch("platform.system", return_value="Darwin"), \
-             patch("lb_ui.services.notifier.DesktopNotifier", side_effect=Exception("API Error")), \
-             patch("lb_ui.services.notifier._send_macos_osascript") as mock_osascript:
-            
-            notifier.send_notification("Title", "Message")
-            mock_osascript.assert_called_once_with("Title", "Message", ANY)
+class TestWebhookProvider:
+    @patch("urllib.request.urlopen")
+    def test_payload_structure(self, mock_urlopen):
+        provider = WebhookProvider("http://url")
+        context = NotificationContext("Title", "Msg", True, "App", None, "run-1", 5.5)
+        
+        provider.send(context)
+        
+        mock_urlopen.assert_called_once()
+        req = mock_urlopen.call_args[0][0]
+        import json
+        data = json.loads(req.data)
+        
+        assert data["title"] == "Title"
+        assert data["status"] == "success"
+        assert data["duration"] == 5.5
+        assert "✅" in data["text"]
 
-    def test_send_notification_plyer_missing(self):
-        """Test behavior when plyer is not installed (notification module is None) on Linux."""
-        with patch("lb_ui.services.notifier.notification", None), \
-             patch("platform.system", return_value="Linux"):
-            # This should just log a debug message and return, not crash
-            notifier.send_notification("Title", "Message")
+class TestDesktopProvider:
+    @patch("platform.system", return_value="Linux")
+    @patch.dict(os.environ, {}, clear=True) # Headless
+    def test_headless_linux_skips(self, mock_system):
+        provider = DesktopProvider("App")
+        with patch("lb_ui.notifications.providers.desktop.notification") as mock_plyer:
+            provider.send(NotificationContext("T", "M", True, "App"))
+            if mock_plyer:
+                mock_plyer.notify.assert_not_called()
 
-    def test_send_notification_exception_handling(self, caplog):
-        """Test that exceptions from plyer are caught and logged (Linux)."""
-        with patch("lb_ui.services.notifier.notification") as mock_notification, \
-             patch("platform.system", return_value="Linux"):
-            # Simulate an error from the underlying library
-            mock_notification.notify.side_effect = Exception("DBus connection failed")
-            
-            with caplog.at_level(logging.WARNING):
-                notifier.send_notification("Title", "Message")
-            
-            assert "Failed to send system notification" in caplog.text
-            assert "DBus connection failed" in caplog.text
+    @patch("platform.system", return_value="Darwin")
+    @patch("lb_ui.notifications.providers.desktop.DesktopNotifier")
+    @patch("asyncio.run")
+    def test_macos_desktop_notifier(self, mock_async, mock_dn_cls, mock_system):
+        provider = DesktopProvider("App")
+        ctx = NotificationContext("T", "M", True, "App", "icon.png")
+        
+        provider.send(ctx)
+        
+        mock_dn_cls.assert_called()
+        mock_async.assert_called()
 
-    def test_send_notification_custom_timeout(self):
-        """Test that timeout parameter is passed correctly (Linux)."""
-        with patch("lb_ui.services.notifier.notification") as mock_notification, \
-             patch("platform.system", return_value="Linux"):
-            notifier.send_notification("T", "M", timeout=30)
-            mock_notification.notify.assert_called_once()
-            assert mock_notification.notify.call_args[1]["timeout"] == 30

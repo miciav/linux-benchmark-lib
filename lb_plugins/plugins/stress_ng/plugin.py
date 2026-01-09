@@ -3,17 +3,14 @@ Stress-ng workload generator implementation.
 Modular plugin version.
 """
 
-import logging
-import subprocess
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from pydantic import Field
 
-from ...base_generator import CommandGenerator, CommandSpec
+from ...base_generator import CommandSpec
 from ...interface import WorkloadIntensity, SimpleWorkloadPlugin, BasePluginConfig
-
-logger = logging.getLogger(__name__)
+from ..command_base import StdoutCommandGenerator
 
 class StressNGConfig(BasePluginConfig):
     """Configuration for stress-ng workload generator."""
@@ -49,48 +46,17 @@ class _StressNGCommandBuilder:
         return CommandSpec(cmd=cmd)
 
 
-class StressNGGenerator(CommandGenerator):
+class StressNGGenerator(StdoutCommandGenerator):
     """Workload generator using stress-ng."""
     
+    tool_name = "stress-ng"
+
     def __init__(self, config: StressNGConfig, name: str = "StressNGGenerator"):
         self._command_builder = _StressNGCommandBuilder()
         super().__init__(name, config, command_builder=self._command_builder)
         
     def _build_command(self) -> List[str]:
         return self._command_builder.build(self.config).cmd
-
-    def _popen_kwargs(self) -> dict[str, Any]:
-        return {
-            "stdout": subprocess.PIPE,
-            "stderr": subprocess.STDOUT,
-            "text": True,
-            "bufsize": 1,
-        }
-
-    def _consume_process_output(
-        self, proc: subprocess.Popen[str]
-    ) -> tuple[str, str]:
-        stdout, _ = proc.communicate(timeout=self._timeout_seconds())
-        return stdout or "", ""
-    
-    def _validate_environment(self) -> bool:
-        try:
-            result = subprocess.run(["which", "stress-ng"], capture_output=True, text=True)
-            return result.returncode == 0
-        except Exception as e:
-            logger.error(f"Error checking for stress-ng: {e}")
-            return False
-
-    def _log_failure(
-        self, returncode: int, stdout: str, stderr: str, cmd: list[str]
-    ) -> None:
-        output = stdout or stderr
-        if output:
-            logger.error(
-                "stress-ng failed with return code %s. Output: %s", returncode, output
-            )
-        else:
-            logger.error("stress-ng failed with return code %s", returncode)
 
 
 class StressNGPlugin(SimpleWorkloadPlugin):

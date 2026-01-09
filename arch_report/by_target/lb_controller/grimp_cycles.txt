@@ -1,6 +1,4 @@
 Project API not found in grimp; falling back to build_graph.
 Installed grimp version: 3.14
 Error: No module named 'grimp.adaptors.project'
-Import cycles in lb_controller: 2
-  - lb_controller.adapters.playbooks -> lb_controller.engine.controller -> lb_controller.adapters.playbooks
-  - lb_controller.engine.controller -> lb_controller.engine.stop_logic -> lb_controller.engine.controller
+Import cycles in lb_controller: 0

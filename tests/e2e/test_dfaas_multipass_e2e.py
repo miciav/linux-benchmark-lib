@@ -27,8 +27,8 @@ from lb_controller.api import (
     _extract_lb_event,
 )
 from lb_plugins.api import PluginAssetConfig
-from lb_plugins.plugins.dfaas.generator import (
-    DfaasGenerator,
+from lb_plugins.plugins.dfaas.generator import DfaasGenerator
+from lb_plugins.plugins.dfaas.services.plan_builder import (
     config_id,
     generate_configurations,
     generate_rates_list,

@@ -28,6 +28,11 @@ class DummyResponse:
         return False
 
 
+def test_base_url_requires_http_scheme() -> None:
+    with pytest.raises(ValueError):
+        GrafanaClient(base_url="file:///tmp/grafana")
+
+
 def test_request_sends_headers_and_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

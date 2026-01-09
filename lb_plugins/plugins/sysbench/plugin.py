@@ -17,8 +17,9 @@ from typing import Any, List, Optional
 
 from pydantic import Field
 
-from ...base_generator import CommandGenerator, CommandSpec
+from ...base_generator import CommandSpec
 from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
+from ..command_base import StdoutCommandGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +82,10 @@ class _SysbenchResultParser:
         return result
 
 
-class SysbenchGenerator(CommandGenerator):
+class SysbenchGenerator(StdoutCommandGenerator):
     """Run sysbench as a workload generator."""
+
+    tool_name = "sysbench"
 
     def __init__(self, config: SysbenchConfig, name: str = "SysbenchGenerator"):
         self._command_builder = _SysbenchCommandBuilder()
@@ -96,14 +99,6 @@ class SysbenchGenerator(CommandGenerator):
 
     def _build_command(self) -> List[str]:
         return self._command_builder.build(self.config).cmd
-
-    def _popen_kwargs(self) -> dict[str, Any]:
-        return {
-            "stdout": subprocess.PIPE,
-            "stderr": subprocess.STDOUT,
-            "text": True,
-            "bufsize": 1,
-        }
 
     def _timeout_seconds(self) -> Optional[int]:
         return max(self.config.time, 0) + self.config.timeout_buffer
@@ -121,14 +116,6 @@ class SysbenchGenerator(CommandGenerator):
             logger.error("Failed to validate sysbench availability: %s", exc)
             return False
 
-    def _log_failure(
-        self, returncode: int, stdout: str, stderr: str, cmd: list[str]
-    ) -> None:
-        output = stdout or stderr
-        if output:
-            logger.error("sysbench failed with return code %s: %s", returncode, output)
-        else:
-            logger.error("sysbench failed with return code %s", returncode)
 
 
 class SysbenchPlugin(SimpleWorkloadPlugin):

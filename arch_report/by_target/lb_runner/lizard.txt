@@ -1,31 +1,35 @@
 ================================================
   NLOC    CCN   token  PARAM  length  location  
 ------------------------------------------------
-       4      3     29      1       4 validate_name_not_empty@64-67@lb_runner/models/config.py
-      17      5     90      1      18 ansible_host_line@69-86@lb_runner/models/config.py
-       3      2     37      1       4 ensure_output_dirs@156-159@lb_runner/models/config.py
-       7      4     53      1       7 _validate_remote_hosts_unique@165-171@lb_runner/models/config.py
-       2      1     18      2       3 from_json@174-176@lb_runner/models/config.py
-       2      1     23      2       4 from_dict@179-182@lb_runner/models/config.py
-       2      1     24      2       2 save@184-185@lb_runner/models/config.py
-       2      1     22      2       2 load@188-189@lb_runner/models/config.py
-       2      1     17      1       2 to_dict@26-27@lb_runner/models/events.py
-       2      1     18      1       2 to_json@29-30@lb_runner/models/events.py
-       2      1     20      2       2 emit@36-37@lb_runner/models/events.py
+      47     23    385      2      66 _apply_env_fallbacks@95-160@lb_runner/models/config.py
+       4      3     29      1       4 validate_name_not_empty@187-190@lb_runner/models/config.py
+      17      5     90      1      18 ansible_host_line@192-209@lb_runner/models/config.py
+       3      2     37      1       4 ensure_output_dirs@294-297@lb_runner/models/config.py
+       7      4     53      1       7 _validate_remote_hosts_unique@303-309@lb_runner/models/config.py
+       2      1     18      2       3 from_json@312-314@lb_runner/models/config.py
+       2      1     23      2       4 from_dict@317-320@lb_runner/models/config.py
+       2      1     24      2       2 save@322-323@lb_runner/models/config.py
+       2      1     22      2       2 load@326-327@lb_runner/models/config.py
+       2      1     23      2       3 is_plugin_enabled@357-359@lb_runner/models/config.py
+       2      1     24      2       2 save@361-362@lb_runner/models/config.py
+       2      1     22      2       2 load@365-366@lb_runner/models/config.py
+       2      1     17      1       2 to_dict@24-25@lb_runner/models/events.py
+       2      1     18      1       2 to_json@27-28@lb_runner/models/events.py
+       2      1     20      2       2 emit@34-35@lb_runner/models/events.py
        7      3     64      2       7 __init__@32-38@lb_runner/metric_collectors/registry.py
        8      4     63      2       9 register@40-48@lb_runner/metric_collectors/registry.py
        4      2     34      2       5 available@50-54@lb_runner/metric_collectors/registry.py
       11      4     82      2      11 create_collectors@56-66@lb_runner/metric_collectors/registry.py
        2      1     18      1       3 _discover_entrypoint_plugins@68-70@lb_runner/metric_collectors/registry.py
        4      1     22      1       5 _load_pending_entrypoints@72-76@lb_runner/metric_collectors/registry.py
-       4      2     61      4      12 __init__@23-34@lb_runner/metric_collectors/cli_collector.py
-      41     12    258      1      55 _collect_metrics@36-90@lb_runner/metric_collectors/cli_collector.py
-      29     11    174      2      43 _parse_sar@92-134@lb_runner/metric_collectors/cli_collector.py
-       7      3     45      1      14 _validate_environment@136-149@lb_runner/metric_collectors/cli_collector.py
-       3      1     42      2      12 _is_tool_available@151-162@lb_runner/metric_collectors/cli_collector.py
+       4      2     61      4      12 __init__@22-33@lb_runner/metric_collectors/cli_collector.py
+      41     12    258      1      55 _collect_metrics@35-89@lb_runner/metric_collectors/cli_collector.py
+      29     11    174      2      43 _parse_sar@91-133@lb_runner/metric_collectors/cli_collector.py
+       7      3     45      1      14 _validate_environment@135-148@lb_runner/metric_collectors/cli_collector.py
+       3      1     42      2      12 _is_tool_available@150-161@lb_runner/metric_collectors/cli_collector.py
        5      2     36      1       5 __getattr__@21-25@lb_runner/metric_collectors/__init__.py
-      28     13    378      1      47 aggregate_psutil@8-54@lb_runner/metric_collectors/aggregators.py
-      13      7    118      1      24 aggregate_cli@57-80@lb_runner/metric_collectors/aggregators.py
+      28     13    384      1      47 aggregate_psutil@10-56@lb_runner/metric_collectors/aggregators.py
+      13      7    124      1      24 aggregate_cli@59-82@lb_runner/metric_collectors/aggregators.py
        9      1     90      3      16 __init__@23-38@lb_runner/metric_collectors/_base_collector.py
        2      1     14      1       8 _collect_metrics@41-48@lb_runner/metric_collectors/_base_collector.py
        2      1      9      1       8 _validate_environment@51-58@lb_runner/metric_collectors/_base_collector.py
@@ -43,41 +47,38 @@
        7      3     35      1       7 _create_psutil@40-46@lb_runner/metric_collectors/builtin.py
        7      2     38      1       7 _create_cli@49-55@lb_runner/metric_collectors/builtin.py
        2      1     16      0       3 builtin_collectors@75-77@lb_runner/metric_collectors/builtin.py
-       2      1     30      3       9 __init__@22-30@lb_runner/metric_collectors/psutil_collector.py
-      14      2    104      1      22 _collect_metrics@32-53@lb_runner/metric_collectors/psutil_collector.py
-       2      1     10      1       9 _validate_environment@55-63@lb_runner/metric_collectors/psutil_collector.py
-      20      4    185      8      26 __init__@62-87@lb_runner/engine/runner.py
-       8      4     54      2       8 _resolve_registry@90-97@lb_runner/engine/runner.py
-       7      2     54      1      17 collect_system_info@99-115@lb_runner/engine/runner.py
-       4      2     37      2       9 _workload_output_dir@117-125@lb_runner/engine/runner.py
-       2      1     22      1       8 _setup_collectors@127-134@lb_runner/engine/runner.py
-      37      2    147      6      52 _run_single_test@136-187@lb_runner/engine/runner.py
-       5      1     50      3       5 _prepare_workload_dirs@189-193@lb_runner/engine/runner.py
-       2      1     22      2       2 _resolve_duration@195-196@lb_runner/engine/runner.py
-      15      3     91      4      15 _attach_event_logger@198-212@lb_runner/engine/runner.py
-      22      3    127      7      25 _execute_generator@214-238@lb_runner/engine/runner.py
-       2      1     23      2       2 _prepare_generator@240-241@lb_runner/engine/runner.py
-       2      1     20      2       2 _start_collectors@243-244@lb_runner/engine/runner.py
-      16      1     46      6      16 _wait_for_generator@246-261@lb_runner/engine/runner.py
-       4      1     36      4       4 _cleanup_after_run@263-266@lb_runner/engine/runner.py
-      34      4    160     10      34 _finalize_single_test@268-301@lb_runner/engine/runner.py
-      12      1     54      7      12 _collect_metrics@303-314@lb_runner/engine/runner.py
-       2      1     24      2       2 _persist_rep_result@317-318@lb_runner/engine/runner.py
-       2      1     11      1       2 _pre_test_cleanup@320-321@lb_runner/engine/runner.py
-      33     10    227      6      49 run_benchmark@323-371@lb_runner/engine/runner.py
-      11      4     75      2      11 _prepare_run_scope@373-383@lb_runner/engine/runner.py
-       6      1     38      3       6 _select_repetitions@385-390@lb_runner/engine/runner.py
-      38      6    236      6      40 _run_single_repetition@392-431@lb_runner/engine/runner.py
-       4      1     24      3       4 _resolve_config_input@433-436@lb_runner/engine/runner.py
-       9      2     43      4       9 _cleanup_generator@438-446@lb_runner/engine/runner.py
-       6      1     76      4       8 _process_results@448-455@lb_runner/engine/runner.py
-       4      1     38      3       4 _merge_results@457-460@lb_runner/engine/runner.py
-       2      1     29      3       2 _persist_results@462-463@lb_runner/engine/runner.py
-      14      2     51      5      14 _export_plugin_results@465-478@lb_runner/engine/runner.py
-       4      1     38      5       5 _emit_progress@480-484@lb_runner/engine/runner.py
-       2      1     23      2       3 _resolve_workload@486-488@lb_runner/engine/runner.py
-       2      1     11      0       3 _generate_run_id@491-493@lb_runner/engine/runner.py
-      10      4     73      1      11 run_all_benchmarks@495-505@lb_runner/engine/runner.py
+       2      1     30      3       9 __init__@21-29@lb_runner/metric_collectors/psutil_collector.py
+      14      2    104      1      22 _collect_metrics@31-52@lb_runner/metric_collectors/psutil_collector.py
+       2      1     10      1       9 _validate_environment@54-62@lb_runner/metric_collectors/psutil_collector.py
+       4      1     32      3       4 __init__@27-30@lb_runner/engine/run_scope.py
+      13      3     74      2      13 prepare@32-44@lb_runner/engine/run_scope.py
+       3      1     28      2       3 __init__@54-56@lb_runner/engine/runner.py
+       2      2     32      2       2 filter@58-59@lb_runner/engine/runner.py
+      34      4    295      8      40 __init__@65-104@lb_runner/engine/runner.py
+       8      4     54      2       8 _resolve_registry@107-114@lb_runner/engine/runner.py
+       7      2     54      1      17 collect_system_info@116-132@lb_runner/engine/runner.py
+       4      2     37      2       9 _workload_output_dir@134-142@lb_runner/engine/runner.py
+      37      2    152      6      52 _run_single_test@144-195@lb_runner/engine/runner.py
+       5      1     50      3       5 _prepare_workload_dirs@197-201@lb_runner/engine/runner.py
+       2      1     22      2       2 _resolve_duration@203-204@lb_runner/engine/runner.py
+      16      3    110      4      16 _attach_event_logger@206-221@lb_runner/engine/runner.py
+      42      3    191      7      45 _execute_generator@223-267@lb_runner/engine/runner.py
+       2      1     23      2       2 _prepare_generator@269-270@lb_runner/engine/runner.py
+      16      1     46      6      16 _wait_for_generator@272-287@lb_runner/engine/runner.py
+      11      5     76      4      11 _cleanup_after_run@289-299@lb_runner/engine/runner.py
+      28      3    144     10      28 _finalize_single_test@301-328@lb_runner/engine/runner.py
+       2      1     11      1       2 _pre_test_cleanup@330-331@lb_runner/engine/runner.py
+      39     11    254      6      54 run_benchmark@333-386@lb_runner/engine/runner.py
+      21      2    120      5      21 _prepare_run_scope@388-408@lb_runner/engine/runner.py
+      50      7    272      6      53 _run_single_repetition@410-462@lb_runner/engine/runner.py
+       9      2     43      4       9 _cleanup_generator@464-472@lb_runner/engine/runner.py
+      13      1     64      4      14 _process_results@474-487@lb_runner/engine/runner.py
+       4      1     38      5       5 _emit_progress@489-493@lb_runner/engine/runner.py
+      10      4     75      1      11 run_all_benchmarks@495-505@lb_runner/engine/runner.py
+      37      6    175      5      37 _attach_jsonl_logger@507-543@lb_runner/engine/runner.py
+      54      6    262      5      55 _attach_loki_logger@545-599@lb_runner/engine/runner.py
+      23      6    196      1      23 _sync_loki_env@601-623@lb_runner/engine/runner.py
+      15      2     52      4      15 _set_log_phase@625-639@lb_runner/engine/runner.py
       16      4     96      1      18 pre_test_cleanup@18-35@lb_runner/engine/execution.py
       16      4     82      3      17 resolve_duration@38-54@lb_runner/engine/execution.py
        9      3     60      3      10 prepare_generator@57-66@lb_runner/engine/execution.py
@@ -96,46 +97,70 @@
        2      1     18      4       2 __exit__@95-96@lb_runner/engine/stop_token.py
        2      1     19      0       3 generate_run_id@16-18@lb_runner/engine/planning.py
       15      6     81      3      15 select_repetitions@21-35@lb_runner/engine/planning.py
-       7      3     52      2       8 resolve_workload@38-45@lb_runner/engine/planning.py
-      22      5    101      3      22 resolve_config_input@48-69@lb_runner/engine/planning.py
+       5      2     40      2       6 resolve_workload@38-43@lb_runner/engine/planning.py
+      41     11    208      4      47 resolve_config_input@46-92@lb_runner/engine/planning.py
+      11      2     63      5      11 __init__@98-108@lb_runner/engine/planning.py
+       2      1     11      1       2 generate_run_id@110-111@lb_runner/engine/planning.py
+       6      1     36      3       6 select_repetitions@113-118@lb_runner/engine/planning.py
+       2      1     20      2       2 resolve_workload@120-121@lb_runner/engine/planning.py
+       6      1     30      3       6 resolve_config_input@123-128@lb_runner/engine/planning.py
       10      2     59      5      10 __init__@18-27@lb_runner/engine/progress.py
        2      1     17      2       3 set_run_id@29-31@lb_runner/engine/progress.py
       25      4    106      5      27 emit@33-59@lb_runner/engine/progress.py
        2      1     11      1       2 collect@11-12@lb_runner/services/system_info_service.py
-       4      2     34      2       4 default@22-25@lb_runner/services/results.py
-      25      5    126      6      27 build_rep_result@28-54@lb_runner/services/results.py
-       7      3     53      1       7 is_generator_success@57-63@lb_runner/services/results.py
-      14      2     76      6      14 collect_metrics@66-79@lb_runner/services/results.py
-       6      2     48      2       6 persist_rep_result@82-87@lb_runner/services/results.py
-       3      3     39      1       3 merge_results._rep_key@103-105@lb_runner/services/results.py
-      24     13    205      2      29 merge_results@90-118@lb_runner/services/results.py
-       5      1     62      2       5 persist_results@121-125@lb_runner/services/results.py
-      20      4     96      5      20 export_plugin_results@128-147@lb_runner/services/results.py
+       5      2     37      1       5 _env@29-33@lb_runner/services/async_localrunner.py
+       3      2     53      1       3 _event_logging_enabled@36-38@lb_runner/services/async_localrunner.py
+       8      4     70      0      15 _configure_logging_level@41-55@lb_runner/services/async_localrunner.py
+       6      1     38      2       6 _configure_stream.write@64-69@lb_runner/services/async_localrunner.py
+       3      1     17      1       3 _configure_stream.flush@71-73@lb_runner/services/async_localrunner.py
+       9      1     61      1      19 _configure_stream@58-76@lb_runner/services/async_localrunner.py
+       9      2     62      2       9 _write_status@79-87@lb_runner/services/async_localrunner.py
+      18      2    130      1      18 _maybe_daemonize@90-107@lb_runner/services/async_localrunner.py
+      83      7    460      0      95 main@110-204@lb_runner/services/async_localrunner.py
+      10      3     69      2      11 _run@32-42@lb_runner/services/system_info_collectors.py
+       8      3     51      2       9 _json_output@45-53@lb_runner/services/system_info_collectors.py
+      11      4     92      0      12 _read_os_release@56-67@lb_runner/services/system_info_collectors.py
+      33     14    267      0      35 _collect_cpu@70-104@lb_runner/services/system_info_collectors.py
+      20      6    139      0      20 _collect_memory@107-126@lb_runner/services/system_info_collectors.py
+      41     13    266      0      41 _collect_disks@129-169@lb_runner/services/system_info_collectors.py
+      45     17    276      0      45 _collect_nics@172-216@lb_runner/services/system_info_collectors.py
+      15      5    155      0      15 _collect_pci@219-233@lb_runner/services/system_info_collectors.py
+      28      9    172      1      28 _collect_smart@236-263@lb_runner/services/system_info_collectors.py
+      19      6    121      0      19 _collect_kernel_modules@266-284@lb_runner/services/system_info_collectors.py
+      24      5    118      0      27 _collect_services@287-313@lb_runner/services/system_info_collectors.py
+      15      6    183      1      17 _calculate_fingerprint@316-332@lb_runner/services/system_info_collectors.py
+      52      9    300      0      57 collect_system_info@335-391@lb_runner/services/system_info_collectors.py
+      18      7    159      1      18 to_dict@74-91@lb_runner/services/system_info_types.py
+       2      1     38      3       2 to_csv_rows.add@97-98@lb_runner/services/system_info_types.py
+      46     21    401      1      51 to_csv_rows@93-143@lb_runner/services/system_info_types.py
+       4      2     34      2       4 default@21-24@lb_runner/services/results.py
+      25      5    126      6      27 build_rep_result@27-53@lb_runner/services/results.py
+       7      3     53      1       7 is_generator_success@56-62@lb_runner/services/results.py
+      14      2     76      6      14 collect_metrics@65-78@lb_runner/services/results.py
+       6      2     48      2       6 persist_rep_result@81-86@lb_runner/services/results.py
+       3      3     39      1       3 merge_results._rep_key@102-104@lb_runner/services/results.py
+      24     13    205      2      29 merge_results@89-117@lb_runner/services/results.py
+       5      1     62      2       5 persist_results@120-124@lb_runner/services/results.py
+      20      4     96      5      20 export_plugin_results@127-146@lb_runner/services/results.py
       11      4    135      3      12 write_outputs@12-23@lb_runner/services/system_info_io.py
-      10      3     69      2      11 _run@27-37@lb_runner/services/system_info.py
-       8      3     51      2       9 _json_output@40-48@lb_runner/services/system_info.py
-      11      4     92      0      12 _read_os_release@51-62@lb_runner/services/system_info.py
-      18      7    159      1      18 to_dict@129-146@lb_runner/services/system_info.py
-       2      1     38      3       2 to_csv_rows.add@152-153@lb_runner/services/system_info.py
-      30     21    397      1      36 to_csv_rows@148-183@lb_runner/services/system_info.py
-      33     14    267      0      36 _collect_cpu@186-221@lb_runner/services/system_info.py
-      20      6    139      0      20 _collect_memory@224-243@lb_runner/services/system_info.py
-      38     13    266      0      39 _collect_disks@246-284@lb_runner/services/system_info.py
-      43     17    276      0      44 _collect_nics@287-330@lb_runner/services/system_info.py
-      15      5    155      0      15 _collect_pci@333-347@lb_runner/services/system_info.py
-      26      9    172      1      26 _collect_smart@350-375@lb_runner/services/system_info.py
-      19      6    121      0      19 _collect_kernel_modules@378-396@lb_runner/services/system_info.py
-      17      5    117      0      24 _collect_services@399-422@lb_runner/services/system_info.py
-      15      6    183      1      19 _calculate_fingerprint@425-443@lb_runner/services/system_info.py
-      52      9    300      0      57 collect_system_info@446-502@lb_runner/services/system_info.py
-       3      1     32      1       5 main@505-509@lb_runner/services/system_info.py
+      52      9    300      0      57 collect_system_info@57-113@lb_runner/services/system_info.py
+       8      1     82      1      10 main@116-125@lb_runner/services/system_info.py
+       2      1     16      2       2 __init__@15-16@lb_runner/services/collector_coordinator.py
+       2      1     23      2       2 create_collectors@18-19@lb_runner/services/collector_coordinator.py
+       6      3     49      3       6 start@21-26@lb_runner/services/collector_coordinator.py
+       6      3     49      3       6 stop@28-33@lb_runner/services/collector_coordinator.py
+      10      1     54      7      10 collect@35-44@lb_runner/services/collector_coordinator.py
       14      1     59      6      14 __init__@16-29@lb_runner/services/log_handler.py
       19      2    110      2      21 emit@31-51@lb_runner/services/log_handler.py
-       4      2     33      1      11 ensure_run_dirs._scope_with_run_id@17-27@lb_runner/services/storage.py
-       8      1     70      2      24 ensure_run_dirs@13-36@lb_runner/services/storage.py
-       5      2     42      3      13 workload_output_dir@39-51@lb_runner/services/storage.py
-      16      4     98      2      17 ensure_runner_log@54-70@lb_runner/services/storage.py
-       7      2     55      3       8 write_system_info_artifacts@73-80@lb_runner/services/storage.py
+       5      4     53      1      12 ensure_run_dirs._scope_with_run_id@18-29@lb_runner/services/storage.py
+       8      1     70      2      25 ensure_run_dirs@14-38@lb_runner/services/storage.py
+       5      2     42      3      13 workload_output_dir@41-53@lb_runner/services/storage.py
+      16      4     98      2      17 ensure_runner_log@56-72@lb_runner/services/storage.py
+       7      2     55      3       8 write_system_info_artifacts@75-82@lb_runner/services/storage.py
+       2      2     22      2       2 __init__@20-21@lb_runner/services/result_persister.py
+       2      2     20      2       2 set_run_id@23-24@lb_runner/services/result_persister.py
+       2      1     26      3       2 persist_rep_result@26-27@lb_runner/services/result_persister.py
+      17      1     69      5      17 process_results@29-45@lb_runner/services/result_persister.py
        8      1     85      1       9 main@12-20@lb_runner/services/system_info_cli.py
        7      1     26      3       7 __init__@15-21@lb_runner/registry.py
        2      1     20      2       2 get@23-24@lb_runner/registry.py
@@ -143,50 +168,59 @@
        2      1     35      3       2 create_generator@29-30@lb_runner/registry.py
        2      1     23      2       2 create_collectors@32-33@lb_runner/registry.py
        2      1     29      2       2 available_collectors@35-36@lb_runner/registry.py
-25 file analyzed.
+31 file analyzed.
 ==============================================================
 NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
 --------------------------------------------------------------
-    127       4.9     2.2       37.0         8     lb_runner/models/config.py
-     25       2.0     1.0       18.3         3     lb_runner/models/events.py
+    256       7.7     3.7       62.5        12     lb_runner/models/config.py
+     23       2.0     1.0       18.3         3     lb_runner/models/events.py
       0       0.0     0.0        0.0         0     lb_runner/models/__init__.py
      53       6.0     2.5       47.2         6     lb_runner/metric_collectors/registry.py
-     93      16.8     5.8      116.0         5     lb_runner/metric_collectors/cli_collector.py
+     92      16.8     5.8      116.0         5     lb_runner/metric_collectors/cli_collector.py
      13       5.0     2.0       36.0         1     lb_runner/metric_collectors/__init__.py
-     43      20.5    10.0      248.0         2     lb_runner/metric_collectors/aggregators.py
+     44      20.5    10.0      254.0         2     lb_runner/metric_collectors/aggregators.py
     109       7.5     2.1       57.5        13     lb_runner/metric_collectors/_base_collector.py
      56       5.8     2.0       38.5         4     lb_runner/metric_collectors/builtin.py
-     25       6.0     1.3       48.0         3     lb_runner/metric_collectors/psutil_collector.py
-    392      10.7     2.2       67.0        32     lb_runner/engine/runner.py
+     24       6.0     1.3       48.0         3     lb_runner/metric_collectors/psutil_collector.py
+     31       8.5     2.0       53.0         2     lb_runner/engine/run_scope.py
+    538      18.3     3.1      106.5        27     lb_runner/engine/runner.py
     114      13.0     4.2       77.0         8     lb_runner/engine/execution.py
      70       8.1     3.1       45.4         8     lb_runner/engine/stop_token.py
-     53      11.5     3.8       63.2         4     lb_runner/engine/planning.py
+     98      10.0     2.9       56.4         9     lb_runner/engine/planning.py
      44      12.3     2.3       60.7         3     lb_runner/engine/progress.py
       5       2.0     1.0       11.0         1     lb_runner/services/system_info_service.py
-    118      12.0     3.9       82.1         9     lb_runner/services/results.py
+    166      16.0     2.4      103.1         9     lb_runner/services/async_localrunner.py
+    345      24.7     7.7      169.9        13     lb_runner/services/system_info_collectors.py
+    120      22.0     9.7      199.3         3     lb_runner/services/system_info_types.py
+    117      12.0     3.9       82.1         9     lb_runner/services/results.py
      16      11.0     4.0      135.0         1     lb_runner/services/system_info_io.py
-    427      21.2     7.6      166.7        17     lb_runner/services/system_info.py
+    104      30.0     5.0      191.0         2     lb_runner/services/system_info.py
+     32       5.2     1.8       38.2         5     lb_runner/services/collector_coordinator.py
      39      16.5     1.5       84.5         2     lb_runner/services/log_handler.py
-     45       8.0     2.2       59.6         5     lb_runner/services/storage.py
+     47       8.2     2.6       63.6         5     lb_runner/services/storage.py
+     34       5.8     1.5       34.2         4     lb_runner/services/result_persister.py
      15       8.0     1.0       85.0         1     lb_runner/services/system_info_cli.py
      23       2.8     1.0       27.0         6     lb_runner/registry.py
       0       0.0     0.0        0.0         0     lb_runner/__init__.py
-     44       0.0     0.0        0.0         0     lb_runner/api.py
+     52       0.0     0.0        0.0         0     lb_runner/api.py
 
 ==========================================================================================================
 !!!! Warnings (cyclomatic_complexity > 10 or length > 200 or nloc > 1000000 or parameter_count > 100) !!!!
 ================================================
   NLOC    CCN   token  PARAM  length  location  
 ------------------------------------------------
-      41     12    258      1      55 _collect_metrics@36-90@lb_runner/metric_collectors/cli_collector.py
-      29     11    174      2      43 _parse_sar@92-134@lb_runner/metric_collectors/cli_collector.py
-      28     13    378      1      47 aggregate_psutil@8-54@lb_runner/metric_collectors/aggregators.py
-      24     13    205      2      29 merge_results@90-118@lb_runner/services/results.py
-      30     21    397      1      36 to_csv_rows@148-183@lb_runner/services/system_info.py
-      33     14    267      0      36 _collect_cpu@186-221@lb_runner/services/system_info.py
-      38     13    266      0      39 _collect_disks@246-284@lb_runner/services/system_info.py
-      43     17    276      0      44 _collect_nics@287-330@lb_runner/services/system_info.py
+      47     23    385      2      66 _apply_env_fallbacks@95-160@lb_runner/models/config.py
+      41     12    258      1      55 _collect_metrics@35-89@lb_runner/metric_collectors/cli_collector.py
+      29     11    174      2      43 _parse_sar@91-133@lb_runner/metric_collectors/cli_collector.py
+      28     13    384      1      47 aggregate_psutil@10-56@lb_runner/metric_collectors/aggregators.py
+      39     11    254      6      54 run_benchmark@333-386@lb_runner/engine/runner.py
+      41     11    208      4      47 resolve_config_input@46-92@lb_runner/engine/planning.py
+      33     14    267      0      35 _collect_cpu@70-104@lb_runner/services/system_info_collectors.py
+      41     13    266      0      41 _collect_disks@129-169@lb_runner/services/system_info_collectors.py
+      45     17    276      0      45 _collect_nics@172-216@lb_runner/services/system_info_collectors.py
+      46     21    401      1      51 to_csv_rows@93-143@lb_runner/services/system_info_types.py
+      24     13    205      2      29 merge_results@89-117@lb_runner/services/results.py
 ==========================================================================================
 Total nloc   Avg.NLOC  AvgCCN  Avg.token   Fun Cnt  Warning cnt   Fun Rt   nloc Rt
 ------------------------------------------------------------------------------------------
-      1949      10.7     3.3       75.9      142            8      0.06    0.17
+      2680      12.4     3.4       83.7      167           11      0.07    0.20

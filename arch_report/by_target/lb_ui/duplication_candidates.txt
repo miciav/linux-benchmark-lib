@@ -1,1 +1,12 @@
+sim=0.91 | lb_ui/tui/system/headless.py:_HeadlessDashboardSink  <->  lb_ui/tui/system/protocols.py:Dashboard
+  common_methods=['add_log', 'clear_warning', 'live', 'mark_event', 'refresh', 'set_controller_state', 'set_warning']
+
+sim=0.87 | lb_ui/tui/system/protocols.py:Presenter  <->  lb_ui/tui/system/components/presenter_base.py:PresenterBase
+  common_methods=['error', 'info', 'panel', 'rule', 'success', 'warning']
+
+sim=0.86 | lb_ui/tui/system/headless.py:_HeadlessDashboardSink  <->  lb_ui/tui/system/components/dashboard_adapter.py:DashboardAdapter
+  common_methods=['__init__', 'add_log', 'clear_warning', 'live', 'mark_event', 'refresh', 'set_controller_state', 'set_warning']
+
+sim=0.78 | lb_ui/tui/system/protocols.py:Dashboard  <->  lb_ui/tui/system/components/dashboard_adapter.py:DashboardAdapter
+  common_methods=['add_log', 'clear_warning', 'live', 'mark_event', 'refresh', 'set_controller_state', 'set_warning']
 

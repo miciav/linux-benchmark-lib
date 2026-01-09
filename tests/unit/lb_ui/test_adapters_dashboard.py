@@ -10,6 +10,7 @@ from lb_ui.api import RichDashboard
 from lb_ui.api import HeadlessUI
 from lb_ui.api import TUIAdapter, ThreadedDashboardHandle
 from lb_controller.api import RunJournal
+from lb_ui.tui.system.components.dashboard_adapter import DashboardAdapter
 
 
 pytestmark = pytest.mark.unit_ui
@@ -94,3 +95,48 @@ def test_threaded_dashboard_dispatches_calls():
         assert sink.refresh_event.wait(1.0)
     assert ("add_log", "log") in sink.calls
     assert ("refresh", None) in sink.calls
+
+
+def test_dashboard_adapter_dispatches_unthreaded_calls():
+    class _RecordingDashboard:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str | None]] = []
+
+        @contextmanager
+        def live(self) -> AbstractContextManager[None]:
+            yield
+
+        def add_log(self, line: str) -> None:
+            self.calls.append(("add_log", line))
+
+        def refresh(self) -> None:
+            self.calls.append(("refresh", None))
+
+        def mark_event(self, source: str) -> None:
+            self.calls.append(("mark_event", source))
+
+        def set_warning(self, message: str, ttl: float = 10.0) -> None:
+            self.calls.append(("set_warning", message))
+
+        def clear_warning(self) -> None:
+            self.calls.append(("clear_warning", None))
+
+        def set_controller_state(self, state: str) -> None:
+            self.calls.append(("set_controller_state", state))
+
+    sink = _RecordingDashboard()
+    dashboard = DashboardAdapter(sink, threaded=False)
+    with dashboard.live():
+        dashboard.add_log("line")
+        dashboard.refresh()
+        dashboard.mark_event("host-1")
+        dashboard.set_warning("warning")
+        dashboard.clear_warning()
+        dashboard.set_controller_state("running")
+
+    assert ("add_log", "line") in sink.calls
+    assert ("refresh", None) in sink.calls
+    assert ("mark_event", "host-1") in sink.calls
+    assert ("set_warning", "warning") in sink.calls
+    assert ("clear_warning", None) in sink.calls
+    assert ("set_controller_state", "running") in sink.calls

@@ -1,68 +1,13 @@
-...........F
-=================================== FAILURES ===================================
-________________ test_config_set_default_and_workloads_listing _________________
-
-monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c2ac120>
-tmp_path = PosixPath('/private/var/folders/q1/5ln0gtyj3fv55055frjp0nx80000gn/T/pytest-of-micheleciavotta/pytest-83/test_config_set_default_and_wo0')
-
-    @pytest.mark.unit_ui
-    
-    
-    def test_config_set_default_and_workloads_listing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    
-    
-        cli = _load_cli(monkeypatch, tmp_path)
-    
-    
-        runner = CliRunner()
-    
-    
-    
-    
-    
-        cfg = BenchmarkConfig()
-    
-    
-        cfg_path = tmp_path / "myconfig.json"
-    
-    
-        cfg.save(cfg_path)
-    
-    
-    
-    
-    
-        result = runner.invoke(cli.app, ["config", "set-default", str(cfg_path)])
-    
-    
-        assert result.exit_code == 0, result.output
-    
-    
-    
-    
-    
-        # workloads listing should pick default config and show known workload
-    
-    
-        result = runner.invoke(cli.app, ["config", "workloads"])
-    
-    
-        assert result.exit_code == 0, result.output
-    
-    
->       assert "stress_ng" in result.output
-E       AssertionError: assert 'stress_ng' in '✔ Loaded config: \n/private/var/folders/q1/5ln0gtyj3fv55055frjp0nx80000gn/T/pytest-of-micheleciavot\nta/pytest-83/tes...──────┼────────────────────────────┤\n╰────────────────────┴──────────────────────────┴────────────────────────────╯\n'
-E        +  where '✔ Loaded config: \n/private/var/folders/q1/5ln0gtyj3fv55055frjp0nx80000gn/T/pytest-of-micheleciavot\nta/pytest-83/tes...──────┼────────────────────────────┤\n╰────────────────────┴──────────────────────────┴────────────────────────────╯\n' = <Result okay>.output
-
-/Users/micheleciavotta/Downloads/linux-benchmark-lib/tests/test_cli.py:740: AssertionError
+...
 
 
-                       Test Statistics by Marker                        
-┏━━━━━━━━━┳━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━┓
-┃ Marker  ┃ Total ┃ Passed ┃ Failed ┃ Skipped ┃ Duration (s) ┃ Avg (s) ┃
-┡━━━━━━━━━╇━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━┩
-│ unit_ui │    12 │     11 │      1 │       0 │         0.28 │    0.02 │
-└─────────┴───────┴────────┴────────┴─────────┴──────────────┴─────────┘
-=========================== short test summary info ============================
-FAILED tests/test_cli.py::test_config_set_default_and_workloads_listing - Ass...
-!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+                        Test Statistics by Marker                         
+┏━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━┓
+┃ Marker    ┃ Total ┃ Passed ┃ Failed ┃ Skipped ┃ Duration (s) ┃ Avg (s) ┃
+┡━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━┩
+│ inter_e2e │     3 │      3 │      0 │       0 │         8.16 │    2.72 │
+│ slow      │     3 │      3 │      0 │       0 │         8.16 │    2.72 │
+└───────────┴───────┴────────┴────────┴─────────┴──────────────┴─────────┘
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/selectors.py:398: KeyboardInterrupt
+(to show a full traceback on KeyboardInterrupt use --full-trace)

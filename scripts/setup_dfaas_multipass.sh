@@ -226,6 +226,8 @@ config_path = Path(os.environ["DFAAS_CONFIG_PATH"])
 loki_enabled = os.environ.get("DFAAS_LOKI_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 loki_endpoint = os.environ.get("DFAAS_LOKI_ENDPOINT", "").strip()
 
+# We use {host.address} templates for URLs to support multi-target scenarios.
+# These placeholders are resolved at runtime by the DFaaS generator.
 config = {
     "remote_hosts": [
         {
@@ -245,7 +247,7 @@ config = {
         "dfaas": {
             "k6_host": generator_ip,
             "k6_user": "ubuntu",
-            "k6_ssh_key": k6_key_path,
+            "k6_ssh_key": key_path,
             "k6_port": 22,
             "gateway_url": "http://{host.address}:31112",
             "prometheus_url": "http://{host.address}:30411",
@@ -263,9 +265,16 @@ config = {
 }
 
 if loki_enabled:
+    resolved_endpoint = loki_endpoint or "http://localhost:3100"
+    # Top-level loki config for the main runner
     config["loki"] = {
         "enabled": True,
-        "endpoint": loki_endpoint or "http://localhost:3100",
+        "endpoint": resolved_endpoint,
+    }
+    # Plugin-level loki config for the DFaaS generator
+    config["plugin_settings"]["dfaas"]["loki"] = {
+        "enabled": True,
+        "endpoint": resolved_endpoint,
     }
 
 config_path.write_text(json.dumps(config, indent=2))
@@ -286,21 +295,27 @@ main() {
 
   inject_key "$TARGET_NAME"
   inject_key "$GENERATOR_NAME"
-  setup_k6_ssh "$TARGET_NAME" "$GENERATOR_NAME" "$TARGET_K6_KEY_PATH"
 
   target_ip="$(wait_for_ip "$TARGET_NAME")"
   generator_ip="$(wait_for_ip "$GENERATOR_NAME")"
+  
   if is_enabled "$ENABLE_LOKI"; then
     if [ -z "$LOKI_ENDPOINT" ]; then
       controller_ip="$(controller_ip_from_vm "$TARGET_NAME")"
       if [ -z "$controller_ip" ]; then
         controller_ip="$(controller_ip_local)"
       fi
-    if [ -n "$controller_ip" ]; then
-      LOKI_ENDPOINT="http://${controller_ip}:3100"
+      
+      if [ -n "$controller_ip" ]; then
+        LOKI_ENDPOINT="http://${controller_ip}:3100"
+      else
+        echo "WARNING: Could not determine controller IP for Loki." >&2
+        echo "The remote runner may not be able to send logs." >&2
+        echo "Please rerun with --loki-endpoint http://<YOUR_IP>:3100" >&2
+        LOKI_ENDPOINT="http://localhost:3100"
+      fi
     fi
   fi
-fi
 
   write_config "$target_ip" "$generator_ip"
 

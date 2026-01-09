@@ -1,25 +1,42 @@
-"""K6 runner service for executing k6 load tests."""
+"K6 runner service for executing k6 load tests using Fabric/SSH."
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import shlex
-import subprocess
 import tempfile
-import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping, TYPE_CHECKING
+from typing import Any, Callable, Iterable, Mapping, TYPE_CHECKING
+
+from fabric import Connection
+from invoke.exceptions import UnexpectedExit
 
 from ..exceptions import K6ExecutionError
 
 if TYPE_CHECKING:
-    from ..plugin import DfaasFunctionConfig
+    from ..config import DfaasFunctionConfig
 
 logger = logging.getLogger(__name__)
+
+
+class _StreamWriter:
+    """File-like wrapper that calls a callback for each write."""
+
+    def __init__(self, callback: Callable[[str], None]) -> None:
+        self._callback = callback
+
+    def write(self, data: str) -> int:
+        if data:
+            self._callback(data)
+        return len(data)
+
+    def flush(self) -> None:
+        pass
 
 
 @dataclass
@@ -33,16 +50,6 @@ class K6RunResult:
     metric_ids: dict[str, str] = field(default_factory=dict)
 
 
-@dataclass
-class _K6LogStream:
-    """Internal state for k6 log streaming."""
-
-    config_id: str
-    proc: subprocess.Popen[str]
-    stop_event: threading.Event
-    threads: list[threading.Thread]
-
-
 def _normalize_metric_id(name: str) -> str:
     """Normalize function name to valid k6 metric identifier."""
     cleaned = re.sub(r"[^A-Za-z0-9_]", "_", name)
@@ -54,14 +61,7 @@ def _normalize_metric_id(name: str) -> str:
 
 
 class K6Runner:
-    """Service for running k6 load tests via Ansible.
-
-    Handles:
-    - k6 script generation from configuration
-    - Playbook execution on k6 host
-    - SSH log streaming
-    - Summary parsing
-    """
+    """Service for running k6 load tests via direct SSH (Fabric)."""
 
     def __init__(
         self,
@@ -76,20 +76,6 @@ class K6Runner:
         log_callback: Any | None = None,
         log_to_logger: bool = True,
     ) -> None:
-        """Initialize K6Runner.
-
-        Args:
-            k6_host: k6 host address
-            k6_user: SSH user for k6 host
-            k6_ssh_key: Path to SSH private key
-            k6_port: SSH port
-            k6_workspace_root: Workspace root directory on k6 host
-            gateway_url: OpenFaaS gateway URL
-            duration: k6 test duration (e.g., "30s")
-            log_stream_enabled: Enable SSH log streaming
-            log_callback: Optional callback for log events (message: str) -> None
-            log_to_logger: Emit log messages to the module logger
-        """
         self.k6_host = k6_host
         self.k6_user = k6_user
         self.k6_ssh_key = k6_ssh_key
@@ -101,20 +87,25 @@ class K6Runner:
         self._log_callback = log_callback
         self._log_to_logger = log_to_logger
 
+    def _get_connection(self) -> Connection:
+        """Create a Fabric connection to the k6 host."""
+        key_path = Path(self.k6_ssh_key).expanduser()
+        return Connection(
+            host=self.k6_host,
+            user=self.k6_user,
+            port=self.k6_port,
+            connect_kwargs={
+                "key_filename": str(key_path),
+                "banner_timeout": 30,
+            }
+        )
+
     def build_script(
         self,
         config_pairs: list[tuple[str, int]],
         functions: list[DfaasFunctionConfig],
     ) -> tuple[str, dict[str, str]]:
-        """Generate k6 script for a configuration.
-
-        Args:
-            config_pairs: List of (function_name, rate) tuples
-            functions: List of function configurations
-
-        Returns:
-            Tuple of (script_content, metric_ids_map)
-        """
+        """Generate k6 script for a configuration."""
         functions_by_name = {fn.name: fn for fn in functions}
         metric_ids: dict[str, str] = {}
         lines: list[str] = [
@@ -137,77 +128,65 @@ class K6Runner:
             url = f"{self.gateway_url.rstrip('/')}/function/{name}"
             exec_name = f"exec_{metric_id}"
 
-            lines.extend(
-                [
-                    f"const fn_{metric_id} = {{",
-                    f'  method: "{fn_cfg.method}",',
-                    f'  url: "{url}",',
-                    f"  body: {body},",
-                    f"  headers: {headers},",
-                    "};",
-                    f'const success_rate_{metric_id} = new Rate("success_rate_{metric_id}");',
-                    f'const latency_{metric_id} = new Trend("latency_{metric_id}");',
-                    f'const request_count_{metric_id} = new Counter("request_count_{metric_id}");',
-                    "",
-                    f"export function {exec_name}() {{",
-                    f"  const res = http.request(fn_{metric_id}.method, fn_{metric_id}.url, fn_{metric_id}.body, {{ headers: fn_{metric_id}.headers }});",
-                    "  const ok = res.status >= 200 && res.status < 300;",
-                    f"  success_rate_{metric_id}.add(ok);",
-                    f"  latency_{metric_id}.add(res.timings.duration);",
-                    f"  request_count_{metric_id}.add(1);",
-                    '  check(res, { "status is 2xx": (r) => r.status >= 200 && r.status < 300 });',
-                    "}",
-                    "",
-                ]
-            )
+            block = [
+                f"const fn_{metric_id} = {{",
+                f'  method: "{fn_cfg.method}",',
+                f'  url: "{url}",',
+                f"  body: {body},",
+                f"  headers: {headers},",
+                f"}};",
+                f'const success_rate_{metric_id} = new Rate("success_rate_{metric_id}");',
+                f'const latency_{metric_id} = new Trend("latency_{metric_id}");',
+                f'const request_count_{metric_id} = new Counter("request_count_{metric_id}");',
+                "",
+                f"export function {exec_name}() {{ ",
+                f"  const res = http.request(fn_{metric_id}.method, fn_{metric_id}.url, fn_{metric_id}.body, {{ headers: fn_{metric_id}.headers }});",
+                "  const ok = res.status >= 200 && res.status < 300;",
+                f"  success_rate_{metric_id}.add(ok);",
+                f"  latency_{metric_id}.add(res.timings.duration);",
+                f"  request_count_{metric_id}.add(1);",
+                '  check(res, { "status is 2xx": (r) => r.status >= 200 && r.status < 300 });',
+                "}",
+                "",
+            ]
+            lines.extend(block)
 
             if rate > 0:
                 vus = max(1, rate)
-                scenarios.append(
-                    "\n".join(
-                        [
-                            f"    {metric_id}: {{",
-                            '      executor: "constant-arrival-rate",',
-                            f"      rate: {rate},",
-                            '      timeUnit: "1s",',
-                            f'      duration: "{self.duration}",',
-                            f"      preAllocatedVUs: {vus},",
-                            f"      maxVUs: {vus},",
-                            f'      exec: "{exec_name}",',
-                            f'      tags: {{ function: "{name}" }},',
-                            "    },",
-                        ]
-                    )
-                )
+                scenario_block = [
+                    f"    {metric_id}: {{",
+                    '      executor: "constant-arrival-rate",',
+                    f"      rate: {rate},",
+                    '      timeUnit: "1s",',
+                    f'      duration: "{self.duration}",',
+                    f"      preAllocatedVUs: {vus},",
+                    f"      maxVUs: {vus},",
+                    f'      exec: "{exec_name}",',
+                    f'      tags: {{ function: "{name}" }},',
+                    "    },",
+                ]
+                scenarios.append("\n".join(scenario_block))
 
         lines.append("export const options = {")
         lines.append("  scenarios: {")
         if scenarios:
             lines.extend(scenarios)
         else:
-            lines.extend(
-                [
-                    "    idle: {",
-                    '      executor: "constant-vus",',
-                    "      vus: 1,",
-                    f'      duration: "{self.duration}",',
-                    '      exec: "idle_exec",',
-                    "    },",
-                ]
-            )
+            lines.append("    idle: {")
+            lines.append('      executor: "constant-vus",')
+            lines.append("      vus: 1,")
+            lines.append(f'      duration: "{self.duration}",')
+            lines.append('      exec: "idle_exec",')
+            lines.append("    },")
         lines.append("  },")
-        lines.append("};")
+        lines.append("}")
         lines.append("")
 
         if not scenarios:
-            lines.extend(
-                [
-                    "export function idle_exec() {",
-                    "  sleep(1);",
-                    "}",
-                    "",
-                ]
-            )
+            lines.append("export function idle_exec() {")
+            lines.append("  sleep(1);")
+            lines.append("}")
+            lines.append("")
 
         return "\n".join(lines), metric_ids
 
@@ -217,136 +196,155 @@ class K6Runner:
         script: str,
         target_name: str,
         run_id: str,
+        metric_ids: dict[str, str],
         *,
         outputs: Iterable[str] | None = None,
         tags: Mapping[str, str] | None = None,
     ) -> K6RunResult:
-        """Execute k6 script via Ansible.
-
-        Args:
-            config_id: Configuration identifier
-            script: k6 script content
-            target_name: Target name for k6 workspace path
-            run_id: Run identifier for k6 workspace path
-            outputs: Optional k6 outputs (each passed via --out)
-            tags: Optional k6 tags merged into the CLI invocation
-
-        Returns:
-            K6RunResult with summary and metadata
-
-        Raises:
-            FileNotFoundError: If playbook is missing
-            RuntimeError: If k6 execution fails
-        """
-        playbook = Path(__file__).parent.parent / "ansible" / "run_k6.yml"
-        if not playbook.exists():
-            raise FileNotFoundError(f"Missing playbook: {playbook}")
-
-        log_stream = self._start_log_stream(config_id, target_name, run_id)
+        """Execute k6 script via Fabric/SSH."""
+        conn = self._get_connection()
         start_time = time.time()
+        
+        workspace = f"{self.k6_workspace_root}/{target_name}/{run_id}/{config_id}"
+        script_path = f"{workspace}/script.js"
+        summary_path = f"{workspace}/summary.json"
+        log_path = f"{workspace}/k6.log"
 
         try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_path = Path(temp_dir)
-                script_path = temp_path / f"config-{config_id}.js"
-                script_path.write_text(script)
-                summary_path = temp_path / "summary.json"
-                inventory_path = temp_path / "inventory.ini"
-                inventory_path.write_text(
-                    "\n".join(
-                        [
-                            "[k6]",
-                            (
-                                f"k6_host ansible_host={self.k6_host} "
-                                f"ansible_user={self.k6_user} "
-                                f"ansible_port={self.k6_port} "
-                                f"ansible_ssh_private_key_file={Path(self.k6_ssh_key).expanduser()} "
-                                "ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'"
-                            ),
-                            "",
-                        ]
-                    )
+            conn.run(f"mkdir -p {workspace}", hide=True)
+
+            with tempfile.NamedTemporaryFile("w", delete=False) as f:
+                f.write(script)
+                local_tmp = f.name
+            
+            try:
+                conn.put(local_tmp, script_path)
+            finally:
+                os.unlink(local_tmp)
+
+            k6_cmd = self._build_k6_command(script_path, summary_path, outputs, tags)
+            self._log(f"Running k6 for config {config_id}...")
+            
+            full_cmd = f"{k6_cmd} 2>&1 | tee {log_path}"
+            
+            try:
+                out_writer = _StreamWriter(self._stream_handler) if self.log_stream_enabled else None
+                result = conn.run(
+                    full_cmd,
+                    hide=True,
+                    out_stream=out_writer,
+                    warn=True
                 )
-
-                cmd = [
-                    "ansible-playbook",
-                    "-i",
-                    str(inventory_path),
-                    str(playbook),
-                    "-e",
-                    f"target_name={target_name}",
-                    "-e",
-                    f"run_id={run_id}",
-                    "-e",
-                    f"config_id={config_id}",
-                    "-e",
-                    f"script_src={script_path}",
-                    "-e",
-                    f"summary_fetch_dest={temp_path}/",
-                    "-e",
-                    f"k6_workspace_root={self.k6_workspace_root}",
-                ]
-                extra_args = self._build_extra_args(outputs, tags)
-                if extra_args:
-                    cmd.extend(
-                        [
-                            "-e",
-                            json.dumps({"k6_extra_args": extra_args}),
-                        ]
-                    )
-
-                result = subprocess.run(cmd, capture_output=True, text=True)
-                end_time = time.time()
-
-                if result.returncode != 0:
-                    raise K6ExecutionError(
-                        config_id=config_id,
-                        message="k6 playbook failed",
-                        stdout=result.stdout,
-                        stderr=result.stderr,
-                    )
-
-                summary = json.loads(summary_path.read_text())
-                return K6RunResult(
-                    summary=summary,
-                    script=script,
+            except UnexpectedExit as e:
+                raise K6ExecutionError(
                     config_id=config_id,
-                    duration_seconds=end_time - start_time,
+                    message=f"k6 ssh execution failed: {e}",
+                    stdout=str(e),
+                    stderr="",
                 )
+
+            if result.failed:
+                raise K6ExecutionError(
+                    config_id=config_id,
+                    message=f"k6 failed with exit code {result.exited}",
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                )
+
+            with tempfile.NamedTemporaryFile("w", delete=False) as f:
+                local_summary = f.name
+            
+            try:
+                conn.get(summary_path, local_summary)
+                summary_data = json.loads(Path(local_summary).read_text())
+            finally:
+                os.unlink(local_summary)
+
+            end_time = time.time()
+            return K6RunResult(
+                summary=summary_data,
+                script=script,
+                config_id=config_id,
+                duration_seconds=end_time - start_time,
+                metric_ids=metric_ids,
+            )
+
+        except Exception as exc:
+            if isinstance(exc, K6ExecutionError):
+                raise
+            raise K6ExecutionError(
+                config_id=config_id,
+                message=f"SSH execution error: {exc}",
+                stdout="",
+                stderr=str(exc)
+            )
         finally:
-            self._stop_log_stream(log_stream)
+            conn.close()
+
+    def _stream_handler(self, data: str) -> None:
+        if not self.log_stream_enabled:
+            return
+        for line in data.splitlines():
+            clean = line.strip()
+            if clean:
+                self._log(f"k6 remote: {clean}")
+
+    def _log(self, message: str) -> None:
+        if self._log_callback:
+            self._log_callback(message)
+        if self._log_to_logger:
+            logger.info("%s", message)
+
+    def _build_k6_command(
+        self, 
+        script_path: str, 
+        summary_path: str,
+        outputs: Iterable[str] | None,
+        tags: Mapping[str, str] | None
+    ) -> str:
+        parts = ["k6", "run", "--summary-export", summary_path]
+        for output in outputs or []:
+            if output.strip():
+                parts.extend(["--out", output.strip()])
+        for k, v in (tags or {}).items():
+            parts.extend(["--tag", f"{k}={v}"])
+        parts.append(script_path)
+        return " ".join(shlex.quote(p) for p in parts)
 
     def parse_summary(
         self,
         summary: dict[str, Any],
         metric_ids: dict[str, str],
     ) -> dict[str, dict[str, float]]:
-        """Parse k6 summary to extract per-function metrics.
-
-        Args:
-            summary: Raw k6 summary JSON
-            metric_ids: Map of function_name -> metric_id
-
-        Returns:
-            Dict of function_name -> {success_rate, avg_latency, request_count}
-        """
-        metrics = summary.get("metrics", {}) or {}
+        metrics = summary.get("metrics")
+        if not isinstance(metrics, dict):
+            raise ValueError("Missing 'metrics' in k6 summary.")
         parsed: dict[str, dict[str, float]] = {}
+        missing: list[str] = []
 
         for name, metric_id in metric_ids.items():
-            success_metric = metrics.get(f"success_rate_{metric_id}", {}).get(
-                "values", {}
+            success_rate = self._extract_metric_value(
+                metrics.get(f"success_rate_{metric_id}"), "rate"
             )
-            latency_metric = metrics.get(f"latency_{metric_id}", {}).get("values", {})
-            count_metric = metrics.get(f"request_count_{metric_id}", {}).get(
-                "values", {}
+            latency_avg = self._extract_metric_value(
+                metrics.get(f"latency_{metric_id}"), "avg"
             )
+            request_count = self._extract_metric_value(
+                metrics.get(f"request_count_{metric_id}"), "count"
+            )
+            if request_count is None:
+                request_count = self._extract_metric_value(
+                    metrics.get(f"request_count_{metric_id}"), "rate"
+                )
 
-            success_rate = float(success_metric.get("rate", 1.0))
-            latency_avg = float(latency_metric.get("avg", 0.0))
-            request_count = float(
-                count_metric.get("count", count_metric.get("rate", 0.0))
-            )
+            if success_rate is None:
+                missing.append(f"{name}:success_rate")
+            if latency_avg is None:
+                missing.append(f"{name}:latency")
+            if request_count is None:
+                missing.append(f"{name}:request_count")
+            if success_rate is None or latency_avg is None or request_count is None:
+                continue
 
             parsed[name] = {
                 "success_rate": success_rate,
@@ -354,112 +352,21 @@ class K6Runner:
                 "request_count": request_count,
             }
 
+        if missing:
+            joined = ", ".join(missing)
+            raise ValueError(f"Missing k6 summary metrics: {joined}")
+
         return parsed
 
-    @staticmethod
-    def _build_extra_args(
-        outputs: Iterable[str] | None,
-        tags: Mapping[str, str] | None,
-    ) -> str:
-        parts: list[str] = []
-        for output in outputs or []:
-            output_value = str(output).strip()
-            if not output_value:
-                continue
-            parts.extend(["--out", output_value])
-        for key, value in (tags or {}).items():
-            key_value = f"{key}={value}"
-            parts.extend(["--tag", key_value])
-        return " ".join(shlex.quote(part) for part in parts)
-
-    def _log(self, message: str) -> None:
-        """Log message and call callback if set."""
-        if self._log_callback:
-            self._log_callback(message)
-        if self._log_to_logger:
-            logger.info("%s", message)
-
-    def _start_log_stream(
-        self, config_id: str, target_name: str, run_id: str
-    ) -> _K6LogStream | None:
-        """Start SSH log streaming from k6 host."""
-        if not self.log_stream_enabled:
-            self._log("k6 log stream disabled: log_stream_enabled=false")
+    def _extract_metric_value(
+        self, metric: dict[str, Any] | None, key: str
+    ) -> float | None:
+        if not isinstance(metric, dict):
             return None
-
-        key_path = Path(self.k6_ssh_key).expanduser()
-        log_path = (
-            f"{self.k6_workspace_root.rstrip('/')}/"
-            f"{target_name}/{run_id}/{config_id}/k6.log"
-        )
-        wait_cmd = (
-            "until test -f {path}; do sleep 1; done; tail -n 0 -F {path}"
-        ).format(path=shlex.quote(log_path))
-        remote_cmd = f"bash -lc {shlex.quote(wait_cmd)}"
-
-        cmd = [
-            "ssh",
-            "-i",
-            str(key_path),
-            "-p",
-            str(self.k6_port),
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            f"{self.k6_user}@{self.k6_host}",
-            remote_cmd,
-        ]
-
-        try:
-            proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-        except FileNotFoundError:
-            self._log("k6 log stream disabled: ssh not available")
+        values = metric.get("values")
+        if not isinstance(values, dict):
             return None
-
-        stop_event = threading.Event()
-
-        def _reader(stream: Any, label: str) -> None:
-            for line in iter(stream.readline, ""):
-                if stop_event.is_set():
-                    break
-                clean = line.rstrip()
-                if clean:
-                    message = f"k6[{config_id}] {label}: {clean}"
-                    self._log(message)
-
-        threads = [
-            threading.Thread(target=_reader, args=(proc.stdout, "stdout"), daemon=True),
-            threading.Thread(target=_reader, args=(proc.stderr, "stderr"), daemon=True),
-        ]
-        for thread in threads:
-            thread.start()
-
-        self._log(f"k6[{config_id}] log stream started")
-
-        return _K6LogStream(
-            config_id=config_id,
-            proc=proc,
-            stop_event=stop_event,
-            threads=threads,
-        )
-
-    def _stop_log_stream(self, stream: _K6LogStream | None) -> None:
-        """Stop SSH log streaming."""
-        if not stream:
-            return
-
-        stream.stop_event.set()
-        if stream.proc.poll() is None:
-            stream.proc.terminate()
-            try:
-                stream.proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                stream.proc.kill()
-
-        for thread in stream.threads:
-            thread.join(timeout=1)
-
-        self._log(f"k6[{stream.config_id}] log stream stopped")
+        value = values.get(key)
+        if value is None:
+            return None
+        return float(value)

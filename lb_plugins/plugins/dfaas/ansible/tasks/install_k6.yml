@@ -1,0 +1,106 @@
+---
+- name: Install apt dependencies
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - gnupg
+    state: present
+    update_cache: true
+
+- name: Ensure keyring directory exists
+  ansible.builtin.file:
+    path: "/usr/share/keyrings"
+    state: directory
+    mode: "0755"
+
+- name: Check for k6 repository key
+  ansible.builtin.command: >-
+    gpg --no-default-keyring
+    --keyring {{ k6_keyring_path }}
+    --list-keys {{ k6_key_fingerprint }}
+  register: k6_key_check
+  changed_when: false
+  failed_when: false
+
+- name: Install k6 repository key from keyserver
+  ansible.builtin.command: >-
+    gpg --no-default-keyring
+    --keyring {{ k6_keyring_path }}
+    --keyserver {{ k6_keyserver }}
+    --recv-keys {{ k6_key_fingerprint }}
+  when: k6_key_check.rc != 0
+
+- name: Add k6 APT repository
+  ansible.builtin.apt_repository:
+    repo: "{{ k6_repo }}"
+    filename: "k6"
+    state: present
+
+# Try APT first, fall back to tarball if APT fails
+- name: Install k6 via APT
+  ansible.builtin.apt:
+    name: k6
+    state: present
+    update_cache: true
+  register: k6_apt_install
+  ignore_errors: true
+
+- name: Download k6 tarball (primary)
+  ansible.builtin.get_url:
+    url: "{{ k6_tarball_url }}"
+    dest: "/tmp/k6.tar.gz"
+    mode: "0644"
+    timeout: 60
+    force: true
+  register: k6_tarball_primary
+  retries: 3
+  delay: 5
+  until: k6_tarball_primary is succeeded
+  ignore_errors: true
+  when: k6_apt_install is failed
+
+- name: Download k6 tarball (fallback mirror)
+  ansible.builtin.get_url:
+    url: "{{ k6_tarball_url_fallback }}"
+    dest: "/tmp/k6.tar.gz"
+    mode: "0644"
+    timeout: 60
+    force: true
+  register: k6_tarball_fallback
+  retries: 3
+  delay: 5
+  until: k6_tarball_fallback is succeeded
+  when:
+    - k6_apt_install is failed
+    - k6_tarball_primary is failed
+
+- name: Assert k6 tarball download succeeded
+  ansible.builtin.assert:
+    that:
+      - (k6_tarball_primary is succeeded)
+        or (k6_tarball_fallback is defined and k6_tarball_fallback is succeeded)
+    fail_msg: "k6 tarball download failed from both primary and fallback URLs."
+  when: k6_apt_install is failed
+
+- name: Extract k6 tarball
+  ansible.builtin.unarchive:
+    src: "/tmp/k6.tar.gz"
+    dest: "/tmp"
+    remote_src: true
+  when: k6_apt_install is failed
+
+- name: Install k6 binary
+  ansible.builtin.copy:
+    src: "{{ k6_extract_dir }}/k6"
+    dest: "/usr/local/bin/k6"
+    mode: "0755"
+    remote_src: true
+  when: k6_apt_install is failed
+
+- name: Ensure k6 workspace root exists
+  ansible.builtin.file:
+    path: "{{ k6_workspace_root }}"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"

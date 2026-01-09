@@ -1,11 +1,5 @@
-62	F401	[-] unused-import
-23	E402	[ ] module-import-not-at-top-of-file
-13	F811	[-] redefined-while-unused
- 9	E701	[ ] multiple-statements-on-one-line-colon
- 9	F822	[ ] undefined-export
- 6	F821	[ ] undefined-name
- 3	F841	[ ] unused-variable
- 2	E731	[ ] lambda-assignment
- 2	E741	[ ] ambiguous-variable-name
-Found 129 errors.
-[*] 65 fixable with the `--fix` option (5 hidden fixes can be enabled with the `--unsafe-fixes` option).
+20	F401	[*] unused-import
+ 9	F811	[-] redefined-while-unused
+ 1	F541	[*] f-string-missing-placeholders
+Found 30 errors.
+[*] 22 fixable with the `--fix` option.

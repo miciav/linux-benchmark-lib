@@ -3,9 +3,11 @@ from __future__ import annotations
 import pytest
 
 from lb_plugins.plugins.dfaas.config import DfaasConfig
+from lb_plugins.plugins.dfaas.context import ExecutionContext
 from lb_plugins.plugins.dfaas.generator import DfaasGenerator
 from lb_plugins.plugins.dfaas.grafana_assets import GRAFANA_DASHBOARD_UID
-import lb_plugins.plugins.dfaas.generator as generator_mod
+from lb_plugins.plugins.dfaas.services.annotation_service import DfaasAnnotationService
+import lb_plugins.plugins.dfaas.services.annotation_service as annotation_mod
 
 pytestmark = [pytest.mark.unit_plugins]
 
@@ -42,11 +44,12 @@ def test_resolve_prometheus_url_rewrites_localhost() -> None:
 def test_resolve_prometheus_url_replaces_host_address(monkeypatch: pytest.MonkeyPatch) -> None:
     cfg = DfaasConfig(prometheus_url="http://{host.address}:30411")
     generator = DfaasGenerator(cfg)
-    
-    # Mock _get_local_ip to return a stable IP
+
+    # Mock _get_local_ip to return a stable IP (used when target_name is empty)
     monkeypatch.setattr(generator, "_get_local_ip", lambda: "192.168.1.50")
 
-    resolved = generator._resolve_prometheus_url("ignored-target")
+    # Pass empty target_name to trigger _get_local_ip() fallback
+    resolved = generator._resolve_prometheus_url("")
 
     assert resolved == "http://192.168.1.50:30411"
 
@@ -54,7 +57,7 @@ def test_resolve_prometheus_url_replaces_host_address(monkeypatch: pytest.Monkey
 def test_init_grafana_resolves_dashboard(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(generator_mod, "GrafanaClient", FakeGrafanaClient)
+    monkeypatch.setattr(annotation_mod, "GrafanaClient", FakeGrafanaClient)
 
     cfg = DfaasConfig(
         grafana={
@@ -65,27 +68,29 @@ def test_init_grafana_resolves_dashboard(
         },
         prometheus_url="http://127.0.0.1:30411",
     )
-    generator = DfaasGenerator(cfg)
+    exec_ctx = ExecutionContext(host="host", repetition=1, total_repetitions=1)
+    annotations = DfaasAnnotationService(cfg.grafana, exec_ctx)
 
-    generator._init_grafana()
+    annotations.setup()
 
-    assert isinstance(generator._grafana_client, FakeGrafanaClient)
-    assert generator._grafana_dashboard_uid == GRAFANA_DASHBOARD_UID
-    assert generator._grafana_dashboard_id == 7
-    assert generator._grafana_client.requested_uid == GRAFANA_DASHBOARD_UID
+    assert isinstance(annotations._client, FakeGrafanaClient)
+    assert annotations.dashboard_uid == GRAFANA_DASHBOARD_UID
+    assert annotations._dashboard_id == 7
+    assert annotations._client.requested_uid == GRAFANA_DASHBOARD_UID
 
 
 def test_init_grafana_skips_unhealthy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(generator_mod, "GrafanaClient", UnhealthyGrafanaClient)
+    monkeypatch.setattr(annotation_mod, "GrafanaClient", UnhealthyGrafanaClient)
 
     cfg = DfaasConfig(
         grafana={"enabled": True, "url": "http://grafana.local:3000"},
         prometheus_url="http://127.0.0.1:30411",
     )
-    generator = DfaasGenerator(cfg)
+    exec_ctx = ExecutionContext(host="host", repetition=1, total_repetitions=1)
+    annotations = DfaasAnnotationService(cfg.grafana, exec_ctx)
 
-    generator._init_grafana()
+    annotations.setup()
 
-    assert generator._grafana_client is None
+    assert annotations._client is None

@@ -20,26 +20,18 @@ from lb_plugins.api import (
     PluginRegistry,
     hydrate_plugin_settings,
 )
-
-DEFAULT_CONFIG_NAME = "config.json"
-DEFAULT_CONFIG_POINTER = "config_path"
-PLATFORM_CONFIG_NAME = "platform.json"
+from lb_app.services.config_repository import ConfigRepository
 
 
 class ConfigService:
     """Resolve, load, and mutate BenchmarkConfig files."""
 
     def __init__(self, config_home: Optional[Path] = None) -> None:
-        xdg = os.environ.get("XDG_CONFIG_HOME")
-        base = Path(xdg) if xdg else Path.home() / ".config"
-        self.config_home = (config_home or base) / "lb"
-        self.default_target = self.config_home / DEFAULT_CONFIG_NAME
-        self.pointer = self.config_home / DEFAULT_CONFIG_POINTER
-        self.platform_target = self.config_home / PLATFORM_CONFIG_NAME
+        self._repo = ConfigRepository(config_home)
 
     def ensure_home(self) -> None:
         """Create the config home directory."""
-        self.config_home.mkdir(parents=True, exist_ok=True)
+        self._repo.ensure_home()
 
     def open_editor(self, config_path: Optional[Path]) -> Path:
         """
@@ -65,25 +57,7 @@ class ConfigService:
         Return (resolved_config, stale_pointer_target).
         Respects explicit path, environment variable LB_CONFIG_PATH, stored pointer, or local benchmark_config.json.
         """
-        if config_path is not None:
-            return Path(config_path).expanduser(), None
-
-        env_path = os.environ.get("LB_CONFIG_PATH")
-        if env_path:
-            return Path(env_path), None
-
-        saved, stale = self._read_saved_config_path()
-        if saved:
-            return saved, None
-        if stale:
-            return None, stale
-
-        local = Path("benchmark_config.json")
-        if local.exists():
-            return local, None
-        if self.default_target.exists():
-            return self.default_target, None
-        return None, None
+        return self._repo.resolve_config_path(config_path)
 
     def _hydrate_config(self, cfg: BenchmarkConfig) -> None:
         """
@@ -120,10 +94,10 @@ class ConfigService:
 
     def load_platform_config(self) -> tuple[PlatformConfig, Path, bool]:
         """Load platform config from ~/.config/lb/platform.json (empty if missing)."""
-        if self.platform_target.exists():
-            cfg = PlatformConfig.load(self.platform_target)
-            return cfg, self.platform_target, True
-        return PlatformConfig(), self.platform_target, False
+        cfg = self._repo.read_platform_config()
+        if cfg is not None:
+            return cfg, self._repo.platform_target, True
+        return PlatformConfig(), self._repo.platform_target, False
 
     def load_platform_for_write(self) -> tuple[PlatformConfig, Path]:
         """Load platform config (create default if missing) for mutation."""
@@ -138,8 +112,7 @@ class ConfigService:
         """Enable/disable a plugin in platform config."""
         cfg, target = self.load_platform_for_write()
         cfg.plugins[name] = enabled
-        self.ensure_home()
-        cfg.save(target)
+        self._repo.write_platform_config(cfg, target)
         return cfg, target
 
     def set_plugin_selection(
@@ -150,8 +123,7 @@ class ConfigService:
         """Persist plugin selection to platform config."""
         cfg, target = self.load_platform_for_write()
         cfg.plugins = {name: name in selection for name in registry.available()}
-        self.ensure_home()
-        cfg.save(target)
+        self._repo.write_platform_config(cfg, target)
         return cfg, target
 
     def load_for_read(self, config_path: Optional[Path]) -> Tuple[BenchmarkConfig, Optional[Path], Optional[Path]]:
@@ -163,7 +135,7 @@ class ConfigService:
             self.apply_platform_defaults(cfg, platform_cfg)
             return cfg, None, stale
 
-        cfg = BenchmarkConfig.load(resolved)
+        cfg = self._repo.read_benchmark_config(resolved)
         self._hydrate_config(cfg)
         platform_cfg, _, _ = self.load_platform_config()
         self.apply_platform_defaults(cfg, platform_cfg)
@@ -178,16 +150,16 @@ class ConfigService:
         Load a config for mutation and return (config, target_path, stale_pointer, created_new).
         """
         resolved, stale = self.resolve_config_path(config_path)
-        target = resolved or self.default_target
+        target = resolved or self._repo.default_target
         created = False
 
         if target.exists():
-            cfg = BenchmarkConfig.load(target)
+            cfg = self._repo.read_benchmark_config(target)
             self._hydrate_config(cfg)
         else:
             if not allow_create:
                 raise FileNotFoundError(f"Config file not found: {target}")
-            target.parent.mkdir(parents=True, exist_ok=True)
+            self._repo.ensure_parent(target)
             cfg = self.create_default_config()
             created = True
 
@@ -216,10 +188,10 @@ class ConfigService:
         workload = cfg.workloads.get(name) or WorkloadConfig(plugin=name, options={})
         cfg.workloads[name] = workload
 
-        cfg.save(target)
+        self._repo.write_benchmark_config(cfg, target)
 
         if set_default:
-            self.write_saved_config_path(target)
+            self._repo.write_saved_config_path(target)
         return cfg, target, stale
 
     def remove_plugin(
@@ -240,7 +212,7 @@ class ConfigService:
         if name in cfg.plugin_settings:
             cfg.plugin_settings.pop(name, None)
             removed = True
-        cfg.save(target)
+        self._repo.write_benchmark_config(cfg, target)
         return cfg, target, stale, removed
 
     def add_remote_host(
@@ -255,36 +227,19 @@ class ConfigService:
         cfg.remote_hosts = [existing for existing in cfg.remote_hosts if existing.name != host.name]
         cfg.remote_hosts.append(host)
         cfg.remote_execution.enabled = enable_remote
-        cfg.save(target)
+        self._repo.write_benchmark_config(cfg, target)
         if set_default:
-            self.write_saved_config_path(target)
+            self._repo.write_saved_config_path(target)
         return cfg, target, stale
 
     def write_saved_config_path(self, path: Path) -> None:
         """Persist a pointer to the preferred config path."""
-        self.ensure_home()
-        self.pointer.write_text(str(path.expanduser()))
+        self._repo.write_saved_config_path(path)
 
     def read_saved_config_path(self) -> Tuple[Optional[Path], Optional[Path]]:
         """Return (resolved_path, stale_path) from the pointer file, if any."""
-        return self._read_saved_config_path()
+        return self._repo.read_saved_config_path()
 
     def clear_saved_config_path(self) -> None:
         """Remove the saved config path pointer, if present."""
-        if self.pointer.exists():
-            self.pointer.unlink()
-
-    def _read_saved_config_path(self) -> Tuple[Optional[Path], Optional[Path]]:
-        """Return (resolved_path, stale_path) from the pointer file, if any."""
-        if not self.pointer.exists():
-            return None, None
-        try:
-            text = self.pointer.read_text().strip()
-        except Exception:
-            return None, None
-        if not text:
-            return None, None
-        path = Path(text).expanduser()
-        if path.exists():
-            return path, None
-        return None, path
+        self._repo.clear_saved_config_path()

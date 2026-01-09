@@ -5,16 +5,116 @@
 ┌─────────────┐
 │ Scan Status │
 └─────────────┘
-  Scanning 69 files tracked by git with 1063 Code rules:
+  Scanning 111 files tracked by git with 1063 Code rules:
                                                                                                                         
   Language      Rules   Files          Origin      Rules                                                                
  ─────────────────────────────        ───────────────────                                                               
-  <multilang>      48      68          Community    1063                                                                
-  python          243      29                                                                                           
-  yaml             31      13                                                                                           
-  bash              4       5                                                                                           
+  <multilang>      48     110          Community    1063                                                                
+  python          243      46                                                                                           
+  yaml             31      32                                                                                           
+  bash              4       7                                                                                           
+  json              4       2                                                                                           
   c                 5       1                                                                                           
                                                                                                                         
+                   
+                   
+┌─────────────────┐
+│ 7 Code Findings │
+└─────────────────┘
+                         
+    lb_plugins/builtin.py
+    ❯❱ python.lang.security.audit.non-literal-import.non-literal-import
+          Untrusted user input in `importlib.import_module()` function allows an attacker to load arbitrary
+          code. Avoid dynamic values in `importlib.import_module()` or use a whitelist to prevent running  
+          untrusted code.                                                                                  
+          Details: https://sg.run/y6Jk                                                                     
+                                                                                                           
+           28┆ mod = importlib.import_module(module_name)
+                                                                      
+    lb_plugins/plugins/dfaas/ansible/manifests/cadvisor-daemonset.yaml
+     ❱ yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          When running containers in Kubernetes, it's important to ensure that they  are properly secured to  
+          prevent privilege escalation attacks.  One potential vulnerability is when a container is allowed to
+          run  applications as the root user, which could allow an attacker to gain  access to sensitive      
+          resources. To mitigate this risk, it's recommended to  add a `securityContext` to the container,    
+          with the parameter `runAsNonRoot`  set to `true`. This will ensure that the container runs as a non-
+          root user,  limiting the damage that could be caused by any potential attacks. By  adding a         
+          `securityContext` to the container in your Kubernetes pod, you can  help to ensure that your        
+          containerized applications are more secure and  less vulnerable to privilege escalation attacks.    
+          Details: https://sg.run/dgP5                                                                        
+                                                                                                              
+           ▶▶┆ Autofix ▶ spec: securityContext: runAsNonRoot: true #
+           29┆ spec:
+   
+    ❯❱ yaml.kubernetes.security.allow-privilege-escalation-no-securitycontext.allow-privilege-escalation-no-
+       securitycontext                                                                                      
+          In Kubernetes, each pod runs in its own isolated environment with its own set of security policies. 
+          However, certain container images may contain `setuid` or `setgid` binaries that could allow an     
+          attacker to perform privilege escalation and gain access to sensitive resources. To mitigate this   
+          risk, it's recommended to add a `securityContext` to the container in the pod, with the parameter   
+          `allowPrivilegeEscalation` set to `false`. This will prevent the container from running any         
+          privileged processes and limit the impact of any potential attacks. By adding a `securityContext` to
+          your Kubernetes pod, you can help to ensure that your containerized applications are more secure and
+          less vulnerable to privilege escalation attacks.                                                    
+          Details: https://sg.run/eleR                                                                        
+                                                                                                              
+           ▶▶┆ Autofix ▶ securityContext: allowPrivilegeEscalation: false name
+           32┆ - name: cadvisor
+                                                                           
+    lb_plugins/plugins/dfaas/ansible/manifests/node-exporter-deamonset.yaml
+     ❱ yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          When running containers in Kubernetes, it's important to ensure that they  are properly secured to  
+          prevent privilege escalation attacks.  One potential vulnerability is when a container is allowed to
+          run  applications as the root user, which could allow an attacker to gain  access to sensitive      
+          resources. To mitigate this risk, it's recommended to  add a `securityContext` to the container,    
+          with the parameter `runAsNonRoot`  set to `true`. This will ensure that the container runs as a non-
+          root user,  limiting the damage that could be caused by any potential attacks. By  adding a         
+          `securityContext` to the container in your Kubernetes pod, you can  help to ensure that your        
+          containerized applications are more secure and  less vulnerable to privilege escalation attacks.    
+          Details: https://sg.run/dgP5                                                                        
+                                                                                                              
+           ▶▶┆ Autofix ▶ spec: securityContext: runAsNonRoot: true #
+           19┆ spec:
+   
+    ❯❱ yaml.kubernetes.security.allow-privilege-escalation-no-securitycontext.allow-privilege-escalation-no-
+       securitycontext                                                                                      
+          In Kubernetes, each pod runs in its own isolated environment with its own set of security policies. 
+          However, certain container images may contain `setuid` or `setgid` binaries that could allow an     
+          attacker to perform privilege escalation and gain access to sensitive resources. To mitigate this   
+          risk, it's recommended to add a `securityContext` to the container in the pod, with the parameter   
+          `allowPrivilegeEscalation` set to `false`. This will prevent the container from running any         
+          privileged processes and limit the impact of any potential attacks. By adding a `securityContext` to
+          your Kubernetes pod, you can help to ensure that your containerized applications are more secure and
+          less vulnerable to privilege escalation attacks.                                                    
+          Details: https://sg.run/eleR                                                                        
+                                                                                                              
+           ▶▶┆ Autofix ▶ securityContext: allowPrivilegeEscalation: false name
+           28┆ name: node-exporter
+                                                                         
+    lb_plugins/plugins/dfaas/ansible/manifests/prometheus-deployment.yaml
+    ❯❱ yaml.kubernetes.security.allow-privilege-escalation-no-securitycontext.allow-privilege-escalation-no-
+       securitycontext                                                                                      
+          In Kubernetes, each pod runs in its own isolated environment with its own set of security policies. 
+          However, certain container images may contain `setuid` or `setgid` binaries that could allow an     
+          attacker to perform privilege escalation and gain access to sensitive resources. To mitigate this   
+          risk, it's recommended to add a `securityContext` to the container in the pod, with the parameter   
+          `allowPrivilegeEscalation` set to `false`. This will prevent the container from running any         
+          privileged processes and limit the impact of any potential attacks. By adding a `securityContext` to
+          your Kubernetes pod, you can help to ensure that your containerized applications are more secure and
+          less vulnerable to privilege escalation attacks.                                                    
+          Details: https://sg.run/eleR                                                                        
+                                                                                                              
+           ▶▶┆ Autofix ▶ securityContext: allowPrivilegeEscalation: false name
+           24┆ - name: prometheus
+                                       
+    lb_plugins/plugins/dfaas/queries.py
+    ❯❱ python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+          Detected a dynamic value being used with urllib. urllib supports 'file://' schemes, so a dynamic    
+          value controlled by a malicious actor may allow them to read arbitrary files. Audit uses of urllib  
+          calls to ensure user data cannot control the URLs, or consider using the 'requests' library instead.
+          Details: https://sg.run/dKZZ                                                                        
+                                                                                                              
+          182┆ with urlopen(request, timeout=self._timeout_seconds) as response:  # nosec B310
                 
                 
 ┌──────────────┐
@@ -25,39 +125,7 @@ Some files were skipped or only partially analyzed.
   Scan skipped: 1 files larger than 1.0 MB
   For a full list of skipped files, run semgrep with the --verbose flag.
 
-Ran 328 rules on 68 files: 3 findings.
+Ran 331 rules on 110 files: 7 findings.
 
 A new version of Semgrep is available. See https://semgrep.dev/docs/upgrading
-                   
-                   
-┌─────────────────┐
-│ 3 Code Findings │
-└─────────────────┘
-                     
-    lb_plugins/api.py
-   ❯❯❱ trailofbits.python.tarfile-extractall-traversal.tarfile-extractall-traversal
-          Possible path traversal through `tarfile.open($PATH).extractall()` if the source tar is controlled
-          by an attacker                                                                                    
-          Details: https://sg.run/2RLD                                                                      
-                                                                                                            
-          221┆ with tarfile.open(archive_path, "r") as tar_ref:
-          222┆     tar_ref.extractall(tmp_path, filter="data")
-                         
-    lb_plugins/builtin.py
-    ❯❱ python.lang.security.audit.non-literal-import.non-literal-import
-          Untrusted user input in `importlib.import_module()` function allows an attacker to load arbitrary
-          code. Avoid dynamic values in `importlib.import_module()` or use a whitelist to prevent running  
-          untrusted code.                                                                                  
-          Details: https://sg.run/y6Jk                                                                     
-                                                                                                           
-           28┆ mod = importlib.import_module(module_name)
-                                          
-    lb_plugins/plugins/geekbench/plugin.py
-   ❯❯❱ trailofbits.python.tarfile-extractall-traversal.tarfile-extractall-traversal
-          Possible path traversal through `tarfile.open($PATH).extractall()` if the source tar is controlled
-          by an attacker                                                                                    
-          Details: https://sg.run/2RLD                                                                      
-                                                                                                            
-          314┆ with tarfile.open(archive_path, "r:gz") as tar:
-          315┆     tar.extractall(path=self.config.workdir)
 

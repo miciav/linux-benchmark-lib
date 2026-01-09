@@ -10,6 +10,13 @@ from typing import Any, Mapping
 from urllib import request, error, parse
 
 
+def _validate_http_url(url: str, label: str) -> str:
+    parsed = parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"{label} must be an http(s) URL, got: {url}")
+    return url
+
+
 @dataclass
 class GrafanaClient:
     """Lightweight Grafana API client with retry support."""
@@ -22,6 +29,11 @@ class GrafanaClient:
     max_retries: int = 3
     backoff_base: float = 0.5
     backoff_factor: float = 2.0
+
+    def __post_init__(self) -> None:
+        self.base_url = _validate_http_url(
+            self.base_url.rstrip("/"), "Grafana base_url"
+        )
 
     def health_check(self) -> tuple[bool, dict[str, Any] | None]:
         try:
@@ -231,7 +243,9 @@ class GrafanaClient:
         for attempt in range(self.max_retries + 1):
             try:
                 req = request.Request(url, data=data, headers=headers, method=method)
-                with request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                with request.urlopen(  # nosec B310
+                    req, timeout=self.timeout_seconds
+                ) as resp:
                     status = resp.status
                     body = resp.read().decode("utf-8") if resp is not None else ""
                 parsed = self._parse_json(body)

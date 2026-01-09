@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from contextlib import nullcontext
 
 from lb_ui.tui.system.components.dashboard_adapter import DashboardAdapter
+from lb_ui.tui.system.components.dashboard_base import DashboardNoOp
 from lb_ui.tui.system.components.presenter_base import PresenterBase, PresenterSink
 from lb_ui.tui.system.protocols import UI, Picker, TablePresenter, Form, Progress, Dashboard, DashboardFactory, HierarchicalPicker
 from lb_ui.tui.system.models import TableModel, PickItem, SelectionNode
@@ -138,7 +139,7 @@ class _HeadlessProgress(Progress):
         self._ui.recorded_messages.append(f"STATUS: {message}")
         return nullcontext()
 
-class _HeadlessDashboardSink(Dashboard):
+class _HeadlessDashboardSink(DashboardNoOp):
     def __init__(self, ui: HeadlessUI) -> None:
         self._ui = ui
 
@@ -148,21 +149,6 @@ class _HeadlessDashboardSink(Dashboard):
 
     def add_log(self, line: str) -> None:
         self._ui.recorded_dashboard_logs.append(line)
-
-    def refresh(self) -> None:
-        pass
-
-    def mark_event(self, source: str) -> None:
-        pass
-
-    def set_warning(self, message: str, ttl: float = 10.0) -> None:
-        pass
-
-    def clear_warning(self) -> None:
-        pass
-
-    def set_controller_state(self, state: str) -> None:
-        pass
 
 class _HeadlessDashboardFactory(DashboardFactory):
     def __init__(self, ui: HeadlessUI):

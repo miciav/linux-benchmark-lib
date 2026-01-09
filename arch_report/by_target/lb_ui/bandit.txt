@@ -1,14 +1,14 @@
-Run started:2025-12-28 10:08:32.786542+00:00
+Run started:2026-01-09 16:15:49.284285+00:00
 
 Test results:
 >> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
    Severity: Low   Confidence: High
    CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
    More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
-   Location: lb_ui/cli/__init__.py:2:0
-1	from .main import app, main, ctx_store
-2	import subprocess
-3	
+   Location: lb_ui/cli/__init__.py:1:0
+1	import subprocess
+2	
+3	from .main import app as app, ctx_store as ctx_store, main as main
 
 --------------------------------------------------
 >> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
@@ -25,42 +25,190 @@ Test results:
    Severity: Low   Confidence: High
    CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
    More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
-   Location: lb_ui/cli/commands/test.py:104:21
-103	        try:
-104	            result = subprocess.run(cmd, check=False, env=env)
-105	        except Exception as exc:
+   Location: lb_ui/cli/commands/test.py:108:21
+107	        try:
+108	            result = subprocess.run(cmd, check=False, env=env)
+109	        except Exception as exc:
 
 --------------------------------------------------
 >> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
    Severity: Low   Confidence: High
    CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
    More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess
-   Location: lb_ui/cli/main.py:10:0
-9	import os
-10	import subprocess
-11	from typing import Optional
+   Location: lb_ui/notifications/providers/desktop.py:9:0
+8	import platform
+9	import subprocess
+10	import time
 
 --------------------------------------------------
->> Issue: [B112:try_except_continue] Try, Except, Continue detected.
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
    Severity: Low   Confidence: High
-   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b112_try_except_continue.html
-   Location: lb_ui/tui/adapters/tui_adapter.py:117:16
-116	                        self._inner.refresh()
-117	                except Exception:
-118	                    continue
-119	
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b607_start_process_with_partial_path.html
+   Location: lb_ui/notifications/providers/desktop.py:58:16
+57	            if platform.system() == "Linux":
+58	                subprocess.Popen(
+59	                    ["canberra-gtk-play", "--id=message-new-instant"],
+60	                    stdout=subprocess.DEVNULL,
+61	                    stderr=subprocess.DEVNULL
+62	                )
+63	        except Exception:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_ui/notifications/providers/desktop.py:58:16
+57	            if platform.system() == "Linux":
+58	                subprocess.Popen(
+59	                    ["canberra-gtk-play", "--id=message-new-instant"],
+60	                    stdout=subprocess.DEVNULL,
+61	                    stderr=subprocess.DEVNULL
+62	                )
+63	        except Exception:
 
 --------------------------------------------------
 >> Issue: [B110:try_except_pass] Try, Except, Pass detected.
    Severity: Low   Confidence: High
    CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
    More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
-   Location: lb_ui/tui/system/components/dashboard.py:190:12
-189	                self.ui_log_file.flush()
-190	            except Exception:
-191	                pass
-192	        # Trim occasionally to avoid unbounded growth
+   Location: lb_ui/notifications/providers/desktop.py:63:8
+62	                )
+63	        except Exception:
+64	            pass
+65	
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b607_start_process_with_partial_path.html
+   Location: lb_ui/notifications/providers/desktop.py:123:12
+122	        try:
+123	            subprocess.run(
+124	                ["osascript", "-e", script],
+125	                capture_output=True,
+126	                timeout=5
+127	            )
+128	        except Exception as exc:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: lb_ui/notifications/providers/desktop.py:123:12
+122	        try:
+123	            subprocess.run(
+124	                ["osascript", "-e", script],
+125	                capture_output=True,
+126	                timeout=5
+127	            )
+128	        except Exception as exc:
+
+--------------------------------------------------
+>> Issue: [B310:blacklist] Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.
+   Severity: Medium   Confidence: High
+   CWE: CWE-22 (https://cwe.mitre.org/data/definitions/22.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_calls.html#b310-urllib-urlopen
+   Location: lb_ui/notifications/providers/webhook.py:38:17
+37	            
+38	            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+39	                if resp.status >= 400:
+
+--------------------------------------------------
+>> Issue: [B324:hashlib] Use of weak MD5 hash for security. Consider usedforsecurity=False
+   Severity: High   Confidence: High
+   CWE: CWE-327 (https://cwe.mitre.org/data/definitions/327.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b324_hashlib.html
+   Location: lb_ui/services/assets.py:38:15
+37	    """Calculate MD5 hash of a file."""
+38	    hash_md5 = hashlib.md5()
+39	    with open(path, "rb") as f:
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_ui/services/tray.py:50:4
+49	        icon.run()
+50	    except Exception:
+51	        pass
+52	
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_ui/tui/system/components/dashboard.py:340:8
+339	            self.ui_log_file.flush()
+340	        except Exception:
+341	            pass
+342	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: lb_ui/tui/system/components/dashboard_adapter.py:28:8
+27	            return
+28	        assert self._queue is not None
+29	        assert self._stop is not None
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: lb_ui/tui/system/components/dashboard_adapter.py:29:8
+28	        assert self._queue is not None
+29	        assert self._stop is not None
+30	        self._stop.clear()
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: lb_ui/tui/system/components/dashboard_adapter.py:45:8
+44	    def _run(self) -> None:
+45	        assert self._queue is not None
+46	        assert self._stop is not None
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: lb_ui/tui/system/components/dashboard_adapter.py:46:8
+45	        assert self._queue is not None
+46	        assert self._stop is not None
+47	        with self._sink.live():
+
+--------------------------------------------------
+>> Issue: [B112:try_except_continue] Try, Except, Continue detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b112_try_except_continue.html
+   Location: lb_ui/tui/system/components/dashboard_adapter.py:60:16
+59	                        self._sink.refresh()
+60	                except Exception:
+61	                    continue
+62	
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: lb_ui/tui/system/components/dashboard_adapter.py:67:8
+66	            return
+67	        assert self._queue is not None
+68	        self._queue.put((method, args, kwargs))
 
 --------------------------------------------------
 >> Issue: [B110:try_except_pass] Try, Except, Pass detected.
@@ -87,19 +235,19 @@ Test results:
 --------------------------------------------------
 
 Code scanned:
-	Total lines of code: 3397
+	Total lines of code: 4720
 	Total lines skipped (#nosec): 0
 	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
 
 Run metrics:
 	Total issues (by severity):
 		Undefined: 0
-		Low: 8
-		Medium: 0
-		High: 0
+		Low: 19
+		Medium: 1
+		High: 1
 	Total issues (by confidence):
 		Undefined: 0
 		Low: 0
 		Medium: 0
-		High: 8
+		High: 21
 Files skipped (0):

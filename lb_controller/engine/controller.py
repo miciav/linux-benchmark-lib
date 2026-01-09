@@ -17,7 +17,12 @@ from lb_controller.models.state import ControllerState, ControllerStateMachine
 from lb_controller.services.journal import RunJournal
 from lb_controller.adapters.playbooks import run_global_setup
 from lb_controller.engine.run_state import RunFlags, RunState
-from lb_controller.services.paths import generate_run_id, prepare_per_host_dirs, prepare_run_dirs
+from lb_controller.engine.run_state_builders import (
+    ExtravarsBuilder,
+    RunDirectoryPreparer,
+    build_inventory,
+    resolve_run_id,
+)
 from lb_controller.engine.stops import StopCoordinator
 from lb_controller.engine.lifecycle import RunLifecycle, RunPhase
 from lb_controller.models.types import ExecutionResult, InventorySpec, RunExecutionSummary
@@ -151,13 +156,8 @@ class BenchmarkController:
         journal: Optional[RunJournal],
         journal_path: Optional[Path],
     ) -> RunState:
-        resolved_run_id = (
-            journal.run_id if journal is not None else run_id or generate_run_id()
-        )
-        inventory = InventorySpec(
-            hosts=self.config.remote_hosts,
-            inventory_path=self.config.remote_execution.inventory_path,
-        )
+        resolved_run_id = resolve_run_id(run_id, journal)
+        inventory = build_inventory(self.config)
 
         self.coordinator = StopCoordinator(
             expected_runners={h.name for h in self.config.remote_hosts},
@@ -180,11 +180,8 @@ class BenchmarkController:
             journal.metadata.get("repetitions") if journal else None
         ) or self.config.repetitions
 
-        output_root, report_root, data_export_root = prepare_run_dirs(
-            self.config, resolved_run_id
-        )
-        per_host_output = prepare_per_host_dirs(
-            self.config.remote_hosts, output_root=output_root, report_root=report_root
+        output_root, report_root, data_export_root, per_host_output = (
+            RunDirectoryPreparer(self.config).prepare(resolved_run_id)
         )
 
         active_journal = journal or RunJournal.initialize(
@@ -194,23 +191,15 @@ class BenchmarkController:
         active_journal.save(journal_file)
         self._ui.refresh_journal()
 
-        remote_output_root = f"/tmp/benchmark_results/{resolved_run_id}"
-        extravars = {
-            "run_id": resolved_run_id,
-            "output_root": str(output_root),
-            "remote_output_root": remote_output_root,
-            "report_root": str(report_root),
-            "data_export_root": str(data_export_root),
-            "lb_workdir": self.config.remote_execution.lb_workdir,
-            "per_host_output": {k: str(v) for k, v in per_host_output.items()},
-            "benchmark_config": self.config.model_dump(mode="json"),
-            "use_container_fallback": self.config.remote_execution.use_container_fallback,
-            "lb_upgrade_pip": self.config.remote_execution.upgrade_pip,
-            "collector_apt_packages": sorted(self._context._collector_apt_packages()),
-            "workload_runner_install_deps": False,
-            "repetitions_total": target_reps,
-            "repetition_index": 0,
-        }
+        extravars = ExtravarsBuilder(self.config).build(
+            run_id=resolved_run_id,
+            output_root=output_root,
+            report_root=report_root,
+            data_export_root=data_export_root,
+            per_host_output=per_host_output,
+            target_reps=target_reps,
+            collector_packages=self._context._collector_apt_packages(),
+        )
 
         return RunState(
             resolved_run_id=resolved_run_id,

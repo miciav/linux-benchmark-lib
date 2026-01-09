@@ -65,3 +65,11 @@ def test_grafana_env_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.grafana.url == "http://grafana.local:3000"
     assert config.grafana.api_key == "token"
     assert config.grafana.org_id == 2
+
+
+def test_default_queries_path_is_absolute() -> None:
+    config = DfaasConfig()
+    path = Path(config.queries_path)
+    assert path.is_absolute()
+    assert path.name == "queries.yml"
+    assert path.exists()

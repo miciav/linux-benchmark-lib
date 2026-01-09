@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from lb_app.interfaces import AppClient, UIHooks, RunRequest
+from lb_app.interfaces import UIHooks, RunRequest
 from lb_app.services.config_service import ConfigService
 from lb_app.services.provision_service import (
     ProvisionConfigSummary,
@@ -25,7 +25,7 @@ from lb_provisioner.api import (
 from lb_plugins.api import create_registry
 
 
-class ApplicationClient(AppClient):
+class ApplicationClient:
     """Concrete application-layer client."""
 
     def __init__(self) -> None:
