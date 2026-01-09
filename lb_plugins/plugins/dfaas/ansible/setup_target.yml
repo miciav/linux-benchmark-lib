@@ -1,33 +1,19 @@
 ---
+# Standalone playbook to setup benchmark target with k3s, OpenFaaS, Prometheus, and exporters.
+# Can be run independently or used as reference.
+# For orchestrated setup, use setup_global.yml instead.
+
 - name: Install k3s, OpenFaaS, Prometheus, and exporters
   hosts: all
   become: true
+  gather_facts: true
+  vars_files:
+    - vars/target.yml
   vars:
-    k3s_version: ""
-    k3s_install_exec: "--write-kubeconfig-mode 644"
-    openfaas_namespace: "openfaas"
-    openfaas_fn_namespace: "openfaas-fn"
-    openfaas_gateway_node_port: 31112
-    openfaas_admin_user: "admin"
-    openfaas_gateway_url: ""
+    # Additional runtime variables (can be overridden via extra-vars)
     openfaas_functions: []
-    prometheus_namespace: "openfaas"
-    prometheus_node_port: 30411
-    prometheus_url: ""
-    prometheus_manifests_dir: "/tmp/dfaas-prometheus"
-    scaphandre_enabled: false
-    scaphandre_repo_url: ""
-    scaphandre_repo_name: "scaphandre"
-    scaphandre_chart: ""
-    scaphandre_release: "scaphandre"
-    k6_host: ""
-    k6_user: "ubuntu"
-    k6_ssh_key: ""
-    k6_port: 22
-    k6_workspace_root: "/home/ubuntu/.dfaas-k6"
     k6_setup_enabled: true
     k6_setup_playbook_path: ""
-    lb_workdir: "{{ (ansible_user == 'root') | ternary('/root', '/home/' ~ ansible_user) }}/.lb"
   tasks:
     - name: Install base packages
       ansible.builtin.apt:

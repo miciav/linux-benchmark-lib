@@ -93,31 +93,40 @@ def test_parse_k6_summary_extracts_metrics() -> None:
     assert parsed["figlet"]["request_count"] == 5
 
 
-def test_build_k6_extra_args_includes_outputs_and_tags() -> None:
-    args = K6Runner._build_extra_args(
+def test_build_k6_command_includes_outputs_and_tags() -> None:
+    """Test that _build_k6_command properly formats outputs and tags."""
+    k6_runner = K6Runner(
+        k6_host="host", k6_user="user", k6_ssh_key="key", k6_port=22,
+        k6_workspace_root="/root", gateway_url="http://gw", duration="30s"
+    )
+    cmd = k6_runner._build_k6_command(
+        script_path="/path/script.js",
+        summary_path="/path/summary.json",
         outputs=["loki=http://localhost:3100/loki/api/v1/push"],
         tags={"run_id": "run-1", "component": "k6"},
     )
 
-    assert "--out" in args
-    assert "loki=http://localhost:3100/loki/api/v1/push" in args
-    assert "--tag" in args
-    assert "run_id=run-1" in args
-    assert "component=k6" in args
+    assert "--out" in cmd
+    assert "loki=http://localhost:3100/loki/api/v1/push" in cmd
+    assert "--tag" in cmd
+    assert "run_id=run-1" in cmd
+    assert "component=k6" in cmd
+    assert "--summary-export" in cmd
 
 
-def test_k6_outputs_adds_loki_when_enabled(
+def test_k6_outputs_returns_configured_outputs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("LB_LOKI_ENABLED", "1")
-    monkeypatch.setenv("LB_LOKI_ENDPOINT", "http://controller:3100")
-    cfg = DfaasConfig(k6_outputs=["json=stdout"])
+    """Standard k6 doesn't support Loki - only return explicitly configured outputs."""
+    monkeypatch.setenv("LB_LOKI_ENABLED", "1")  # Should be ignored
+    cfg = DfaasConfig(k6_outputs=["json=stdout", "csv=results.csv"])
     generator = DfaasGenerator(cfg)
 
     outputs = generator._resolve_k6_outputs()
 
-    assert "json=stdout" in outputs
-    assert any(output.startswith("loki=") for output in outputs)
+    assert outputs == ["json=stdout", "csv=results.csv"]
+    # Loki should NOT be auto-added (standard k6 doesn't support it)
+    assert not any(output.startswith("loki=") for output in outputs)
 
 
 def test_dfaas_generator_grafana_annotations(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -172,41 +181,45 @@ def test_dfaas_generator_grafana_annotations(monkeypatch: pytest.MonkeyPatch) ->
         assert "event:error" in mock_client.create_annotation.call_args[1]["tags"]
 
 
-def test_k6_runner_incorporates_args_into_command(monkeypatch: pytest.MonkeyPatch) -> None:
-    """K6Runner should pass outputs and tags to the ansible command."""
-    from unittest.mock import MagicMock
-    
+def test_k6_runner_execute_passes_outputs_and_tags(monkeypatch: pytest.MonkeyPatch) -> None:
+    """K6Runner.execute() should include outputs and tags in the k6 command."""
+    from unittest.mock import MagicMock, patch
+
     k6_runner = K6Runner(
         k6_host="host", k6_user="user", k6_ssh_key="key", k6_port=22,
         k6_workspace_root="/root", gateway_url="http://gw", duration="30s"
     )
 
-    mock_run = MagicMock()
-    mock_run.return_value.returncode = 0
-    monkeypatch.setattr("subprocess.run", mock_run)
-    # Mock playbook existence check
-    monkeypatch.setattr("pathlib.Path.exists", lambda s: True)
-    monkeypatch.setattr("pathlib.Path.read_text", lambda s, encoding=None: "{}")
-    monkeypatch.setattr("pathlib.Path.write_text", lambda s, t, encoding=None: None)
+    # Mock Fabric Connection
+    mock_conn = MagicMock()
+    mock_conn.run.return_value = MagicMock(failed=False)
+    mock_conn.get = MagicMock()
 
-    k6_runner.execute(
-        "cfg1", "script", "target", "run1",
-        outputs=["loki=http://loki"],
-        tags={"custom": "tag"}
-    )
+    # Track the k6 command that gets executed
+    executed_commands = []
 
-    call_args = mock_run.call_args[0][0]
-    # Check that extra args are passed as JSON in -e
-    # The command is [ansible-playbook, ..., -e, json_string]
-    # We need to find the json string for k6_extra_args
-    found = False
-    for arg in call_args:
-        if isinstance(arg, str) and "k6_extra_args" in arg:
-            data = json.loads(arg)
-            extra = data["k6_extra_args"]
-            assert "--out" in extra
-            assert "loki=http://loki" in extra
-            assert "--tag" in extra
-            assert "custom=tag" in extra
-            found = True
-    assert found
+    def capture_run(cmd, **kwargs):
+        executed_commands.append(cmd)
+        return MagicMock(failed=False)
+
+    mock_conn.run.side_effect = capture_run
+
+    with patch.object(k6_runner, "_get_connection", return_value=mock_conn):
+        with patch("tempfile.NamedTemporaryFile") as mock_temp:
+            mock_temp.return_value.__enter__.return_value.name = "/tmp/test"
+            with patch("os.unlink"):
+                with patch("pathlib.Path.read_text", return_value='{"metrics": {}}'):
+                    k6_runner.execute(
+                        "cfg1", "script", "target", "run1",
+                        metric_ids={"fn": "fn_id"},
+                        outputs=["loki=http://loki"],
+                        tags={"custom": "tag"},
+                    )
+
+    # Find the k6 run command (not mkdir)
+    k6_cmd = next((c for c in executed_commands if "k6 run" in c), None)
+    assert k6_cmd is not None, f"No k6 run command found in: {executed_commands}"
+    assert "--out" in k6_cmd
+    assert "loki=http://loki" in k6_cmd
+    assert "--tag" in k6_cmd
+    assert "custom=tag" in k6_cmd

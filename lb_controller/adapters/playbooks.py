@@ -106,7 +106,7 @@ def run_workload_setup(
     )
     phases[f"setup_{test_name}"] = res
     if not res.success:
-        ui_log(f"Setup failed for {test_name}")
+        ui_log(f"Setup failed for {test_name} (rc={res.rc}, status={res.status})")
         flags.all_tests_success = False
         run_teardown_playbook(controller, plugin_assets, plugin_name, inventory, extravars)
         pending_reps.clear()

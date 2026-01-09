@@ -247,7 +247,7 @@ config = {
         "dfaas": {
             "k6_host": generator_ip,
             "k6_user": "ubuntu",
-            "k6_ssh_key": k6_key_path,
+            "k6_ssh_key": key_path,
             "k6_port": 22,
             "gateway_url": "http://{host.address}:31112",
             "prometheus_url": "http://{host.address}:30411",
@@ -265,9 +265,16 @@ config = {
 }
 
 if loki_enabled:
+    resolved_endpoint = loki_endpoint or "http://localhost:3100"
+    # Top-level loki config for the main runner
     config["loki"] = {
         "enabled": True,
-        "endpoint": loki_endpoint or "http://localhost:3100",
+        "endpoint": resolved_endpoint,
+    }
+    # Plugin-level loki config for the DFaaS generator
+    config["plugin_settings"]["dfaas"]["loki"] = {
+        "enabled": True,
+        "endpoint": resolved_endpoint,
     }
 
 config_path.write_text(json.dumps(config, indent=2))
@@ -288,7 +295,6 @@ main() {
 
   inject_key "$TARGET_NAME"
   inject_key "$GENERATOR_NAME"
-  setup_k6_ssh "$TARGET_NAME" "$GENERATOR_NAME" "$TARGET_K6_KEY_PATH"
 
   target_ip="$(wait_for_ip "$TARGET_NAME")"
   generator_ip="$(wait_for_ip "$GENERATOR_NAME")"

@@ -143,6 +143,48 @@ class DfaasOverloadConfig(BaseModel):
     model_config = {"extra": "ignore"}
 
 
+class DfaasLokiConfig(BaseModel):
+    """Loki log shipping settings for DFaaS generator."""
+
+    enabled: bool = Field(default=False, description="Enable Loki log push")
+    endpoint: str = Field(
+        default="http://localhost:3100",
+        description="Loki base URL or push endpoint",
+    )
+    labels: dict[str, str] = Field(
+        default_factory=dict, description="Static labels sent with Loki logs"
+    )
+
+    model_config = {"extra": "ignore"}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_env_fallbacks(cls, values: Any) -> Any:
+        """Apply env vars as fallbacks for missing config values.
+
+        Priority: config file > environment variables > defaults.
+        """
+        if isinstance(values, cls):
+            return values
+        if values is None:
+            values = {}
+        if not isinstance(values, dict):
+            return values
+
+        # Only apply env vars as fallbacks when config doesn't specify a value
+        if values.get("enabled") is None:
+            env_enabled = parse_bool_env(os.environ.get("LB_LOKI_ENABLED"))
+            if env_enabled is not None:
+                values["enabled"] = env_enabled
+
+        if not values.get("endpoint"):
+            env_endpoint = os.environ.get("LB_LOKI_ENDPOINT")
+            if env_endpoint:
+                values["endpoint"] = env_endpoint
+
+        return values
+
+
 class GrafanaConfig(BaseModel):
     """Optional Grafana integration settings."""
 
@@ -155,7 +197,11 @@ class GrafanaConfig(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _apply_env_overrides(cls, values: Any) -> Any:
+    def _apply_env_fallbacks(cls, values: Any) -> Any:
+        """Apply env vars as fallbacks for missing config values.
+
+        Priority: config file > environment variables > defaults.
+        """
         if isinstance(values, cls):
             return values
         if values is None:
@@ -163,19 +209,26 @@ class GrafanaConfig(BaseModel):
         if not isinstance(values, dict):
             return values
 
-        env_enabled = parse_bool_env(os.environ.get("LB_GRAFANA_ENABLED"))
-        env_url = os.environ.get("LB_GRAFANA_URL")
-        env_api_key = os.environ.get("LB_GRAFANA_API_KEY")
-        env_org = parse_int_env(os.environ.get("LB_GRAFANA_ORG_ID"))
+        # Only apply env vars as fallbacks when config doesn't specify a value
+        if values.get("enabled") is None:
+            env_enabled = parse_bool_env(os.environ.get("LB_GRAFANA_ENABLED"))
+            if env_enabled is not None:
+                values["enabled"] = env_enabled
 
-        if env_enabled is not None:
-            values["enabled"] = env_enabled
-        if env_url:
-            values["url"] = env_url
-        if env_api_key:
-            values["api_key"] = env_api_key
-        if env_org is not None:
-            values["org_id"] = env_org
+        if not values.get("url"):
+            env_url = os.environ.get("LB_GRAFANA_URL")
+            if env_url:
+                values["url"] = env_url
+
+        if values.get("api_key") is None:
+            env_api_key = os.environ.get("LB_GRAFANA_API_KEY")
+            if env_api_key:
+                values["api_key"] = env_api_key
+
+        if values.get("org_id") is None:
+            env_org = parse_int_env(os.environ.get("LB_GRAFANA_ORG_ID"))
+            if env_org is not None:
+                values["org_id"] = env_org
 
         return values
 
@@ -271,6 +324,10 @@ class DfaasConfig(BasePluginConfig):
     grafana: GrafanaConfig = Field(
         default_factory=GrafanaConfig,
         description="Grafana integration settings",
+    )
+    loki: DfaasLokiConfig = Field(
+        default_factory=DfaasLokiConfig,
+        description="Loki log shipping settings",
     )
 
     @model_validator(mode="before")

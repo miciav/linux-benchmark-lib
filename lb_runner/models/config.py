@@ -92,47 +92,70 @@ class LokiConfig(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _apply_env_overrides(cls, values: Any) -> Any:
+    def _apply_env_fallbacks(cls, values: Any) -> Any:
+        """Apply environment variables as fallbacks for missing config values.
+
+        Priority: config file > environment variables > field defaults.
+        Environment variables are only used when the config file doesn't
+        provide a value (None or missing key).
+        """
         if isinstance(values, cls):
             return values
         if not isinstance(values, dict):
             return values
 
-        env_enabled = parse_bool_env(os.environ.get("LB_LOKI_ENABLED"))
-        env_endpoint = os.environ.get("LB_LOKI_ENDPOINT")
-        env_labels = parse_labels_env(os.environ.get("LB_LOKI_LABELS"))
-        env_batch_size = parse_int_env(os.environ.get("LB_LOKI_BATCH_SIZE"))
-        env_flush_ms = parse_int_env(os.environ.get("LB_LOKI_FLUSH_INTERVAL_MS"))
-        env_timeout = parse_float_env(os.environ.get("LB_LOKI_TIMEOUT_SECONDS"))
-        env_retries = parse_int_env(os.environ.get("LB_LOKI_MAX_RETRIES"))
-        env_queue = parse_int_env(os.environ.get("LB_LOKI_MAX_QUEUE_SIZE"))
-        env_backoff_base = parse_float_env(os.environ.get("LB_LOKI_BACKOFF_BASE"))
-        env_backoff_factor = parse_float_env(
-            os.environ.get("LB_LOKI_BACKOFF_FACTOR")
-        )
+        # Only apply env vars as fallbacks when config doesn't specify a value
+        if values.get("enabled") is None:
+            env_enabled = parse_bool_env(os.environ.get("LB_LOKI_ENABLED"))
+            if env_enabled is not None:
+                values["enabled"] = env_enabled
 
-        if env_enabled is not None:
-            values["enabled"] = env_enabled
-        if env_endpoint:
-            values["endpoint"] = env_endpoint
+        if not values.get("endpoint"):
+            env_endpoint = os.environ.get("LB_LOKI_ENDPOINT")
+            if env_endpoint:
+                values["endpoint"] = env_endpoint
+
+        # For labels, merge env labels with config labels (config takes precedence)
+        env_labels = parse_labels_env(os.environ.get("LB_LOKI_LABELS"))
         if env_labels:
-            merged = dict(values.get("labels") or {})
-            merged.update(env_labels)
+            merged = dict(env_labels)  # Start with env labels
+            merged.update(values.get("labels") or {})  # Config overwrites env
             values["labels"] = merged
-        if env_batch_size is not None:
-            values["batch_size"] = env_batch_size
-        if env_flush_ms is not None:
-            values["flush_interval_ms"] = env_flush_ms
-        if env_timeout is not None:
-            values["timeout_seconds"] = env_timeout
-        if env_retries is not None:
-            values["max_retries"] = env_retries
-        if env_queue is not None:
-            values["max_queue_size"] = env_queue
-        if env_backoff_base is not None:
-            values["backoff_base"] = env_backoff_base
-        if env_backoff_factor is not None:
-            values["backoff_factor"] = env_backoff_factor
+
+        if values.get("batch_size") is None:
+            env_batch_size = parse_int_env(os.environ.get("LB_LOKI_BATCH_SIZE"))
+            if env_batch_size is not None:
+                values["batch_size"] = env_batch_size
+
+        if values.get("flush_interval_ms") is None:
+            env_flush_ms = parse_int_env(os.environ.get("LB_LOKI_FLUSH_INTERVAL_MS"))
+            if env_flush_ms is not None:
+                values["flush_interval_ms"] = env_flush_ms
+
+        if values.get("timeout_seconds") is None:
+            env_timeout = parse_float_env(os.environ.get("LB_LOKI_TIMEOUT_SECONDS"))
+            if env_timeout is not None:
+                values["timeout_seconds"] = env_timeout
+
+        if values.get("max_retries") is None:
+            env_retries = parse_int_env(os.environ.get("LB_LOKI_MAX_RETRIES"))
+            if env_retries is not None:
+                values["max_retries"] = env_retries
+
+        if values.get("max_queue_size") is None:
+            env_queue = parse_int_env(os.environ.get("LB_LOKI_MAX_QUEUE_SIZE"))
+            if env_queue is not None:
+                values["max_queue_size"] = env_queue
+
+        if values.get("backoff_base") is None:
+            env_backoff_base = parse_float_env(os.environ.get("LB_LOKI_BACKOFF_BASE"))
+            if env_backoff_base is not None:
+                values["backoff_base"] = env_backoff_base
+
+        if values.get("backoff_factor") is None:
+            env_backoff_factor = parse_float_env(os.environ.get("LB_LOKI_BACKOFF_FACTOR"))
+            if env_backoff_factor is not None:
+                values["backoff_factor"] = env_backoff_factor
 
         return values
 

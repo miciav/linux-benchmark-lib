@@ -21,7 +21,6 @@ from lb_common.api import (
     JsonlLogFormatter,
     attach_jsonl_handler,
     attach_loki_handler,
-    normalize_loki_endpoint,
 )
 from lb_runner.api import LBEventLogHandler, RunEvent, StdoutEmitter
 from .config import DfaasConfig
@@ -248,10 +247,38 @@ class DfaasGenerator(BaseGenerator):
             if subprocess.run(["which", tool], capture_output=True).returncode != 0:
                 logger.error("Required tool missing: %s", tool)
                 return False
-        if self.config.k6_ssh_key and not Path(self.config.k6_ssh_key).expanduser().exists():
-            logger.error("k6_ssh_key does not exist: %s", self.config.k6_ssh_key)
+        # Resolve k6_ssh_key: try configured path first, then fallback to standard remote path
+        if not self._resolve_k6_ssh_key():
             return False
         return True
+
+    def _resolve_k6_ssh_key(self) -> bool:
+        """Resolve k6_ssh_key path, trying fallback locations for remote execution."""
+        if not self.config.k6_ssh_key:
+            return True
+        configured_path = Path(self.config.k6_ssh_key).expanduser()
+        if configured_path.exists():
+            return True
+        # Fallback: check standard path where setup_global.yml copies the key
+        fallback_path = Path.home() / ".ssh" / "dfaas_k6_key"
+        if fallback_path.exists():
+            logger.info(
+                "k6_ssh_key not found at %s, using fallback: %s",
+                self.config.k6_ssh_key,
+                fallback_path,
+            )
+            resolved_path = str(fallback_path)
+            # Update config with resolved path
+            object.__setattr__(self.config, "k6_ssh_key", resolved_path)
+            # Also update K6Runner which was created with the original path
+            self._k6_runner.k6_ssh_key = resolved_path
+            return True
+        logger.error(
+            "k6_ssh_key does not exist at configured path (%s) or fallback (%s)",
+            self.config.k6_ssh_key,
+            fallback_path,
+        )
+        return False
 
     def _stop_workload(self) -> None:
         return None
@@ -364,8 +391,13 @@ class DfaasGenerator(BaseGenerator):
             except Exception:
                 pass
             self._loki_handler = None
+        # Use explicit config values - attach_loki_handler uses env vars only as fallbacks
+        loki_cfg = self.config.loki
         self._loki_handler = attach_loki_handler(
             logger,
+            enabled=loki_cfg.enabled,
+            endpoint=loki_cfg.endpoint,
+            labels=loki_cfg.labels,
             component="dfaas",
             host=self._exec_ctx.host,
             run_id=run_id,
@@ -397,8 +429,13 @@ class DfaasGenerator(BaseGenerator):
             except Exception:
                 pass
             self._k6_loki_handler = None
+        # Use explicit config values - attach_loki_handler uses env vars only as fallbacks
+        loki_cfg = self.config.loki
         self._k6_loki_handler = attach_loki_handler(
             k6_logger,
+            enabled=loki_cfg.enabled,
+            endpoint=loki_cfg.endpoint,
+            labels=loki_cfg.labels,
             component="k6",
             host=self._exec_ctx.host,
             run_id=run_id,
@@ -593,6 +630,12 @@ class DfaasGenerator(BaseGenerator):
         return tags
 
     def _resolve_k6_outputs(self) -> list[str]:
+        """Resolve k6 output configurations.
+
+        Note: Standard k6 does not support Loki output - it requires a custom
+        build with xk6-loki extension. DFaaS logs are sent to Loki via Python
+        logging handlers instead. Users can configure custom outputs via k6_outputs.
+        """
         outputs: list[str] = []
         for output in self.config.k6_outputs:
             if output is None:
@@ -600,14 +643,6 @@ class DfaasGenerator(BaseGenerator):
             cleaned = str(output).strip()
             if cleaned:
                 outputs.append(cleaned)
-
-        raw_enabled = os.environ.get("LB_LOKI_ENABLED", "").strip().lower()
-        if raw_enabled in {"1", "true", "yes", "on"}:
-            endpoint = os.environ.get("LB_LOKI_ENDPOINT") or "http://localhost:3100"
-            loki_output = f"loki={normalize_loki_endpoint(endpoint)}"
-            if not any(entry.startswith("loki=") for entry in outputs):
-                outputs.append(loki_output)
-
         return outputs
 
     def _execute_configs(self, ctx: _RunContext) -> None:
@@ -804,6 +839,7 @@ class DfaasGenerator(BaseGenerator):
             script,
             ctx.target_name,
             ctx.run_id,
+            metric_ids,
             outputs=self._resolve_k6_outputs(),
             tags=self._build_k6_tags(ctx.run_id),
         )
@@ -1024,11 +1060,13 @@ class DfaasGenerator(BaseGenerator):
 
     def _get_function_replicas(self, function_names: list[str]) -> dict[str, int]:
         replicas = {name: 0 for name in function_names}
+        # Use the resolved gateway URL (same as K6Runner uses)
+        resolved_gateway = self._k6_runner.gateway_url
         cmd = [
             "faas-cli",
             "list",
             "--gateway",
-            self.config.gateway_url,
+            resolved_gateway,
             "--tls-no-verify",
         ]
         try:

@@ -69,11 +69,13 @@ class TestK6RunnerFabric:
         mock_read_text.return_value = json.dumps({"metrics": {"http_reqs": 100}})
 
         # Execute
+        test_metric_ids = {"fn1": "fn_1", "fn2": "fn_2"}
         result = k6_runner.execute(
             config_id="cfg1",
             script="import k6...",
             target_name="target1",
-            run_id="run1"
+            run_id="run1",
+            metric_ids=test_metric_ids,
         )
 
         # 1. Verify Workspace Creation
@@ -88,10 +90,11 @@ class TestK6RunnerFabric:
             f"k6 run --summary-export {remote_ws}/summary.json "
             f"{remote_ws}/script.js 2>&1 | tee {remote_ws}/k6.log"
         )
+        # out_stream is a _StreamWriter wrapper, so we use ANY
         mock_conn.run.assert_any_call(
-            expected_cmd, 
-            hide=True, 
-            out_stream=k6_runner._stream_handler, 
+            expected_cmd,
+            hide=True,
+            out_stream=ANY,
             warn=True
         )
 
@@ -107,6 +110,7 @@ class TestK6RunnerFabric:
         # 6. Verify Result
         assert result.summary == {"metrics": {"http_reqs": 100}}
         assert result.config_id == "cfg1"
+        assert result.metric_ids == test_metric_ids
 
     @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
     @patch("tempfile.NamedTemporaryFile")
@@ -126,8 +130,8 @@ class TestK6RunnerFabric:
         mock_tempfile.return_value.__enter__.return_value = mock_file
 
         with pytest.raises(K6ExecutionError) as excinfo:
-            k6_runner.execute("cfg1", "script", "t1", "r1")
-        
+            k6_runner.execute("cfg1", "script", "t1", "r1", {"fn": "fn_id"})
+
         assert "k6 failed with exit code 99" in str(excinfo.value)
         assert excinfo.value.stdout == "Error log"
         mock_conn.close.assert_called()
@@ -149,8 +153,8 @@ class TestK6RunnerFabric:
         mock_tempfile.return_value.__enter__.return_value = mock_file
 
         with pytest.raises(K6ExecutionError) as excinfo:
-            k6_runner.execute("cfg1", "script", "t1", "r1")
-            
+            k6_runner.execute("cfg1", "script", "t1", "r1", {"fn": "fn_id"})
+
         assert "k6 ssh execution failed" in str(excinfo.value)
         # Verify the wrapper exception message contains the underlying cause
         # Note: UnexpectedExit str() might be verbose, but our wrapper includes it.

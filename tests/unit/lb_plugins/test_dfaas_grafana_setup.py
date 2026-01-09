@@ -42,11 +42,12 @@ def test_resolve_prometheus_url_rewrites_localhost() -> None:
 def test_resolve_prometheus_url_replaces_host_address(monkeypatch: pytest.MonkeyPatch) -> None:
     cfg = DfaasConfig(prometheus_url="http://{host.address}:30411")
     generator = DfaasGenerator(cfg)
-    
-    # Mock _get_local_ip to return a stable IP
+
+    # Mock _get_local_ip to return a stable IP (used when target_name is empty)
     monkeypatch.setattr(generator, "_get_local_ip", lambda: "192.168.1.50")
 
-    resolved = generator._resolve_prometheus_url("ignored-target")
+    # Pass empty target_name to trigger _get_local_ip() fallback
+    resolved = generator._resolve_prometheus_url("")
 
     assert resolved == "http://192.168.1.50:30411"
 
