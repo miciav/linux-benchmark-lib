@@ -1,6 +1,0 @@
-Scanning 252 files...
-
-[1mpyproject.toml[m[36m:[m [1m[31mDEP002[m 'urllib3' defined as a dependency but not used in the codebase
-[1m[31mFound 1 dependency issue.[m
-
-For more information, see the documentation: https://deptry.com/

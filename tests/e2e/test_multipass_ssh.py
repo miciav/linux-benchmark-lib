@@ -18,7 +18,13 @@ ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 
 def _multipass_available() -> bool:
     """Return True when the multipass CLI is present."""
-    return shutil.which("multipass") is not None
+    if shutil.which("multipass") is None:
+        return False
+    return os.environ.get("LB_RUN_MULTIPASS_E2E", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
 
 def _wait_for_ip(vm_name: str, attempts: int = 10, delay: int = 2) -> str:

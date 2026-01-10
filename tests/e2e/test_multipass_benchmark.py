@@ -191,6 +191,13 @@ def _launch_vm(vm_name: str, pub_key: str) -> dict:
         "key_path": SSH_KEY_PATH.absolute(),
     }
 
+
+def _run_multipass_cleanup(cmd: list[str], timeout: int = 120) -> None:
+    try:
+        subprocess.run(cmd, stderr=subprocess.DEVNULL, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        print(f"Multipass cleanup timed out: {' '.join(cmd)}")
+
 @pytest.fixture(scope="module")
 def multipass_vm():
     """
@@ -217,8 +224,8 @@ def multipass_vm():
 
     vm_names = [_vm_name(idx, vm_count) for idx in range(vm_count)]
     for name in vm_names:
-        subprocess.run(["multipass", "delete", name], stderr=subprocess.DEVNULL)
-    subprocess.run(["multipass", "purge"], stderr=subprocess.DEVNULL)
+        _run_multipass_cleanup(["multipass", "delete", name])
+    _run_multipass_cleanup(["multipass", "purge"])
 
     created_vms = []
     try:
@@ -231,11 +238,8 @@ def multipass_vm():
         # Teardown
         for vm in created_vms:
             print(f"Tearing down VM: {vm['name']}...")
-            subprocess.run(
-                ["multipass", "delete", vm["name"], "--purge"],
-                stderr=subprocess.DEVNULL,
-            )
-        subprocess.run(["multipass", "purge"], stderr=subprocess.DEVNULL)
+            _run_multipass_cleanup(["multipass", "delete", vm["name"], "--purge"])
+        _run_multipass_cleanup(["multipass", "purge"])
         # Remove generated SSH keys if present
         for key_path in (SSH_KEY_PATH, SSH_PUB_KEY_PATH):
             try:

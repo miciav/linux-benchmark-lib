@@ -1,6 +1,0 @@
-lb_ui/tui/system/components/picker.py:_TwoLevelMultiPicker | methods=19 init_params=1 imports=7 flags=['many_methods']
-lb_ui/tui/system/components/picker.py:_PickerApp | methods=17 init_params=3 imports=7 flags=['many_methods']
-lb_ui/tui/system/components/dashboard.py:RichDashboard | methods=15 init_params=4 imports=6 flags=['many_methods']
-lb_ui/notifications/providers/desktop.py:DesktopProvider | methods=7 init_params=1 imports=9 flags=['io_plus_logic_mixed']
-lb_ui/notifications/manager.py:NotificationManager | methods=6 init_params=1 imports=8 flags=['name_suggests_orchestrator']
-lb_ui/services/tray.py:TrayManager | methods=3 init_params=0 imports=7 flags=['name_suggests_orchestrator']

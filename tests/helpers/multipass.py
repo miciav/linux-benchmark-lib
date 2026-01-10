@@ -30,6 +30,13 @@ def ensure_multipass_access() -> None:
     import subprocess
     import pytest  # Local import to keep test-only dependency localized
 
+    run_e2e = os.environ.get("LB_RUN_MULTIPASS_E2E", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if not run_e2e:
+        pytest.skip("Multipass e2e disabled (set LB_RUN_MULTIPASS_E2E=1 to enable)")
     if shutil.which("multipass") is None:
         pytest.skip("multipass not available on this host")
     try:

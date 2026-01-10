@@ -221,10 +221,12 @@ class DfaasGenerator(BaseGenerator):
         
         # Fallback for localhost replacement logic
         host = parsed.hostname
-        if host in {"127.0.0.1", "localhost", "0.0.0.0"} and target_name:
-            port = parsed.port
-            netloc = f"{target_name}:{port}" if port else target_name
-            return urlunparse(parsed._replace(netloc=netloc))
+        if host in {"127.0.0.1", "localhost", "0.0.0.0"}:
+            host_address = self._exec_ctx.host_address
+            if host_address:
+                port = parsed.port
+                netloc = f"{host_address}:{port}" if port else host_address
+                return urlunparse(parsed._replace(netloc=netloc))
         return url
 
     def _resolve_prometheus_url(self, target_name: str) -> str:
@@ -472,6 +474,20 @@ class DfaasGenerator(BaseGenerator):
         try:
             summary_metrics = self._k6_runner.parse_summary(summary_data, metric_ids)
         except ValueError as exc:
+            # Debug: show actual metric structure
+            metrics_dict = summary_data.get("metrics", {}) if summary_data else {}
+            sample_metric = None
+            for mid in metric_ids.values():
+                key = f"success_rate_{mid}"
+                if key in metrics_dict:
+                    sample_metric = {key: metrics_dict[key]}
+                    break
+            logger.error(
+                "Summary parsing failed. metric_ids=%s, summary_keys=%s, sample_metric=%s",
+                metric_ids,
+                list(metrics_dict.keys()),
+                sample_metric,
+            )
             raise K6ExecutionError(
                 cfg_id,
                 f"missing k6 summary metrics: {exc}",

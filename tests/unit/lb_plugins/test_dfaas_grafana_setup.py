@@ -34,7 +34,13 @@ class UnhealthyGrafanaClient(FakeGrafanaClient):
 
 def test_resolve_prometheus_url_rewrites_localhost() -> None:
     cfg = DfaasConfig(prometheus_url="http://127.0.0.1:30411")
-    generator = DfaasGenerator(cfg)
+    exec_ctx = ExecutionContext(
+        host="remote-host",
+        host_address="10.0.0.5",
+        repetition=1,
+        total_repetitions=1,
+    )
+    generator = DfaasGenerator(cfg, execution_context=exec_ctx)
 
     resolved = generator._resolve_prometheus_url("10.0.0.5")
 

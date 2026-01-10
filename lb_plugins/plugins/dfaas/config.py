@@ -4,15 +4,33 @@ from __future__ import annotations
 
 import os
 import re
+import warnings
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Union
 
 import yaml
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Discriminator, Field, field_validator, model_validator
 
 from lb_common.api import parse_bool_env, parse_int_env
 
 from ...interface import BasePluginConfig
+from .strategies import (
+    CustomRateStrategy,
+    ExponentialRateStrategy,
+    LinearRateStrategy,
+    RandomRateStrategy,
+)
+
+# Discriminated union for rate strategies
+RateStrategyUnion = Annotated[
+    Union[
+        LinearRateStrategy,
+        RandomRateStrategy,
+        ExponentialRateStrategy,
+        CustomRateStrategy,
+    ],
+    Discriminator("type"),
+]
 
 _ALLOWED_HTTP_METHODS = {
     "GET",
@@ -49,7 +67,9 @@ def _load_config_data(config_path: Path) -> dict[str, Any]:
     common = data.get("common", {}) or {}
     plugin_data = data.get("plugins", {}).get("dfaas", {}) or {}
     if not isinstance(common, dict) or not isinstance(plugin_data, dict):
-        raise ValueError("Config sections 'common' and 'plugins.dfaas' must be mappings.")
+        raise ValueError(
+            "Config sections 'common' and 'plugins.dfaas' must be mappings."
+        )
     return _deep_merge(common, plugin_data)
 
 
@@ -87,7 +107,12 @@ class DfaasFunctionConfig(BaseModel):
 
 
 class DfaasRatesConfig(BaseModel):
-    """Rate list configuration (inclusive range)."""
+    """Rate list configuration (inclusive range).
+
+    .. deprecated::
+        Use ``rate_strategy`` with ``LinearRateStrategy`` instead.
+        This class is kept for backward compatibility only.
+    """
 
     min_rate: int = Field(default=0, ge=0, description="Minimum requests per second")
     max_rate: int = Field(default=200, ge=0, description="Maximum requests per second")
@@ -106,14 +131,18 @@ class DfaasCombinationConfig(BaseModel):
     """Function combination configuration."""
 
     min_functions: int = Field(default=1, ge=1, description="Minimum functions per run")
-    max_functions: int = Field(default=2, ge=1, description="Maximum functions (exclusive)")
+    max_functions: int = Field(
+        default=2, ge=1, description="Maximum functions (exclusive)"
+    )
 
     model_config = {"extra": "ignore"}
 
     @model_validator(mode="after")
     def _validate_bounds(self) -> "DfaasCombinationConfig":
         if self.max_functions <= self.min_functions:
-            raise ValueError("combinations.max_functions must be > combinations.min_functions")
+            raise ValueError(
+                "combinations.max_functions must be > combinations.min_functions"
+            )
         return self
 
 
@@ -300,8 +329,13 @@ class DfaasConfig(BasePluginConfig):
         min_length=1,
         description="OpenFaaS functions to invoke",
     )
-    rates: DfaasRatesConfig = Field(
-        default_factory=DfaasRatesConfig, description="Rate list configuration"
+    rate_strategy: RateStrategyUnion = Field(
+        default_factory=LinearRateStrategy,
+        description="Strategy for generating rate values to test",
+    )
+    rates: DfaasRatesConfig | None = Field(
+        default=None,
+        description="DEPRECATED: Use rate_strategy instead. Kept for backward compatibility.",
     )
     combinations: DfaasCombinationConfig = Field(
         default_factory=DfaasCombinationConfig,
@@ -368,14 +402,41 @@ class DfaasConfig(BasePluginConfig):
         return duration
 
     @model_validator(mode="after")
+    def _migrate_legacy_rates(self) -> "DfaasConfig":
+        """Migrate legacy 'rates' field to 'rate_strategy'."""
+        if self.rates is not None:
+            # Check if rate_strategy is still at default values
+            is_default_strategy = (
+                isinstance(self.rate_strategy, LinearRateStrategy)
+                and self.rate_strategy.min_rate == 0
+                and self.rate_strategy.max_rate == 200
+                and self.rate_strategy.step == 10
+            )
+            if is_default_strategy:
+                # Migrate legacy rates to rate_strategy
+                self.rate_strategy = LinearRateStrategy(
+                    min_rate=self.rates.min_rate,
+                    max_rate=self.rates.max_rate,
+                    step=self.rates.step,
+                )
+            warnings.warn(
+                "The 'rates' field is deprecated. Use 'rate_strategy' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return self
+
+    @model_validator(mode="after")
     def _validate_functions(self) -> "DfaasConfig":
         names = [fn.name for fn in self.functions]
         if len(set(names)) != len(names):
             raise ValueError("functions names must be unique")
+        # Get min_rate from strategy if it has one
+        min_rate = getattr(self.rate_strategy, "min_rate", 0)
         for fn in self.functions:
-            if fn.max_rate is not None and fn.max_rate < self.rates.min_rate:
+            if fn.max_rate is not None and fn.max_rate < min_rate:
                 raise ValueError(
-                    f"functions[{fn.name}].max_rate must be >= rates.min_rate"
+                    f"functions[{fn.name}].max_rate must be >= rate_strategy.min_rate"
                 )
         return self
 

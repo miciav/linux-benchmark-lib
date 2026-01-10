@@ -80,7 +80,9 @@ class TestK6RunnerFabric:
 
         # 1. Verify Workspace Creation
         remote_ws = "/home/test/.dfaas-k6/target1/run1/cfg1"
-        mock_conn.run.assert_any_call(f"mkdir -p {remote_ws}", hide=True)
+        mock_conn.run.assert_any_call(
+            f"mkdir -p {remote_ws}", hide=True, in_stream=False
+        )
 
         # 2. Verify Script Upload
         mock_conn.put.assert_any_call("/tmp/local_script.js", f"{remote_ws}/script.js")
@@ -95,7 +97,8 @@ class TestK6RunnerFabric:
             expected_cmd,
             hide=True,
             out_stream=ANY,
-            warn=True
+            warn=True,
+            in_stream=False,
         )
 
         # 4. Verify Summary Download

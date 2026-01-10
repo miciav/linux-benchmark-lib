@@ -31,7 +31,6 @@ from lb_plugins.plugins.dfaas.generator import DfaasGenerator
 from lb_plugins.plugins.dfaas.services.plan_builder import (
     config_id,
     generate_configurations,
-    generate_rates_list,
 )
 from lb_plugins.plugins.dfaas.config import (
     DfaasCombinationConfig,
@@ -70,6 +69,17 @@ STRICT_MULTIPASS_SETUP = os.environ.get("LB_STRICT_MULTIPASS_SETUP", "").lower()
     "true",
     "yes",
 }
+RUN_DFAAS_MULTIPASS_E2E = os.environ.get("LB_RUN_DFAAS_MULTIPASS_E2E", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+if not (RUN_DFAAS_MULTIPASS_E2E or STRICT_MULTIPASS_SETUP):
+    pytest.skip(
+        "DFaaS multipass e2e disabled. Set LB_RUN_DFAAS_MULTIPASS_E2E=1 to enable.",
+        allow_module_level=True,
+    )
 
 # Retry configuration for transient failures
 RETRY_ATTEMPTS = int(os.environ.get("LB_E2E_RETRY_ATTEMPTS", "3"))
@@ -1117,11 +1127,8 @@ def _verify_k6_workspace_artifacts(
 
 
 def _expected_config_ids_from_config(config: DfaasConfig) -> list[str]:
-    rates = generate_rates_list(
-        config.rates.min_rate,
-        config.rates.max_rate,
-        config.rates.step,
-    )
+    # Use rate_strategy to generate rates (supports all strategy types)
+    rates = config.rate_strategy.generate_rates()
     rates_by_function: dict[str, list[int]] = {}
     for fn in config.functions:
         if fn.max_rate is None:

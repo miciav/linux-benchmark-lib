@@ -91,14 +91,18 @@ def test_resolve_gateway_url_with_template():
     assert generator._k6_runner.gateway_url == "http://192.168.1.88:31112"
 
 def test_resolve_prometheus_url_localhost_replacement():
-    """Test existing logic: localhost/127.0.0.1 is replaced by target_name if present."""
+    """Test existing logic: localhost/127.0.0.1 is replaced by host address when set."""
     config = DfaasConfig(prometheus_url="http://localhost:30411", functions=[DfaasFunctionConfig(name="dummy")])
-    gen = DfaasGenerator(config)
+    exec_ctx = ExecutionContext(
+        host="remote-target",
+        host_address="10.0.0.5",
+        repetition=1,
+        total_repetitions=1,
+    )
+    gen = DfaasGenerator(config, execution_context=exec_ctx)
     
-    # Even without {host.address}, localhost should be replaced by target
-    target = "remote-target"
-    resolved = gen._resolve_prometheus_url(target)
-    assert resolved == "http://remote-target:30411"
+    resolved = gen._resolve_prometheus_url("remote-target")
+    assert resolved == "http://10.0.0.5:30411"
 
 def test_resolve_prometheus_url_template_precedence():
     """
