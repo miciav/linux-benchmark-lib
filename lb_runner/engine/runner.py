@@ -35,11 +35,10 @@ from lb_runner.engine.execution import (
 from lb_runner.engine.progress import RunProgressEmitter
 from lb_runner.engine.planning import RunPlanner
 from lb_runner.engine.run_scope import RunScopeManager
-from lb_runner.services.collector_coordinator import CollectorCoordinator
 from lb_runner.services.result_persister import ResultPersister
 from lb_runner.services.results import build_rep_result
 from lb_runner.engine.stop_token import StopToken
-from lb_runner.services import system_info
+from lb_runner.engine.metrics import MetricManager
 logger = logging.getLogger(__name__)
 
 
@@ -62,7 +61,6 @@ class LocalRunner:
             config: Benchmark configuration
         """
         self.config = config
-        self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = self._resolve_registry(registry, collector_registry)
         workloads = getattr(self.config, "workloads", {})
@@ -75,7 +73,6 @@ class LocalRunner:
             plugin_settings=plugin_settings,
         )
         self._scope_manager = RunScopeManager(self.config, logger)
-        self._collector_coordinator = CollectorCoordinator(self.plugin_registry)
         self._result_persister = ResultPersister()
         self._current_run_id: Optional[str] = None
         self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
@@ -91,6 +88,15 @@ class LocalRunner:
             host_name=self._host_name,
             logger=logger,
         )
+        self._metric_manager = MetricManager(
+            registry=self.plugin_registry,
+            output_manager=self._output_manager,
+            host_name=self._host_name,
+        )
+
+    @property
+    def system_info(self) -> Optional[Dict[str, Any]]:
+        return self._metric_manager.system_info
 
     @staticmethod
     def _resolve_registry(
@@ -109,15 +115,7 @@ class LocalRunner:
         Returns:
             Dictionary containing system information
         """
-        logger.info("Collecting system information")
-
-        collected = system_info.collect_system_info()
-        self.system_info = collected.to_dict()
-
-        # Persist JSON/CSV alongside run outputs when available
-        self._output_manager.write_system_info(collected)
-
-        return self.system_info
+        return self._metric_manager.collect_system_info()
 
     def _workload_output_dir(self, workload: str) -> Path:
         """
@@ -148,10 +146,10 @@ class LocalRunner:
         """
         logger.info(f"Running test '{test_name}' - Repetition {repetition}")
         workload_dir, rep_dir = self._prepare_workload_dirs(test_name, repetition)
-        collectors = self._collector_coordinator.create_collectors(self.config)
+        collectors = self._metric_manager.create_collectors(self.config)
         duration = self._resolve_duration(generator)
-        log_handler = self._attach_event_logger(
-            test_name, repetition, total_repetitions
+        log_handler = self._metric_manager.attach_event_logger(
+            test_name, repetition, total_repetitions, self._current_run_id
         )
 
         test_start_time, test_end_time = self._execute_generator(
@@ -164,7 +162,7 @@ class LocalRunner:
         )
 
         if log_handler:
-            logging.getLogger().removeHandler(log_handler)
+            self._metric_manager.detach_event_logger(log_handler)
 
         result = self._finalize_single_test(
             generator,
@@ -189,23 +187,6 @@ class LocalRunner:
     def _resolve_duration(self, generator: Any) -> int:
         return resolve_duration(self.config, generator, logger)
 
-    def _attach_event_logger(
-        self, test_name: str, repetition: int, total_repetitions: int
-    ) -> logging.Handler | None:
-        raw = os.environ.get("LB_ENABLE_EVENT_LOGGING", "1").strip().lower()
-        if raw in {"0", "false", "no"}:
-            return None
-        handler = LBEventLogHandler(
-            run_id=self._current_run_id or "",
-            host=self._host_name,
-            workload=test_name,
-            repetition=repetition,
-            total_repetitions=total_repetitions,
-        )
-        handler.setFormatter(logging.Formatter("%(message)s"))
-        logging.getLogger().addHandler(handler)
-        return handler
-
     def _execute_generator(
         self,
         generator: Any,
@@ -225,7 +206,7 @@ class LocalRunner:
             raise StopRequested("Stopped by user")
 
         self._prepare_generator(generator)
-        self._collector_coordinator.start(collectors, logger)
+        self._metric_manager.start_collectors(collectors)
 
         test_start_time = datetime.now()
         generator.start()
@@ -282,7 +263,7 @@ class LocalRunner:
                 generator.stop()
             except Exception as exc:
                 logger.error("Failed to stop generator during cleanup: %s", exc)
-        self._collector_coordinator.stop(collectors, logger)
+        self._metric_manager.stop_collectors(collectors)
 
     def _finalize_single_test(
         self,
@@ -307,7 +288,7 @@ class LocalRunner:
         duration_seconds = result.get("duration_seconds", 0) or 0
         if duration_seconds:
             logger.info("Repetition %s completed in %.2fs", repetition, duration_seconds)
-        self._collector_coordinator.collect(
+        self._metric_manager.collect_metrics(
             collectors, workload_dir, rep_dir, test_name, repetition, result
         )
         self._output_manager.persist_rep_result(rep_dir, result)

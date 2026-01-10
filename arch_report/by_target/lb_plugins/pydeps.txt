@@ -14,19 +14,24 @@
             "lb_plugins.plugins",
             "lb_plugins.plugins.baseline",
             "lb_plugins.plugins.baseline.plugin",
+            "lb_plugins.plugins.command_base",
             "lb_plugins.plugins.dd",
             "lb_plugins.plugins.dd.plugin",
             "lb_plugins.plugins.dfaas",
             "lb_plugins.plugins.dfaas.config",
+            "lb_plugins.plugins.dfaas.context",
             "lb_plugins.plugins.dfaas.exceptions",
             "lb_plugins.plugins.dfaas.generator",
             "lb_plugins.plugins.dfaas.grafana_assets",
             "lb_plugins.plugins.dfaas.plugin",
             "lb_plugins.plugins.dfaas.queries",
             "lb_plugins.plugins.dfaas.services",
+            "lb_plugins.plugins.dfaas.services.annotation_service",
             "lb_plugins.plugins.dfaas.services.cooldown",
             "lb_plugins.plugins.dfaas.services.k6_runner",
+            "lb_plugins.plugins.dfaas.services.log_manager",
             "lb_plugins.plugins.dfaas.services.metrics_collector",
+            "lb_plugins.plugins.dfaas.services.plan_builder",
             "lb_plugins.plugins.dfaas.services.result_builder",
             "lb_plugins.plugins.fio",
             "lb_plugins.plugins.fio.plugin",
@@ -99,8 +104,9 @@
             "lb_plugins.discovery",
             "lb_plugins.observability",
             "lb_plugins.plugins.dfaas.config",
-            "lb_plugins.plugins.dfaas.generator",
-            "lb_plugins.plugins.dfaas.services"
+            "lb_plugins.plugins.dfaas.services",
+            "lb_plugins.plugins.dfaas.services.annotation_service",
+            "lb_plugins.plugins.dfaas.services.log_manager"
         ],
         "imports": [
             "lb_common",
@@ -115,7 +121,7 @@
             "lb_common",
             "lb_plugins.discovery",
             "lb_plugins.plugins.dfaas.config",
-            "lb_plugins.plugins.dfaas.generator"
+            "lb_plugins.plugins.dfaas.services.log_manager"
         ],
         "imports": [
             "lb_common",
@@ -149,7 +155,8 @@
         "imported_by": [
             "lb_common.api",
             "lb_plugins.api",
-            "lb_plugins.plugins.dfaas.services"
+            "lb_plugins.plugins.dfaas.services",
+            "lb_plugins.plugins.dfaas.services.annotation_service"
         ],
         "name": "lb_common.observability",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_common/observability/__init__.py"
@@ -220,6 +227,7 @@
             "__main__",
             "lb_plugins.api",
             "lb_plugins.plugins.baseline.plugin",
+            "lb_plugins.plugins.command_base",
             "lb_plugins.plugins.dd.plugin",
             "lb_plugins.plugins.dfaas.generator",
             "lb_plugins.plugins.fio.plugin",
@@ -358,6 +366,20 @@
         "name": "lb_plugins.plugins.baseline.plugin",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_plugins/plugins/baseline/plugin.py"
     },
+    "lb_plugins.plugins.command_base": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_plugins.plugins.dd.plugin",
+            "lb_plugins.plugins.sysbench.plugin",
+            "lb_plugins.plugins.unixbench.plugin"
+        ],
+        "imports": [
+            "lb_plugins.base_generator"
+        ],
+        "name": "lb_plugins.plugins.command_base",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_plugins/plugins/command_base.py"
+    },
     "lb_plugins.plugins.dd": {
         "bacon": 1,
         "imported_by": [
@@ -376,6 +398,7 @@
         "imports": [
             "lb_plugins.base_generator",
             "lb_plugins.interface",
+            "lb_plugins.plugins.command_base",
             "pydantic"
         ],
         "name": "lb_plugins.plugins.dd.plugin",
@@ -395,6 +418,10 @@
             "__main__",
             "lb_plugins.plugins.dfaas.generator",
             "lb_plugins.plugins.dfaas.plugin",
+            "lb_plugins.plugins.dfaas.services.annotation_service",
+            "lb_plugins.plugins.dfaas.services.k6_runner",
+            "lb_plugins.plugins.dfaas.services.log_manager",
+            "lb_plugins.plugins.dfaas.services.plan_builder",
             "lb_plugins.plugins.dfaas.services.result_builder"
         ],
         "imports": [
@@ -406,6 +433,17 @@
         ],
         "name": "lb_plugins.plugins.dfaas.config",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_plugins/plugins/dfaas/config.py"
+    },
+    "lb_plugins.plugins.dfaas.context": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_plugins.plugins.dfaas.generator",
+            "lb_plugins.plugins.dfaas.services.annotation_service",
+            "lb_plugins.plugins.dfaas.services.log_manager"
+        ],
+        "name": "lb_plugins.plugins.dfaas.context",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_plugins/plugins/dfaas/context.py"
     },
     "lb_plugins.plugins.dfaas.exceptions": {
         "bacon": 1,
@@ -424,16 +462,13 @@
             "lb_plugins.plugins.dfaas.plugin"
         ],
         "imports": [
-            "lb_common",
-            "lb_common.api",
             "lb_plugins.base_generator",
             "lb_plugins.plugins.dfaas.config",
+            "lb_plugins.plugins.dfaas.context",
             "lb_plugins.plugins.dfaas.exceptions",
-            "lb_plugins.plugins.dfaas.grafana_assets",
             "lb_plugins.plugins.dfaas.services",
             "lb_plugins.plugins.dfaas.services.k6_runner",
-            "lb_runner",
-            "lb_runner.api"
+            "lb_plugins.plugins.dfaas.services.plan_builder"
         ],
         "name": "lb_plugins.plugins.dfaas.generator",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_plugins/plugins/dfaas/generator.py"
@@ -442,8 +477,8 @@
         "bacon": 1,
         "imported_by": [
             "__main__",
-            "lb_plugins.plugins.dfaas.generator",
-            "lb_plugins.plugins.dfaas.plugin"
+            "lb_plugins.plugins.dfaas.plugin",
+            "lb_plugins.plugins.dfaas.services.annotation_service"
         ],
         "imports": [
             "lb_plugins",
@@ -455,8 +490,7 @@
     "lb_plugins.plugins.dfaas.plugin": {
         "bacon": 1,
         "imported_by": [
-            "__main__",
-            "lb_plugins.plugins.dfaas.services.k6_runner"
+            "__main__"
         ],
         "imports": [
             "lb_plugins.interface",
@@ -488,13 +522,32 @@
         "imports": [
             "lb_common",
             "lb_common.observability",
+            "lb_plugins.plugins.dfaas.services.annotation_service",
             "lb_plugins.plugins.dfaas.services.cooldown",
             "lb_plugins.plugins.dfaas.services.k6_runner",
+            "lb_plugins.plugins.dfaas.services.log_manager",
             "lb_plugins.plugins.dfaas.services.metrics_collector",
+            "lb_plugins.plugins.dfaas.services.plan_builder",
             "lb_plugins.plugins.dfaas.services.result_builder"
         ],
         "name": "lb_plugins.plugins.dfaas.services",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_plugins/plugins/dfaas/services/__init__.py"
+    },
+    "lb_plugins.plugins.dfaas.services.annotation_service": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_plugins.plugins.dfaas.services"
+        ],
+        "imports": [
+            "lb_common",
+            "lb_common.observability",
+            "lb_plugins.plugins.dfaas.config",
+            "lb_plugins.plugins.dfaas.context",
+            "lb_plugins.plugins.dfaas.grafana_assets"
+        ],
+        "name": "lb_plugins.plugins.dfaas.services.annotation_service",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_plugins/plugins/dfaas/services/annotation_service.py"
     },
     "lb_plugins.plugins.dfaas.services.cooldown": {
         "bacon": 1,
@@ -519,11 +572,28 @@
             "fabric.Connection",
             "invoke",
             "invoke.exceptions",
-            "lb_plugins.plugins.dfaas.exceptions",
-            "lb_plugins.plugins.dfaas.plugin"
+            "lb_plugins.plugins.dfaas.config",
+            "lb_plugins.plugins.dfaas.exceptions"
         ],
         "name": "lb_plugins.plugins.dfaas.services.k6_runner",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_plugins/plugins/dfaas/services/k6_runner.py"
+    },
+    "lb_plugins.plugins.dfaas.services.log_manager": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_plugins.plugins.dfaas.services"
+        ],
+        "imports": [
+            "lb_common",
+            "lb_common.api",
+            "lb_plugins.plugins.dfaas.config",
+            "lb_plugins.plugins.dfaas.context",
+            "lb_runner",
+            "lb_runner.api"
+        ],
+        "name": "lb_plugins.plugins.dfaas.services.log_manager",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_plugins/plugins/dfaas/services/log_manager.py"
     },
     "lb_plugins.plugins.dfaas.services.metrics_collector": {
         "bacon": 1,
@@ -537,6 +607,19 @@
         ],
         "name": "lb_plugins.plugins.dfaas.services.metrics_collector",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_plugins/plugins/dfaas/services/metrics_collector.py"
+    },
+    "lb_plugins.plugins.dfaas.services.plan_builder": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_plugins.plugins.dfaas.generator",
+            "lb_plugins.plugins.dfaas.services"
+        ],
+        "imports": [
+            "lb_plugins.plugins.dfaas.config"
+        ],
+        "name": "lb_plugins.plugins.dfaas.services.plan_builder",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_plugins/plugins/dfaas/services/plan_builder.py"
     },
     "lb_plugins.plugins.dfaas.services.result_builder": {
         "bacon": 1,
@@ -643,6 +726,7 @@
         "imports": [
             "lb_plugins.base_generator",
             "lb_plugins.interface",
+            "lb_plugins.plugins.command_base",
             "pydantic"
         ],
         "name": "lb_plugins.plugins.sysbench.plugin",
@@ -666,6 +750,7 @@
         "imports": [
             "lb_plugins.base_generator",
             "lb_plugins.interface",
+            "lb_plugins.plugins.command_base",
             "pydantic"
         ],
         "name": "lb_plugins.plugins.unixbench.plugin",
@@ -746,7 +831,7 @@
     "lb_runner": {
         "bacon": 2,
         "imported_by": [
-            "lb_plugins.plugins.dfaas.generator",
+            "lb_plugins.plugins.dfaas.services.log_manager",
             "lb_runner.api"
         ],
         "name": "lb_runner",
@@ -755,7 +840,7 @@
     "lb_runner.api": {
         "bacon": 2,
         "imported_by": [
-            "lb_plugins.plugins.dfaas.generator"
+            "lb_plugins.plugins.dfaas.services.log_manager"
         ],
         "imports": [
             "lb_runner"

@@ -99,7 +99,7 @@ class DfaasGenerator(BaseGenerator):
         return self._planner.estimate_runtime_seconds()
 
     def _validate_environment(self) -> bool:
-        required = ["ansible-playbook", "faas-cli"]
+        required = ["faas-cli"]
         for tool in required:
             if subprocess.run(["which", tool], capture_output=True).returncode != 0:
                 logger.error("Required tool missing: %s", tool)

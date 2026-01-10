@@ -1,7 +1,10 @@
-ERROR:xenon:block "lb_common/observability/grafana_client.py:206 _request" has a rank of C
+ERROR:xenon:block "lb_common/observability/grafana_client.py:218 _request" has a rank of C
 ERROR:xenon:block "lb_common/logs/core.py:87 build_loki_handler" has a rank of D
 ERROR:xenon:block "lb_common/logs/core.py:264 configure_logging" has a rank of C
-ERROR:xenon:block "lb_common/logs/handlers/loki_handler.py:139 _build_labels" has a rank of C
-ERROR:xenon:block "lb_common/logs/handlers/loki_handler.py:190 _run_worker" has a rank of C
 ERROR:xenon:block "lb_common/logs/handlers/jsonl_handler.py:45 format" has a rank of C
+ERROR:xenon:block "lb_common/logs/handlers/loki_helpers.py:17 LokiLabelBuilder" has a rank of C
+ERROR:xenon:block "lb_common/logs/handlers/loki_helpers.py:30 build" has a rank of C
+ERROR:xenon:block "lb_common/logs/handlers/loki_helpers.py:83 LokiWorker" has a rank of C
+ERROR:xenon:block "lb_common/logs/handlers/loki_helpers.py:92 run" has a rank of C
 ERROR:xenon:average complexity is ranked B
+ERROR:xenon:module 'lb_common/logs/handlers/loki_helpers.py' has a rank of C

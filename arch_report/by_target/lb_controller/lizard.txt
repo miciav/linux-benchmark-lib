@@ -50,20 +50,30 @@
       13      1     55      6      13 __init__@95-107@lb_controller/adapters/ansible_helpers.py
       26      3    178      1      26 build@109-134@lb_controller/adapters/ansible_helpers.py
        4      1     36      1       4 merge_env@137-140@lb_controller/adapters/ansible_helpers.py
-      14      1     90      5      14 __init__@146-159@lb_controller/adapters/ansible_helpers.py
-       2      1     14      1       2 clear_interrupt@161-162@lb_controller/adapters/ansible_helpers.py
-       5      4     37      2       5 should_stop@164-168@lb_controller/adapters/ansible_helpers.py
-       6      2     54      4       6 run@170-175@lb_controller/adapters/ansible_helpers.py
-      14      5     66      1      14 interrupt@177-190@lb_controller/adapters/ansible_helpers.py
-       5      3     31      1       5 is_running@192-196@lb_controller/adapters/ansible_helpers.py
-       3      1     28      2       3 set_active_process@198-200@lb_controller/adapters/ansible_helpers.py
-       3      1     23      1       3 get_active_process@202-204@lb_controller/adapters/ansible_helpers.py
-      19      5    145      4      19 _run_streaming@206-224@lb_controller/adapters/ansible_helpers.py
-      16      3    117      3      16 _run_capture@226-241@lb_controller/adapters/ansible_helpers.py
-      27      8    142      3      27 _stream_process_output@243-269@lb_controller/adapters/ansible_helpers.py
-       6      2     46      2       6 _emit_stream_line@271-276@lb_controller/adapters/ansible_helpers.py
-       9      3     54      2       9 _finalize_process@279-287@lb_controller/adapters/ansible_helpers.py
-       5      2     25      1       5 _terminate_process@290-294@lb_controller/adapters/ansible_helpers.py
+       5      1     50      2       5 __init__@146-150@lb_controller/adapters/ansible_helpers.py
+       2      1     14      1       2 clear_interrupt@152-153@lb_controller/adapters/ansible_helpers.py
+       5      4     37      2       5 should_stop@155-159@lb_controller/adapters/ansible_helpers.py
+       3      1     19      1       3 interrupt@161-163@lb_controller/adapters/ansible_helpers.py
+       5      3     31      1       5 is_running@165-169@lb_controller/adapters/ansible_helpers.py
+       3      1     28      2       3 set_active_process@171-173@lb_controller/adapters/ansible_helpers.py
+       3      1     23      1       3 get_active_process@175-177@lb_controller/adapters/ansible_helpers.py
+      13      5     59      1      13 terminate_active@179-191@lb_controller/adapters/ansible_helpers.py
+       2      1     28      2       2 __init__@197-198@lb_controller/adapters/ansible_helpers.py
+      30      8    149      4      30 stream@200-229@lb_controller/adapters/ansible_helpers.py
+       6      2     46      2       6 emit_line@231-236@lb_controller/adapters/ansible_helpers.py
+       9      1     35      4       9 __init__@242-250@lb_controller/adapters/ansible_helpers.py
+      11      2     57      5      11 run@252-262@lb_controller/adapters/ansible_helpers.py
+      26      6    183      4      26 _run_streaming@264-289@lb_controller/adapters/ansible_helpers.py
+      16      3    117      3      16 _run_capture@291-306@lb_controller/adapters/ansible_helpers.py
+       9      3     54      2       9 _finalize_process@309-317@lb_controller/adapters/ansible_helpers.py
+      15      1     80      5      15 __init__@323-337@lb_controller/adapters/ansible_helpers.py
+       2      1     14      1       2 clear_interrupt@339-340@lb_controller/adapters/ansible_helpers.py
+       2      1     20      2       2 should_stop@342-343@lb_controller/adapters/ansible_helpers.py
+       9      1     51      4       9 run@345-353@lb_controller/adapters/ansible_helpers.py
+       2      1     14      1       2 interrupt@355-356@lb_controller/adapters/ansible_helpers.py
+       2      1     15      1       2 is_running@358-359@lb_controller/adapters/ansible_helpers.py
+       2      1     26      2       2 set_active_process@361-362@lb_controller/adapters/ansible_helpers.py
+       2      1     22      1       2 get_active_process@364-365@lb_controller/adapters/ansible_helpers.py
        3      1     32      2       3 __init__._default_cb@60-62@lb_controller/adapters/ansible_runner.py
       37      4    250      7      55 __init__@27-81@lb_controller/adapters/ansible_runner.py
       59     10    374      7      68 run_playbook@83-150@lb_controller/adapters/ansible_runner.py
@@ -82,14 +92,14 @@
        7      3     47      2       8 wait@61-68@lb_controller/adapters/remote_runner.py
       10      4     54      2      12 arm_stop@70-81@lb_controller/adapters/remote_runner.py
       27     11    154      1      28 _run@83-110@lb_controller/adapters/remote_runner.py
-      41      4    262      3      41 __init__@36-76@lb_controller/engine/controller.py
-       3      2     25      2       4 on_event@78-81@lb_controller/engine/controller.py
-       2      1     15      1       2 coordinator@84-85@lb_controller/engine/controller.py
-       2      1     20      2       2 coordinator@88-89@lb_controller/engine/controller.py
-       2      1     17      1       2 run.ui_log@120-121@lb_controller/engine/controller.py
-      35      8    242      6      55 run@91-145@lb_controller/engine/controller.py
-      75     11    426      5      81 _prepare_run_state@147-227@lb_controller/engine/controller.py
-       7      1     45      4       7 _handle_stop_protocol@229-235@lb_controller/engine/controller.py
+      41      4    262      3      41 __init__@41-81@lb_controller/engine/controller.py
+       3      2     25      2       4 on_event@83-86@lb_controller/engine/controller.py
+       2      1     15      1       2 coordinator@89-90@lb_controller/engine/controller.py
+       2      1     20      2       2 coordinator@93-94@lb_controller/engine/controller.py
+       2      1     17      1       2 run.ui_log@125-126@lb_controller/engine/controller.py
+      35      8    242      6      55 run@96-150@lb_controller/engine/controller.py
+      59      8    310      5      65 _prepare_run_state@152-216@lb_controller/engine/controller.py
+       7      1     45      4       7 _handle_stop_protocol@218-224@lb_controller/engine/controller.py
       19      1     92      5      20 handle_stop_during_workloads@17-36@lb_controller/engine/stop_logic.py
       53      6    233      4      67 handle_stop_protocol@39-105@lb_controller/engine/stop_logic.py
       12      1     73      4      18 __init__@28-45@lb_controller/engine/stops.py
@@ -98,6 +108,10 @@
        4      2     33      1       5 _check_completion@81-85@lb_controller/engine/stops.py
        7      4     62      1       9 check_timeout@87-95@lb_controller/engine/stops.py
        2      1     15      1       2 can_proceed_to_teardown@97-98@lb_controller/engine/stops.py
+       2      3     33      2       3 resolve_run_id@15-17@lb_controller/engine/run_state_builders.py
+       5      1     28      1       6 build_inventory@20-25@lb_controller/engine/run_state_builders.py
+      12      1     66      2      12 prepare@34-45@lb_controller/engine/run_state_builders.py
+      28      2    170      8      28 build@54-81@lb_controller/engine/run_state_builders.py
        2      1     16      2       2 start_phase@39-40@lb_controller/engine/lifecycle.py
        4      3     49      1       4 finish@42-45@lb_controller/engine/lifecycle.py
        3      2     23      1       3 arm_stop@47-49@lb_controller/engine/lifecycle.py
@@ -185,7 +199,7 @@
       22      4    109      3      27 teardown_global@144-170@lb_controller/services/setup_service.py
        2      1     16      2       2 __init__@16-17@lb_controller/services/teardown_service.py
        8      1     50      5       8 run_global_teardown@19-26@lb_controller/services/teardown_service.py
-36 file analyzed.
+37 file analyzed.
 ==============================================================
 NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
 --------------------------------------------------------------
@@ -203,14 +217,15 @@ NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
       0       0.0     0.0        0.0         0     lb_controller/ansible/collections/ansible_collections/community/__init__.py
       0       0.0     0.0        0.0         0     lb_controller/ansible/collections/ansible_collections/__init__.py
     340      40.5     6.5      212.4         8     lb_controller/adapters/playbooks.py
-    248       9.8     2.5       63.7        23     lb_controller/adapters/ansible_helpers.py
+    300       8.3     2.1       53.5        33     lb_controller/adapters/ansible_helpers.py
     162      14.1     2.4       94.0        10     lb_controller/adapters/ansible_runner.py
      81       8.9     3.4       56.6         8     lb_controller/adapters/remote_runner.py
      24       0.0     0.0        0.0         0     lb_controller/engine/run_state.py
-    189      20.9     3.6      131.5         8     lb_controller/engine/controller.py
+    178      18.9     3.2      117.0         8     lb_controller/engine/controller.py
      82      36.0     3.5      162.5         2     lb_controller/engine/stop_logic.py
      45       0.0     0.0        0.0         0     lb_controller/engine/controller_protocols.py
      55       7.2     3.0       55.0         6     lb_controller/engine/stops.py
+     61      11.8     1.8       74.2         4     lb_controller/engine/run_state_builders.py
      43       2.3     1.3       19.1         9     lb_controller/engine/lifecycle.py
      78       7.0     2.5       49.2         8     lb_controller/engine/interrupts.py
     242      10.8     3.5       72.9        19     lb_controller/services/journal.py
@@ -235,8 +250,7 @@ NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
       20     12    172      2      21 _candidate_texts@140-160@lb_controller/ansible/callback_plugins/lb_events.py
       51     13    309      5      57 run_global_teardown@301-357@lb_controller/adapters/playbooks.py
       27     11    154      1      28 _run@83-110@lb_controller/adapters/remote_runner.py
-      75     11    426      5      81 _prepare_run_state@147-227@lb_controller/engine/controller.py
 ==========================================================================================
 Total nloc   Avg.NLOC  AvgCCN  Avg.token   Fun Cnt  Warning cnt   Fun Rt   nloc Rt
 ------------------------------------------------------------------------------------------
-      2893      12.3     3.1       76.9      184            5      0.03    0.09
+      2995      11.9     3.0       73.9      198            4      0.02    0.05

@@ -28,14 +28,5 @@ scaphandre_repo_name: "scaphandre"
 scaphandre_chart: ""
 scaphandre_release: "scaphandre"
 
-# K6 reference settings (for SSH key setup on target)
-k6_host: ""
-k6_user: "ubuntu"
-k6_ssh_key: ""
-k6_port: 22
-k6_workspace_root: "/home/ubuntu/.dfaas-k6"
-k6_setup_enabled: true
-k6_setup_playbook_path: ""
-
 # Benchmark library workdir
 lb_workdir: "{{ (ansible_user == 'root') | ternary('/root', '/home/' ~ ansible_user) }}/.lb"

@@ -1,6 +1,6 @@
-Scanning 234 files...
+Scanning 251 files...
 
-[1mlb_plugins/plugins/dfaas/services/k6_runner.py[m[36m:[m17[36m:[m1[36m:[m [1m[31mDEP003[m 'invoke' imported but it is a transitive dependency
+[1mpyproject.toml[m[36m:[m [1m[31mDEP002[m 'urllib3' defined as a dependency but not used in the codebase
 [1m[31mFound 1 dependency issue.[m
 
 For more information, see the documentation: https://deptry.com/

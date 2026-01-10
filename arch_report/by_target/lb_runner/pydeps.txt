@@ -21,6 +21,7 @@
             "lb_runner.models",
             "lb_runner.models.config",
             "lb_runner.models.events",
+            "lb_runner.models.loki_env",
             "lb_runner.registry",
             "lb_runner.services",
             "lb_runner.services.async_localrunner",
@@ -28,6 +29,8 @@
             "lb_runner.services.log_handler",
             "lb_runner.services.result_persister",
             "lb_runner.services.results",
+            "lb_runner.services.runner_log_manager",
+            "lb_runner.services.runner_output_manager",
             "lb_runner.services.storage",
             "lb_runner.services.system_info",
             "lb_runner.services.system_info_cli",
@@ -53,9 +56,9 @@
             "lb_common",
             "lb_common.api",
             "lb_plugins.api",
-            "lb_runner.engine.runner",
             "lb_runner.metric_collectors.registry",
-            "lb_runner.models.config"
+            "lb_runner.models.loki_env",
+            "lb_runner.services.runner_log_manager"
         ],
         "imports": [
             "lb_common",
@@ -68,9 +71,9 @@
         "bacon": 2,
         "imported_by": [
             "lb_common",
-            "lb_runner.engine.runner",
             "lb_runner.metric_collectors.registry",
-            "lb_runner.models.config"
+            "lb_runner.models.loki_env",
+            "lb_runner.services.runner_log_manager"
         ],
         "imports": [
             "lb_common"
@@ -129,10 +132,13 @@
             "lb_runner.engine.runner",
             "lb_runner.metric_collectors.builtin",
             "lb_runner.metric_collectors.registry",
+            "lb_runner.models.config",
             "lb_runner.registry",
             "lb_runner.services.async_localrunner",
             "lb_runner.services.collector_coordinator",
             "lb_runner.services.result_persister",
+            "lb_runner.services.runner_log_manager",
+            "lb_runner.services.runner_output_manager",
             "lb_runner.services.storage",
             "lb_runner.services.system_info",
             "lb_runner.services.system_info_cli",
@@ -253,8 +259,6 @@
             "lb_runner.api"
         ],
         "imports": [
-            "lb_common",
-            "lb_common.api",
             "lb_plugins",
             "lb_plugins.api",
             "lb_runner",
@@ -276,7 +280,8 @@
             "lb_runner.services.log_handler",
             "lb_runner.services.result_persister",
             "lb_runner.services.results",
-            "lb_runner.services.storage",
+            "lb_runner.services.runner_log_manager",
+            "lb_runner.services.runner_output_manager",
             "lb_runner.services.system_info"
         ],
         "name": "lb_runner.engine.runner",
@@ -404,7 +409,10 @@
             "lb_runner.engine.runner",
             "lb_runner.metric_collectors.builtin",
             "lb_runner.metric_collectors.registry",
+            "lb_runner.models.config",
             "lb_runner.registry",
+            "lb_runner.services.runner_log_manager",
+            "lb_runner.services.runner_output_manager",
             "lb_runner.services.storage"
         ],
         "name": "lb_runner.models",
@@ -421,13 +429,16 @@
             "lb_runner.metric_collectors.builtin",
             "lb_runner.metric_collectors.registry",
             "lb_runner.registry",
+            "lb_runner.services.runner_log_manager",
+            "lb_runner.services.runner_output_manager",
             "lb_runner.services.storage"
         ],
         "imports": [
-            "lb_common",
-            "lb_common.api",
             "lb_plugins",
             "lb_plugins.api",
+            "lb_runner",
+            "lb_runner.models",
+            "lb_runner.models.loki_env",
             "pydantic"
         ],
         "name": "lb_runner.models.config",
@@ -443,6 +454,19 @@
         ],
         "name": "lb_runner.models.events",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_runner/models/events.py"
+    },
+    "lb_runner.models.loki_env": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_runner.models.config"
+        ],
+        "imports": [
+            "lb_common",
+            "lb_common.api"
+        ],
+        "name": "lb_runner.models.loki_env",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_runner/models/loki_env.py"
     },
     "lb_runner.registry": {
         "bacon": 1,
@@ -472,6 +496,7 @@
             "lb_runner.engine.runner",
             "lb_runner.services.collector_coordinator",
             "lb_runner.services.result_persister",
+            "lb_runner.services.runner_output_manager",
             "lb_runner.services.storage",
             "lb_runner.services.system_info",
             "lb_runner.services.system_info_cli",
@@ -524,7 +549,8 @@
         "bacon": 1,
         "imported_by": [
             "__main__",
-            "lb_runner.engine.runner"
+            "lb_runner.engine.runner",
+            "lb_runner.services.runner_output_manager"
         ],
         "imports": [
             "lb_plugins",
@@ -552,13 +578,47 @@
         "name": "lb_runner.services.results",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_runner/services/results.py"
     },
+    "lb_runner.services.runner_log_manager": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_runner.engine.runner"
+        ],
+        "imports": [
+            "lb_common",
+            "lb_common.api",
+            "lb_runner",
+            "lb_runner.models",
+            "lb_runner.models.config"
+        ],
+        "name": "lb_runner.services.runner_log_manager",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_runner/services/runner_log_manager.py"
+    },
+    "lb_runner.services.runner_output_manager": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_runner.engine.runner"
+        ],
+        "imports": [
+            "lb_runner",
+            "lb_runner.models",
+            "lb_runner.models.config",
+            "lb_runner.services",
+            "lb_runner.services.result_persister",
+            "lb_runner.services.storage",
+            "lb_runner.services.system_info_types"
+        ],
+        "name": "lb_runner.services.runner_output_manager",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_runner/services/runner_output_manager.py"
+    },
     "lb_runner.services.storage": {
         "bacon": 1,
         "imported_by": [
             "__main__",
             "lb_runner.api",
             "lb_runner.engine.run_scope",
-            "lb_runner.engine.runner"
+            "lb_runner.services.runner_output_manager"
         ],
         "imports": [
             "lb_runner",
@@ -654,6 +714,7 @@
         "bacon": 1,
         "imported_by": [
             "__main__",
+            "lb_runner.services.runner_output_manager",
             "lb_runner.services.system_info",
             "lb_runner.services.system_info_collectors",
             "lb_runner.services.system_info_io"

@@ -1,1 +1,3 @@
+sim=0.84 | lb_controller/adapters/ansible_helpers.py:ProcessStopController  <->  lb_controller/adapters/ansible_helpers.py:PlaybookProcessRunner
+  common_methods=['__init__', 'clear_interrupt', 'get_active_process', 'interrupt', 'is_running', 'set_active_process', 'should_stop']
 

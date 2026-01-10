@@ -1,18 +1,24 @@
 ================================================
   NLOC    CCN   token  PARAM  length  location  
 ------------------------------------------------
-      47     23    385      2      66 _apply_env_fallbacks@95-160@lb_runner/models/config.py
-       4      3     29      1       4 validate_name_not_empty@187-190@lb_runner/models/config.py
-      17      5     90      1      18 ansible_host_line@192-209@lb_runner/models/config.py
-       3      2     37      1       4 ensure_output_dirs@294-297@lb_runner/models/config.py
-       7      4     53      1       7 _validate_remote_hosts_unique@303-309@lb_runner/models/config.py
-       2      1     18      2       3 from_json@312-314@lb_runner/models/config.py
-       2      1     23      2       4 from_dict@317-320@lb_runner/models/config.py
-       2      1     24      2       2 save@322-323@lb_runner/models/config.py
-       2      1     22      2       2 load@326-327@lb_runner/models/config.py
-       2      1     23      2       3 is_plugin_enabled@357-359@lb_runner/models/config.py
-       2      1     24      2       2 save@361-362@lb_runner/models/config.py
-       2      1     22      2       2 load@365-366@lb_runner/models/config.py
+       6      3     38      2      13 _apply_env_fallbacks@89-101@lb_runner/models/config.py
+       4      3     29      1       4 validate_name_not_empty@128-131@lb_runner/models/config.py
+      17      5     90      1      18 ansible_host_line@133-150@lb_runner/models/config.py
+       3      2     37      1       4 ensure_output_dirs@235-238@lb_runner/models/config.py
+       7      4     53      1       7 _validate_remote_hosts_unique@244-250@lb_runner/models/config.py
+       2      1     18      2       3 from_json@253-255@lb_runner/models/config.py
+       2      1     23      2       4 from_dict@258-261@lb_runner/models/config.py
+       2      1     24      2       2 save@263-264@lb_runner/models/config.py
+       2      1     22      2       2 load@267-268@lb_runner/models/config.py
+       2      1     23      2       3 is_plugin_enabled@298-300@lb_runner/models/config.py
+       2      1     24      2       2 save@302-303@lb_runner/models/config.py
+       2      1     22      2       2 load@306-307@lb_runner/models/config.py
+      12      1     99      1      12 apply_loki_env_fallbacks@16-27@lb_runner/models/loki_env.py
+       5      3     57      3       5 _fallback_bool@30-34@lb_runner/models/loki_env.py
+       5      3     50      3       5 _fallback_str@37-41@lb_runner/models/loki_env.py
+       5      3     57      3       5 _fallback_int@44-48@lb_runner/models/loki_env.py
+       5      3     57      3       5 _fallback_float@51-55@lb_runner/models/loki_env.py
+       7      3     62      2       7 _merge_labels@58-64@lb_runner/models/loki_env.py
        2      1     17      1       2 to_dict@24-25@lb_runner/models/events.py
        2      1     18      1       2 to_json@27-28@lb_runner/models/events.py
        2      1     20      2       2 emit@34-35@lb_runner/models/events.py
@@ -52,33 +58,28 @@
        2      1     10      1       9 _validate_environment@54-62@lb_runner/metric_collectors/psutil_collector.py
        4      1     32      3       4 __init__@27-30@lb_runner/engine/run_scope.py
       13      3     74      2      13 prepare@32-44@lb_runner/engine/run_scope.py
-       3      1     28      2       3 __init__@54-56@lb_runner/engine/runner.py
-       2      2     32      2       2 filter@58-59@lb_runner/engine/runner.py
-      34      4    295      8      40 __init__@65-104@lb_runner/engine/runner.py
-       8      4     54      2       8 _resolve_registry@107-114@lb_runner/engine/runner.py
-       7      2     54      1      17 collect_system_info@116-132@lb_runner/engine/runner.py
-       4      2     37      2       9 _workload_output_dir@134-142@lb_runner/engine/runner.py
-      37      2    152      6      52 _run_single_test@144-195@lb_runner/engine/runner.py
-       5      1     50      3       5 _prepare_workload_dirs@197-201@lb_runner/engine/runner.py
-       2      1     22      2       2 _resolve_duration@203-204@lb_runner/engine/runner.py
-      16      3    110      4      16 _attach_event_logger@206-221@lb_runner/engine/runner.py
-      42      3    191      7      45 _execute_generator@223-267@lb_runner/engine/runner.py
-       2      1     23      2       2 _prepare_generator@269-270@lb_runner/engine/runner.py
-      16      1     46      6      16 _wait_for_generator@272-287@lb_runner/engine/runner.py
-      11      5     76      4      11 _cleanup_after_run@289-299@lb_runner/engine/runner.py
-      28      3    144     10      28 _finalize_single_test@301-328@lb_runner/engine/runner.py
-       2      1     11      1       2 _pre_test_cleanup@330-331@lb_runner/engine/runner.py
-      39     11    254      6      54 run_benchmark@333-386@lb_runner/engine/runner.py
-      21      2    120      5      21 _prepare_run_scope@388-408@lb_runner/engine/runner.py
-      50      7    272      6      53 _run_single_repetition@410-462@lb_runner/engine/runner.py
-       9      2     43      4       9 _cleanup_generator@464-472@lb_runner/engine/runner.py
-      13      1     64      4      14 _process_results@474-487@lb_runner/engine/runner.py
-       4      1     38      5       5 _emit_progress@489-493@lb_runner/engine/runner.py
-      10      4     75      1      11 run_all_benchmarks@495-505@lb_runner/engine/runner.py
-      37      6    175      5      37 _attach_jsonl_logger@507-543@lb_runner/engine/runner.py
-      54      6    262      5      55 _attach_loki_logger@545-599@lb_runner/engine/runner.py
-      23      6    196      1      23 _sync_loki_env@601-623@lb_runner/engine/runner.py
-      15      2     52      4      15 _set_log_phase@625-639@lb_runner/engine/runner.py
+      39      4    294      8      45 __init__@49-93@lb_runner/engine/runner.py
+       8      4     54      2       8 _resolve_registry@96-103@lb_runner/engine/runner.py
+       6      1     47      1      16 collect_system_info@105-120@lb_runner/engine/runner.py
+       2      1     21      2       7 _workload_output_dir@122-128@lb_runner/engine/runner.py
+      37      2    152      6      52 _run_single_test@130-181@lb_runner/engine/runner.py
+       5      1     50      3       5 _prepare_workload_dirs@183-187@lb_runner/engine/runner.py
+       2      1     22      2       2 _resolve_duration@189-190@lb_runner/engine/runner.py
+      16      3    110      4      16 _attach_event_logger@192-207@lb_runner/engine/runner.py
+      42      3    191      7      45 _execute_generator@209-253@lb_runner/engine/runner.py
+       2      1     23      2       2 _prepare_generator@255-256@lb_runner/engine/runner.py
+      16      1     46      6      16 _wait_for_generator@258-273@lb_runner/engine/runner.py
+      11      5     76      4      11 _cleanup_after_run@275-285@lb_runner/engine/runner.py
+      28      3    144     10      28 _finalize_single_test@287-314@lb_runner/engine/runner.py
+       2      1     11      1       2 _pre_test_cleanup@316-317@lb_runner/engine/runner.py
+      39     11    254      6      54 run_benchmark@319-372@lb_runner/engine/runner.py
+      24      2    127      5      24 _prepare_run_scope@374-397@lb_runner/engine/runner.py
+      50      7    272      6      53 _run_single_repetition@399-451@lb_runner/engine/runner.py
+       9      2     43      4       9 _cleanup_generator@453-461@lb_runner/engine/runner.py
+      13      1     64      4      14 _process_results@463-476@lb_runner/engine/runner.py
+       4      1     38      5       5 _emit_progress@478-482@lb_runner/engine/runner.py
+      10      4     75      1      11 run_all_benchmarks@484-494@lb_runner/engine/runner.py
+      17      3     75      4      17 _set_log_phase@496-512@lb_runner/engine/runner.py
       16      4     96      1      18 pre_test_cleanup@18-35@lb_runner/engine/execution.py
       16      4     82      3      17 resolve_duration@38-54@lb_runner/engine/execution.py
        9      3     60      3      10 prepare_generator@57-66@lb_runner/engine/execution.py
@@ -107,6 +108,12 @@
       10      2     59      5      10 __init__@18-27@lb_runner/engine/progress.py
        2      1     17      2       3 set_run_id@29-31@lb_runner/engine/progress.py
       25      4    106      5      27 emit@33-59@lb_runner/engine/progress.py
+      10      1     47      4      10 set_scope@28-37@lb_runner/services/runner_output_manager.py
+       3      2     33      2       3 workload_output_dir@39-41@lb_runner/services/runner_output_manager.py
+       2      1     13      1       2 output_root@43-44@lb_runner/services/runner_output_manager.py
+       8      3     45      2       8 write_system_info@46-53@lb_runner/services/runner_output_manager.py
+       2      1     30      3       2 persist_rep_result@55-56@lb_runner/services/runner_output_manager.py
+      14      1     55      5      14 process_results@58-71@lb_runner/services/runner_output_manager.py
        2      1     11      1       2 collect@11-12@lb_runner/services/system_info_service.py
        5      2     37      1       5 _env@29-33@lb_runner/services/async_localrunner.py
        3      2     53      1       3 _event_logging_enabled@36-38@lb_runner/services/async_localrunner.py
@@ -133,6 +140,11 @@
       18      7    159      1      18 to_dict@74-91@lb_runner/services/system_info_types.py
        2      1     38      3       2 to_csv_rows.add@97-98@lb_runner/services/system_info_types.py
       46     21    401      1      51 to_csv_rows@93-143@lb_runner/services/system_info_types.py
+       3      1     28      2       3 __init__@15-17@lb_runner/services/runner_log_manager.py
+       2      2     32      2       2 filter@19-20@lb_runner/services/runner_log_manager.py
+      38      5    167      6      38 attach@34-71@lb_runner/services/runner_log_manager.py
+      54      6    262      5      55 _attach_loki@73-127@lb_runner/services/runner_log_manager.py
+      20      6    151      1      20 sync_loki_env@129-148@lb_runner/services/runner_log_manager.py
        4      2     34      2       4 default@21-24@lb_runner/services/results.py
       25      5    126      6      27 build_rep_result@27-53@lb_runner/services/results.py
        7      3     53      1       7 is_generator_success@56-62@lb_runner/services/results.py
@@ -168,11 +180,12 @@
        2      1     35      3       2 create_generator@29-30@lb_runner/registry.py
        2      1     23      2       2 create_collectors@32-33@lb_runner/registry.py
        2      1     29      2       2 available_collectors@35-36@lb_runner/registry.py
-31 file analyzed.
+34 file analyzed.
 ==============================================================
 NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
 --------------------------------------------------------------
-    256       7.7     3.7       62.5        12     lb_runner/models/config.py
+    209       4.2     2.0       33.6        12     lb_runner/models/config.py
+     48       6.5     2.7       63.7         6     lb_runner/models/loki_env.py
      23       2.0     1.0       18.3         3     lb_runner/models/events.py
       0       0.0     0.0        0.0         0     lb_runner/models/__init__.py
      53       6.0     2.5       47.2         6     lb_runner/metric_collectors/registry.py
@@ -183,15 +196,17 @@ NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
      56       5.8     2.0       38.5         4     lb_runner/metric_collectors/builtin.py
      24       6.0     1.3       48.0         3     lb_runner/metric_collectors/psutil_collector.py
      31       8.5     2.0       53.0         2     lb_runner/engine/run_scope.py
-    538      18.3     3.1      106.5        27     lb_runner/engine/runner.py
+    418      17.4     2.8       99.5        22     lb_runner/engine/runner.py
     114      13.0     4.2       77.0         8     lb_runner/engine/execution.py
      70       8.1     3.1       45.4         8     lb_runner/engine/stop_token.py
      98      10.0     2.9       56.4         9     lb_runner/engine/planning.py
      44      12.3     2.3       60.7         3     lb_runner/engine/progress.py
+     56       6.5     1.5       37.2         6     lb_runner/services/runner_output_manager.py
       5       2.0     1.0       11.0         1     lb_runner/services/system_info_service.py
     166      16.0     2.4      103.1         9     lb_runner/services/async_localrunner.py
     345      24.7     7.7      169.9        13     lb_runner/services/system_info_collectors.py
     120      22.0     9.7      199.3         3     lb_runner/services/system_info_types.py
+    132      23.4     4.0      128.0         5     lb_runner/services/runner_log_manager.py
     117      12.0     3.9       82.1         9     lb_runner/services/results.py
      16      11.0     4.0      135.0         1     lb_runner/services/system_info_io.py
     104      30.0     5.0      191.0         2     lb_runner/services/system_info.py
@@ -209,11 +224,10 @@ NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
 ================================================
   NLOC    CCN   token  PARAM  length  location  
 ------------------------------------------------
-      47     23    385      2      66 _apply_env_fallbacks@95-160@lb_runner/models/config.py
       41     12    258      1      55 _collect_metrics@35-89@lb_runner/metric_collectors/cli_collector.py
       29     11    174      2      43 _parse_sar@91-133@lb_runner/metric_collectors/cli_collector.py
       28     13    384      1      47 aggregate_psutil@10-56@lb_runner/metric_collectors/aggregators.py
-      39     11    254      6      54 run_benchmark@333-386@lb_runner/engine/runner.py
+      39     11    254      6      54 run_benchmark@319-372@lb_runner/engine/runner.py
       41     11    208      4      47 resolve_config_input@46-92@lb_runner/engine/planning.py
       33     14    267      0      35 _collect_cpu@70-104@lb_runner/services/system_info_collectors.py
       41     13    266      0      41 _collect_disks@129-169@lb_runner/services/system_info_collectors.py
@@ -223,4 +237,4 @@ NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
 ==========================================================================================
 Total nloc   Avg.NLOC  AvgCCN  Avg.token   Fun Cnt  Warning cnt   Fun Rt   nloc Rt
 ------------------------------------------------------------------------------------------
-      2680      12.4     3.4       83.7      167           11      0.07    0.20
+      2749      11.8     3.2       79.2      179           10      0.06    0.17

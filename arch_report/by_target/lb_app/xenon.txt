@@ -1,10 +1,9 @@
 ERROR:xenon:block "lb_app/client.py:122 _resume_node_names" has a rank of C
 ERROR:xenon:block "lb_app/client.py:164 start_run" has a rank of C
 ERROR:xenon:block "lb_app/services/run_logging.py:85 on_controller_state_change" has a rank of C
-ERROR:xenon:block "lb_app/services/run_output.py:458 _format_progress" has a rank of C
-ERROR:xenon:block "lb_app/services/run_output.py:233 _handle_line" has a rank of C
-ERROR:xenon:block "lb_app/services/run_output.py:286 _maybe_emit_task_timing" has a rank of C
-ERROR:xenon:block "lb_app/services/run_service.py:345 _run_remote" has a rank of C
+ERROR:xenon:block "lb_app/services/run_output.py:329 _format_progress" has a rank of C
+ERROR:xenon:block "lb_app/services/run_output.py:104 _handle_line" has a rank of C
+ERROR:xenon:block "lb_app/services/run_output.py:157 _maybe_emit_task_timing" has a rank of C
 ERROR:xenon:block "lb_app/services/run_system_info.py:113 format_disk_summary" has a rank of C
 ERROR:xenon:block "lb_app/services/run_system_info.py:92 format_cpu_summary" has a rank of C
 ERROR:xenon:block "lb_app/services/run_events.py:53 _run" has a rank of C

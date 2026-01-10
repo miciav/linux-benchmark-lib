@@ -7,15 +7,20 @@
             "lb_app.client",
             "lb_app.interfaces",
             "lb_app.services",
+            "lb_app.services.config_repository",
             "lb_app.services.config_service",
             "lb_app.services.doctor_service",
             "lb_app.services.doctor_types",
             "lb_app.services.provision_service",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_config",
             "lb_app.services.run_events",
             "lb_app.services.run_journal",
             "lb_app.services.run_logging",
             "lb_app.services.run_output",
+            "lb_app.services.run_output_formatting",
+            "lb_app.services.run_output_parsing",
+            "lb_app.services.run_output_timing",
             "lb_app.services.run_pipeline",
             "lb_app.services.run_plan",
             "lb_app.services.run_service",
@@ -63,8 +68,10 @@
             "lb_app.client",
             "lb_app.interfaces",
             "lb_app.services",
+            "lb_app.services.config_service",
             "lb_app.services.doctor_service",
             "lb_app.services.provision_service",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_journal",
             "lb_app.services.run_logging",
             "lb_app.services.run_pipeline",
@@ -145,9 +152,6 @@
         ],
         "imports": [
             "lb_app",
-            "lb_app.services",
-            "lb_app.services.provision_service",
-            "lb_app.services.run_service",
             "lb_app.ui_interfaces",
             "lb_controller",
             "lb_controller.api"
@@ -161,10 +165,11 @@
             "__main__",
             "lb_app.api",
             "lb_app.client",
-            "lb_app.interfaces",
             "lb_app.services",
+            "lb_app.services.config_service",
             "lb_app.services.doctor_service",
             "lb_app.services.provision_service",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_journal",
             "lb_app.services.run_logging",
             "lb_app.services.run_pipeline",
@@ -184,6 +189,19 @@
         "name": "lb_app.services",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_app/services/__init__.py"
     },
+    "lb_app.services.config_repository": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_app.services.config_service"
+        ],
+        "imports": [
+            "lb_controller",
+            "lb_controller.api"
+        ],
+        "name": "lb_app.services.config_repository",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_app/services/config_repository.py"
+    },
     "lb_app.services.config_service": {
         "bacon": 1,
         "imported_by": [
@@ -196,6 +214,9 @@
             "lb_app.services.test_service"
         ],
         "imports": [
+            "lb_app",
+            "lb_app.services",
+            "lb_app.services.config_repository",
             "lb_controller",
             "lb_controller.api",
             "lb_plugins",
@@ -239,7 +260,6 @@
             "__main__",
             "lb_app.api",
             "lb_app.client",
-            "lb_app.interfaces",
             "lb_app.services"
         ],
         "imports": [
@@ -255,6 +275,28 @@
         ],
         "name": "lb_app.services.provision_service",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_app/services/provision_service.py"
+    },
+    "lb_app.services.remote_run_coordinator": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_app.services.run_service"
+        ],
+        "imports": [
+            "lb_app",
+            "lb_app.services",
+            "lb_app.services.run_output",
+            "lb_app.services.run_pipeline",
+            "lb_app.services.run_service",
+            "lb_app.services.run_types",
+            "lb_app.ui_interfaces",
+            "lb_controller",
+            "lb_controller.api",
+            "lb_plugins",
+            "lb_plugins.api"
+        ],
+        "name": "lb_app.services.remote_run_coordinator",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_app/services/remote_run_coordinator.py"
     },
     "lb_app.services.run_config": {
         "bacon": 1,
@@ -318,20 +360,52 @@
         "imported_by": [
             "__main__",
             "lb_app.api",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_pipeline",
             "lb_app.services.run_service"
         ],
         "imports": [
+            "lb_app.services.run_output_formatting",
+            "lb_app.services.run_output_parsing",
+            "lb_app.services.run_output_timing",
             "rich",
             "rich.markup"
         ],
         "name": "lb_app.services.run_output",
         "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_app/services/run_output.py"
     },
+    "lb_app.services.run_output_formatting": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_app.services.run_output"
+        ],
+        "name": "lb_app.services.run_output_formatting",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_app/services/run_output_formatting.py"
+    },
+    "lb_app.services.run_output_parsing": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_app.services.run_output"
+        ],
+        "name": "lb_app.services.run_output_parsing",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_app/services/run_output_parsing.py"
+    },
+    "lb_app.services.run_output_timing": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "lb_app.services.run_output"
+        ],
+        "name": "lb_app.services.run_output_timing",
+        "path": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/lb_app/services/run_output_timing.py"
+    },
     "lb_app.services.run_pipeline": {
         "bacon": 1,
         "imported_by": [
             "__main__",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_service"
         ],
         "imports": [
@@ -371,12 +445,13 @@
             "__main__",
             "lb_app.api",
             "lb_app.client",
-            "lb_app.interfaces",
-            "lb_app.services"
+            "lb_app.services",
+            "lb_app.services.remote_run_coordinator"
         ],
         "imports": [
             "lb_app",
             "lb_app.services",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_journal",
             "lb_app.services.run_logging",
             "lb_app.services.run_output",
@@ -418,6 +493,7 @@
         "imported_by": [
             "__main__",
             "lb_app.api",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_journal",
             "lb_app.services.run_logging",
             "lb_app.services.run_pipeline",
@@ -456,6 +532,7 @@
             "__main__",
             "lb_app.api",
             "lb_app.interfaces",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_logging",
             "lb_app.services.run_pipeline",
             "lb_app.services.run_service",
@@ -509,8 +586,10 @@
             "lb_app.api",
             "lb_app.client",
             "lb_app.interfaces",
+            "lb_app.services.config_repository",
             "lb_app.services.config_service",
             "lb_app.services.provision_service",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_config",
             "lb_app.services.run_journal",
             "lb_app.services.run_logging",
@@ -530,8 +609,10 @@
             "lb_app.api",
             "lb_app.client",
             "lb_app.interfaces",
+            "lb_app.services.config_repository",
             "lb_app.services.config_service",
             "lb_app.services.provision_service",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_config",
             "lb_app.services.run_journal",
             "lb_app.services.run_logging",
@@ -559,6 +640,7 @@
             "lb_app.services.config_service",
             "lb_app.services.doctor_service",
             "lb_app.services.provision_service",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_plan",
             "lb_app.services.run_service",
             "lb_app.services.run_types",
@@ -580,6 +662,7 @@
             "lb_app.services.config_service",
             "lb_app.services.doctor_service",
             "lb_app.services.provision_service",
+            "lb_app.services.remote_run_coordinator",
             "lb_app.services.run_plan",
             "lb_app.services.run_service",
             "lb_app.services.run_types",

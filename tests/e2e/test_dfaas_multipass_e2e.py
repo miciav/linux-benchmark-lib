@@ -285,33 +285,6 @@ def _write_inventory(inventory_path: Path, host: dict[str, str]) -> None:
     )
 
 
-def _copy_private_key_to_target(vm_name: str, source_key: Path, target_path: str) -> None:
-    target_dir = str(Path(target_path).parent)
-    subprocess.run(
-        ["multipass", "exec", vm_name, "--", "mkdir", "-p", target_dir],
-        check=True,
-    )
-    subprocess.run(
-        ["multipass", "transfer", str(source_key), f"{vm_name}:{target_path}"],
-        check=True,
-    )
-    subprocess.run(
-        ["multipass", "exec", vm_name, "--", "chmod", "600", target_path],
-        check=True,
-    )
-
-
-def _copy_file_to_target(vm_name: str, source_path: Path, target_path: str) -> None:
-    target_dir = str(Path(target_path).parent)
-    subprocess.run(
-        ["multipass", "exec", vm_name, "--", "mkdir", "-p", target_dir],
-        check=True,
-    )
-    subprocess.run(
-        ["multipass", "transfer", str(source_path), f"{vm_name}:{target_path}"],
-        check=True,
-    )
-
 
 def _get_existing_dfaas_vms() -> list[dict[str, Any]] | None:
     """Check if dfaas-target and dfaas-generator VMs exist and are running."""
@@ -436,40 +409,24 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
     setup_target = Path("lb_plugins/plugins/dfaas/ansible/setup_target.yml")
     setup_k6 = Path("lb_plugins/plugins/dfaas/ansible/setup_k6.yml")
 
-    k6_key_target_path = f"/home/{target_vm['user']}/.ssh/dfaas_k6_key"
-    k6_playbook_target_path = "/tmp/setup_k6.yml"
-    try:
-        _copy_private_key_to_target(
-            target_vm["name"], staged_key, k6_key_target_path
-        )
-        _copy_file_to_target(
-            target_vm["name"],
-            setup_k6,
-            k6_playbook_target_path,
-        )
-    except Exception as exc:  # noqa: BLE001
-        _skip_or_fail("Failed to copy k6 SSH key to target", context="copy_k6_key", exc=exc)
-
-    lb_workdir = _lb_workdir(target_vm["user"])
-    setup_extravars = {
-        "openfaas_functions": ["env"],
-        "k6_host": k6_vm["ip"],
-        "k6_user": k6_vm["user"],
-        "k6_ssh_key": k6_key_target_path,
-        "k6_port": 22,
-        "k6_workspace_root": k6_workspace_root,
-        "k6_setup_playbook_path": k6_playbook_target_path,
-        "lb_workdir": lb_workdir,
-    }
     try:
         _run_playbook(
             setup_target,
             target_inventory,
-            setup_extravars,
+            {"openfaas_functions": ["env"]},
             ansible_env,
         )
     except Exception as exc:  # noqa: BLE001
         _skip_or_fail("setup_target playbook failed", context="setup_target", exc=exc)
+    try:
+        _run_playbook(
+            setup_k6,
+            k6_inventory,
+            {"k6_workspace_root": k6_workspace_root},
+            ansible_env,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _skip_or_fail("setup_k6 playbook failed", context="setup_k6", exc=exc)
 
     try:
         k6_version = _multipass_exec(k6_vm["name"], ["k6", "version"]).stdout.strip()
@@ -652,41 +609,27 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
     setup_target = Path("lb_plugins/plugins/dfaas/ansible/setup_target.yml")
     setup_k6 = Path("lb_plugins/plugins/dfaas/ansible/setup_k6.yml")
 
-    k6_key_target_path = f"/home/{target_vm['user']}/.ssh/dfaas_k6_key"
-    k6_playbook_target_path = "/tmp/setup_k6.yml"
-    try:
-        _copy_private_key_to_target(
-            target_vm["name"], staged_key, k6_key_target_path
-        )
-        _copy_file_to_target(
-            target_vm["name"],
-            setup_k6,
-            k6_playbook_target_path,
-        )
-    except Exception as exc:  # noqa: BLE001
-        _skip_or_fail("Failed to copy k6 SSH key to target", context="copy_k6_key_streaming", exc=exc)
-
-    setup_extravars = {
-        "openfaas_functions": ["env"],
-        "k6_host": k6_vm["ip"],
-        "k6_user": k6_vm["user"],
-        "k6_ssh_key": k6_key_target_path,
-        "k6_port": 22,
-        "k6_workspace_root": k6_workspace_root,
-        "k6_setup_playbook_path": k6_playbook_target_path,
-        "lb_workdir": configured_lb_workdir,
-    }
     try:
         _run_playbook(
             setup_target,
             target_inventory,
-            setup_extravars,
+            {"openfaas_functions": ["env"], "lb_workdir": configured_lb_workdir},
             ansible_env,
         )
     except Exception as exc:  # noqa: BLE001
         _skip_or_fail("setup_target playbook failed", context="setup_target_streaming", exc=exc)
 
-    k6_key_path = k6_key_target_path
+    try:
+        _run_playbook(
+            setup_k6,
+            k6_inventory,
+            {"k6_workspace_root": k6_workspace_root},
+            ansible_env,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _skip_or_fail("setup_k6 playbook failed", context="setup_k6_streaming", exc=exc)
+
+    k6_key_path = str(staged_key)
 
     try:
         password = _get_openfaas_password(target_vm["name"])
@@ -736,14 +679,6 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
             "Prometheus not ready for DFaaS run",
             context="prometheus_ready_streaming",
             exc=exc,
-        )
-
-    if not _verify_ssh_connectivity(
-        target_vm["name"], k6_vm["ip"], k6_vm["user"], k6_key_target_path
-    ):
-        _skip_or_fail(
-            "SSH from target to generator failed",
-            context="ssh_target_to_generator_streaming",
         )
 
     output_dir = tmp_path / "dfaas_stream_results"
@@ -1250,100 +1185,6 @@ def _verify_k6_logs_on_generator(
         assert len(content) > 0, f"k6.log should be non-empty: {log_path}"
 
 
-# =============================================================================
-# Pre-flight verification helpers
-# =============================================================================
-
-
-def _verify_ssh_connectivity(
-    from_vm: str, to_ip: str, to_user: str, key_path: str
-) -> bool:
-    """Verify SSH connectivity from one VM to another."""
-    ssh_cmd = (
-        f"ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
-        f"-o ConnectTimeout=10 -i {key_path} {to_user}@{to_ip} 'echo OK'"
-    )
-    try:
-        result = _multipass_exec(from_vm, ["bash", "-c", ssh_cmd])
-        return "OK" in result.stdout
-    except Exception as e:
-        print(f"SSH connectivity check failed: {e}")
-        return False
-
-
-def _verify_k6_installed(vm_name: str) -> bool:
-    """Verify k6 is installed on the VM."""
-    try:
-        result = _multipass_exec(vm_name, ["k6", "version"])
-        return "k6" in result.stdout.lower()
-    except Exception:
-        return False
-
-
-def _verify_openfaas_ready(vm_name: str) -> bool:
-    """Verify OpenFaaS is running on the VM."""
-    try:
-        _multipass_exec(vm_name, ["kubectl", "get", "nodes"])
-        _multipass_exec(
-            vm_name, ["kubectl", "-n", "openfaas", "get", "deploy", "gateway"]
-        )
-        return True
-    except Exception:
-        return False
-
-
-def _setup_target_to_generator_ssh(
-    target_vm: str, generator_vm: str, generator_ip: str, key_path: str
-) -> bool:
-    """Setup SSH access from target VM to generator VM.
-
-    Creates a new keypair on target and adds public key to generator's authorized_keys.
-    """
-    print(f"Setting up SSH access: {target_vm} -> {generator_vm}")
-
-    try:
-        # Generate SSH keypair on target if it doesn't exist
-        keygen_cmd = f"""
-        if [ ! -f {key_path} ]; then
-            ssh-keygen -t rsa -b 2048 -f {key_path} -N '' -q
-            echo 'Generated new keypair'
-        else
-            echo 'Keypair already exists'
-        fi
-        cat {key_path}.pub
-        """
-        result = _multipass_exec(target_vm, ["bash", "-c", keygen_cmd])
-        public_key = result.stdout.strip().split('\n')[-1]  # Last line is the key
-        print(f"Target public key: {public_key[:50]}...")
-
-        if not public_key.startswith("ssh-"):
-            print(f"Invalid public key format: {public_key}")
-            return False
-
-        # Add public key to generator's authorized_keys
-        add_key_cmd = f"""
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-        echo '{public_key}' >> ~/.ssh/authorized_keys
-        chmod 600 ~/.ssh/authorized_keys
-        echo 'Key added'
-        """
-        _multipass_exec(generator_vm, ["bash", "-c", add_key_cmd])
-
-        # Verify connectivity
-        print("Verifying SSH connectivity...")
-        if _verify_ssh_connectivity(target_vm, generator_ip, "ubuntu", key_path):
-            print("SSH connectivity verified!")
-            return True
-        else:
-            print("SSH connectivity verification failed!")
-            return False
-
-    except Exception as e:
-        print(f"Failed to setup SSH: {e}")
-        return False
-
-
 def _verify_lb_installed(vm_name: str, lb_workdir: str) -> bool:
     """Verify lb (linux-benchmark) is installed on the VM.
 
@@ -1387,76 +1228,6 @@ def _diagnose_lb_installation(vm_name: str, lb_workdir: str) -> None:
             print(f"  {desc}: FAILED - {e}")
 
 
-def _run_preflight_checks(
-    target_vm: dict, k6_vm: dict, k6_key_path: str
-) -> list[str]:
-    """Run pre-flight checks and return list of failures."""
-    failures = []
-
-    print("\n" + "=" * 60)
-    print("PRE-FLIGHT CHECKS")
-    print("=" * 60)
-
-    # Check 1: k6 installed on generator
-    print(f"\n[1/5] Checking k6 installation on {k6_vm['name']}...")
-    if _verify_k6_installed(k6_vm["name"]):
-        print("  ✓ k6 is installed")
-    else:
-        failures.append(f"k6 not installed on {k6_vm['name']}")
-        print("  ✗ k6 NOT installed")
-
-    # Check 2: OpenFaaS ready on target
-    print(f"\n[2/5] Checking OpenFaaS on {target_vm['name']}...")
-    if _verify_openfaas_ready(target_vm["name"]):
-        print("  ✓ OpenFaaS is ready")
-    else:
-        failures.append(f"OpenFaaS not ready on {target_vm['name']}")
-        print("  ✗ OpenFaaS NOT ready")
-
-    # Check 3: SSH key exists on target
-    print("\n[3/5] Checking SSH key on target...")
-    try:
-        _multipass_exec(target_vm["name"], ["test", "-f", k6_key_path])
-        print(f"  ✓ SSH key exists at {k6_key_path}")
-    except Exception:
-        failures.append(f"SSH key not found at {k6_key_path} on target")
-        print(f"  ✗ SSH key NOT found at {k6_key_path}")
-
-    # Check 4: SSH connectivity from target to generator
-    print(f"\n[4/5] Checking SSH: {target_vm['name']} -> {k6_vm['name']}...")
-    if _verify_ssh_connectivity(
-        target_vm["name"], k6_vm["ip"], k6_vm["user"], k6_key_path
-    ):
-        print("  ✓ SSH connectivity works")
-    else:
-        print("  ✗ SSH connectivity FAILED - attempting to fix...")
-        # Try to set up SSH access
-        if _setup_target_to_generator_ssh(
-            target_vm["name"], k6_vm["name"], k6_vm["ip"], k6_key_path
-        ):
-            print("  ✓ SSH connectivity fixed!")
-        else:
-            failures.append(
-                f"SSH from {target_vm['name']} to {k6_vm['name']} not working"
-            )
-            print("  ✗ Could not establish SSH connectivity")
-
-    # Note: lb installation check is skipped here because lb is installed
-    # by Ansible setup.yml DURING `lb run --remote`, not before.
-    # We verify lb installation after the CLI execution instead.
-
-    print("\n" + "=" * 60)
-    if failures:
-        print(f"PRE-FLIGHT CHECKS FAILED: {len(failures)} issue(s)")
-        for f in failures:
-            print(f"  - {f}")
-    else:
-        print("PRE-FLIGHT CHECKS PASSED")
-    print("=" * 60 + "\n")
-
-    return failures
-
-
 def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path: Path) -> None:
     """Verify that lb_events.stream.log is created and contains LB_EVENT lines.
 
@@ -1493,7 +1264,7 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
     _write_inventory(target_inventory, target_host)
     _write_inventory(k6_inventory, k6_host)
 
-    # Setup target (k6 provisioning is executed from target)
+    # Setup target and k6 generator from the controller
     setup_target = Path("lb_plugins/plugins/dfaas/ansible/setup_target.yml")
     setup_k6 = Path("lb_plugins/plugins/dfaas/ansible/setup_k6.yml")
 
@@ -1501,31 +1272,22 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
     if not _deploy_code_to_vm(target_vm["name"], ansible_dir, staged_key, lb_workdir):
         _skip_or_fail("Failed to deploy code to VM via Ansible setup", context="cli_deploy_code")
 
-    k6_key_target_path = f"/home/{target_vm['user']}/.ssh/dfaas_k6_key"
-    k6_playbook_target_path = "/tmp/setup_k6.yml"
-    try:
-        _copy_private_key_to_target(target_vm["name"], staged_key, k6_key_target_path)
-        _copy_file_to_target(
-            target_vm["name"],
-            setup_k6,
-            k6_playbook_target_path,
-        )
-    except Exception as exc:
-        _skip_or_fail("Failed to copy k6 key", context="copy_k6_key_events", exc=exc)
-
     setup_extravars = {
         "openfaas_functions": ["env"],
-        "k6_host": k6_vm["ip"],
-        "k6_user": k6_vm["user"],
-        "k6_ssh_key": k6_key_target_path,
-        "k6_port": 22,
-        "k6_workspace_root": k6_workspace_root,
-        "k6_setup_playbook_path": k6_playbook_target_path,
     }
     try:
         _run_playbook(setup_target, target_inventory, setup_extravars, ansible_env)
     except Exception as exc:
         _skip_or_fail("setup_target failed", context="setup_target_events", exc=exc)
+    try:
+        _run_playbook(
+            setup_k6,
+            k6_inventory,
+            {"k6_workspace_root": k6_workspace_root},
+            ansible_env,
+        )
+    except Exception as exc:
+        _skip_or_fail("setup_k6 failed", context="setup_k6_events", exc=exc)
 
     try:
         password = _get_openfaas_password(target_vm["name"])
@@ -1540,7 +1302,7 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
         prometheus_url=f"http://{target_vm['ip']}:30411",
         k6_host=k6_vm["ip"],
         k6_user=k6_vm["user"],
-        k6_ssh_key="~/.ssh/dfaas_k6_key",
+        k6_ssh_key=str(staged_key),
         k6_port=22,
         k6_workspace_root=k6_workspace_root,
         functions=[
@@ -2137,7 +1899,7 @@ def test_dfaas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> None
     _write_inventory(target_inventory, target_host)
     _write_inventory(k6_inventory, k6_host)
 
-    # Setup target (k6 provisioning is executed from target)
+    # Setup target and k6 generator from the controller
     setup_target = Path("lb_plugins/plugins/dfaas/ansible/setup_target.yml")
     setup_k6 = Path("lb_plugins/plugins/dfaas/ansible/setup_k6.yml")
 
@@ -2151,37 +1913,26 @@ def test_dfaas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> None
     report_dir = tmp_path / "reports"
     export_dir = tmp_path / "exports"
 
-    k6_key_target_path = f"/home/{target_vm['user']}/.ssh/dfaas_k6_key"
-    k6_playbook_target_path = "/tmp/setup_k6.yml"
-    try:
-        _copy_private_key_to_target(
-            target_vm["name"], staged_key, k6_key_target_path
-        )
-        _copy_file_to_target(
-            target_vm["name"],
-            setup_k6,
-            k6_playbook_target_path,
-        )
-    except Exception as exc:  # noqa: BLE001
-        _skip_or_fail("Failed to copy k6 SSH key to target", context="copy_k6_key_cli", exc=exc)
-
     try:
         _run_playbook(
             setup_target,
             target_inventory,
             {
                 "openfaas_functions": ["env"],
-                "k6_host": k6_vm["ip"],
-                "k6_user": k6_vm["user"],
-                "k6_ssh_key": k6_key_target_path,
-                "k6_port": 22,
-                "k6_workspace_root": k6_workspace_root,
-                "k6_setup_playbook_path": k6_playbook_target_path,
             },
             ansible_env,
         )
     except Exception as exc:  # noqa: BLE001
         _skip_or_fail("setup_target playbook failed", context="setup_target_cli", exc=exc)
+    try:
+        _run_playbook(
+            setup_k6,
+            k6_inventory,
+            {"k6_workspace_root": k6_workspace_root},
+            ansible_env,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _skip_or_fail("setup_k6 playbook failed", context="setup_k6_cli", exc=exc)
 
     try:
         password = _get_openfaas_password(target_vm["name"])
@@ -2196,7 +1947,7 @@ def test_dfaas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> None
         "prometheus_url": "http://127.0.0.1:30411",
         "k6_host": k6_vm["ip"],
         "k6_user": k6_vm["user"],
-        "k6_ssh_key": k6_key_target_path,
+        "k6_ssh_key": str(staged_key),
         "k6_port": 22,
         "k6_workspace_root": k6_workspace_root,
         "k6_log_stream": True,

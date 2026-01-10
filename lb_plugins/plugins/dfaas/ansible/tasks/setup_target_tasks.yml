@@ -9,12 +9,6 @@
     state: present
     update_cache: true
 
-- name: Install ansible-playbook (for k6 provisioning)
-  ansible.builtin.apt:
-    name: ansible
-    state: present
-    update_cache: true
-
 - name: Install k3s
   ansible.builtin.shell: "curl -sfL https://get.k3s.io | sh -"
   args:

@@ -12,6 +12,6 @@ ERROR:xenon:block "lb_plugins/plugins/geekbench/plugin.py:290 _collect_subtests"
 ERROR:xenon:block "lb_plugins/plugins/geekbench/plugin.py:328 _collect_geekbench_rows" has a rank of C
 ERROR:xenon:block "lb_plugins/plugins/dfaas/config.py:196 GrafanaConfig" has a rank of C
 ERROR:xenon:block "lb_plugins/plugins/dfaas/config.py:208 _apply_env_fallbacks" has a rank of C
-ERROR:xenon:block "lb_plugins/plugins/dfaas/generator.py:1002 _parse_faas_cli_replicas" has a rank of C
+ERROR:xenon:block "lb_plugins/plugins/dfaas/generator.py:604 _parse_faas_cli_replicas" has a rank of C
 ERROR:xenon:block "lb_plugins/plugins/dfaas/services/k6_runner.py:314 parse_summary" has a rank of C
 ERROR:xenon:module 'lb_plugins/builtin.py' has a rank of C

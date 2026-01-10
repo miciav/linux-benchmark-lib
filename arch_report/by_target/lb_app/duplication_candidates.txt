@@ -1,6 +1,3 @@
-sim=1.00 | lb_app/ui_interfaces.py:UIAdapter  <->  lb_app/ui_interfaces.py:NoOpUIAdapter
+sim=1.00 | lb_app/ui_interfaces.py:UIAdapter  <->  lb_app/ui_interfaces.py:UIAdapterBase
   common_methods=['create_dashboard', 'create_progress', 'prompt_multipass_scenario', 'show_error', 'show_info', 'show_panel', 'show_rule', 'show_success', 'show_table', 'show_warning', 'status']
-
-sim=0.79 | lb_app/interfaces.py:AppClient  <->  lb_app/client.py:ApplicationClient
-  common_methods=['get_run_plan', 'install_loki_grafana', 'list_runs', 'load_config', 'remove_loki_grafana', 'save_config', 'start_run', 'status_loki_grafana']
 

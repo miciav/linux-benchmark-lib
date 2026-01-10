@@ -1,4 +1,4 @@
-Run started:2026-01-09 16:32:21.943482+00:00
+Run started:2026-01-09 20:50:17.501790+00:00
 
 Test results:
 >> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
@@ -68,28 +68,6 @@ Test results:
 57	        except Exception:
 58	            # Never break workload on progress path
 59	            pass
-
---------------------------------------------------
->> Issue: [B110:try_except_pass] Try, Except, Pass detected.
-   Severity: Low   Confidence: High
-   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
-   Location: lb_runner/engine/runner.py:519:12
-518	                self._jsonl_handler.close()
-519	            except Exception:
-520	                pass
-521	        root_logger = logging.getLogger()
-
---------------------------------------------------
->> Issue: [B110:try_except_pass] Try, Except, Pass detected.
-   Severity: Low   Confidence: High
-   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
-   Location: lb_runner/engine/runner.py:558:12
-557	                self._loki_handler.close()
-558	            except Exception:
-559	                pass
-560	            self._loki_handler = None
 
 --------------------------------------------------
 >> Issue: [B112:try_except_continue] Try, Except, Continue detected.
@@ -224,6 +202,28 @@ Test results:
 87	
 
 --------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_runner/services/runner_log_manager.py:48:12
+47	                self._jsonl_handler.close()
+48	            except Exception:
+49	                pass
+50	        tags = {"phase": phase} if phase else None
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html
+   Location: lb_runner/services/runner_log_manager.py:86:12
+85	                self._loki_handler.close()
+86	            except Exception:
+87	                pass
+88	            self._loki_handler = None
+
+--------------------------------------------------
 >> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
    Severity: Low   Confidence: High
    CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
@@ -314,7 +314,7 @@ Test results:
 --------------------------------------------------
 
 Code scanned:
-	Total lines of code: 2969
+	Total lines of code: 3043
 	Total lines skipped (#nosec): 0
 	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
 

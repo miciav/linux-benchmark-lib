@@ -1,4 +1,3 @@
 ERROR:xenon:block "lb_controller/ansible/callback_plugins/lb_events.py:111 _handle_result" has a rank of C
 ERROR:xenon:block "lb_controller/ansible/callback_plugins/lb_events.py:140 _candidate_texts" has a rank of C
 ERROR:xenon:block "lb_controller/adapters/playbooks.py:301 run_global_teardown" has a rank of C
-ERROR:xenon:block "lb_controller/engine/controller.py:147 _prepare_run_state" has a rank of C

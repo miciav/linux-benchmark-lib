@@ -1,5 +1,5 @@
-20	F401	[*] unused-import
+23	F401	[*] unused-import
  9	F811	[-] redefined-while-unused
  1	F541	[*] f-string-missing-placeholders
-Found 30 errors.
-[*] 22 fixable with the `--fix` option.
+Found 33 errors.
+[*] 25 fixable with the `--fix` option.

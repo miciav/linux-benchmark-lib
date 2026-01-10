@@ -51,7 +51,8 @@ def test_system_info_write_failure_is_ignored(mocker, tmp_path):
     )
     registry = MagicMock()
     registry.create_collectors.return_value = []
-    mocker.patch("lb_runner.engine.runner.system_info.collect_system_info").return_value = MagicMock(to_dict=lambda: {})
+    # Patch where MetricManager imports system_info
+    mocker.patch("lb_runner.engine.metrics.system_info.collect_system_info").return_value = MagicMock(to_dict=lambda: {})
     mocker.patch("lb_runner.services.runner_output_manager.write_system_info_artifacts", side_effect=RuntimeError("fail"))
     registry.create_generator.return_value = MagicMock(_is_running=False, stop=lambda: None, get_result=lambda: {})
 

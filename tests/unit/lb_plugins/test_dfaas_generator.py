@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 import time
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -331,3 +333,23 @@ def test_get_function_replicas_parses_replicas_column(
 
     assert replicas["figlet"] == 3
     assert replicas["eat-memory"] == 1
+
+
+def test_validate_environment_requires_faas_cli_only(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    key_path = tmp_path / "id_rsa"
+    key_path.write_text("dummy")
+    cfg = DfaasConfig(k6_ssh_key=str(key_path))
+    generator = DfaasGenerator(cfg)
+
+    def fake_run(cmd, **_kwargs):
+        if cmd[:2] == ["which", "faas-cli"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(
+        "lb_plugins.plugins.dfaas.generator.subprocess.run", fake_run
+    )
+
+    assert generator._validate_environment() is True

@@ -1,7 +1,7 @@
+lb_app/services/run_output.py:7:20: F401 [*] `typing.Any` imported but unused
 lb_common/logs/core.py:9:20: F401 [*] `typing.Optional` imported but unused
 lb_plugins/plugins/dfaas/services/k6_runner.py:137:17: F541 [*] f-string without any placeholders
 lb_plugins/plugins/geekbench/plugin.py:21:8: F811 [*] Redefinition of unused `tempfile` from line 15: `tempfile` redefined here
-lb_runner/engine/runner.py:24:47: F401 [*] `lb_runner.models.events.StdoutEmitter` imported but unused
 lb_runner/services/async_localrunner.py:12:20: F401 [*] `typing.Any` imported but unused
 lb_runner/services/async_localrunner.py:22:5: F401 [*] `lb_runner.api.RunEvent` imported but unused
 lb_runner/services/async_localrunner.py:24:5: F401 [*] `lb_runner.api.StdoutEmitter` imported but unused
