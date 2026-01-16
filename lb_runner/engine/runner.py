@@ -11,32 +11,24 @@ import os
 import logging
 import platform
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
 from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
 from lb_runner.models.events import RunEvent
-from lb_runner.services.log_handler import LBEventLogHandler
 from lb_runner.services.runner_log_manager import RunnerLogManager
 from lb_runner.services.runner_output_manager import RunnerOutputManager
 from lb_plugins.api import BaseGenerator, PluginRegistry, WorkloadPlugin
 from lb_runner.metric_collectors.builtin import builtin_collectors
 from lb_runner.metric_collectors.registry import CollectorRegistry
 from lb_runner.registry import RunnerRegistry
-from lb_runner.engine.execution import (
-    StopRequested,
-    generator_running,
-    pre_test_cleanup,
-    prepare_generator,
-    resolve_duration,
-    wait_for_generator,
-)
+from lb_runner.engine.execution import StopRequested
+from lb_runner.engine.executor import RepetitionExecutor
+from lb_runner.engine.context import RunnerContext
 from lb_runner.engine.progress import RunProgressEmitter
 from lb_runner.engine.planning import RunPlanner
 from lb_runner.engine.run_scope import RunScopeManager
 from lb_runner.services.result_persister import ResultPersister
-from lb_runner.services.results import build_rep_result
 from lb_runner.engine.stop_token import StopToken
 from lb_runner.engine.metrics import MetricManager
 logger = logging.getLogger(__name__)
@@ -125,178 +117,6 @@ class LocalRunner:
         """
         return self._output_manager.workload_output_dir(workload)
 
-    def _run_single_test(
-        self,
-        test_name: str,
-        generator: Any,
-        repetition: int,
-        total_repetitions: int,
-        stop_token: StopToken | None = None,
-    ) -> Dict[str, Any]:
-        """
-        Run a single test with the specified generator.
-        
-        Args:
-            test_name: Name of the test
-            generator: Workload generator instance
-            repetition: Repetition number
-            
-        Returns:
-            Dictionary containing test results
-        """
-        logger.info(f"Running test '{test_name}' - Repetition {repetition}")
-        workload_dir, rep_dir = self._prepare_workload_dirs(test_name, repetition)
-        collectors = self._metric_manager.create_collectors(self.config)
-        duration = self._resolve_duration(generator)
-        log_handler = self._metric_manager.attach_event_logger(
-            test_name, repetition, total_repetitions, self._current_run_id
-        )
-
-        test_start_time, test_end_time = self._execute_generator(
-            generator,
-            collectors,
-            duration,
-            test_name,
-            repetition,
-            stop_token=stop_token,
-        )
-
-        if log_handler:
-            self._metric_manager.detach_event_logger(log_handler)
-
-        result = self._finalize_single_test(
-            generator,
-            collectors,
-            workload_dir,
-            rep_dir,
-            test_name,
-            repetition,
-            total_repetitions,
-            test_start_time,
-            test_end_time,
-        )
-
-        return result
-
-    def _prepare_workload_dirs(self, test_name: str, repetition: int) -> tuple[Path, Path]:
-        workload_dir = self._workload_output_dir(test_name)
-        rep_dir = workload_dir / f"rep{repetition}"
-        rep_dir.mkdir(parents=True, exist_ok=True)
-        return workload_dir, rep_dir
-
-    def _resolve_duration(self, generator: Any) -> int:
-        return resolve_duration(self.config, generator, logger)
-
-    def _execute_generator(
-        self,
-        generator: Any,
-        collectors: list[Any],
-        duration: int,
-        test_name: str,
-        repetition: int,
-        stop_token: StopToken | None = None,
-    ) -> tuple[datetime | None, datetime | None]:
-        self._set_log_phase(
-            "setup",
-            workload=test_name,
-            repetition=repetition,
-        )
-        self._pre_test_cleanup()
-        if stop_token and stop_token.should_stop():
-            raise StopRequested("Stopped by user")
-
-        self._prepare_generator(generator)
-        self._metric_manager.start_collectors(collectors)
-
-        test_start_time = datetime.now()
-        generator.start()
-        self._set_log_phase(
-            None,
-            workload=test_name,
-            repetition=repetition,
-        )
-        logger.info("Running test for %s seconds", duration)
-
-        test_end_time = self._wait_for_generator(
-            generator, duration, test_name, repetition, stop_token
-        )
-        self._set_log_phase(
-            "teardown",
-            workload=test_name,
-            repetition=repetition,
-        )
-        self._cleanup_after_run(generator, collectors)
-        self._set_log_phase(
-            None,
-            workload=test_name,
-            repetition=repetition,
-        )
-        return test_start_time, test_end_time
-
-    def _prepare_generator(self, generator: Any) -> None:
-        prepare_generator(generator, self.config.warmup_seconds, logger)
-
-    def _wait_for_generator(
-        self,
-        generator: Any,
-        duration: int,
-        test_name: str,
-        repetition: int,
-        stop_token: StopToken | None,
-    ) -> datetime:
-        return wait_for_generator(
-            generator,
-            duration,
-            test_name,
-            repetition,
-            stop_token,
-            logger,
-        )
-
-    def _cleanup_after_run(
-        self, generator: Any, collectors: list[Any], generator_started: bool = True
-    ) -> None:
-        if generator_started and hasattr(generator, "stop"):
-            try:
-                if generator_running(generator):
-                    logger.info("Stopping generator due to error or interruption...")
-                generator.stop()
-            except Exception as exc:
-                logger.error("Failed to stop generator during cleanup: %s", exc)
-        self._metric_manager.stop_collectors(collectors)
-
-    def _finalize_single_test(
-        self,
-        generator: Any,
-        collectors: list[Any],
-        workload_dir: Path,
-        rep_dir: Path,
-        test_name: str,
-        repetition: int,
-        total_repetitions: int,
-        test_start_time: datetime | None,
-        test_end_time: datetime | None,
-    ) -> Dict[str, Any]:
-        result = build_rep_result(
-            test_name=test_name,
-            repetition=repetition,
-            rep_dir=rep_dir,
-            generator_result=generator.get_result(),
-            test_start_time=test_start_time,
-            test_end_time=test_end_time,
-        )
-        duration_seconds = result.get("duration_seconds", 0) or 0
-        if duration_seconds:
-            logger.info("Repetition %s completed in %.2fs", repetition, duration_seconds)
-        self._metric_manager.collect_metrics(
-            collectors, workload_dir, rep_dir, test_name, repetition, result
-        )
-        self._output_manager.persist_rep_result(rep_dir, result)
-        return result
-    
-    def _pre_test_cleanup(self) -> None:
-        pre_test_cleanup(logger)
-    
     def run_benchmark(
         self,
         test_type: str,
@@ -397,19 +217,32 @@ class LocalRunner:
 
         logger.info("Starting repetition %s/%s", repetition, total_reps)
         config_input = self._planner.resolve_config_input(workload_cfg, plugin)
+        
+        context = RunnerContext(
+            run_id=self._current_run_id,
+            config=self.config,
+            output_manager=self._output_manager,
+            log_manager=self._log_manager,
+            metric_manager=self._metric_manager,
+            stop_token=self._stop_token,
+            host_name=self._host_name,
+        )
+
+        executor = RepetitionExecutor(context)
 
         try:
             generator = self.plugin_registry.create_generator(
                 workload_cfg.plugin, config_input
             )
             self._emit_progress(test_type, repetition, total_reps, "running")
-            result = self._run_single_test(
+            
+            result = executor.execute(
                 test_name=test_type,
                 generator=generator,
                 repetition=repetition,
                 total_repetitions=total_reps,
-                stop_token=self._stop_token,
             )
+            
             if isinstance(generator, BaseGenerator):
                 self._cleanup_generator(generator, test_type, repetition)
             self._process_results(test_type, [result], plugin=plugin)
