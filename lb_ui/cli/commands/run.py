@@ -61,8 +61,7 @@ def register_run_command(
         resume: Optional[str] = typer.Option(
             None,
             "--resume",
-            help="Resume a previous run; omit value to resume the latest.",
-            flag_value="latest",
+            help="Resume a previous run (provide run ID or 'latest').",
         ),
         remote: Optional[bool] = typer.Option(
             None,

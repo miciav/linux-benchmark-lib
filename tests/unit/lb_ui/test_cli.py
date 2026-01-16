@@ -1236,7 +1236,7 @@ def test_run_command_saves_ui_stream_log(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
     ui_stream_log_path = run_dir / "ui_stream.log"
     assert ui_stream_log_path.is_file()
-    output = re.sub(r"\x1b\\[[0-9;]*m", "", result.output)
+    output = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
     assert str(ui_stream_log_path) in output.replace("\n", "")
 
     content = ui_stream_log_path.read_text()

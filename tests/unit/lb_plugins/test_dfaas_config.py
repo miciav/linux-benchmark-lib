@@ -24,7 +24,8 @@ def test_config_path_load_with_overrides(tmp_path: Path) -> None:
                 "        body: \"Hello DFaaS!\"",
                 "        headers:",
                 "          Content-Type: \"text/plain\"",
-                "    rates:",
+                "    rate_strategy:",
+                "      type: \"linear\"",
                 "      min_rate: 0",
                 "      max_rate: 20",
                 "      step: 10",
@@ -35,17 +36,17 @@ def test_config_path_load_with_overrides(tmp_path: Path) -> None:
         )
     )
 
-    config = DfaasConfig(config_path=config_path, rates={"max_rate": 50})
+    config = DfaasConfig(config_path=config_path, rate_strategy={"type": "linear", "max_rate": 50})
 
     assert config.timeout_buffer == 5
     assert config.k6_host == "10.0.0.50"
-    assert config.rates.min_rate == 0
-    assert config.rates.max_rate == 50
+    assert config.rate_strategy.min_rate == 0
+    assert config.rate_strategy.max_rate == 50
 
 
 def test_invalid_rate_bounds_rejected() -> None:
     with pytest.raises(ValidationError):
-        DfaasConfig(rates={"min_rate": 20, "max_rate": 10, "step": 10})
+        DfaasConfig(rate_strategy={"type": "linear", "min_rate": 20, "max_rate": 10, "step": 10})
 
 
 def test_invalid_duration_rejected() -> None:

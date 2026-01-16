@@ -23,7 +23,7 @@ from lb_plugins.plugins.dfaas.config import (
     DfaasCombinationConfig,
     DfaasConfig,
     DfaasFunctionConfig,
-    DfaasRatesConfig,
+    LinearRateStrategy,
 )
 
 pytestmark = [pytest.mark.unit_plugins]
@@ -59,7 +59,7 @@ def test_plan_builder_generates_deterministic_configs() -> None:
             DfaasFunctionConfig(name="b", method="GET", body=""),
             DfaasFunctionConfig(name="a", method="GET", body=""),
         ],
-        rates=DfaasRatesConfig(min_rate=0, max_rate=10, step=10),
+        rate_strategy=LinearRateStrategy(min_rate=0, max_rate=10, step=10),
         combinations=DfaasCombinationConfig(min_functions=1, max_functions=2),
     )
     builder = DfaasPlanBuilder(config)
