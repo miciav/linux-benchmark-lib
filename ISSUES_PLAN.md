@@ -96,3 +96,67 @@ The `ControllerContext` in `lb_controller` is a God Object holding both the muta
 **Acceptance Criteria:**
 *   `ControllerContext` is deprecated or significantly reduced in scope.
 *   The `run()` method in `BenchmarkController` explicitly creates a fresh state object for the run.
+
+---
+
+## Issue 5: Extract `ControllerServices` container
+
+**Title:** Refactor: Extract `ControllerServices` container
+
+**Priority:** Medium
+**Component:** lb_controller
+
+**Description:**
+The `ControllerContext` currently acts as a catch-all for both services and state. We need to separate the stateless infrastructure dependencies into a dedicated container.
+
+**Tasks:**
+1.  Create a `ControllerServices` class in `lb_controller/services/services.py`.
+2.  Move `BenchmarkConfig`, `RemoteExecutor`, `UINotifier` (or OutputFormatter), and `StopToken` fields from `ControllerContext` to `ControllerServices`.
+3.  Ensure `ControllerServices` is immutable after initialization (or effectively so).
+
+**Acceptance Criteria:**
+*   `ControllerServices` exists and holds the specified dependencies.
+*   Unit tests verify correct initialization.
+
+---
+
+## Issue 6: Refactor `RunState` into `RunSession`
+
+**Title:** Refactor: Enhance `RunState` into `RunSession`
+
+**Priority:** Medium
+**Component:** lb_controller
+
+**Description:**
+We need to encapsulate the mutable state of a specific run (which includes the state machine and stop coordinator) separate from the static services.
+
+**Tasks:**
+1.  Rename or wrap `RunState` into a new class `RunSession` in `lb_controller/engine/session.py`.
+2.  Move `ControllerStateMachine` and `StopCoordinator` ownership from `ControllerContext` to `RunSession`.
+3.  Implement methods on `RunSession` to handle state transitions (moving logic like `_transition` and `_arm_stop` out of `ControllerContext`).
+
+**Acceptance Criteria:**
+*   `RunSession` encapsulates all dynamic state for a single run.
+*   State transitions are managed via methods on `RunSession`.
+
+---
+
+## Issue 7: Refactor `BenchmarkController` to use Services and Session
+
+**Title:** Refactor: Update `BenchmarkController` to use Services and Session
+
+**Priority:** Medium
+**Component:** lb_controller
+
+**Description:**
+Update the main controller class to utilize the new decoupled components instead of the monolithic `ControllerContext`.
+
+**Tasks:**
+1.  Update `BenchmarkController.__init__` to initialize `ControllerServices`.
+2.  Update `BenchmarkController.run` to create a new `RunSession` for each execution.
+3.  Refactor helper functions (like `run_global_setup` and `workload_runner`) to accept `ControllerServices` and `RunSession` instead of `ControllerContext`.
+4.  Deprecate or remove the old `ControllerContext`.
+
+**Acceptance Criteria:**
+*   `BenchmarkController` instantiates services once and session per run.
+*   The code no longer relies on the monolithic `ControllerContext` for passing dependencies.

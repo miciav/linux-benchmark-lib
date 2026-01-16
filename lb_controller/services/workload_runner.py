@@ -14,8 +14,7 @@ from lb_controller.models.pending import pending_hosts_for, pending_repetitions
 from lb_controller.models.types import ExecutionResult
 from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import BenchmarkConfig
-
-from lb_controller.services.controller_context import ControllerContext
+from lb_controller.engine.controller_protocols import ControllerProtocol
 from lb_controller.services.ui_notifier import UINotifier
 
 
@@ -25,36 +24,36 @@ class WorkloadRunner:
     def __init__(
         self,
         config: BenchmarkConfig,
-        context: ControllerContext,
         ui_notifier: UINotifier,
     ) -> None:
         self._config = config
-        self._context = context
         self._ui = ui_notifier
 
     def run_workloads(
         self,
+        adapter: ControllerProtocol,
         state: RunState,
         phases: Dict[str, ExecutionResult],
         flags: RunFlags,
         resume_requested: bool,
         ui_log: Callable[[str], None],
     ) -> RunFlags:
-        self._context.lifecycle.start_phase(RunPhase.WORKLOADS)
+        adapter.lifecycle.start_phase(RunPhase.WORKLOADS)
         for test_name in state.test_types:
-            if self._context._stop_requested():
-                flags = self._context._handle_stop_during_workloads(
+            if adapter._stop_requested():
+                flags = adapter._handle_stop_during_workloads(
                     state.inventory, state.extravars, flags, ui_log
                 )
                 break
             if not self._process_single_workload(
-                test_name, state, phases, flags, resume_requested, ui_log
+                adapter, test_name, state, phases, flags, resume_requested, ui_log
             ):
                 break
         return flags
 
     def _process_single_workload(
         self,
+        adapter: ControllerProtocol,
         test_name: str,
         state: RunState,
         phases: Dict[str, ExecutionResult],
@@ -80,8 +79,8 @@ class WorkloadRunner:
 
         plugin_assets = self._get_plugin_assets(workload_cfg.plugin, test_name, ui_log)
 
-        if self._context.stop_token and self._context.stop_token.should_stop():
-            self._context._handle_stop_during_workloads(
+        if adapter.stop_token and adapter.stop_token.should_stop():
+            adapter._handle_stop_during_workloads(
                 state.inventory, state.extravars, flags, ui_log
             )
             return False
@@ -95,7 +94,7 @@ class WorkloadRunner:
         )
 
         run_workload_setup(
-            self._context,
+            adapter,
             test_name,
             plugin_assets,
             workload_cfg.plugin,
@@ -108,14 +107,14 @@ class WorkloadRunner:
         )
         if not pending_reps:
             return True
-        if self._context._stop_requested():
-            self._context._handle_stop_during_workloads(
+        if adapter._stop_requested():
+            adapter._handle_stop_during_workloads(
                 state.inventory, state.extravars, flags, ui_log
             )
             return False
 
         run_workload_execution(
-            self._context,
+            adapter,
             test_name,
             plugin_assets,
             workload_cfg.plugin,
@@ -127,8 +126,8 @@ class WorkloadRunner:
             ui_log,
         )
 
-        if self._context._stop_requested():
-            self._context._handle_stop_during_workloads(
+        if adapter._stop_requested():
+            adapter._handle_stop_during_workloads(
                 state.inventory, state.extravars, flags, ui_log
             )
             return False

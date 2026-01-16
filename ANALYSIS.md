@@ -9,6 +9,32 @@ The `LocalRunner` class (`lb_runner/engine/runner.py`) and `BenchmarkController`
 *   **ControllerContext:** Acts as a container for almost every service and state object required by the controller, making it a heavy dependency that is difficult to mock and test in isolation.
 *   **Recommendation:** Refactor `LocalRunner` to delegate the execution of a single test or repetition to a dedicated `TestExecutor` class. Break down `ControllerContext` into smaller, purpose-specific context objects (e.g., `ExecutionContext`, `UIContext`).
 
+### 1.1 Expansion: Decomposing `BenchmarkController` & `ControllerContext`
+
+Currently, `ControllerContext` (`lb_controller/services/controller_context.py`) acts as a "God Object" for the remote orchestration layer. It tightly couples:
+1.  **Services (Stateless):** `RemoteExecutor`, `OutputFormatter` (or UI Notifier), `RunLifecycle`.
+2.  **State (Stateful):** `ControllerStateMachine`, `StopCoordinator`, `StopToken` (runtime state).
+3.  **Logic:** Protocol implementation for stop handling and playbook execution helpers.
+
+This coupling makes it difficult to test components in isolation. For example, testing the stop logic requires mocking the entire executor and lifecycle.
+
+**Proposed Architecture:**
+Separate the concerns into two distinct lifecycles:
+
+1.  **`ControllerServices` (Application Scope):**
+    *   Holds stateless services initialized once per application start.
+    *   Components: `BenchmarkConfig`, `RemoteExecutor`, `UINotifier` (or OutputFormatter), `StopToken` (global signal).
+
+2.  **`RunSession` (Run Scope):**
+    *   Holds mutable state initialized once per `run()` invocation.
+    *   Components: `RunState` (static paths/ids), `ControllerStateMachine` (dynamic state), `StopCoordinator` (process synchronization).
+
+**Refactoring Steps:**
+1.  Extract `ControllerServices` to hold infrastructure dependencies.
+2.  Enhance `RunState` into `RunSession` (or wrap it) to encapsulate dynamic run progress.
+3.  Refactor `BenchmarkController` to initialize `Services` in `__init__` and `Session` in `run()`.
+4.  Update adapters (`run_global_setup`, `workload_runner`) to accept these specific objects instead of the monolithic `ControllerContext`.
+
 ## 2. Configuration Model Coupling (Medium Importance)
 The `BenchmarkConfig` model (`lb_runner/models/config.py`) is a monolithic structure that mixes concerns from different layers of the application.
 
