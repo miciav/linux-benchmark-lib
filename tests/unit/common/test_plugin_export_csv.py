@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -27,7 +27,8 @@ class DummyPlugin(WorkloadPlugin):
         return "dummy plugin"
 
     @property
-    def config_cls(self):
+    def config_cls(
+    ):
         @dataclass
         class _Cfg:
             pass
@@ -75,11 +76,10 @@ def test_plugin_export_hook_writes_csv(monkeypatch, tmp_path):
     registry = DummyRegistry(plugin)
     runner = LocalRunner(cfg, registry=registry)
 
-    # Avoid running the full pipeline; return a canned result.
-    monkeypatch.setattr(
-        runner,
-        "_run_single_test",
-        lambda **kwargs: {
+    # Mock RepetitionExecutor instead of _run_single_test
+    with patch("lb_runner.engine.runner.RepetitionExecutor") as MockExecutor:
+        instance = MockExecutor.return_value
+        instance.execute.return_value = {
             "test_name": "dummy",
             "repetition": 1,
             "start_time": None,
@@ -88,10 +88,9 @@ def test_plugin_export_hook_writes_csv(monkeypatch, tmp_path):
             "generator_result": {"returncode": 0},
             "metrics": {},
             "success": True,
-        },
-    )
+        }
 
-    runner.run_benchmark("dummy", run_id="run-1")
+        runner.run_benchmark("dummy", run_id="run-1")
 
     output_dir = cfg.output_dir / "run-1" / "dummy"
     csv_path = output_dir / "dummy_plugin.csv"

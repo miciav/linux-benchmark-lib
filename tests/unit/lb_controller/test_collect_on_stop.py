@@ -26,15 +26,19 @@ def test_collect_runs_even_when_stop_requested(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(playbooks, "execute_run_playbook", fake_execute)
     monkeypatch.setattr(playbooks, "handle_collect_phase", fake_collect)
     monkeypatch.setattr(playbooks, "run_teardown_playbook", fake_teardown)
+    monkeypatch.setattr(playbooks, "handle_stop_during_workloads", lambda *_a, **_k: None)
 
     stop_token = SimpleNamespace(should_stop=lambda: True)
-    controller = SimpleNamespace(
+    services = SimpleNamespace(
         stop_token=stop_token,
-        _handle_stop_during_workloads=lambda *_a, **_k: None,
+        config=SimpleNamespace(workloads={"stress_ng": SimpleNamespace(plugin="stress_ng")}),
+        lifecycle=SimpleNamespace(start_phase=lambda p: None)
     )
+    session = SimpleNamespace(transition=lambda s, r=None: None, arm_stop=lambda r: None)
 
     playbooks.run_workload_execution(
-        controller,
+        services,
+        session,
         test_name="stress_ng",
         plugin_assets=None,
         plugin_name="stress_ng",
@@ -64,11 +68,13 @@ def test_collect_runs_when_run_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(playbooks, "run_teardown_playbook", lambda *_a, **_k: None)
 
     stop_token = SimpleNamespace(should_stop=lambda: False)
-    controller = SimpleNamespace(stop_token=stop_token)
+    services = SimpleNamespace(stop_token=stop_token)
+    session = SimpleNamespace()
 
     with pytest.raises(RuntimeError):
         playbooks.run_workload_execution(
-            controller,
+            services,
+            session,
             test_name="stress_ng",
             plugin_assets=None,
             plugin_name="stress_ng",

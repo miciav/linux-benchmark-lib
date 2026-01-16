@@ -1,7 +1,7 @@
 """Unit tests for runner progress events."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -28,20 +28,24 @@ def test_run_single_repetition_emits_done() -> None:
     runner._planner = MagicMock()
     runner._planner.resolve_config_input.return_value = {}
     runner._set_log_phase = MagicMock()
-    runner._run_single_test = MagicMock(return_value={"success": True})
     runner._cleanup_generator = MagicMock()
     runner._process_results = MagicMock()
     runner._emit_progress = MagicMock()
 
     workload_cfg = WorkloadConfig(plugin="stress_ng")
 
-    result = runner._run_single_repetition(
-        "dummy",
-        workload_cfg,
-        MagicMock(),
-        repetition=1,
-        total_reps=1,
-    )
+    # Mock RepetitionExecutor.execute
+    with patch("lb_runner.engine.runner.RepetitionExecutor") as MockExecutor:
+        executor_instance = MockExecutor.return_value
+        executor_instance.execute.return_value = {"success": True}
+
+        result = runner._run_single_repetition(
+            "dummy",
+            workload_cfg,
+            MagicMock(),
+            repetition=1,
+            total_reps=1,
+        )
 
     assert result is True
     runner._emit_progress.assert_any_call("dummy", 1, 1, "running")
@@ -53,20 +57,24 @@ def test_run_single_repetition_emits_failed() -> None:
     runner._planner = MagicMock()
     runner._planner.resolve_config_input.return_value = {}
     runner._set_log_phase = MagicMock()
-    runner._run_single_test = MagicMock(return_value={"success": False})
     runner._cleanup_generator = MagicMock()
     runner._process_results = MagicMock()
     runner._emit_progress = MagicMock()
 
     workload_cfg = WorkloadConfig(plugin="stress_ng")
 
-    result = runner._run_single_repetition(
-        "dummy",
-        workload_cfg,
-        MagicMock(),
-        repetition=1,
-        total_reps=1,
-    )
+    # Mock RepetitionExecutor.execute
+    with patch("lb_runner.engine.runner.RepetitionExecutor") as MockExecutor:
+        executor_instance = MockExecutor.return_value
+        executor_instance.execute.return_value = {"success": False}
+
+        result = runner._run_single_repetition(
+            "dummy",
+            workload_cfg,
+            MagicMock(),
+            repetition=1,
+            total_reps=1,
+        )
 
     assert result is False
     runner._emit_progress.assert_any_call("dummy", 1, 1, "running")
