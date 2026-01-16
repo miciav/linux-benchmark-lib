@@ -14,7 +14,9 @@ from lb_controller.models.pending import pending_hosts_for, pending_repetitions
 from lb_controller.models.types import ExecutionResult
 from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import BenchmarkConfig
-from lb_controller.engine.controller_protocols import ControllerProtocol
+from lb_controller.services.services import ControllerServices
+from lb_controller.engine.session import RunSession
+from lb_controller.engine.stop_logic import handle_stop_during_workloads
 from lb_controller.services.ui_notifier import UINotifier
 
 
@@ -31,29 +33,31 @@ class WorkloadRunner:
 
     def run_workloads(
         self,
-        adapter: ControllerProtocol,
+        services: ControllerServices,
+        session: RunSession,
         state: RunState,
         phases: Dict[str, ExecutionResult],
         flags: RunFlags,
         resume_requested: bool,
         ui_log: Callable[[str], None],
     ) -> RunFlags:
-        adapter.lifecycle.start_phase(RunPhase.WORKLOADS)
+        services.lifecycle.start_phase(RunPhase.WORKLOADS)
         for test_name in state.test_types:
-            if adapter._stop_requested():
-                flags = adapter._handle_stop_during_workloads(
-                    state.inventory, state.extravars, flags, ui_log
+            if self._stop_requested(services, session):
+                flags = handle_stop_during_workloads(
+                    services, session, state.inventory, state.extravars, flags, ui_log
                 )
                 break
             if not self._process_single_workload(
-                adapter, test_name, state, phases, flags, resume_requested, ui_log
+                services, session, test_name, state, phases, flags, resume_requested, ui_log
             ):
                 break
         return flags
 
     def _process_single_workload(
         self,
-        adapter: ControllerProtocol,
+        services: ControllerServices,
+        session: RunSession,
         test_name: str,
         state: RunState,
         phases: Dict[str, ExecutionResult],
@@ -79,9 +83,9 @@ class WorkloadRunner:
 
         plugin_assets = self._get_plugin_assets(workload_cfg.plugin, test_name, ui_log)
 
-        if adapter.stop_token and adapter.stop_token.should_stop():
-            adapter._handle_stop_during_workloads(
-                state.inventory, state.extravars, flags, ui_log
+        if services.stop_token and services.stop_token.should_stop():
+            handle_stop_during_workloads(
+                services, session, state.inventory, state.extravars, flags, ui_log
             )
             return False
 
@@ -94,7 +98,8 @@ class WorkloadRunner:
         )
 
         run_workload_setup(
-            adapter,
+            services,
+            session,
             test_name,
             plugin_assets,
             workload_cfg.plugin,
@@ -107,14 +112,15 @@ class WorkloadRunner:
         )
         if not pending_reps:
             return True
-        if adapter._stop_requested():
-            adapter._handle_stop_during_workloads(
-                state.inventory, state.extravars, flags, ui_log
+        if self._stop_requested(services, session):
+            handle_stop_during_workloads(
+                services, session, state.inventory, state.extravars, flags, ui_log
             )
             return False
 
         run_workload_execution(
-            adapter,
+            services,
+            session,
             test_name,
             plugin_assets,
             workload_cfg.plugin,
@@ -126,9 +132,9 @@ class WorkloadRunner:
             ui_log,
         )
 
-        if adapter._stop_requested():
-            adapter._handle_stop_during_workloads(
-                state.inventory, state.extravars, flags, ui_log
+        if self._stop_requested(services, session):
+            handle_stop_during_workloads(
+                services, session, state.inventory, state.extravars, flags, ui_log
             )
             return False
         return True
@@ -145,3 +151,9 @@ class WorkloadRunner:
                 f"No plugin assets found for {test_name} ({plugin_name}); skipping setup/teardown."
             )
         return assets
+    
+    def _stop_requested(self, services: ControllerServices, session: RunSession) -> bool:
+        if services.stop_token and services.stop_token.should_stop():
+            session.arm_stop("stop requested")
+            return True
+        return False

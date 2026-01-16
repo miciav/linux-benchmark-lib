@@ -15,7 +15,7 @@ from lb_runner.api import BenchmarkConfig, RunEvent
 
 from lb_controller.models.state import ControllerState, ControllerStateMachine
 from lb_controller.services.journal import RunJournal
-from lb_controller.adapters.playbooks import run_global_setup
+from lb_controller.adapters.playbooks import run_global_setup, build_summary
 from lb_controller.engine.run_state import RunFlags, RunState
 from lb_controller.engine.run_state_builders import (
     ExtravarsBuilder,
@@ -29,7 +29,6 @@ from lb_controller.models.types import ExecutionResult, InventorySpec, RunExecut
 from lb_controller.models.controller_options import ControllerOptions
 from lb_controller.services.services import ControllerServices
 from lb_controller.engine.session import RunSession
-from lb_controller.engine.adapter import ControllerAdapter
 from lb_controller.services.teardown_service import TeardownService
 from lb_controller.services.ui_notifier import UINotifier
 from lb_controller.services.workload_runner import WorkloadRunner
@@ -122,7 +121,6 @@ class BenchmarkController:
         
         session = self._prepare_session(test_types, run_id, journal, journal_path)
         self._current_session = session
-        adapter = ControllerAdapter(self.services, session)
 
         def ui_log(msg: str) -> None:
             self._ui.log(msg)
@@ -130,26 +128,31 @@ class BenchmarkController:
         ui_log(f"Starting Run {session.run_id}")
 
         if self.config.remote_execution.run_setup:
-            early_summary = run_global_setup(adapter, session.state, phases, flags, ui_log)
+            early_summary = run_global_setup(self.services, session, phases, flags, ui_log)
             if early_summary:
                 return early_summary
 
+        # Transition to RUNNING_WORKLOADS if not stopped
+        stop_requested = self.services.stop_token and self.services.stop_token.should_stop()
+        if stop_requested:
+             session.arm_stop("stop requested")
+
         if (
-            not adapter._stop_requested()
+            not stop_requested
             and self.state_machine.state != ControllerState.RUNNING_WORKLOADS
         ):
-            adapter._transition(ControllerState.RUNNING_WORKLOADS)
+            session.transition(ControllerState.RUNNING_WORKLOADS)
 
         flags = self.workload_runner.run_workloads(
-            adapter, session.state, phases, flags, self._resume_requested, ui_log
+            self.services, session, session.state, phases, flags, self._resume_requested, ui_log
         )
-        self.teardown_service.run_global_teardown(adapter, session.state, phases, flags, ui_log)
+        self.teardown_service.run_global_teardown(self.services, session, session.state, phases, flags, ui_log)
 
         ui_log("Run Finished.")
         time.sleep(1)
 
         self.lifecycle.finish()
-        return adapter._build_summary(session.state, phases, flags)
+        return build_summary(self.services, session, phases, flags)
 
     def _prepare_session(
         self,
@@ -226,7 +229,6 @@ class BenchmarkController:
         return RunSession(state, coordinator, self.state_machine)
 
     def _collector_apt_packages(self) -> set[str]:
-        # Moved logic from ControllerContext
         packages: set[str] = set()
         if self.config.collectors.cli_commands:
             packages.update({"sysstat", "procps"})
