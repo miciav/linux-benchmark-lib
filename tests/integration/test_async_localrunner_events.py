@@ -29,12 +29,13 @@ def test_async_localrunner_emits_events_to_stream_file(tmp_path: Path) -> None:
         "workloads": {
             "baseline": {
                 "plugin": "baseline",
-                "options": {"duration_seconds": 2},
+                "options": {"duration": 2},
             }
         },
         "collectors": {
             "psutil_interval": 1.0,
             "enable_ebpf": False,
+            "cli_commands": [],
         },
     }
 
@@ -121,12 +122,13 @@ def test_async_localrunner_daemonized_emits_events(tmp_path: Path) -> None:
         "workloads": {
             "baseline": {
                 "plugin": "baseline",
-                "options": {"duration_seconds": 2},
+                "options": {"duration": 2},
             }
         },
         "collectors": {
             "psutil_interval": 1.0,
             "enable_ebpf": False,
+            "cli_commands": [],
         },
     }
 
@@ -335,6 +337,7 @@ def test_async_localrunner_merges_plugin_settings_into_workload_options(
         "collectors": {
             "psutil_interval": 1.0,
             "enable_ebpf": False,
+            "cli_commands": [],
         },
     }
 

@@ -20,7 +20,7 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     Simulates the workload generator and collectors.
     """
     # --- Setup Mocks ---
-    mock_cleanup = mocker.patch('lb_runner.api.LocalRunner._pre_test_cleanup')
+    mock_cleanup = mocker.patch("lb_runner.engine.executor.pre_test_cleanup")
 
     mock_gen_instance = MagicMock()
     mock_gen_instance.get_result.return_value = {"status": "success"}
@@ -57,6 +57,9 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     )
 
     registry = MagicMock()
+    mock_plugin = MagicMock()
+    mock_plugin.export_results_to_csv.return_value = []
+    registry.get.return_value = mock_plugin
     registry.create_generator.return_value = mock_gen_instance
     registry.create_collectors.return_value = [mock_col_instance]
 
