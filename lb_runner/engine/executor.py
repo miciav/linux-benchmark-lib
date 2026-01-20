@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from lb_common.errors import WorkloadError
+from lb_runner.engine.stop_context import should_stop
 from lb_runner.engine.execution import (
     StopRequested,
     generator_running,
@@ -71,14 +73,34 @@ class RepetitionExecutor:
             )
             pre_test_cleanup(logger)
 
-            if self.context.stop_token and self.context.stop_token.should_stop():
+            if should_stop(self.context.stop_token):
                 raise StopRequested("Stopped by user")
 
-            prepare_generator(generator, self.context.config.warmup_seconds, logger)
+            try:
+                prepare_generator(generator, self.context.config.warmup_seconds, logger)
+            except Exception as exc:
+                raise WorkloadError(
+                    "Generator setup failed",
+                    context={
+                        "workload": test_name,
+                        "repetition": repetition,
+                    },
+                    cause=exc,
+                ) from exc
             self.context.metric_manager.start_collectors(collectors)
 
             test_start_time = datetime.now()
-            generator.start()
+            try:
+                generator.start()
+            except Exception as exc:
+                raise WorkloadError(
+                    "Generator start failed",
+                    context={
+                        "workload": test_name,
+                        "repetition": repetition,
+                    },
+                    cause=exc,
+                ) from exc
             
             # Phase: Running (None)
             self._set_log_phase(
@@ -86,14 +108,25 @@ class RepetitionExecutor:
             )
             logger.info("Running test for %s seconds", duration)
 
-            test_end_time = wait_for_generator(
-                generator,
-                duration,
-                test_name,
-                repetition,
-                self.context.stop_token,
-                logger,
-            )
+            try:
+                test_end_time = wait_for_generator(
+                    generator,
+                    duration,
+                    test_name,
+                    repetition,
+                    logger=logger,
+                )
+            except StopRequested:
+                raise
+            except Exception as exc:
+                raise WorkloadError(
+                    "Generator execution failed",
+                    context={
+                        "workload": test_name,
+                        "repetition": repetition,
+                    },
+                    cause=exc,
+                ) from exc
 
             self._set_log_phase(
                 "teardown", workload=test_name, repetition=repetition

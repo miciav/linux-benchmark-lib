@@ -6,6 +6,9 @@ import pytest
 from datetime import datetime
 
 from lb_runner.engine.executor import RepetitionExecutor
+
+pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
+from lb_common.errors import WorkloadError
 from lb_runner.engine.execution import StopRequested
 from lb_runner.engine.context import RunnerContext
 
@@ -84,7 +87,7 @@ def test_execute_generator_failure(executor, context):
     generator.start.side_effect = RuntimeError("Generator crashed")
     
     with patch("lb_runner.engine.executor.resolve_duration", return_value=1):
-        with pytest.raises(RuntimeError):
+        with pytest.raises(WorkloadError):
              executor.execute("test_workload", generator, 1, 3)
 
     assert context.metric_manager.stop_collectors.called

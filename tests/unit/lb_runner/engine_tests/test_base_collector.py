@@ -4,10 +4,11 @@ import time
 
 import pytest
 
+from lb_common.errors import MetricCollectionError
 from lb_runner.api import BaseCollector
 
 
-pytestmark = pytest.mark.unit_runner
+pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
 class DummyCollector(BaseCollector):
     def __init__(self, interval_seconds: float = 0.01, fail_env: bool = False, raise_on_collect: bool = False):
@@ -29,7 +30,7 @@ class DummyCollector(BaseCollector):
 
 def test_start_raises_when_env_invalid():
     c = DummyCollector(fail_env=True)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(MetricCollectionError):
         c.start()
 
 

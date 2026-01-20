@@ -1,10 +1,13 @@
+"""Unit tests for metrics collection service."""
 
 from pathlib import Path
 from unittest.mock import MagicMock
 import pytest
 from lb_runner.api import collect_metrics
 
-@pytest.mark.unit_runner
+pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
+
+
 def test_collect_metrics_saves_only_to_rep_dir(tmp_path: Path):
     """Ensure collect_metrics saves collector data only to rep_dir, not workload_dir."""
     workload_dir = tmp_path / "workload"

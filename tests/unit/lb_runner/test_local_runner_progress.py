@@ -49,7 +49,15 @@ def test_run_single_repetition_emits_done() -> None:
 
     assert result is True
     runner._emit_progress.assert_any_call("dummy", 1, 1, "running")
-    runner._emit_progress.assert_any_call("dummy", 1, 1, "done")
+    runner._emit_progress.assert_any_call(
+        "dummy",
+        1,
+        1,
+        "done",
+        message="",
+        error_type=None,
+        error_context=None,
+    )
 
 
 def test_run_single_repetition_emits_failed() -> None:
@@ -78,4 +86,12 @@ def test_run_single_repetition_emits_failed() -> None:
 
     assert result is False
     runner._emit_progress.assert_any_call("dummy", 1, 1, "running")
-    runner._emit_progress.assert_any_call("dummy", 1, 1, "failed")
+    runner._emit_progress.assert_any_call(
+        "dummy",
+        1,
+        1,
+        "failed",
+        message="",
+        error_type=None,
+        error_context=None,
+    )

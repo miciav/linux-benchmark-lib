@@ -75,6 +75,8 @@ def mirror_event_to_dashboard(
     message = f"{event.repetition}/{event.total_repetitions} {event.status}"
     if event.message:
         message = f"{message} ({event.message})"
+    if event.error_type:
+        message = f"{message} [{event.error_type}]"
     text = format_bullet_line(f"run {event.workload}", message, host_label=host_label)
     dashboard.add_log(escape(text))
     dashboard.refresh()
@@ -102,6 +104,8 @@ def event_from_payload_data(
         timestamp=time.time(),
         type=str(data.get("type", "status")),
         level=str(data.get("level", "INFO")),
+        error_type=data.get("error_type"),
+        error_context=data.get("error_context"),
     )
 
 
@@ -127,6 +131,8 @@ def make_progress_handler(
                 status=info["status"],
                 message=info.get("message") or "",
                 timestamp=time.time(),
+                error_type=info.get("error_type"),
+                error_context=info.get("error_context"),
             )
             ingest_event(event, source="stdout")
         except Exception:
@@ -203,4 +209,6 @@ def parse_progress_line(line: str, token: str) -> dict[str, Any] | None:
         "message": data.get("message"),
         "type": data.get("type", "status"),
         "level": data.get("level", "INFO"),
+        "error_type": data.get("error_type"),
+        "error_context": data.get("error_context"),
     }

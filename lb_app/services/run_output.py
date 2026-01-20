@@ -349,6 +349,8 @@ class AnsibleOutputFormatter:
         message = f"{rep}/{total} {status}"
         if data.get("message"):
             message = f"{message} ({data['message']})"
+        if data.get("error_type"):
+            message = f"{message} [{data['error_type']}]"
         phase = f"run {workload}"
         if status == "running":
             return phase, message, host or None

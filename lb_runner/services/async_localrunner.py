@@ -24,6 +24,7 @@ from lb_runner.api import (
     StdoutEmitter,
     WorkloadConfig,
 )
+from lb_runner.engine.stop_context import stop_context
 
 
 def _env(name: str) -> str:
@@ -154,12 +155,13 @@ def main() -> int:
             stop_token=stop_token,
         )
 
-        success = runner.run_benchmark(
-            workload,
-            repetition_override=repetition,
-            total_repetitions=total_reps,
-            run_id=run_id,
-        )
+        with stop_context(stop_token):
+            success = runner.run_benchmark(
+                workload,
+                repetition_override=repetition,
+                total_repetitions=total_reps,
+                run_id=run_id,
+            )
     except Exception as exc:  # noqa: BLE001
         duration = time.time() - start_ts
         payload = {

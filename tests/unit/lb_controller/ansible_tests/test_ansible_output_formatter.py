@@ -81,6 +81,8 @@ def test_progress_parse_helper_used_by_run_service():
         "message": None,
         "type": "status",
         "level": "INFO",
+        "error_type": None,
+        "error_context": None,
     }
 
 

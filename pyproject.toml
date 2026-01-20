@@ -121,6 +121,12 @@ minversion = "7.0"
 addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
 markers = [
+    # Test levels
+    "unit: all unit tests (fast, isolated)",
+    "integration: integration tests (service-level)",
+    "e2e: end-to-end tests (full stack)",
+
+    # Module-specific unit markers
     "unit_runner: tests for the lb_runner package (execution, local logic)",
     "unit_controller: tests for the lb_controller package (orchestration, state)",
     "unit_ui: tests for the User Interface (CLI commands, TUI, prompts)",
@@ -128,6 +134,9 @@ markers = [
     "unit_analytics: tests for lb_analytics (data processing, reporting)",
     "unit_plugins: unit tests specific to workload plugins",
     "unit_baseline: unit tests for the baseline workload plugin",
+    "unit_common: tests for lb_common utilities",
+
+    # Integration markers (legacy naming)
     "inter_generic: marks tests as integration tests (deselect with '-m \"not inter_generic\"')",
     "inter_docker: integration tests that build/run plugin Docker images",
     "inter_multipass: integration tests that validate plugin multipass/ansible assets",
@@ -135,6 +144,8 @@ markers = [
     "inter_e2e: full end-to-end tests (e.g., with real VMs)",
     "inter_plugins: integration tests specific to workload plugins",
     "inter_baseline: integration tests for the baseline workload plugin",
+
+    # Performance markers
     "slow: tests that require > 1 second",
     "slowest: very slow tests (minutes) such as VM provisioning",
 ]

@@ -33,11 +33,11 @@ TARGET_REQUIRED_VARS = {
 
 def _get_ansible_dir() -> Path:
     """Get the DFaaS ansible directory path."""
-    return Path(__file__).resolve().parents[3] / "lb_plugins" / "plugins" / "dfaas" / "ansible"
+    return Path(__file__).resolve().parents[4] / "lb_plugins" / "plugins" / "dfaas" / "ansible"
 
 
 def _load_playbook(name: str) -> list[dict]:
-    repo_root = Path(__file__).resolve().parents[3]
+    repo_root = Path(__file__).resolve().parents[4]
     path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / name
     data = yaml.safe_load(path.read_text())
     assert isinstance(data, list)
@@ -80,7 +80,7 @@ def test_setup_k6_playbook_imports_install_tasks() -> None:
 
 def test_install_k6_tasks_has_apt_install() -> None:
     """Verify tasks/install_k6.yml contains k6 apt installation."""
-    repo_root = Path(__file__).resolve().parents[3]
+    repo_root = Path(__file__).resolve().parents[4]
     path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "tasks" / "install_k6.yml"
     tasks = yaml.safe_load(path.read_text())
     assert isinstance(tasks, list)

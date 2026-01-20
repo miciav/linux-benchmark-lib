@@ -30,6 +30,8 @@ class TaskState:
     current_action: str = ""
     timestamp: float = field(default_factory=lambda: datetime.now().timestamp())
     error: Optional[str] = None
+    error_type: Optional[str] = None
+    error_context: Optional[Dict[str, Any]] = None
     started_at: Optional[float] = None
     finished_at: Optional[float] = None
     duration_seconds: Optional[float] = None
@@ -109,6 +111,8 @@ class RunJournal:
         status: str,
         action: str = "",
         error: Optional[str] = None,
+        error_type: Optional[str] = None,
+        error_context: Optional[Dict[str, Any]] = None,
     ) -> None:
         task = self.get_task(host, workload, rep)
         if not task:
@@ -121,6 +125,10 @@ class RunJournal:
             task.current_action = action
         if error:
             task.error = error
+        if error_type:
+            task.error_type = error_type
+        if error_context:
+            task.error_context = error_context
 
     def should_run(
         self,
@@ -259,6 +267,8 @@ class LogSink:
             mapped,
             action="run_progress",
             error=event.message if mapped == RunStatus.FAILED else None,
+            error_type=event.error_type if mapped == RunStatus.FAILED else None,
+            error_context=event.error_context if mapped == RunStatus.FAILED else None,
         )
         self.journal.save(self.journal_path)
 
@@ -279,6 +289,8 @@ class LogSink:
             line += f" level={event.level}"
         if event.message:
             line += f" msg={event.message}"
+        if event.error_type:
+            line += f" err_type={event.error_type}"
         try:
             self._log_handle.write(line + "\n")
             self._log_handle.flush()

@@ -1,5 +1,6 @@
 """Runner edge-case tests."""
 
+import json
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -101,3 +102,35 @@ def test_mock_generator_without_flag_exits_promptly(monkeypatch, tmp_path):
 
     # Without the guard, we'd accumulate ~310 sleep calls; ensure we skipped the loop.
     assert not sleep_calls
+
+
+def test_runner_records_error_type_on_failure(tmp_path):
+    cfg = BenchmarkConfig(
+        output_dir=tmp_path / "out",
+        report_dir=tmp_path / "rep",
+        data_export_dir=tmp_path / "exp",
+        workloads={"dummy": WorkloadConfig(plugin="stress_ng")},
+        warmup_seconds=0,
+        cooldown_seconds=0,
+    )
+    plugin = MagicMock()
+    plugin.name = "stress_ng"
+    plugin.export_results_to_csv.return_value = []
+    registry = MagicMock()
+    registry.get.return_value = plugin
+    registry.create_collectors.return_value = []
+
+    generator = MagicMock()
+    generator.start.side_effect = RuntimeError("boom")
+    generator.get_result.return_value = {}
+    generator._is_running = False
+    registry.create_generator.return_value = generator
+
+    runner = LocalRunner(cfg, registry=registry)
+    success = runner.run_benchmark("dummy", total_repetitions=1, run_id="run-err")
+
+    assert success is False
+    result_path = cfg.output_dir / "run-err" / "dummy" / "rep1" / "result.json"
+    payload = json.loads(result_path.read_text())
+    assert payload["error_type"] == "WorkloadError"
+    assert payload["success"] is False
