@@ -1,30 +1,22 @@
 import json
 import os
-import shutil
 import subprocess
 import time
 from pathlib import Path
 
 import pytest
 
-from tests.helpers.multipass import ensure_ansible_available, make_test_ansible_env
+from tests.helpers.multipass import (
+    ensure_ansible_available,
+    ensure_multipass_access,
+    make_test_ansible_env,
+)
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
-
-
-def _multipass_available() -> bool:
-    """Return True when the multipass CLI is present."""
-    if shutil.which("multipass") is None:
-        return False
-    return os.environ.get("LB_RUN_MULTIPASS_E2E", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }
 
 
 def _wait_for_ip(vm_name: str, attempts: int = 10, delay: int = 2) -> str:
@@ -79,8 +71,7 @@ def test_multipass_ssh_roundtrip(tmp_path: Path) -> None:
     - SSH in and run a simple command
     - Tear everything down (VM + key files)
     """
-    if not _multipass_available():
-        pytest.skip("Multipass not available on this host")
+    ensure_multipass_access()
 
     vm_name = f"lb-ssh-test-{int(time.time())}"
     key_path = tmp_path / "lb_test_key"
@@ -154,8 +145,7 @@ def test_multipass_ansible_ping(tmp_path: Path) -> None:
     """
     End-to-end smoke test: provision VM, inject key, run Ansible ping.
     """
-    if not _multipass_available():
-        pytest.skip("Multipass not available on this host")
+    ensure_multipass_access()
     ensure_ansible_available()
 
     vm_name = f"lb-ssh-test-{int(time.time())}"
@@ -238,8 +228,7 @@ def test_multipass_ansible_stress_ng(tmp_path: Path) -> None:
     """
     Run a minimal stress-ng workload via Ansible on a fresh Multipass VM.
     """
-    if not _multipass_available():
-        pytest.skip("Multipass not available on this host")
+    ensure_multipass_access()
     ensure_ansible_available()
 
     vm_name = f"lb-ssh-test-{int(time.time())}"
@@ -331,8 +320,7 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
     """
     Run the repo's setup playbook against a Multipass VM with controller-like extravars.
     """
-    if not _multipass_available():
-        pytest.skip("Multipass not available on this host")
+    ensure_multipass_access()
     ensure_ansible_available()
 
     vm_name = f"lb-ssh-test-{int(time.time())}"

@@ -25,18 +25,18 @@ def ensure_ansible_available() -> None:
         pytest.skip("ansible-playbook not available on this host")
 
 
+def _multipass_disabled() -> bool:
+    raw = os.environ.get("LB_RUN_MULTIPASS_E2E", "").strip().lower()
+    return raw in {"0", "false", "no"}
+
+
 def ensure_multipass_access() -> None:
     """Skip when multipass is not usable (socket permission, service down)."""
     import subprocess
     import pytest  # Local import to keep test-only dependency localized
 
-    run_e2e = os.environ.get("LB_RUN_MULTIPASS_E2E", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }
-    if not run_e2e:
-        pytest.skip("Multipass e2e disabled (set LB_RUN_MULTIPASS_E2E=1 to enable)")
+    if _multipass_disabled():
+        pytest.skip("Multipass e2e disabled via LB_RUN_MULTIPASS_E2E=0")
     if shutil.which("multipass") is None:
         pytest.skip("multipass not available on this host")
     try:

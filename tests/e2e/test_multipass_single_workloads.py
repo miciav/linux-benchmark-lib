@@ -96,8 +96,9 @@ def _assert_artifacts(host_output_dir: Path, workload: str, expected_reps: int) 
         missing.append(f"Plugin CSV missing/empty: {plugin_csv}")
 
     for rep in range(1, expected_reps + 1):
-        cli_csv = workload_dir / f"{workload}_rep{rep}_CLICollector.csv"
-        psutil_csv = workload_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
+        rep_dir = workload_dir / f"rep{rep}"
+        cli_csv = rep_dir / f"{workload}_rep{rep}_CLICollector.csv"
+        psutil_csv = rep_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
         for path in (cli_csv, psutil_csv):
             if not path.exists() or path.stat().st_size == 0:
                 missing.append(f"Collector CSV missing/empty: {path}")

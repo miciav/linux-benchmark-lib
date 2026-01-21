@@ -441,8 +441,9 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
                 )
                 continue
             for rep in range(1, expected_reps + 1):
-                cli_csv = workload_dir / f"{workload}_rep{rep}_CLICollector.csv"
-                psutil_csv = workload_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
+                rep_dir = workload_dir / f"rep{rep}"
+                cli_csv = rep_dir / f"{workload}_rep{rep}_CLICollector.csv"
+                psutil_csv = rep_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
                 for artifact in (cli_csv, psutil_csv):
                     if not artifact.exists() or artifact.stat().st_size == 0:
                         missing.append(f"Collector CSV missing or empty: {artifact}")
