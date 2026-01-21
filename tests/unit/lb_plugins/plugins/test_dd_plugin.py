@@ -1,3 +1,4 @@
+import csv
 import platform
 import subprocess
 import tempfile
@@ -50,3 +51,47 @@ def test_dd_popen_kwargs() -> None:
     assert kwargs["stdout"] == subprocess.DEVNULL
     assert kwargs["stderr"] == subprocess.PIPE
     assert kwargs["text"] is True
+
+
+def test_dd_export_summarizes_stderr(tmp_path: Path) -> None:
+    plugin = DDPlugin()
+    stderr = (
+        "1602224128 bytes (1.6 GB, 1.5 GiB) copied, 1 s, 1.5 GB/s\n"
+        "8589934592 bytes (8.6 GB, 8.0 GiB) copied, 5.85511 s, 1.5 GB/s\n"
+        "2048+0 records in\n"
+        "2048+0 records out\n"
+        "8589934592 bytes (8.6 GB, 8.0 GiB) copied, 5.85511 s, 1.5 GB/s\n"
+    )
+    results = [
+        {
+            "repetition": 1,
+            "duration_seconds": 6.1,
+            "success": True,
+            "generator_result": {
+                "stdout": "",
+                "stderr": stderr,
+                "returncode": 0,
+                "command": "dd if=/dev/zero of=/tmp/foo bs=4M count=2048",
+                "max_retries": 0,
+                "tags": [],
+            },
+        }
+    ]
+    paths = plugin.export_results_to_csv(
+        results=results, output_dir=tmp_path, run_id="run-1", test_name="dd"
+    )
+    assert paths
+    csv_path = paths[0]
+    assert csv_path.exists()
+
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        row = next(reader)
+
+    assert row["generator_stderr"] == (
+        "8589934592 bytes (8.6 GB, 8.0 GiB) copied, 5.85511 s, 1.5 GB/s"
+    )
+    assert int(float(row["dd_bytes"])) == 8589934592
+    assert row["dd_rate_unit"] == "GB/s"
+    assert float(row["dd_seconds"]) == pytest.approx(5.85511)
+    assert float(row["dd_bytes_per_sec"]) == pytest.approx(1467083383.9, rel=1e-6)
