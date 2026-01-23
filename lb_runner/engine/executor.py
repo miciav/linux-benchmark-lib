@@ -4,12 +4,14 @@ Executor for a single test attempt (repetition).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from lb_common.errors import WorkloadError
+from lb_common.errors import LBError, WorkloadError, error_to_payload
+from lb_plugins.api import BaseGenerator, WorkloadPlugin
 from lb_runner.engine.stop_context import should_stop
 from lb_runner.engine.execution import (
     StopRequested,
@@ -21,8 +23,21 @@ from lb_runner.engine.execution import (
 )
 from lb_runner.services.results import build_rep_result
 from lb_runner.engine.context import RunnerContext
+from lb_runner.engine.metrics import MetricSession
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class RepetitionOutcome:
+    """Outcome summary for a repetition execution attempt."""
+
+    success: bool
+    status: str
+    result: Dict[str, Any] | None
+    message: str = ""
+    error_type: str | None = None
+    error_context: dict[str, Any] | None = None
 
 
 class RepetitionExecutor:
@@ -56,13 +71,14 @@ class RepetitionExecutor:
         rep_dir = workload_dir / f"rep{repetition}"
         rep_dir.mkdir(parents=True, exist_ok=True)
 
-        collectors = self.context.metric_manager.create_collectors(self.context.config)
-        duration = resolve_duration(self.context.config, generator, logger)
-
-        # Attach event logger (MetricManager)
-        log_handler = self.context.metric_manager.attach_event_logger(
-            test_name, repetition, total_repetitions, self.context.run_id
+        metric_session = self.context.metric_manager.begin_repetition(
+            self.context.config,
+            test_name=test_name,
+            repetition=repetition,
+            total_repetitions=total_repetitions,
+            current_run_id=self.context.run_id,
         )
+        duration = resolve_duration(self.context.config, generator, logger)
 
         test_start_time: Optional[datetime] = None
         test_end_time: Optional[datetime] = None
@@ -87,7 +103,7 @@ class RepetitionExecutor:
                     },
                     cause=exc,
                 ) from exc
-            self.context.metric_manager.start_collectors(collectors)
+            metric_session.start()
 
             test_start_time = datetime.now()
             try:
@@ -131,7 +147,7 @@ class RepetitionExecutor:
             self._set_log_phase(
                 "teardown", workload=test_name, repetition=repetition
             )
-            self._cleanup_after_run(generator, collectors)
+            self._cleanup_after_run(generator, metric_session)
             
             # Phase: Done (None)
             self._set_log_phase(
@@ -140,16 +156,15 @@ class RepetitionExecutor:
 
         except Exception:
             # Ensure cleanup happens even on error
-            self._cleanup_after_run(generator, collectors)
+            self._cleanup_after_run(generator, metric_session)
             raise
 
         finally:
-            if log_handler:
-                self.context.metric_manager.detach_event_logger(log_handler)
+            metric_session.close()
 
         result = self._finalize_single_test(
             generator,
-            collectors,
+            metric_session,
             workload_dir,
             rep_dir,
             test_name,
@@ -160,8 +175,84 @@ class RepetitionExecutor:
 
         return result
 
+    def run_attempt(
+        self,
+        test_name: str,
+        generator: Any,
+        repetition: int,
+        total_repetitions: int,
+        *,
+        plugin: WorkloadPlugin | None = None,
+    ) -> RepetitionOutcome:
+        """Execute a repetition and return a normalized outcome summary."""
+        try:
+            result = self.execute(
+                test_name=test_name,
+                generator=generator,
+                repetition=repetition,
+                total_repetitions=total_repetitions,
+            )
+            self._cleanup_generator(generator, test_name, repetition)
+            self._process_results(test_name, [result], plugin=plugin)
+            success = bool(result.get("success", True))
+            message = "" if success else str(result.get("error") or "")
+            return RepetitionOutcome(
+                success=success,
+                status="done" if success else "failed",
+                result=result,
+                message=message,
+                error_type=result.get("error_type") if not success else None,
+                error_context=result.get("error_context") if not success else None,
+            )
+        except StopRequested:
+            return RepetitionOutcome(
+                success=False,
+                status="stopped",
+                result=None,
+            )
+        except LBError as exc:
+            logger.exception(
+                "Workload '%s' failed on repetition %s", test_name, repetition
+            )
+            outcome = self._handle_failure(
+                test_name=test_name,
+                repetition=repetition,
+                generator=generator,
+                error=exc,
+                plugin=plugin,
+            )
+            return outcome
+        except Exception:
+            logger.exception(
+                "Unexpected failure running workload '%s' rep %s",
+                test_name,
+                repetition,
+            )
+            raise
+
+    def handle_failure(
+        self,
+        *,
+        test_name: str,
+        repetition: int,
+        generator: Any,
+        error: LBError,
+        plugin: WorkloadPlugin | None,
+    ) -> RepetitionOutcome:
+        """Persist failure details and return a failure outcome."""
+        return self._handle_failure(
+            test_name=test_name,
+            repetition=repetition,
+            generator=generator,
+            error=error,
+            plugin=plugin,
+        )
+
     def _cleanup_after_run(
-        self, generator: Any, collectors: list[Any], generator_started: bool = True
+        self,
+        generator: Any,
+        metric_session: MetricSession,
+        generator_started: bool = True,
     ) -> None:
         if generator_started and hasattr(generator, "stop"):
             try:
@@ -170,12 +261,12 @@ class RepetitionExecutor:
                 generator.stop()
             except Exception as exc:
                 logger.error("Failed to stop generator during cleanup: %s", exc)
-        self.context.metric_manager.stop_collectors(collectors)
+        metric_session.stop()
 
     def _finalize_single_test(
         self,
         generator: Any,
-        collectors: list[Any],
+        metric_session: MetricSession,
         workload_dir: Path,
         rep_dir: Path,
         test_name: str,
@@ -195,9 +286,7 @@ class RepetitionExecutor:
         if duration_seconds:
             logger.info("Repetition %s completed in %.2fs", repetition, duration_seconds)
 
-        self.context.metric_manager.collect_metrics(
-            collectors, workload_dir, rep_dir, test_name, repetition, result
-        )
+        metric_session.collect(workload_dir, rep_dir, test_name, repetition, result)
         self.context.output_manager.persist_rep_result(rep_dir, result)
         return result
 
@@ -217,4 +306,87 @@ class RepetitionExecutor:
             workload=workload,
             repetition=repetition,
             phase=phase,
+        )
+
+    def _cleanup_generator(
+        self,
+        generator: Any,
+        test_name: str,
+        repetition: int,
+    ) -> None:
+        if not isinstance(generator, BaseGenerator):
+            return
+        try:
+            generator.cleanup()
+        except Exception as exc:  # pragma: no cover - best effort cleanup
+            logger.warning(
+                "Generator cleanup failed for %s rep %s: %s",
+                test_name,
+                repetition,
+                exc,
+            )
+
+    def _process_results(
+        self,
+        test_name: str,
+        results: list[dict[str, Any]],
+        *,
+        plugin: WorkloadPlugin | None = None,
+    ) -> None:
+        target_root = self.context.output_manager.workload_output_dir(test_name)
+        self.context.output_manager.process_results(
+            plugin=plugin,
+            results=results,
+            target_root=target_root,
+            test_name=test_name,
+        )
+
+    def _handle_failure(
+        self,
+        *,
+        test_name: str,
+        repetition: int,
+        generator: Any,
+        error: LBError,
+        plugin: WorkloadPlugin | None,
+    ) -> RepetitionOutcome:
+        error_payload = error_to_payload(error)
+        workload_dir = self.context.output_manager.workload_output_dir(test_name)
+        rep_dir = workload_dir / f"rep{repetition}"
+        rep_dir.mkdir(parents=True, exist_ok=True)
+        generator_result: Any = {}
+        if generator is not None and hasattr(generator, "get_result"):
+            try:
+                generator_result = generator.get_result()
+            except Exception:
+                logger.debug(
+                    "Failed to read generator result after error", exc_info=True
+                )
+        result = build_rep_result(
+            test_name=test_name,
+            repetition=repetition,
+            rep_dir=rep_dir,
+            generator_result=generator_result,
+            test_start_time=None,
+            test_end_time=None,
+        )
+        result.update(error_payload)
+        result["success"] = False
+        self._cleanup_generator(generator, test_name, repetition)
+        try:
+            self.context.output_manager.persist_rep_result(rep_dir, result)
+            self._process_results(test_name, [result], plugin=plugin)
+        except Exception:
+            logger.exception(
+                "Failed to persist failure result for %s rep %s",
+                test_name,
+                repetition,
+            )
+        return RepetitionOutcome(
+            success=False,
+            status="failed",
+            result=result,
+            message=error_payload.get("error", ""),
+            error_type=error_payload.get("error_type"),
+            error_context=error_payload.get("error_context"),
         )

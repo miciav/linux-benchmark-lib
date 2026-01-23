@@ -92,6 +92,35 @@ class TestMetricManagerCollectors:
         metric_manager._coordinator.stop.assert_called_once()
         assert metric_manager._coordinator.stop.call_args[0][0] == collectors
 
+    def test_begin_repetition_creates_session(self, metric_manager) -> None:
+        collectors = [MagicMock()]
+        handler = MagicMock()
+        metric_manager._coordinator.create_collectors = MagicMock(
+            return_value=collectors
+        )
+        metric_manager._coordinator.start = MagicMock()
+        metric_manager._coordinator.stop = MagicMock()
+        metric_manager.attach_event_logger = MagicMock(return_value=handler)
+        metric_manager.detach_event_logger = MagicMock()
+
+        session = metric_manager.begin_repetition(
+            MagicMock(),
+            test_name="workload",
+            repetition=1,
+            total_repetitions=2,
+            current_run_id="run-1",
+        )
+
+        assert session.collectors == collectors
+        assert session.log_handler is handler
+
+        session.start()
+        metric_manager._coordinator.start.assert_called_once()
+        session.stop()
+        metric_manager._coordinator.stop.assert_called_once()
+        session.close()
+        metric_manager.detach_event_logger.assert_called_once_with(handler)
+
 
 class TestMetricManagerCollectMetrics:
     """Tests for collect_metrics method."""

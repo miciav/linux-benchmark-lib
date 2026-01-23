@@ -2,14 +2,28 @@
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Any, Callable
 
 from rich.markup import escape
 
-from .run_output_formatting import _slug_phase_label, format_bullet_line
-from .run_output_parsing import _extract_lb_event_data, _extract_lb_task_data
+from .run_output_formatting import (
+    _slug_phase_label,
+    format_bullet_line,
+    format_progress_line,
+)
+from .run_output_parsing import _extract_lb_event_data as _extract_lb_event_data  # noqa: F401
+from .run_output_parsing import (
+    _extract_lb_task_data,
+    extract_benchmark_name,
+    extract_msg_line,
+    extract_task_name,
+    is_changed_line,
+    is_error_line,
+    is_interesting_line,
+    is_noise_line,
+    normalize_line,
+)
 from .run_output_timing import TaskTimer
 
 
@@ -102,8 +116,8 @@ class AnsibleOutputFormatter:
         return rendered == self._last_timing_line
 
     def _handle_line(self, line: str, log_sink: Callable[[str], None] | None = None):
-        line = line.strip()
-        if not line:
+        line = normalize_line(line)
+        if line is None:
             return
         if self._maybe_emit_task_timing(line, log_sink):
             return
@@ -114,13 +128,13 @@ class AnsibleOutputFormatter:
         if self._maybe_emit_msg_line(line, log_sink):
             return
         self._maybe_flush_task_timing(line, log_sink)
-        if self._is_noise_line(line):
+        if is_noise_line(line, emit_task_starts=self.emit_task_starts):
             return
         if self._maybe_emit_task(line, log_sink):
             return
         if self._maybe_emit_benchmark_start(line, log_sink):
             return
-        if line.startswith("changed:") or line.startswith('"changed":') or line.startswith("'changed':"):
+        if is_changed_line(line):
             return
         if self._maybe_emit_interesting(line, log_sink):
             return
@@ -131,8 +145,8 @@ class AnsibleOutputFormatter:
     def _handle_timing_line(
         self, line: str, log_sink: Callable[[str], None] | None = None
     ) -> None:
-        line = line.strip()
-        if not line:
+        line = normalize_line(line)
+        if line is None:
             return
         self._maybe_flush_task_timing(line, log_sink)
         parsed = self._parse_task_line(line)
@@ -190,37 +204,13 @@ class AnsibleOutputFormatter:
     def _maybe_emit_msg_line(
         self, line: str, log_sink: Callable[[str], None] | None
     ) -> bool:
-        lowered = line.strip()
-        if not (lowered.startswith('"msg"') or lowered.startswith("'msg'") or lowered.startswith("msg:")):
+        msg_line = extract_msg_line(line)
+        if not msg_line:
             return False
-        payload = line.split(":", 1)[1].strip()
-        if "LB_EVENT" in payload:
+        if msg_line.has_lb_event or msg_line.has_lb_task:
             return True
-        if "LB_TASK" in payload:
-            return True
-        message = payload
-        if payload and payload[0] in {"'", '"'}:
-            try:
-                message = json.loads(payload)
-            except Exception:
-                message = payload.strip("\"'")
-        self._emit_bullet(self.current_phase, str(message), log_sink)
+        self._emit_bullet(self.current_phase, msg_line.message, log_sink)
         return True
-
-    def _is_noise_line(self, line: str) -> bool:
-        noise_tokens = {
-            "PLAY [",
-            "GATHERING FACTS",
-            "RECAP",
-            "ok:",
-            "skipping:",
-            "included:",
-        }
-        if line.startswith("TASK [") and not self.emit_task_starts:
-            return True
-        if line.strip() in {"{", "}"}:
-            return True
-        return any(token in line for token in noise_tokens) or line.startswith("*****")
 
     def _maybe_emit_task(
         self, line: str, log_sink: Callable[[str], None] | None
@@ -229,7 +219,7 @@ class AnsibleOutputFormatter:
         if not parsed:
             return False
         phase, message = parsed
-        raw_task = self.task_pattern.search(line).group(1).strip()
+        raw_task = extract_task_name(line, self.task_pattern) or ""
         if self._should_suppress_task(raw_task, message, log_sink):
             return True
         if self.emit_task_timings:
@@ -244,10 +234,9 @@ class AnsibleOutputFormatter:
         return True
 
     def _parse_task_line(self, line: str) -> tuple[str, str] | None:
-        task_match = self.task_pattern.search(line)
-        if not task_match:
+        raw_task = extract_task_name(line, self.task_pattern)
+        if not raw_task:
             return None
-        raw_task = task_match.group(1).strip()
         return self._parse_task_name(raw_task)
 
     def _parse_task_name(self, raw_task: str) -> tuple[str, str] | None:
@@ -297,23 +286,16 @@ class AnsibleOutputFormatter:
     def _maybe_emit_benchmark_start(
         self, line: str, log_sink: Callable[[str], None] | None
     ) -> bool:
-        bench_match = self.bench_pattern.search(line)
-        if not bench_match:
+        bench_name = extract_benchmark_name(line, self.bench_pattern)
+        if not bench_name:
             return False
-        bench_name = bench_match.group(1)
         self._emit_bullet(self.current_phase, f"Benchmark: {bench_name}", log_sink)
         return True
 
     def _maybe_emit_interesting(
         self, line: str, log_sink: Callable[[str], None] | None
     ) -> bool:
-        interesting_tokens = (
-            "lb_runner.engine.runner",
-            "Running test",
-            "Progress:",
-            "Completed",
-        )
-        if any(token in line for token in interesting_tokens) or "━" in line:
+        if is_interesting_line(line):
             self._emit_bullet(self.current_phase, line, log_sink)
             return True
         return False
@@ -321,41 +303,11 @@ class AnsibleOutputFormatter:
     def _maybe_emit_error(
         self, line: str, log_sink: Callable[[str], None] | None
     ) -> bool:
-        if "fatal:" in line or "ERROR" in line or "failed:" in line:
+        if is_error_line(line):
             self._emit_bullet(self.current_phase, f"[!] {line}", log_sink)
             return True
         return False
 
     def _format_progress(self, line: str) -> tuple[str, str, str | None] | None:
         """Render LB_EVENT progress lines into a concise message."""
-        if self.suppress_progress:
-            return None
-        data = _extract_lb_event_data(line, token="LB_EVENT")
-        if not data:
-            return None
-        host = str(data.get("host") or "")
-        workload = str(data.get("workload") or "?")
-        rep = data.get("repetition", "?")
-        total = data.get("total_repetitions") or data.get("total") or "?"
-        status = (data.get("status") or "").lower()
-        evt_type = data.get("type", "status")
-
-        if evt_type == "log":
-            level = data.get("level", "INFO")
-            msg = data.get("message", "")
-            phase = f"run {workload}"
-            return phase, f"[{level}] {msg}", host or None
-
-        message = f"{rep}/{total} {status}"
-        if data.get("message"):
-            message = f"{message} ({data['message']})"
-        if data.get("error_type"):
-            message = f"{message} [{data['error_type']}]"
-        phase = f"run {workload}"
-        if status == "running":
-            return phase, message, host or None
-        if status == "done":
-            return phase, message, host or None
-        if status == "failed":
-            return phase, message, host or None
-        return phase, f"{rep}/{total} {status}", host or None
+        return format_progress_line(line, suppress_progress=self.suppress_progress)

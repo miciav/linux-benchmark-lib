@@ -7,10 +7,9 @@ import queue
 import threading
 import time
 from dataclasses import dataclass
-from typing import Callable, Mapping, TYPE_CHECKING
+from typing import Callable, Mapping
 
-if TYPE_CHECKING:
-    from lb_common.logs.handlers.loki_handler import LokiLogEntry
+from lb_common.logs.handlers.loki_types import LokiLogEntry
 
 
 @dataclass(frozen=True)

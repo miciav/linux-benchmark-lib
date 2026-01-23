@@ -1298,7 +1298,6 @@ dependencies = [
     { name = "pystray" },
     { name = "pyyaml" },
     { name = "structlog" },
-    { name = "urllib3" },
 ]
 
 [package.optional-dependencies]
@@ -1410,7 +1409,6 @@ requires-dist = [
     { name = "typer", marker = "extra == 'dev'", specifier = ">=0.12.5" },
     { name = "typer", marker = "extra == 'docs'", specifier = ">=0.12.5" },
     { name = "typer", marker = "extra == 'ui'", specifier = ">=0.12.5" },
-    { name = "urllib3", specifier = ">=2.6.3" },
     { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.10" },
 ]
 provides-extras = ["ui", "controller", "dev", "docs"]

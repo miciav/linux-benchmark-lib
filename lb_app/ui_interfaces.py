@@ -69,70 +69,6 @@ class UIAdapter(Protocol):
         """Prompt user for multipass scenario selection."""
 
 
-class UIAdapterBase:
-    """Default UI adapter implementation (no-op)."""
-
-    def show_info(self, message: str) -> None:  # pragma: no cover - trivial
-        """Render an informational message."""
-        _ = message
-        pass
-
-    def show_warning(self, message: str) -> None:  # pragma: no cover - trivial
-        """Render a warning message."""
-        _ = message
-        pass
-
-    def show_error(self, message: str) -> None:  # pragma: no cover - trivial
-        """Render an error message."""
-        _ = message
-        pass
-
-    def show_success(self, message: str) -> None:  # pragma: no cover - trivial
-        """Render a success message."""
-        _ = message
-        pass
-
-    def show_panel(self, message: str, title: str | None = None, border_style: str | None = None) -> None:  # pragma: no cover - trivial
-        """Render a block/panel container."""
-        _ = (message, title, border_style)
-        pass
-
-    def show_rule(self, title: str) -> None:  # pragma: no cover - trivial
-        """Render a horizontal rule with a title."""
-        _ = title
-        pass
-
-    def show_table(self, title: str, columns: Sequence[str], rows: list[Sequence[str]]) -> None:  # pragma: no cover - trivial
-        """Render a simple table."""
-        _ = (title, columns, rows)
-        pass
-
-    def status(self, message: str) -> AbstractContextManager[None]:
-        """Context manager that shows a status/spinner while work is running."""
-        _ = message
-        return nullcontext()
-
-    def create_progress(self, description: str, total: int) -> ProgressHandle:
-        """Create a progress task."""
-        _ = (description, total)
-        return NoOpProgressHandle()
-
-    def create_dashboard(
-        self,
-        plan: list[dict[str, Any]],
-        journal: Any,
-        ui_log_file: IO[str] | None = None,
-    ) -> DashboardHandle:
-        """Create a run dashboard."""
-        _ = (plan, journal, ui_log_file)
-        return NoOpDashboardHandle()
-
-    def prompt_multipass_scenario(self, options: list[str], default_level: str) -> tuple[str, str] | None:  # pragma: no cover - trivial
-        """Prompt user for multipass scenario selection."""
-        _ = (options, default_level)
-        return None
-
-
 class NoOpProgressHandle(ProgressHandle):
     """No-op progress handle."""
 
@@ -162,5 +98,64 @@ class NoOpDashboardHandle(DashboardHandle):
         pass
 
 
-class NoOpUIAdapter(UIAdapterBase, UIAdapter):
+class NoOpUIAdapter(UIAdapter):
     """No-op UI adapter that discards all output."""
+
+    def show_info(self, message: str) -> None:  # pragma: no cover - trivial
+        """Render an informational message."""
+        _ = message
+
+    def show_warning(self, message: str) -> None:  # pragma: no cover - trivial
+        """Render a warning message."""
+        _ = message
+
+    def show_error(self, message: str) -> None:  # pragma: no cover - trivial
+        """Render an error message."""
+        _ = message
+
+    def show_success(self, message: str) -> None:  # pragma: no cover - trivial
+        """Render a success message."""
+        _ = message
+
+    def show_panel(
+        self, message: str, title: str | None = None, border_style: str | None = None
+    ) -> None:  # pragma: no cover - trivial
+        """Render a block/panel container."""
+        _ = (message, title, border_style)
+
+    def show_rule(self, title: str) -> None:  # pragma: no cover - trivial
+        """Render a horizontal rule with a title."""
+        _ = title
+
+    def show_table(
+        self, title: str, columns: Sequence[str], rows: list[Sequence[str]]
+    ) -> None:  # pragma: no cover - trivial
+        """Render a simple table."""
+        _ = (title, columns, rows)
+
+    def status(self, message: str) -> AbstractContextManager[None]:
+        """Context manager that shows a status/spinner while work is running."""
+        _ = message
+        return nullcontext()
+
+    def create_progress(self, description: str, total: int) -> ProgressHandle:
+        """Create a progress task."""
+        _ = (description, total)
+        return NoOpProgressHandle()
+
+    def create_dashboard(
+        self,
+        plan: list[dict[str, Any]],
+        journal: Any,
+        ui_log_file: IO[str] | None = None,
+    ) -> DashboardHandle:
+        """Create a run dashboard."""
+        _ = (plan, journal, ui_log_file)
+        return NoOpDashboardHandle()
+
+    def prompt_multipass_scenario(
+        self, options: list[str], default_level: str
+    ) -> tuple[str, str] | None:  # pragma: no cover - trivial
+        """Prompt user for multipass scenario selection."""
+        _ = (options, default_level)
+        return None

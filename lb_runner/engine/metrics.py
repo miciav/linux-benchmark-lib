@@ -4,6 +4,7 @@ Metric management for benchmark execution.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import os
 from typing import Any, Dict, Optional
@@ -87,8 +88,61 @@ class MetricManager:
         logging.getLogger().addHandler(handler)
         return handler
 
+    def begin_repetition(
+        self,
+        config: Any,
+        *,
+        test_name: str,
+        repetition: int,
+        total_repetitions: int,
+        current_run_id: str | None,
+    ) -> "MetricSession":
+        """Create a MetricSession for a repetition lifecycle."""
+        collectors = self.create_collectors(config)
+        log_handler = self.attach_event_logger(
+            test_name=test_name,
+            repetition=repetition,
+            total_repetitions=total_repetitions,
+            current_run_id=current_run_id,
+        )
+        return MetricSession(
+            metric_manager=self,
+            collectors=collectors,
+            log_handler=log_handler,
+        )
+
     @staticmethod
     def detach_event_logger(handler: logging.Handler | None) -> None:
         """Remove the event logger handler."""
         if handler:
             logging.getLogger().removeHandler(handler)
+
+
+@dataclass
+class MetricSession:
+    """Lifecycle wrapper for repetition collectors and event logging."""
+
+    metric_manager: MetricManager
+    collectors: list[Any]
+    log_handler: logging.Handler | None
+
+    def start(self) -> None:
+        self.metric_manager.start_collectors(self.collectors)
+
+    def stop(self) -> None:
+        self.metric_manager.stop_collectors(self.collectors)
+
+    def collect(
+        self,
+        workload_dir: Path,
+        rep_dir: Path,
+        test_name: str,
+        repetition: int,
+        result: dict[str, Any],
+    ) -> None:
+        self.metric_manager.collect_metrics(
+            self.collectors, workload_dir, rep_dir, test_name, repetition, result
+        )
+
+    def close(self) -> None:
+        self.metric_manager.detach_event_logger(self.log_handler)

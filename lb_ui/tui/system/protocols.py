@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from typing import Any, Protocol, Sequence, ContextManager, IO
 from lb_ui.tui.system.models import TableModel, PickItem, SelectionNode
 
@@ -29,13 +30,33 @@ class HierarchicalPicker(Protocol):
         title: str
     ) -> SelectionNode | None: ...
 
-class Presenter(Protocol):
-    def info(self, message: str) -> None: ...
-    def warning(self, message: str) -> None: ...
-    def error(self, message: str) -> None: ...
-    def success(self, message: str) -> None: ...
-    def panel(self, message: str, title: str | None = None, border_style: str | None = None) -> None: ...
-    def rule(self, title: str) -> None: ...
+class PresenterSink(Protocol):
+    def emit(self, level: str, message: str) -> None: ...
+    def emit_panel(self, message: str, title: str | None, border_style: str | None) -> None: ...
+    def emit_rule(self, title: str) -> None: ...
+
+
+class Presenter:
+    def __init__(self, sink: PresenterSink) -> None:
+        self._sink = sink
+
+    def info(self, message: str) -> None:
+        self._sink.emit("info", message)
+
+    def warning(self, message: str) -> None:
+        self._sink.emit("warning", message)
+
+    def error(self, message: str) -> None:
+        self._sink.emit("error", message)
+
+    def success(self, message: str) -> None:
+        self._sink.emit("success", message)
+
+    def panel(self, message: str, title: str | None = None, border_style: str | None = None) -> None:
+        self._sink.emit_panel(message, title, border_style)
+
+    def rule(self, title: str) -> None:
+        self._sink.emit_rule(title)
 
 class Form(Protocol):
     def ask(self, prompt: str, default: str | None = None, password: bool = False) -> str: ...
@@ -45,14 +66,31 @@ class Progress(Protocol):
     def status(self, message: str) -> ContextManager[None]: ...
     # Add other progress methods if needed, aligning with existing usage or refactoring target
 
-class Dashboard(Protocol):
-    def live(self) -> ContextManager[None]: ...
-    def add_log(self, line: str) -> None: ...
-    def refresh(self) -> None: ...
-    def mark_event(self, source: str) -> None: ...
-    def set_warning(self, message: str, ttl: float = 10.0) -> None: ...
-    def clear_warning(self) -> None: ...
-    def set_controller_state(self, state: str) -> None: ...
+class Dashboard:
+    def live(self) -> ContextManager[None]:
+        return nullcontext()
+
+    def add_log(self, line: str) -> None:
+        _ = line
+        return None
+
+    def refresh(self) -> None:
+        return None
+
+    def mark_event(self, source: str) -> None:
+        _ = source
+        return None
+
+    def set_warning(self, message: str, ttl: float = 10.0) -> None:
+        _ = (message, ttl)
+        return None
+
+    def clear_warning(self) -> None:
+        return None
+
+    def set_controller_state(self, state: str) -> None:
+        _ = state
+        return None
 
 class DashboardFactory(Protocol):
     def create(

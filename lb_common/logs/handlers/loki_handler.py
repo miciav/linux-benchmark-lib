@@ -7,23 +7,14 @@ import logging
 import queue
 import threading
 import time
-from dataclasses import dataclass
 from typing import Iterable, Mapping, Any
 from urllib import request, error
 from urllib.parse import urlparse
 
 from lb_common.logs.handlers.loki_helpers import LokiLabelBuilder, LokiWorker
+from lb_common.logs.handlers.loki_types import LokiLogEntry
 
 _logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class LokiLogEntry:
-    """Normalized Loki log entry payload."""
-
-    labels: Mapping[str, str]
-    timestamp_ns: str
-    line: str
 
 
 def normalize_loki_endpoint(endpoint: str) -> str:

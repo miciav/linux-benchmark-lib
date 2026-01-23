@@ -8,6 +8,7 @@ from .log_manager import DfaasLogManager
 from .metrics_collector import FunctionMetrics, MetricsCollector, NodeMetrics
 from .plan_builder import DfaasPlanBuilder, parse_duration_seconds
 from .result_builder import DfaasResultBuilder
+from .run_execution import DfaasConfigExecutor, DfaasResultWriter, DfaasRunContext, DfaasRunPlanner
 
 __all__ = [
     "DfaasAnnotationService",
@@ -25,4 +26,8 @@ __all__ = [
     "NodeMetrics",
     "parse_duration_seconds",
     "DfaasResultBuilder",
+    "DfaasConfigExecutor",
+    "DfaasResultWriter",
+    "DfaasRunContext",
+    "DfaasRunPlanner",
 ]

@@ -76,10 +76,9 @@ def test_plugin_export_hook_writes_csv(monkeypatch, tmp_path):
     registry = DummyRegistry(plugin)
     runner = LocalRunner(cfg, registry=registry)
 
-    # Mock RepetitionExecutor instead of _run_single_test
-    with patch("lb_runner.engine.runner.RepetitionExecutor") as MockExecutor:
-        instance = MockExecutor.return_value
-        instance.execute.return_value = {
+    # Mock RepetitionExecutor.execute to skip real execution
+    with patch("lb_runner.engine.executor.RepetitionExecutor.execute") as mock_execute:
+        mock_execute.return_value = {
             "test_name": "dummy",
             "repetition": 1,
             "start_time": None,
@@ -89,7 +88,6 @@ def test_plugin_export_hook_writes_csv(monkeypatch, tmp_path):
             "metrics": {},
             "success": True,
         }
-
         runner.run_benchmark("dummy", run_id="run-1")
 
     output_dir = cfg.output_dir / "run-1" / "dummy"

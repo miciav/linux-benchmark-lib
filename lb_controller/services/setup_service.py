@@ -15,7 +15,7 @@ from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import DEFAULT_LB_WORKDIR, RemoteHostConfig
 
 if TYPE_CHECKING:
-    from ..controller import AnsibleRunnerExecutor, InventorySpec
+    from lb_controller.api import AnsibleRunnerExecutor, InventorySpec
 
 logger = logging.getLogger(__name__)
 install_logger = logging.LoggerAdapter(logger, {"lb_phase": "install"})
@@ -29,7 +29,7 @@ class SetupService:
     """Manages environment provisioning via Ansible."""
 
     def __init__(self, executor: Optional["AnsibleRunnerExecutor"] = None):
-        from ..controller import AnsibleRunnerExecutor, InventorySpec
+        from lb_controller.api import AnsibleRunnerExecutor, InventorySpec
 
         self._inventory_cls: Type["InventorySpec"] = InventorySpec
         self.executor = executor or AnsibleRunnerExecutor(stream_output=True)

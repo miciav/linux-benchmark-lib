@@ -227,6 +227,92 @@ class PhoronixConfig(BasePluginConfig):
         return self
 
 
+class PtsResultParser:
+    """Parse PTS command output and resolve result directories."""
+
+    def __init__(self, profile: str) -> None:
+        self._profile = profile
+
+    @staticmethod
+    def snapshot_results(results_root: Path) -> set[str]:
+        if not results_root.exists():
+            return set()
+        try:
+            return {p.name for p in results_root.iterdir() if p.is_dir()}
+        except Exception:
+            return set()
+
+    @staticmethod
+    def select_result_dir(
+        results_root: Path, before: set[str]
+    ) -> tuple[str | None, str | None]:
+        try:
+            candidates = [p for p in results_root.iterdir() if p.is_dir()]
+            new_dirs = [p for p in candidates if p.name not in before]
+            picked = None
+            if new_dirs:
+                picked = max(new_dirs, key=lambda p: p.stat().st_mtime)
+            elif candidates:
+                picked = max(candidates, key=lambda p: p.stat().st_mtime)
+            if picked:
+                return str(picked.resolve()), picked.name
+        except Exception:
+            pass
+        return None, None
+
+    @staticmethod
+    def normalize_returncode(rc: int, output: str) -> int:
+        output_lower = output.lower()
+        failure_markers = (
+            "[problem]",
+            "the batch mode must first be configured",
+            "unable to locate package",
+            "has no installation candidate",
+            "the update command takes no arguments",
+        )
+        if rc == 0 and any(marker in output_lower for marker in failure_markers):
+            return 2
+        return rc
+
+    def build_success_result(
+        self,
+        cmd: List[str],
+        rc: int,
+        output: str,
+        pts_result_dir: str | None,
+        pts_result_id: str | None,
+        start: float,
+    ) -> dict[str, Any]:
+        return {
+            "command": " ".join(cmd),
+            "profile": self._profile,
+            "returncode": rc,
+            "stdout": output,
+            "pts_result_dir": pts_result_dir,
+            "pts_result_id": pts_result_id,
+            "duration_seconds": self._duration_seconds(start),
+        }
+
+    def build_error_result(
+        self,
+        cmd: List[str],
+        error_type: str,
+        message: str,
+        start: float,
+    ) -> dict[str, Any]:
+        return {
+            "command": " ".join(cmd),
+            "profile": self._profile,
+            "returncode": -1 if error_type == "timeout" else -2,
+            "error": message,
+            "duration_seconds": self._duration_seconds(start),
+        }
+
+    @staticmethod
+    def _duration_seconds(start: float) -> float:
+        return round(time.time() - start, 3)
+
+
 class PhoronixGenerator(CommandGenerator):
     """Workload generator that runs a single PTS test-profile or test-suite."""
 
@@ -249,6 +335,7 @@ class PhoronixGenerator(CommandGenerator):
         self.profile_args = profile_args
         self.system_packages = system_packages
         self.expected_runtime_seconds = expected_runtime_seconds
+        self._result_parser = PtsResultParser(self.profile)
 
     def _validate_environment(self) -> bool:
         return shutil.which(self.binary) is not None
@@ -368,15 +455,6 @@ class PhoronixGenerator(CommandGenerator):
                 "Run the plugin setup phase before executing workloads."
             )
 
-    @staticmethod
-    def _snapshot_results(results_root: Path) -> set[str]:
-        if not results_root.exists():
-            return set()
-        try:
-            return {p.name for p in results_root.iterdir() if p.is_dir()}
-        except Exception:
-            return set()
-
     def _build_command_for(self, subcommand: str) -> List[str]:
         cmd = [self.binary, subcommand, self.profile]
         cmd.extend(self.profile_args)
@@ -393,25 +471,27 @@ class PhoronixGenerator(CommandGenerator):
             env, pts_user_path = self._prepare_env()
             self._ensure_profile_ready(env)
             results_root = pts_user_path / "test-results"
-            before = self._snapshot_results(results_root)
+            before = self._result_parser.snapshot_results(results_root)
             rc, out = self._run_pts_process(cmd, env, start)
-            rc = self._normalize_returncode(rc, out)
-            pts_result_dir, pts_result_id = self._select_result_dir(
+            rc = self._result_parser.normalize_returncode(rc, out)
+            pts_result_dir, pts_result_id = self._result_parser.select_result_dir(
                 results_root, before
             )
-            self._result = self._build_success_result(
+            self._result = self._result_parser.build_success_result(
                 cmd, rc, out, pts_result_dir, pts_result_id, start
             )
         except subprocess.TimeoutExpired:
             self._stop_workload()
-            self._result = self._build_error_result(
+            self._result = self._result_parser.build_error_result(
                 cmd,
                 "timeout",
                 f"Timeout after {self.config.timeout_seconds}s",
                 start,
             )
         except Exception as exc:
-            self._result = self._build_error_result(cmd, "error", str(exc), start)
+            self._result = self._result_parser.build_error_result(
+                cmd, "error", str(exc), start
+            )
         finally:
             self._process = None
             self._is_running = False
@@ -465,76 +545,6 @@ class PhoronixGenerator(CommandGenerator):
             self._process.stdin.flush()
         except Exception:
             pass
-
-    @staticmethod
-    def _normalize_returncode(rc: int, output: str) -> int:
-        output_lower = output.lower()
-        failure_markers = (
-            "[problem]",
-            "the batch mode must first be configured",
-            "unable to locate package",
-            "has no installation candidate",
-            "the update command takes no arguments",
-        )
-        if rc == 0 and any(marker in output_lower for marker in failure_markers):
-            return 2
-        return rc
-
-    @staticmethod
-    def _select_result_dir(
-        results_root: Path, before: set[str]
-    ) -> tuple[str | None, str | None]:
-        try:
-            candidates = [p for p in results_root.iterdir() if p.is_dir()]
-            new_dirs = [p for p in candidates if p.name not in before]
-            picked = None
-            if new_dirs:
-                picked = max(new_dirs, key=lambda p: p.stat().st_mtime)
-            elif candidates:
-                picked = max(candidates, key=lambda p: p.stat().st_mtime)
-            if picked:
-                return str(picked.resolve()), picked.name
-        except Exception:
-            pass
-        return None, None
-
-    def _build_success_result(
-        self,
-        cmd: List[str],
-        rc: int,
-        output: str,
-        pts_result_dir: str | None,
-        pts_result_id: str | None,
-        start: float,
-    ) -> dict[str, Any]:
-        return {
-            "command": " ".join(cmd),
-            "profile": self.profile,
-            "returncode": rc,
-            "stdout": output,
-            "pts_result_dir": pts_result_dir,
-            "pts_result_id": pts_result_id,
-            "duration_seconds": self._duration_seconds(start),
-        }
-
-    def _build_error_result(
-        self,
-        cmd: List[str],
-        error_type: str,
-        message: str,
-        start: float,
-    ) -> dict[str, Any]:
-        return {
-            "command": " ".join(cmd),
-            "profile": self.profile,
-            "returncode": -1 if error_type == "timeout" else -2,
-            "error": message,
-            "duration_seconds": self._duration_seconds(start),
-        }
-
-    @staticmethod
-    def _duration_seconds(start: float) -> float:
-        return round(time.time() - start, 3)
 
     def _stop_workload(self) -> None:
         proc = self._process

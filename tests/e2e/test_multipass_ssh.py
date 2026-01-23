@@ -1,4 +1,3 @@
-import json
 import os
 import subprocess
 import time
@@ -9,7 +8,9 @@ import pytest
 from tests.helpers.multipass import (
     ensure_ansible_available,
     ensure_multipass_access,
+    inject_multipass_ssh_key,
     make_test_ansible_env,
+    wait_for_multipass_ip,
 )
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
@@ -17,47 +18,6 @@ pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.sl
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
-
-
-def _wait_for_ip(vm_name: str, attempts: int = 10, delay: int = 2) -> str:
-    """Poll multipass info until an IPv4 address is available."""
-    for _ in range(attempts):
-        proc = subprocess.run(
-            ["multipass", "info", vm_name, "--format", "json"],
-            capture_output=True,
-            text=True,
-        )
-        if proc.returncode == 0:
-            info = json.loads(proc.stdout)
-            ipv4 = info["info"][vm_name]["ipv4"]
-            if ipv4:
-                return ipv4[0]
-        time.sleep(delay)
-    raise RuntimeError(f"Failed to retrieve IP for {vm_name}")
-
-
-def _inject_ssh_key(vm_name: str, pub_key_path: Path) -> None:
-    """Copy the public key into the VM authorized_keys."""
-    temp_remote = "/home/ubuntu/lb_test_key.pub"
-    subprocess.run(
-        ["multipass", "transfer", str(pub_key_path), f"{vm_name}:{temp_remote}"],
-        check=True,
-    )
-    subprocess.run(
-        [
-            "multipass",
-            "exec",
-            vm_name,
-            "--",
-            "bash",
-            "-c",
-            "mkdir -p ~/.ssh "
-            "&& cat ~/lb_test_key.pub >> ~/.ssh/authorized_keys "
-            "&& chmod 600 ~/.ssh/authorized_keys "
-            "&& rm ~/lb_test_key.pub",
-        ],
-        check=True,
-    )
 
 
 @pytest.mark.inter_generic
@@ -106,8 +66,8 @@ def test_multipass_ssh_roundtrip(tmp_path: Path) -> None:
                 if image == images[-1]:
                     raise
 
-        ip_addr = _wait_for_ip(vm_name)
-        _inject_ssh_key(vm_name, pub_path)
+        ip_addr = wait_for_multipass_ip(vm_name)
+        inject_multipass_ssh_key(vm_name, pub_path)
 
         # SSH roundtrip
         ssh_cmd = [
@@ -180,8 +140,8 @@ def test_multipass_ansible_ping(tmp_path: Path) -> None:
                 if image == images[-1]:
                     raise
 
-        ip_addr = _wait_for_ip(vm_name)
-        _inject_ssh_key(vm_name, pub_path)
+        ip_addr = wait_for_multipass_ip(vm_name)
+        inject_multipass_ssh_key(vm_name, pub_path)
 
         # Build inventory and playbook
         inventory_path = tmp_path / "hosts.ini"
@@ -261,8 +221,8 @@ def test_multipass_ansible_stress_ng(tmp_path: Path) -> None:
                 if image == images[-1]:
                     raise
 
-        ip_addr = _wait_for_ip(vm_name)
-        _inject_ssh_key(vm_name, pub_path)
+        ip_addr = wait_for_multipass_ip(vm_name)
+        inject_multipass_ssh_key(vm_name, pub_path)
 
         inventory_path = tmp_path / "hosts.ini"
         inventory_path.write_text(
@@ -353,8 +313,8 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
                 if image == images[-1]:
                     raise
 
-        ip_addr = _wait_for_ip(vm_name)
-        _inject_ssh_key(vm_name, pub_path)
+        ip_addr = wait_for_multipass_ip(vm_name)
+        inject_multipass_ssh_key(vm_name, pub_path)
 
         inventory_path = tmp_path / "hosts.ini"
         inventory_path.write_text(

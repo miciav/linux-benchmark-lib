@@ -12,6 +12,7 @@ K6_REQUIRED_VARS = {
     "k6_keyring_path",
     "k6_keyserver",
     "k6_key_fingerprint",
+    "k6_key_url",
     "k6_repo",
     "k6_tarball_url",
     "k6_tarball_url_fallback",
@@ -66,6 +67,72 @@ def _find_apt_tasks(tasks: list[dict], name: str) -> bool:
     return False
 
 
+def _find_file_tasks(
+    tasks: list[dict],
+    *,
+    path_contains: str | None = None,
+    mode: str | None = None,
+) -> bool:
+    """Recursively find file tasks with matching path and mode."""
+    for task in tasks:
+        file_cfg = task.get("ansible.builtin.file", {})
+        if file_cfg:
+            path_value = str(file_cfg.get("path", ""))
+            mode_value = str(file_cfg.get("mode", ""))
+            if path_contains and path_contains not in path_value:
+                pass
+            elif mode and mode_value != mode:
+                pass
+            else:
+                return True
+        for key in ("block", "rescue", "always"):
+            if key in task and _find_file_tasks(
+                task[key],
+                path_contains=path_contains,
+                mode=mode,
+            ):
+                return True
+    return False
+
+
+def _find_get_url_tasks(tasks: list[dict], url_contains: str | None = None) -> bool:
+    """Recursively find get_url tasks with matching URL substring."""
+    for task in tasks:
+        get_url_cfg = task.get("ansible.builtin.get_url", {})
+        if get_url_cfg:
+            url_value = str(get_url_cfg.get("url", ""))
+            if url_contains is None or url_contains in url_value:
+                return True
+        for key in ("block", "rescue", "always"):
+            if key in task and _find_get_url_tasks(task[key], url_contains=url_contains):
+                return True
+    return False
+
+
+def _find_command_tasks(tasks: list[dict], needle: str) -> bool:
+    """Recursively find command/shell tasks containing the needle."""
+    for task in tasks:
+        cmd = task.get("ansible.builtin.command") or task.get("ansible.builtin.shell") or ""
+        if needle in str(cmd):
+            return True
+        for key in ("block", "rescue", "always"):
+            if key in task and _find_command_tasks(task[key], needle):
+                return True
+    return False
+
+
+def _find_set_fact_tasks(tasks: list[dict], var_name: str) -> bool:
+    """Recursively find set_fact tasks containing a variable name."""
+    for task in tasks:
+        set_fact_cfg = task.get("ansible.builtin.set_fact", {})
+        if isinstance(set_fact_cfg, dict) and var_name in set_fact_cfg:
+            return True
+        for key in ("block", "rescue", "always"):
+            if key in task and _find_set_fact_tasks(task[key], var_name):
+                return True
+    return False
+
+
 def test_setup_k6_playbook_imports_install_tasks() -> None:
     """Verify setup_k6.yml imports the k6 installation tasks."""
     playbook = _load_playbook("setup_k6.yml")
@@ -86,6 +153,40 @@ def test_install_k6_tasks_has_apt_install() -> None:
     assert isinstance(tasks, list)
     # k6 is installed via apt with ignore_errors, falling back to tarball if APT fails
     assert _find_apt_tasks(tasks, "k6"), "k6 apt installation not found in install_k6.yml"
+
+
+def test_install_k6_tasks_has_key_download_fallback() -> None:
+    """Verify k6 key download fallback is present."""
+    repo_root = Path(__file__).resolve().parents[4]
+    path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "tasks" / "install_k6.yml"
+    tasks = yaml.safe_load(path.read_text())
+    assert isinstance(tasks, list)
+    assert _find_get_url_tasks(tasks, "k6_key_url"), "k6 key download fallback missing"
+    assert _find_command_tasks(tasks, "--dearmor"), "k6 key dearmor step missing"
+
+
+def test_install_k6_tasks_checks_apt_availability() -> None:
+    """Verify install_k6.yml checks apt availability before install."""
+    repo_root = Path(__file__).resolve().parents[4]
+    path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "tasks" / "install_k6.yml"
+    tasks = yaml.safe_load(path.read_text())
+    assert isinstance(tasks, list)
+    assert _find_command_tasks(tasks, "apt-cache policy k6"), "k6 apt-cache check missing"
+    assert _find_set_fact_tasks(tasks, "k6_apt_available"), "k6_apt_available fact missing"
+    assert _find_set_fact_tasks(tasks, "k6_apt_failed"), "k6_apt_failed fact missing"
+
+
+def test_install_k6_tasks_sets_keyring_permissions() -> None:
+    """Verify tasks/install_k6.yml ensures the k6 keyring is apt-readable."""
+    repo_root = Path(__file__).resolve().parents[4]
+    path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "tasks" / "install_k6.yml"
+    tasks = yaml.safe_load(path.read_text())
+    assert isinstance(tasks, list)
+    assert _find_file_tasks(
+        tasks,
+        path_contains="k6_keyring_path",
+        mode="0644",
+    ), "k6 keyring permissions step not found in install_k6.yml"
 
 
 def test_teardown_k6_playbook_has_cleanup() -> None:

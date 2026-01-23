@@ -1,5 +1,8 @@
+import json
 import os
 import shutil
+import subprocess
+import time
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -43,6 +46,47 @@ def ensure_multipass_access() -> None:
         subprocess.run(["multipass", "list"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception as exc:
         pytest.skip(f"multipass not usable ({exc}); skipping integration tests")
+
+
+def wait_for_multipass_ip(vm_name: str, attempts: int = 10, delay: int = 2) -> str:
+    """Poll multipass info until an IPv4 address is available."""
+    for _ in range(attempts):
+        proc = subprocess.run(
+            ["multipass", "info", vm_name, "--format", "json"],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode == 0:
+            info = json.loads(proc.stdout)
+            ipv4 = info["info"][vm_name]["ipv4"]
+            if ipv4:
+                return ipv4[0]
+        time.sleep(delay)
+    raise RuntimeError(f"Failed to retrieve IP for {vm_name}")
+
+
+def inject_multipass_ssh_key(vm_name: str, pub_key_path: Path) -> None:
+    """Copy the public key into the VM authorized_keys."""
+    temp_remote = "/home/ubuntu/lb_test_key.pub"
+    subprocess.run(
+        ["multipass", "transfer", str(pub_key_path), f"{vm_name}:{temp_remote}"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "multipass",
+            "exec",
+            vm_name,
+            "--",
+            "bash",
+            "-c",
+            "mkdir -p ~/.ssh "
+            "&& cat ~/lb_test_key.pub >> ~/.ssh/authorized_keys "
+            "&& chmod 600 ~/.ssh/authorized_keys "
+            "&& rm ~/lb_test_key.pub",
+        ],
+        check=True,
+    )
 
 
 def stage_private_key(source_key: Path, target_dir: Path) -> Path:
