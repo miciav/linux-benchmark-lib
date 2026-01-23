@@ -5,7 +5,7 @@ from typing import Optional
 
 import typer
 
-from lb_app.api import BenchmarkConfig, PluginRegistry, create_registry
+from lb_app.api import BenchmarkConfig, PluginRegistry, RemoteHostConfig, create_registry
 from lb_ui.wiring.dependencies import UIContext
 from lb_ui.tui.system.models import TableModel
 from lb_ui.flows.config_wizard import run_config_wizard
@@ -224,5 +224,112 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
 
         registry = create_registry()
         _select_workloads_interactively(cfg, registry, config, set_default)
+
+    @app.command("hosts")
+    def config_list_hosts(
+        config: Optional[Path] = typer.Option(
+            None, "--config", "-c", help="Config file to inspect."
+        )
+    ) -> None:
+        """List configured remote hosts."""
+        cfg = _load_config(config)
+        if not cfg.remote_hosts:
+            ctx.ui.present.warning("No remote hosts configured.")
+            ctx.ui.present.info(
+                "Add hosts with `lb config add-host NAME --address IP`"
+            )
+            return
+
+        rows = [
+            [h.name, h.address, str(h.port), h.user, "Yes" if h.become else "No"]
+            for h in cfg.remote_hosts
+        ]
+        ctx.ui.tables.show(
+            TableModel(
+                title="Remote Hosts",
+                columns=["Name", "Address", "Port", "User", "Become"],
+                rows=rows,
+            )
+        )
+
+    @app.command("add-host")
+    def config_add_host(
+        name: str = typer.Argument(..., help="Unique name for the host."),
+        address: str = typer.Option(
+            ..., "--address", "-a", help="IP address or hostname."
+        ),
+        port: int = typer.Option(22, "--port", "-p", help="SSH port."),
+        user: str = typer.Option("root", "--user", "-u", help="SSH user."),
+        key: Optional[str] = typer.Option(
+            None, "--key", "-k", help="Path to SSH private key."
+        ),
+        become: bool = typer.Option(
+            True, "--become/--no-become", help="Use sudo (Ansible become)."
+        ),
+        config: Optional[Path] = typer.Option(
+            None, "--config", "-c", help="Config file to update."
+        ),
+        set_default: bool = typer.Option(
+            False,
+            "--set-default/--no-set-default",
+            help="Also remember this config as the default.",
+        ),
+    ) -> None:
+        """Add or update a remote host in the configuration."""
+        # Build vars dict with SSH key if provided
+        host_vars: dict = {
+            "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
+        }
+        if key:
+            key_path = Path(key).expanduser()
+            if not key_path.exists():
+                ctx.ui.present.warning(f"SSH key not found: {key_path}")
+            host_vars["ansible_ssh_private_key_file"] = str(key_path)
+
+        host = RemoteHostConfig(
+            name=name,
+            address=address,
+            port=port,
+            user=user,
+            become=become,
+            vars=host_vars,
+        )
+
+        try:
+            cfg, target, stale = ctx.config_service.add_remote_host(
+                host, config, enable_remote=True, set_default=set_default
+            )
+            if stale:
+                ctx.ui.present.warning(f"Saved default config not found: {stale}")
+            ctx.ui.present.success(
+                f"Host '{name}' ({address}:{port}) added to {target}"
+            )
+        except ValueError as e:
+            ctx.ui.present.error(str(e))
+            raise typer.Exit(1)
+
+    @app.command("remove-host")
+    def config_remove_host(
+        name: str = typer.Argument(..., help="Name of the host to remove."),
+        config: Optional[Path] = typer.Option(
+            None, "--config", "-c", help="Config file to update."
+        ),
+    ) -> None:
+        """Remove a remote host from the configuration."""
+        try:
+            cfg, target, stale, removed = ctx.config_service.remove_remote_host(
+                name, config
+            )
+            if stale:
+                ctx.ui.present.warning(f"Saved default config not found: {stale}")
+            if not removed:
+                ctx.ui.present.warning(f"No host named '{name}' found in the config.")
+                raise typer.Exit(1)
+            ctx.ui.present.success(f"Host '{name}' removed from {target}")
+            if not cfg.remote_hosts:
+                ctx.ui.present.info("No hosts remaining. Remote execution disabled.")
+        except FileNotFoundError as e:
+            ctx.ui.present.error(str(e))
+            raise typer.Exit(1)
 
     return app

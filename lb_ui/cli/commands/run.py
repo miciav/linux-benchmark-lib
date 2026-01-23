@@ -116,6 +116,16 @@ def register_run_command(
             "--setup/--no-setup",
             help="Run environment setup (Global + Workload) before execution.",
         ),
+        skip_connectivity_check: bool = typer.Option(
+            False,
+            "--skip-connectivity-check",
+            help="Skip the pre-run SSH connectivity check for remote hosts.",
+        ),
+        connectivity_timeout: int = typer.Option(
+            10,
+            "--connectivity-timeout",
+            help="Timeout in seconds for the SSH connectivity check.",
+        ),
     ) -> None:
         """Run workloads using Ansible on remote, Docker, or Multipass targets."""
         import time
@@ -297,6 +307,8 @@ def register_run_command(
                 node_count=resolved_node_count,
                 docker_engine=docker_engine,
                 ui_adapter=ctx.ui_adapter,
+                skip_connectivity_check=skip_connectivity_check,
+                connectivity_timeout=connectivity_timeout,
             )
 
             plan = ctx.app_client.get_run_plan(cfg, selected_tests, execution_mode=execution_mode)

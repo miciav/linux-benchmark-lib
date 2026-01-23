@@ -9,6 +9,10 @@ from typing import List, Tuple, Optional
 
 from lb_app.services.doctor_types import DoctorCheckGroup, DoctorCheckItem, DoctorReport
 from lb_app.services.config_service import ConfigService
+from lb_controller.api import (
+    BenchmarkConfig,
+    ConnectivityService,
+)
 from lb_plugins.api import create_registry
 
 
@@ -103,7 +107,7 @@ class DoctorService:
                 for tool in required_tools:
                     label = f"{tool} ({plugin.name})"
                     items.append((label, self._check_command(tool), True))
-        
+
         messages = []
         if not items:
             messages.append("No plugins with local tool requirements found.")
@@ -124,6 +128,67 @@ class DoctorService:
         group = self._build_check_group("Multipass", items)
         return DoctorReport(
             groups=[group], info_messages=[], total_failures=group.failures
+        )
+
+    def check_remote_hosts(
+        self,
+        config: Optional[BenchmarkConfig] = None,
+        timeout_seconds: int = 10,
+    ) -> DoctorReport:
+        """Check SSH connectivity to configured remote hosts.
+
+        Args:
+            config: Benchmark configuration with remote hosts.
+                If None, loads from default config path.
+            timeout_seconds: Timeout for each host connection check.
+
+        Returns:
+            DoctorReport with connectivity results for each host.
+        """
+        # Load config if not provided
+        if config is None:
+            cfg, _, _ = self.config_service.load_for_read(None)
+        else:
+            cfg = config
+
+        # Check if remote hosts are configured
+        if not cfg.remote_hosts:
+            return DoctorReport(
+                groups=[],
+                info_messages=["No remote hosts configured."],
+                total_failures=0,
+            )
+
+        # Check connectivity using the controller service
+        connectivity_service = ConnectivityService(timeout_seconds=timeout_seconds)
+        report = connectivity_service.check_hosts(cfg.remote_hosts, timeout_seconds)
+
+        # Convert to DoctorReport format
+        items: List[Tuple[str, bool, bool]] = []
+        for result in report.results:
+            label = f"{result.name} ({result.address})"
+            if result.reachable and result.latency_ms is not None:
+                label += f" - {result.latency_ms:.0f}ms"
+            elif not result.reachable and result.error_message:
+                label += f" - {result.error_message}"
+            items.append((label, result.reachable, True))
+
+        group = self._build_check_group("Remote Host Connectivity", items)
+
+        info_messages = [
+            f"Checked {report.total_count} host(s) with {timeout_seconds}s timeout"
+        ]
+        if report.all_reachable:
+            info_messages.append("All hosts are reachable.")
+        else:
+            info_messages.append(
+                f"Unreachable hosts: {', '.join(report.unreachable_hosts)}"
+            )
+
+        return DoctorReport(
+            groups=[group],
+            info_messages=info_messages,
+            total_failures=group.failures,
         )
 
     def check_all(self) -> DoctorReport:

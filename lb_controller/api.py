@@ -26,6 +26,11 @@ from lb_controller.models.pending import pending_exists
 from lb_controller.services import RunCatalogService
 from lb_controller.services.paths import apply_playbook_defaults, prepare_run_dirs
 from lb_controller.services.journal_sync import backfill_timings_from_results
+from lb_controller.services.connectivity_service import (
+    ConnectivityService,
+    ConnectivityReport,
+    HostConnectivityResult,
+)
 from lb_controller.models.controller_options import ControllerOptions
 from lb_controller.models.types import (
     ExecutionResult,
@@ -47,10 +52,13 @@ __all__ = [
     "PlatformConfig",
     "BenchmarkController",
     "CallbackModule",
+    "ConnectivityReport",
+    "ConnectivityService",
     "ControllerRunner",
     "ControllerState",
     "ControllerStateMachine",
     "ControllerOptions",
+    "HostConnectivityResult",
     "DoubleCtrlCStateMachine",
     "RunInterruptState",
     "SigintDecision",
