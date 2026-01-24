@@ -57,6 +57,9 @@ docs = [
     "rapidfuzz>=3.0.0",
     "prompt_toolkit>=3.0.0",
 ]
+gui = [
+    "PySide6>=6.6.0",
+]
 
 
 [build-system]
@@ -64,7 +67,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["lb_runner*", "lb_controller*", "lb_ui*", "lb_analytics*", "lb_provisioner*", "lb_app*", "lb_common*", "lb_plugins*"]
+include = ["lb_runner*", "lb_controller*", "lb_ui*", "lb_gui*", "lb_analytics*", "lb_provisioner*", "lb_app*", "lb_common*", "lb_plugins*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [tool.setuptools.package-data]
@@ -77,10 +80,14 @@ lb_controller = [
 lb_provisioner = [
     "assets/**/*",
 ]
+lb_gui = [
+    "resources/**/*",
+]
 
 [project.scripts]
 lb = "lb_ui.cli.main:main"
 lb-ui = "lb_ui.cli.main:main"
+lb-gui = "lb_gui.main:main"
 
 [project.entry-points."linux_benchmark.collectors"]
 psutil = "lb_runner.metric_collectors.builtin:PSUTIL_COLLECTOR"
