@@ -1,10 +1,10 @@
-"""View-model helpers for rendering run plans and journals."""
+"""View-model helpers for run plans and journals (UI-agnostic)."""
 
 from __future__ import annotations
 
 from typing import Dict, Iterable
 
-from lb_app.api import RunJournal, RunStatus, TaskState
+from lb_controller.api import RunJournal, RunStatus, TaskState
 
 
 def target_repetitions(journal: RunJournal) -> int:

@@ -8,11 +8,11 @@ from typing import Callable, TypeAlias, Sequence
 from prompt_toolkit.formatted_text import ANSI
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.widgets import TextArea
-from rapidfuzz import fuzz, process
 from rich.console import Console
 from rich.text import Text
 
 from lb_ui.tui.system.models import PickItem
+from lb_ui.tui.core.capabilities import fuzzy_matcher, has_fuzzy_search
 
 RowFragment: TypeAlias = tuple[str, str]
 RowRenderer: TypeAlias = Callable[[PickItem, bool], RowFragment]
@@ -152,7 +152,7 @@ class FlatPickerPanel:
         if not query:
             return list(items)
 
-        if not self._config.enable_fuzzy:
+        if not self._config.enable_fuzzy or not has_fuzzy_search():
             q = query.lower()
             return [
                 it
@@ -161,11 +161,15 @@ class FlatPickerPanel:
                 or q in (it.description or "").lower()
             ]
 
+        matcher = fuzzy_matcher()
+        if matcher is None:
+            return list(items)
+        process, scorer = matcher
         choices = [it.search_blob or it.title for it in items]
         matches = process.extract(
             query,
             choices,
-            scorer=fuzz.WRatio,
+            scorer=scorer,
             limit=self._config.fuzzy_limit,
             score_cutoff=self._config.fuzzy_score_cutoff,
         )
@@ -195,4 +199,3 @@ class FlatPickerPanel:
         with self._console.capture() as cap:
             self._console.print(renderable)
         return ANSI(cap.get())
-

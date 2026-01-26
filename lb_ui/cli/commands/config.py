@@ -9,6 +9,7 @@ from lb_app.api import BenchmarkConfig, PluginRegistry, RemoteHostConfig, create
 from lb_ui.wiring.dependencies import UIContext
 from lb_ui.tui.system.models import TableModel
 from lb_ui.flows.config_wizard import run_config_wizard
+from lb_ui.flows.errors import UIFlowError
 from lb_ui.flows.selection import select_workloads_interactively
 
 
@@ -30,26 +31,26 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
 
     @app.command("edit")
     def config_edit(
-        path: Optional[Path] = typer.Option(
+        config_path: Optional[Path] = typer.Option(
             None,
-            "--path",
-            "-p",
+            "--config",
+            "-c",
             help="Config file to edit; uses saved default or local benchmark_config.json when omitted.",
         )
     ) -> None:
         """Open a config file in $EDITOR."""
         try:
-            ctx.config_service.open_editor(path)
+            ctx.config_service.open_editor(config_path)
         except Exception as exc:
             ctx.ui.present.error(str(exc))
             raise typer.Exit(1)
 
     @app.command("init")
     def config_init(
-        path: Optional[Path] = typer.Option(
+        config_path: Optional[Path] = typer.Option(
             None,
-            "--path",
-            "-p",
+            "--config",
+            "-c",
             help="Where to write the config; defaults to ~/.config/lb/config.json",
         ),
         set_default: bool = typer.Option(
@@ -71,7 +72,11 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         ),
     ) -> None:
         """Create a config file from defaults and optionally set it as default."""
-        target = Path(path).expanduser() if path else ctx.config_service.default_target
+        target = (
+            Path(config_path).expanduser()
+            if config_path
+            else ctx.config_service.default_target
+        )
         target.parent.mkdir(parents=True, exist_ok=True)
 
         if repetitions < 1:
@@ -203,7 +208,13 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         set_default: bool,
     ) -> None:
         """Interactively toggle configured workloads using arrows + space."""
-        select_workloads_interactively(ctx.ui, ctx.config_service, cfg, registry, config, set_default)
+        try:
+            select_workloads_interactively(
+                ctx.ui, ctx.config_service, cfg, registry, config, set_default
+            )
+        except UIFlowError as exc:
+            ctx.ui.present.error(str(exc))
+            raise typer.Exit(exc.exit_code)
 
     @app.command("select-workloads")
     def config_select_workloads(

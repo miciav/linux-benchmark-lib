@@ -23,17 +23,19 @@ Order used by commands that need a config:
 
 ## Top-level commands
 
-- `lb run [WORKLOAD ...] [-c FILE] [--run-id ID] [--resume [latest|ID]] [--remote/--no-remote] [--repetitions N] [--intensity LEVEL] [--setup/--no-setup] [--stop-file PATH] [--debug]`
+- `lb run [WORKLOAD ...] [-c FILE] [--run-id ID] [--remote/--no-remote] [--repetitions N] [--intensity LEVEL] [--setup/--no-setup] [--stop-file PATH] [--debug]`
   Run workloads remotely via Ansible. Local execution is not supported by the CLI.
 - `lb run ... --docker [--docker-engine docker|podman] [--nodes N]`
   Dev-only: provision containers and run via Ansible (requires `.lb_dev_cli` or `LB_ENABLE_TEST_CLI=1`).
 - `lb run ... --multipass [--nodes N]`
   Dev-only: provision Multipass VMs and run via Ansible (requires `.lb_dev_cli` or `LB_ENABLE_TEST_CLI=1`).
+- `lb resume [RUN_ID] [-c FILE] [--remote/--no-remote] [--docker|--multipass] [--nodes N] [--intensity LEVEL] [--setup/--no-setup] [--stop-file PATH] [--debug]`
+  Resume an incomplete run using a stored journal.
 - `lb runs list [--root PATH] [-c FILE]` / `lb runs show RUN_ID [--root PATH] [-c FILE]`
   Inspect stored runs under `benchmark_results/`.
-- `lb analyze [RUN_ID] [--root PATH] [--workload NAME] [--host NAME]`
+- `lb runs analyze [RUN_ID] [--root PATH] [--workload NAME] [--host NAME]`
   Run analytics on an existing run (currently `aggregate`).
-- `lb plugin ...` / `lb plugins ...`
+- `lb plugin ...`
   Inspect and manage workload plugins.
 - `lb config ...`
   Create and manage benchmark configuration files.
@@ -44,17 +46,17 @@ Order used by commands that need a config:
 
 ## Plugin management (`lb plugin ...`)
 
-- `lb plugin list|ls [--select] [--enable NAME | --disable NAME] [-c FILE] [--set-default]`
-- `lb plugin select [-c FILE] [--set-default]`
-- `lb plugin install PATH|URL [--manifest FILE] [--force]`
-- `lb plugin uninstall NAME [--purge-config/--keep-config] [-c FILE]`
+- `lb plugin list`
+- `lb plugin enable NAME`
+- `lb plugin disable NAME`
+- `lb plugin select`
 
 ## Config management (`lb config ...`)
 
-- `lb config init [-i] [--path FILE] [--set-default/--no-set-default]`
+- `lb config init [-i] [-c FILE] [--set-default/--no-set-default]`
 - `lb config set-repetitions N [-c FILE] [--set-default/--no-set-default]`
 - `lb config set-default FILE` / `lb config unset-default` / `lb config show-default`
-- `lb config edit [-p FILE]`
+- `lb config edit [-c FILE]`
 - `lb config workloads [-c FILE]`
 - `lb config enable-workload NAME [-c FILE] [--set-default]`
 - `lb config disable-workload NAME [-c FILE] [--set-default]`

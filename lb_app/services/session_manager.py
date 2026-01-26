@@ -2,18 +2,10 @@
 
 from __future__ import annotations
 
-import platform
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Callable, Optional, Any
+from typing import IO, Any, Callable, Optional
 
-from lb_controller.api import (
-    BenchmarkConfig,
-    ControllerStateMachine,
-    LogSink,
-    RunJournal,
-    RunStatus,
-    StopToken,
-)
+from lb_controller.api import ControllerStateMachine, LogSink, RunJournal, StopToken
 from lb_app.ui_interfaces import DashboardHandle, NoOpDashboardHandle, UIAdapter
 from lb_app.services.run_journal import (
     build_journal_from_results,

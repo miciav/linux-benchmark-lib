@@ -1,10 +1,11 @@
-from typing import Any, IO, Sequence
-from contextlib import contextmanager, AbstractContextManager
+from contextlib import AbstractContextManager, contextmanager
+from typing import IO, Any, Sequence
 
-from lb_app.api import UIAdapter, DashboardHandle, ProgressHandle
-from lb_ui.tui.system.components.dashboard_adapter import DashboardAdapter
-from lb_ui.tui.system.protocols import UI, Dashboard
-from lb_ui.tui.system.models import TableModel, PickItem
+from lb_app.api import DashboardHandle, ProgressHandle, UIAdapter, build_dashboard_viewmodel
+from lb_ui.tui.adapters.dashboard_handle import DashboardHandleAdapter
+from lb_ui.tui.core.protocols import UI
+from lb_ui.tui.system.models import PickItem, TableModel
+
 
 class TUIAdapter(UIAdapter):
     """Adapts the UI facade to the app-level UIAdapter protocol."""
@@ -24,14 +25,23 @@ class TUIAdapter(UIAdapter):
     def show_success(self, message: str) -> None:
         self.tui.present.success(message)
 
-    def show_panel(self, message: str, title: str | None = None, border_style: str | None = None) -> None:
+    def show_panel(
+        self,
+        message: str,
+        title: str | None = None,
+        border_style: str | None = None,
+    ) -> None:
         self.tui.present.panel(message, title, border_style)
 
     def show_rule(self, title: str) -> None:
         self.tui.present.rule(title)
 
-    def show_table(self, title: str, columns: Sequence[str], rows: list[Sequence[str]]) -> None:
-        model = TableModel(title=title, columns=list(columns), rows=[list(r) for r in rows])
+    def show_table(
+        self, title: str, columns: Sequence[str], rows: list[Sequence[str]]
+    ) -> None:
+        model = TableModel(
+            title=title, columns=list(columns), rows=[list(r) for r in rows]
+        )
         self.tui.tables.show(model)
 
     def status(self, message: str) -> AbstractContextManager[None]:
@@ -43,13 +53,24 @@ class TUIAdapter(UIAdapter):
         # The prompt didn't specify Progress component in detail beyond 'status'.
         return _NoOpProgressHandle()
 
-    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any, ui_log_file: IO[str] | None = None) -> DashboardHandle:
+    def create_dashboard(
+        self,
+        plan: list[dict[str, Any]],
+        journal: Any,
+        ui_log_file: IO[str] | None = None,
+    ) -> DashboardHandle:
         # Use the TUI's dashboard factory
-        # We assume the Dashboard protocol from UI system matches or is compatible with DashboardHandle
+        # We assume the Dashboard protocol from UI system matches DashboardHandle.
         # They both have live(), add_log(), refresh(), mark_event()
-        return ThreadedDashboardHandle(self.tui.dashboard.create(plan, journal, ui_log_file))
+        viewmodel = build_dashboard_viewmodel(plan, journal)
+        return DashboardHandleAdapter(
+            self.tui.dashboard.create(viewmodel, ui_log_file),
+            threaded=True,
+        )
 
-    def prompt_multipass_scenario(self, options: list[str], default_level: str) -> tuple[str, str] | None:
+    def prompt_multipass_scenario(
+        self, options: list[str], default_level: str
+    ) -> tuple[str, str] | None:
         # Use TUI picker!
         items = [PickItem(id=o, title=o) for o in options]
         selection = self.tui.picker.pick_one(items, title="Select Multipass Scenario")
@@ -58,30 +79,33 @@ class TUIAdapter(UIAdapter):
         
         # Then prompt for intensity
         levels = ["low", "medium", "high"]
-        # Use simple prompt or picker? Picker is better.
-        level_items = [PickItem(id=level_name, title=level_name) for level_name in levels]
+        level_items = [
+            PickItem(id=level_name, title=level_name) for level_name in levels
+        ]
         level_sel = self.tui.picker.pick_one(
             level_items,
             title="Select Intensity",
             query_hint=default_level,
         )
         level = level_sel.id if level_sel else default_level
-        
+
         return selection.id, level
+
 
 class _NoOpProgressHandle(ProgressHandle):
     def update(self, completed: int) -> None: pass
     def finish(self) -> None: pass
 
+
 class _NoOpDashboardHandle(DashboardHandle):
-    def live(self) -> AbstractContextManager[None]: return contextmanager(lambda: (yield))()
-    def add_log(self, line: str) -> None: pass
-    def refresh(self) -> None: pass
-    def mark_event(self, source: str) -> None: pass
+    def live(self) -> AbstractContextManager[None]:
+        return contextmanager(lambda: (yield))()
 
+    def add_log(self, line: str) -> None:
+        pass
 
-class ThreadedDashboardHandle(DashboardAdapter):
-    """Run the dashboard rendering loop in its own thread."""
+    def refresh(self) -> None:
+        pass
 
-    def __init__(self, inner: Dashboard):
-        super().__init__(inner, threaded=True)
+    def mark_event(self, source: str) -> None:
+        pass

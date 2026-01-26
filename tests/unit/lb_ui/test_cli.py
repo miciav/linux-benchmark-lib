@@ -50,7 +50,7 @@ def test_plugins_enable_disable_persists_config(monkeypatch: pytest.MonkeyPatch,
 
 
     result = runner.invoke(
-        cli.app, ["plugin", "list", "--enable", "stress_ng"]
+        cli.app, ["plugin", "enable", "stress_ng"]
     )
 
 
@@ -69,7 +69,7 @@ def test_plugins_enable_disable_persists_config(monkeypatch: pytest.MonkeyPatch,
 
 
     result = runner.invoke(
-        cli.app, ["plugin", "list", "--disable", "stress_ng"]
+        cli.app, ["plugin", "disable", "stress_ng"]
     )
 
 
@@ -191,7 +191,7 @@ def test_doctor_local_tools_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 @pytest.mark.unit_ui
 
 
-def test_plugins_conflicting_flags_fail(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_plugin_enable_unknown_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 
     cli = _load_cli(monkeypatch, tmp_path)
@@ -200,7 +200,7 @@ def test_plugins_conflicting_flags_fail(monkeypatch: pytest.MonkeyPatch, tmp_pat
     runner = CliRunner()
 
 
-    result = runner.invoke(cli.app, ["plugin", "list", "--enable", "a", "--disable", "b"])
+    result = runner.invoke(cli.app, ["plugin", "enable", "unknown_plugin"])
 
 
     assert result.exit_code != 0
@@ -238,7 +238,7 @@ def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, 
 
 
 
-    result = runner.invoke(cli.app, ["plugin", "list", "--select"])
+    result = runner.invoke(cli.app, ["plugin", "select"])
 
 
     assert result.exit_code == 0, result.output
@@ -264,55 +264,7 @@ def test_plugin_interactive_selection_persists(monkeypatch: pytest.MonkeyPatch, 
 @pytest.mark.unit_ui
 
 
-def test_plugin_select_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-
-
-    cli = _load_cli(monkeypatch, tmp_path)
-
-
-    runner = CliRunner()
-
-
-
-
-
-    from lb_ui.api import plugin_commands
-    monkeypatch.setattr(
-        plugin_commands,
-        "select_plugins_interactively",
-        lambda ui, registry, enabled: {"fio"},
-    )
-
-
-
-
-
-    result = runner.invoke(cli.app, ["plugin", "select"])
-
-
-    assert result.exit_code == 0, result.output
-
-
-
-
-
-    platform_path = tmp_path / "xdg" / "lb" / "platform.json"
-    cfg = PlatformConfig.load(platform_path)
-
-    assert cfg.is_plugin_enabled("fio") is True
-    assert cfg.is_plugin_enabled("stress_ng") is False
-
-
-
-
-
-
-
-
-@pytest.mark.unit_ui
-
-
-def test_plugin_root_defaults_to_list(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_plugin_root_shows_help(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 
 
     cli = _load_cli(monkeypatch, tmp_path)
@@ -330,7 +282,7 @@ def test_plugin_root_defaults_to_list(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert result.exit_code == 0, result.output
 
 
-    assert "Available Workload Plugins" in result.output
+    assert "Usage" in result.output
 
 
 
@@ -372,7 +324,7 @@ def test_config_init_sets_repetitions(monkeypatch: pytest.MonkeyPatch, tmp_path:
             "init",
 
 
-            "--path",
+            "--config",
 
 
             str(cfg_path),
@@ -783,10 +735,9 @@ def test_multipass_helper_sets_artifacts_env(monkeypatch: pytest.MonkeyPatch, tm
 
 
 
-    monkeypatch.setattr(cli.doctor_service, "_check_command", lambda name: True)
-
-
-    monkeypatch.setattr(cli.doctor_service, "_check_import", lambda name: True)
+    from lb_ui.cli.commands import test as test_commands
+    monkeypatch.setattr(test_commands, "_command_available", lambda name: True)
+    monkeypatch.setattr(test_commands, "_module_available", lambda name: True)
 
 
 
@@ -873,10 +824,9 @@ def test_multipass_helper_allows_vm_count_override(monkeypatch: pytest.MonkeyPat
 
 
 
-    monkeypatch.setattr(cli.doctor_service, "_check_command", lambda name: True)
-
-
-    monkeypatch.setattr(cli.doctor_service, "_check_import", lambda name: True)
+    from lb_ui.cli.commands import test as test_commands
+    monkeypatch.setattr(test_commands, "_command_available", lambda name: True)
+    monkeypatch.setattr(test_commands, "_module_available", lambda name: True)
 
 
 
@@ -969,10 +919,9 @@ def test_multipass_helper_runs_multi_workloads(monkeypatch: pytest.MonkeyPatch, 
 
 
 
-    monkeypatch.setattr(cli.doctor_service, "_check_command", lambda name: True)
-
-
-    monkeypatch.setattr(cli.doctor_service, "_check_import", lambda name: True)
+    from lb_ui.cli.commands import test as test_commands
+    monkeypatch.setattr(test_commands, "_command_available", lambda name: True)
+    monkeypatch.setattr(test_commands, "_module_available", lambda name: True)
 
 
 
@@ -1086,7 +1035,9 @@ def test_multipass_helper_accepts_pytest_flags_without_separator(monkeypatch: py
 
 
 
-    monkeypatch.setattr(cli.doctor_service, "_check_command", lambda name: True)
+    from lb_ui.cli.commands import test as test_commands
+    monkeypatch.setattr(test_commands, "_command_available", lambda name: True)
+    monkeypatch.setattr(test_commands, "_module_available", lambda name: True)
 
 
 

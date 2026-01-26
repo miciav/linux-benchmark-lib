@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Dict, Optional, Set
 
@@ -13,7 +12,7 @@ from lb_app.api import (
     WorkloadConfig,
     build_plugin_table,
 )
-from lb_ui.tui.system.protocols import UI
+from lb_ui.tui.core.protocols import UI
 from lb_ui.tui.system.models import PickItem, TableModel
 
 
@@ -26,9 +25,8 @@ def select_workloads_interactively(
     set_default: bool,
 ) -> None:
     """Interactively toggle configured workloads using arrows + space."""
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
-        ui.present.error("Interactive selection requires a TTY.")
-        sys.exit(1)
+    if not is_tty_available():
+        raise UIFlowError("Interactive selection requires a TTY.")
 
     available_plugins = registry.available()
     items = []
@@ -141,8 +139,11 @@ def select_workloads_interactively(
 
     if not selection:
         ui.present.warning("Selection cancelled or empty.")
-        if not ui.form.confirm("Do you want to proceed with NO workloads configured?", default=False):
-            sys.exit(1)
+        if not ui.form.confirm(
+            "Do you want to proceed with NO workloads configured?",
+            default=False,
+        ):
+            raise UIFlowError("Workload selection cancelled.")
 
     cfg_write, target, stale, _ = config_service.load_for_write(config, allow_create=True)
     
@@ -160,8 +161,11 @@ def select_workloads_interactively(
         else:
             # New workload from an enabled plugin
             # Name matches plugin_name here for new ones
-            from lb_controller.api import WorkloadConfig
-            wl = WorkloadConfig(plugin=name, options={}, intensity=intensities.get(name, "medium"))
+            wl = WorkloadConfig(
+                plugin=name,
+                options={},
+                intensity=intensities.get(name, "medium"),
+            )
             cfg_write.workloads[name] = wl
             
             # Ensure plugin settings are populated
@@ -184,9 +188,8 @@ def select_plugins_interactively(
     enabled_map: Dict[str, bool]
 ) -> Optional[Set[str]]:
     """Prompt the user to enable/disable plugins using arrows and space."""
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
-        ui.present.error("Interactive selection requires a TTY.")
-        return None
+    if not is_tty_available():
+        raise UIFlowError("Interactive selection requires a TTY.")
         
     headers, rows = build_plugin_table(registry, enabled=enabled_map)
     ui.tables.show(TableModel(title="Available Workload Plugins", columns=headers, rows=rows))
@@ -227,3 +230,5 @@ def apply_plugin_selection(
     cfg, target = config_service.set_plugin_selection(selection, registry)
     ui.present.success(f"Plugin selection saved to {target}")
     return {name: cfg.is_plugin_enabled(name) for name in registry.available()}
+from lb_ui.flows.errors import UIFlowError
+from lb_ui.tui.core.capabilities import is_tty_available

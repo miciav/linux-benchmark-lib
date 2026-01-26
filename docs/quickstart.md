@@ -7,7 +7,7 @@
 lb config init -i
 
 # Enable the plugin at the platform level
-lb plugin list --enable stress_ng
+lb plugin enable stress_ng
 
 # Add the workload to the run config
 lb config enable-workload stress_ng

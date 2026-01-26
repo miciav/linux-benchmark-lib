@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -10,7 +12,15 @@ import typer
 
 from lb_ui.wiring.dependencies import UIContext
 from lb_ui.tui.system.models import PickItem
-from lb_plugins.api import create_registry
+from lb_app.api import create_registry
+
+
+def _module_available(name: str) -> bool:
+    return importlib.util.find_spec(name) is not None
+
+
+def _command_available(name: str) -> bool:
+    return shutil.which(name) is not None
 
 
 def create_test_app(ctx: UIContext) -> typer.Typer:
@@ -44,10 +54,10 @@ def create_test_app(ctx: UIContext) -> typer.Typer:
         ),
     ) -> None:
         """Run the Multipass integration test helper."""
-        if not ctx.doctor_service._check_command("multipass"):
+        if not _command_available("multipass"):
             ctx.ui.present.error("multipass not found in PATH.")
             raise typer.Exit(1)
-        if not ctx.doctor_service._check_import("pytest"):
+        if not _module_available("pytest"):
             ctx.ui.present.error("pytest is not installed.")
             raise typer.Exit(1)
 

@@ -2,7 +2,7 @@
   "remote_hosts": [
     {
       "name": "dfaas-target",
-      "address": "192.168.2.7",
+      "address": "192.168.2.4",
       "user": "ubuntu",
       "become": true,
       "vars": {
@@ -17,7 +17,7 @@
   },
   "plugin_settings": {
     "dfaas": {
-      "k6_host": "192.168.2.8",
+      "k6_host": "192.168.2.5",
       "k6_user": "ubuntu",
       "k6_ssh_key": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/temp_keys/dfaas_multipass_key",
       "k6_port": 22,

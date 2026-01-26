@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from typing import Dict, List, Any, IO
 import time
+from contextlib import contextmanager
+from typing import IO, List
 
 from rich.console import Console
 from rich.layout import Layout
@@ -12,20 +12,13 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 
-# Ideally we should decouple this, but for now we reuse the domain objects
-try:
-        from lb_app.api import RunJournal, RunStatus
-except ImportError:
-    # Fallback for strict isolation if needed, but practically we need these
-    class RunStatus:
-        RUNNING = "running"
-        COMPLETED = "completed"
-        FAILED = "failed"
-        SKIPPED = "skipped"
-        PENDING = "pending"
-    RunJournal = Any
-
-from lb_ui.tui.system.protocols import Dashboard, DashboardFactory
+from lb_ui.presenters.dashboard import (
+    DashboardSnapshot,
+    DashboardViewModel,
+    event_status_line,
+)
+from lb_ui.tui.core.protocols import Dashboard, DashboardFactory
+from lb_ui.tui.core import theme
 from lb_ui.tui.system.components import dashboard_helpers
 from lb_ui.tui.system.components.dashboard_rollup import PollingRollupHelper
 
@@ -36,13 +29,11 @@ class RichDashboard(Dashboard):
     def __init__(
         self,
         console: Console,
-        plan_rows: List[Dict[str, str]],
-        journal: RunJournal,
+        viewmodel: DashboardViewModel,
         ui_log_file: IO[str] | None = None,
     ) -> None:
         self.console = console
-        self.plan_rows = plan_rows
-        self.journal = journal
+        self.viewmodel = viewmodel
         self.log_buffer: List[str] = []
         self.max_log_lines = 20
         self._rollup_helper = PollingRollupHelper(self.log_buffer, summary_only=True)
@@ -55,7 +46,6 @@ class RichDashboard(Dashboard):
         self._live: Live | None = None
         self.event_source: str = "waiting"
         self.last_event_ts: float | None = None
-        self._intensity = dashboard_helpers.build_intensity_map(plan_rows)
         self.ui_log_file = ui_log_file
         self.controller_state: str = "init"
         self._warning_message: str | None = None
@@ -86,32 +76,40 @@ class RichDashboard(Dashboard):
 
     def render(self) -> Layout:
         """Return the layout for the current state."""
-        # Resize journal panel based on number of host/workload rows and terminal height.
-        row_count = max(1, sum(1 for _ in dashboard_helpers.unique_pairs(self.journal)))
+        snapshot = self.viewmodel.snapshot()
+        # Resize journal panel based on number of host/workload rows and
+        # terminal height.
+        row_count = max(1, snapshot.row_count)
         term_height = self.console.size.height if self.console.size else 40
-        journal_height = dashboard_helpers.computed_journal_height(row_count, term_height)
+        journal_height = dashboard_helpers.computed_journal_height(
+            row_count, term_height
+        )
         status_size = max(5, getattr(self.layout["status"], "size", 5))
         logs_height = max(6, term_height - journal_height - status_size - 2)
         self.layout["journal"].size = journal_height
         self.layout["status"].size = status_size
         self.layout["logs"].size = logs_height
         self._visible_log_lines = max(3, logs_height - 2)
-        self.layout["journal"].update(self._render_journal())
+        self.layout["journal"].update(self._render_journal(snapshot))
         self.layout["status"].update(self._render_status())
-        self.layout["logs"].update(self._render_logs())
+        self.layout["logs"].update(self._render_logs(snapshot))
         return self.layout
 
-    def _render_logs(self) -> Panel:
+    def _render_logs(self, snapshot: DashboardSnapshot) -> Panel:
         """Render the rolling log stream."""
         max_visible = getattr(self, "_visible_log_lines", self.max_log_lines)
         lines = self.log_buffer[-max_visible :]
         table = Table.grid(expand=True)
         table.add_column(ratio=1)
-        table.add_column(justify="right", style="dim", width=14)
+        table.add_column(justify="right", style=theme.LOG_TIMING_STYLE, width=14)
         for line in lines:
             message, timing = dashboard_helpers.split_timing(line)
             table.add_row(message, timing)
-        return Panel(table, title="[bold blue]Log Stream[/bold blue]", border_style="blue")
+        return Panel(
+            table,
+            title=theme.panel_title(snapshot.log_metadata.title),
+            border_style=theme.RICH_BORDER_STYLE,
+        )
 
     def _render_status(self) -> Panel:
         """Render controller/event status and transient warnings."""
@@ -123,61 +121,45 @@ class RichDashboard(Dashboard):
             self._warning_expires_at = None
             self._warning_message = None
         lines = []
-        lines.append(self._event_status_line())
-        lines.append(f"[cyan]Controller state:[/cyan] {self.controller_state}")
+        lines.append(
+            event_status_line(self.event_source, self.last_event_ts, now=now)
+        )
+        lines.append(theme.controller_state_line(self.controller_state))
         if warning:
-            lines.append(f"[bold yellow]{warning}[/bold yellow]")
+            lines.append(theme.warning_banner(warning))
         else:
             lines.append("")
-        return Panel("\n".join(lines), title="[bold blue]Status[/bold blue]", border_style="blue")
+        return Panel(
+            "\n".join(lines),
+            title=theme.panel_title("Status"),
+            border_style=theme.RICH_BORDER_STYLE,
+        )
 
-    def _render_journal(self) -> Panel:
+    def _render_journal(self, snapshot: DashboardSnapshot) -> Panel:
         table = Table(expand=True, box=None, padding=(0, 1))
-        table.add_column("Host", style="bold cyan", width=24)
+        table.add_column("Host", style=theme.DASHBOARD_HOST_STYLE, width=24)
         table.add_column("Workload", width=10)
         table.add_column("Intensity", width=10)
         table.add_column("Status", justify="center", width=10)
         table.add_column("Progress", justify="center", width=10)
-        table.add_column("Current Action", style="dim italic")
+        table.add_column("Current Action", style=theme.DASHBOARD_ACTION_STYLE)
         table.add_column("Last Rep Time", justify="right", width=12)
 
-        target_reps = dashboard_helpers.target_repetitions(self.journal)
-        for host, workload in dashboard_helpers.unique_pairs(self.journal):
-            intensity = self._intensity.get(workload, "-")
-            row: List[str] = [host, workload, str(intensity)]
-            tasks = dashboard_helpers.tasks_for(self.journal, host, workload)
-            status = dashboard_helpers.summarize_status(tasks, target_reps)
-            status = dashboard_helpers.style_status(status)
-            active_action = ""
-            # Need to handle tasks dict values which might be objects or dicts depending on where journal comes from
-            # But usually it's TaskState objects.
-            running_task = next(
-                (task for task in tasks.values() if task.status == RunStatus.RUNNING),
-                None,
+        for row in snapshot.rows:
+            table.add_row(
+                row.host,
+                row.workload,
+                str(row.intensity),
+                dashboard_helpers.style_status(row.status),
+                row.progress,
+                row.current_action,
+                row.last_rep_time,
             )
-            if running_task:
-                active_action = running_task.current_action or "Running..."
-
-            started = dashboard_helpers.started_repetitions(tasks)
-            # total = max(self._max_repetitions(), len(tasks)) or 0
-            # Better to rely on tasks length or journal metadata if available
-            # self._target_repetitions() handles it
-            total = target_reps if target_reps > 0 else (len(tasks) or 1)
-
-            last_duration = dashboard_helpers.latest_duration(tasks)
-
-            row.extend([
-                status,
-                f"{started}/{total}",
-                active_action,
-                last_duration,
-            ])
-            table.add_row(*row)
 
         return Panel(
             table,
-            title=f"[bold blue]Run Journal (ID: {self.journal.run_id})[/bold blue]",
-            border_style="blue",
+            title=theme.panel_title(f"Run Journal (ID: {snapshot.run_id})"),
+            border_style=theme.RICH_BORDER_STYLE,
         )
 
     def add_log(self, message: str) -> None:
@@ -192,7 +174,6 @@ class RichDashboard(Dashboard):
         self.log_buffer.append(stripped)
         self._write_ui_log(stripped)
         self._trim_log_buffer()
-
 
     def _write_ui_log(self, message: str) -> None:
         if not self.ui_log_file:
@@ -227,14 +208,12 @@ class RichDashboard(Dashboard):
         self._warning_message = None
         self._warning_expires_at = None
 
-    def _event_status_line(self) -> str:
-        return dashboard_helpers.event_status_line(
-            self.event_source, self.last_event_ts
-        )
 
 class RichDashboardFactory(DashboardFactory):
     def __init__(self, console: Console):
         self._console = console
-        
-    def create(self, plan: list[Dict[str, Any]], journal: Any, ui_log_file: IO[str] | None = None) -> Dashboard:
-        return RichDashboard(self._console, plan, journal, ui_log_file)
+
+    def create(
+        self, viewmodel: DashboardViewModel, ui_log_file: IO[str] | None = None
+    ) -> Dashboard:
+        return RichDashboard(self._console, viewmodel, ui_log_file)

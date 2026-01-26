@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
@@ -8,11 +9,10 @@ import typer
 import json
 from datetime import datetime
 
-from lb_app.api import RunJournal, RunRequest, RunStatus
-from lb_app.services.run_journal import results_exist_for_run
+from lb_app.api import RunJournal, RunRequest, RunStatus, results_exist_for_run
 from lb_common.api import RunInfo
 from lb_ui.presenters.plan import build_run_plan_table
-from lb_ui.presenters.journal import build_journal_table
+from lb_ui.cli.commands.run_helpers import print_run_journal_summary, resolve_stop_file
 from lb_ui.tui.system.models import PickItem
 from lb_ui.wiring.dependencies import UIContext
 
@@ -338,8 +338,21 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
             "--setup/--no-setup",
             help="Run environment setup (Global + Workload) before execution.",
         ),
+        skip_connectivity_check: bool = typer.Option(
+            False,
+            "--skip-connectivity-check",
+            help="Skip the pre-run SSH connectivity check for remote hosts.",
+        ),
+        connectivity_timeout: int = typer.Option(
+            10,
+            "--connectivity-timeout",
+            help="Timeout in seconds for the SSH connectivity check.",
+        ),
     ) -> None:
         """Resume a previous run and continue incomplete repetitions."""
+        import time
+
+        start_ts = time.time()
         from lb_common.api import configure_logging
         from lb_app.api import MAX_NODES
 
@@ -367,6 +380,8 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         if node_count is not None and node_count > MAX_NODES:
             ctx.ui.present.error(f"Maximum supported nodes is {MAX_NODES}.")
             raise typer.Exit(1)
+
+        stop_file_resolved = resolve_stop_file(stop_file)
 
         cfg = _load_config(config)
         output_root = root or cfg.output_dir
@@ -407,51 +422,96 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
             ctx.ui.present.error("No workloads selected to run.")
             raise typer.Exit(1)
 
-        request = RunRequest(
-            config=cfg,
-            tests=plan_tests,
-            run_id=None,
-            resume=selected_run_id,
-            debug=debug,
-            intensity=intensity,
-            setup=setup,
-            stop_file=stop_file,
-            execution_mode=execution_mode,
-            repetitions=None,
-            node_count=resolved_node_count,
-            docker_engine=docker_engine,
-            ui_adapter=ctx.ui_adapter,
-        )
+        from lb_ui.notifications import send_notification
+        from lb_ui.services.tray import TrayManager
 
-        plan = ctx.app_client.get_run_plan(
-            cfg,
-            plan_tests,
-            execution_mode=execution_mode,
-        )
-        ctx.ui.tables.show(build_run_plan_table(plan))
+        tray = TrayManager()
+        tray_enabled = not ctx.headless
+        if tray_enabled:
+            tray.start()
 
-        class _Hooks:
-            def on_log(self, line: str) -> None:
-                ctx.ui_adapter.show_info(line)
+        result = None
+        run_success = False
+        try:
+            request = RunRequest(
+                config=cfg,
+                tests=plan_tests,
+                run_id=None,
+                resume=selected_run_id,
+                debug=debug,
+                intensity=intensity,
+                setup=setup,
+                stop_file=stop_file_resolved,
+                execution_mode=execution_mode,
+                repetitions=None,
+                node_count=resolved_node_count,
+                docker_engine=docker_engine,
+                ui_adapter=ctx.ui_adapter,
+                skip_connectivity_check=skip_connectivity_check,
+                connectivity_timeout=connectivity_timeout,
+            )
 
-            def on_status(self, controller_state: str) -> None:
-                ctx.ui_adapter.show_info(f"Controller state: {controller_state}")
+            plan = ctx.app_client.get_run_plan(
+                cfg,
+                plan_tests,
+                execution_mode=execution_mode,
+            )
+            ctx.ui.tables.show(build_run_plan_table(plan))
 
-            def on_warning(self, message: str, ttl: float = 10.0) -> None:
-                ctx.ui_adapter.show_warning(message)
+            class _Hooks:
+                def on_log(self, line: str) -> None:
+                    ctx.ui_adapter.show_info(line)
 
-            def on_event(self, event) -> None:
-                pass
+                def on_status(self, controller_state: str) -> None:
+                    ctx.ui_adapter.show_info(f"Controller state: {controller_state}")
 
-            def on_journal(self, journal) -> None:
-                pass
+                def on_warning(self, message: str, ttl: float = 10.0) -> None:
+                    ctx.ui_adapter.show_warning(message)
 
-        result = ctx.app_client.start_run(request, _Hooks())
-        if result is None:
+                def on_event(self, event) -> None:
+                    pass
+
+                def on_journal(self, journal) -> None:
+                    pass
+
+            run_result = ctx.app_client.start_run(request, _Hooks())
+            if run_result is None:
+                raise typer.Exit(1)
+            result = run_result
+            run_success = True
+        except ValueError as e:
+            ctx.ui.present.warning(str(e))
             raise typer.Exit(1)
+        except Exception as exc:
+            ctx.ui.present.error(f"Resume failed: {exc}")
+            raise typer.Exit(1)
+        finally:
+            if tray_enabled:
+                tray.stop()
 
-        if result.journal_path:
-            journal = RunJournal.load(result.journal_path)
-            ctx.ui.tables.show(build_journal_table(journal))
+            total_duration = time.time() - start_ts
+            if not ctx.headless:
+                status_word = "SUCCESS" if run_success else "FAILED"
+                msg_body = f"Benchmark execution finished with status: {status_word}"
+
+                send_notification(
+                    title=f"Benchmark {status_word}",
+                    message=msg_body,
+                    success=run_success,
+                    run_id=selected_run_id,
+                    duration_s=total_duration,
+                )
+
+        if (
+            result
+            and result.journal_path
+            and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes")
+        ):
+            print_run_journal_summary(
+                ctx,
+                result.journal_path,
+                log_path=result.log_path,
+                ui_log_path=result.ui_log_path,
+            )
 
         ctx.ui.present.success("Resume completed.")

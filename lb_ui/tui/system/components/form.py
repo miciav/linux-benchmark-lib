@@ -1,6 +1,6 @@
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
-from lb_ui.tui.system.protocols import Form
+from lb_ui.tui.core.protocols import Form
 
 class RichForm(Form):
     def __init__(self, console: Console):

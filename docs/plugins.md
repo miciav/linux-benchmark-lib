@@ -22,7 +22,7 @@ plugins, entry point plugins, and user plugins from the configured plugin direct
 ## CLI workflow
 
 - List plugins: `lb plugin list`
-- Enable/disable a plugin (platform config): `lb plugin list --enable stress_ng` / `lb plugin list --disable stress_ng`
+- Enable/disable a plugin (platform config): `lb plugin enable stress_ng` / `lb plugin disable stress_ng`
 - Add/remove workloads in a run config: `lb config enable-workload <name>` / `lb config disable-workload <name>`
 - Interactive plugin selection (platform config): `lb plugin select`
 - Interactive workload selection (run config): `lb config select-workloads`

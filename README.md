@@ -39,7 +39,7 @@
 
 ```bash
 lb config init -i
-lb plugin list --enable stress_ng
+lb plugin enable stress_ng
 lb run --remote --run-id demo-run
 ```
 

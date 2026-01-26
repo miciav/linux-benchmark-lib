@@ -97,15 +97,6 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
         ]
         ctx.ui.tables.show(TableModel(title="Run Details", columns=["Field", "Value"], rows=rows))
 
-    return app
-
-
-def register_analyze_command(
-    app: typer.Typer,
-    ctx: UIContext,
-) -> None:
-    """Register the analyze command on the given Typer app."""
-
     @app.command("analyze")
     def analyze(
         run_id: Optional[str] = typer.Argument(
@@ -157,10 +148,20 @@ def register_analyze_command(
             if not runs:
                 ctx.ui.present.error(f"No runs found under {output_root}")
                 raise typer.Exit(1)
+            if ctx.headless:
+                ctx.ui.present.error(
+                    "Run selection requires a TTY. Provide a run id in headless mode."
+                )
+                raise typer.Exit(1)
 
-            items = [PickItem(id=r.run_id, title=f"{r.run_id} ({r.created_at})") for r in runs]
+            items = [
+                PickItem(id=r.run_id, title=f"{r.run_id} ({r.created_at})")
+                for r in runs
+            ]
             selection = ctx.ui.picker.pick_one(items, title="Select a benchmark run")
-            selected_run_id = selection.id if selection else runs[0].run_id
+            if selection is None:
+                raise typer.Exit(1)
+            selected_run_id = selection.id
             ctx.ui.present.info(f"Selected run: {selected_run_id}")
 
         run = catalog.get_run(selected_run_id)
@@ -171,7 +172,9 @@ def register_analyze_command(
         selected_kind = kind
         if not selected_kind:
             k_items = [PickItem(id="aggregate", title="aggregate")]
-            k_sel = ctx.ui.picker.pick_one(k_items, title="Select analytics type", query_hint="aggregate")
+            k_sel = ctx.ui.picker.pick_one(
+                k_items, title="Select analytics type", query_hint="aggregate"
+            )
             selected_kind = k_sel.id if k_sel else "aggregate"
 
         if selected_kind != "aggregate":
@@ -181,7 +184,9 @@ def register_analyze_command(
         selected_workloads = workload
         if selected_workloads is None:
             w_items = [PickItem(id=w, title=w) for w in list(run.workloads)]
-            w_sel = ctx.ui.picker.pick_many(w_items, title="Select workloads to analyze")
+            w_sel = ctx.ui.picker.pick_many(
+                w_items, title="Select workloads to analyze"
+            )
             selected_workloads = sorted([s.id for s in w_sel]) if w_sel else None
 
         selected_hosts = host
@@ -196,11 +201,17 @@ def register_analyze_command(
             hosts=selected_hosts,
             workloads=selected_workloads,
         )
-        with ctx.ui.progress.status(f"Running analytics '{selected_kind}' on {run.run_id}"):
+        with ctx.ui.progress.status(
+            f"Running analytics '{selected_kind}' on {run.run_id}"
+        ):
             produced = ctx.analytics_service.run(req)
         if not produced:
             ctx.ui.present.warning("No analytics artifacts produced.")
             return
         rows = [[str(p)] for p in produced]
-        ctx.ui.tables.show(TableModel(title="Analytics Artifacts", columns=["Path"], rows=rows))
+        ctx.ui.tables.show(
+            TableModel(title="Analytics Artifacts", columns=["Path"], rows=rows)
+        )
         ctx.ui.present.success("Analytics completed.")
+
+    return app

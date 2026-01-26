@@ -62,6 +62,7 @@ def test_cli_runs_list_and_analyze(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     res_analyze = runner.invoke(
         app,
         [
+            "runs",
             "analyze",
             "run-20240101-000000",
             "--root",

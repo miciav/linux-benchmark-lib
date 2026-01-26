@@ -5,10 +5,10 @@ import queue
 import threading
 from typing import Any
 
-from lb_ui.tui.system.protocols import Dashboard
+from lb_ui.tui.core.protocols import Dashboard
 
 
-class DashboardAdapter(Dashboard):
+class DashboardHandleAdapter(Dashboard):
     def __init__(self, sink: Dashboard, *, threaded: bool = False) -> None:
         self._sink = sink
         self._threaded = threaded
