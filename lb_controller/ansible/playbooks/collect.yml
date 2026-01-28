@@ -9,11 +9,18 @@
     data_export_root: "{{ data_export_root | default('/tmp/data_exports') }}"
     per_host_output: "{{ per_host_output | default({}) }}"
     output_root: "{{ output_root | default('./benchmark_results') }}"
+    plugin_assets_dict: "{{ benchmark_config.plugin_assets | default({}) }}"
 
   pre_tasks:
-    - name: "Derive plugin-specific settings"
-      include_tasks: "../../../lb_plugins/plugins/{{ item }}/ansible/collect/pre.yml"
-      loop: "{{ (benchmark_config.workloads.keys() | list) | intersect(['dfaas']) }}"
+    - name: "Derive plugin-specific collect pre tasks"
+      include_tasks: "{{ item.value.collect_pre_playbook }}"
+      loop: "{{ plugin_assets_dict | dict2items }}"
+      when:
+        - item.value.collect_pre_playbook is defined
+        - item.value.collect_pre_playbook | default('', true) | length > 0
+        - item.key in (benchmark_config.workloads | default({}))
+      loop_control:
+        label: "{{ item.key }}"
 
   tasks:
     - name: Ensure local host output dir exists
@@ -77,6 +84,12 @@
       when: lb_events_stream_log.stat.exists
       failed_when: false
 
-- name: Collect plugin-specific logs
-  import_playbook: "../../../lb_plugins/plugins/dfaas/ansible/collect/post.yml"
-  when: "'dfaas' in (benchmark_config.workloads | default({}))"
+    - name: Collect plugin-specific logs (post)
+      include_tasks: "{{ item.value.collect_post_playbook }}"
+      loop: "{{ plugin_assets_dict | dict2items }}"
+      when:
+        - item.value.collect_post_playbook is defined
+        - item.value.collect_post_playbook | default('', true) | length > 0
+        - item.key in (benchmark_config.workloads | default({}))
+      loop_control:
+        label: "{{ item.key }}"

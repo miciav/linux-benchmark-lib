@@ -73,7 +73,7 @@ def _has_stream_log_fetch_task(tasks: list[dict]) -> bool:
 def _has_plugin_derive_task(tasks: list[dict]) -> bool:
     for task in tasks:
         inc = task.get("include_tasks")
-        if isinstance(inc, str) and "collect/pre.yml" in inc:
+        if isinstance(inc, str) and "collect_pre_playbook" in inc:
             return True
     return False
 
@@ -107,5 +107,8 @@ def test_dfaas_plugin_collect_post_playbook() -> None:
     path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "collect" / "post.yml"
     data = yaml.safe_load(path.read_text())
     assert isinstance(data, list)
-    tasks = data[0].get("tasks", [])
+    if data and isinstance(data[0], dict) and "tasks" in data[0]:
+        tasks = data[0].get("tasks", [])
+    else:
+        tasks = data
     assert _has_k6_log_collection(tasks)

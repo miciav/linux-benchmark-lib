@@ -65,7 +65,13 @@ class ResultsViewModel(QObject):
         Returns True if successful.
         """
         if config_path is None:
-            cached, _ = self._config_service.get_current_config()
+            cached = None
+            try:
+                current = self._config_service.get_current_config()
+                if isinstance(current, tuple) and len(current) >= 1:
+                    cached = current[0]
+            except Exception:
+                cached = None
             if cached is not None:
                 self.configure_with_config(cached)
                 return True

@@ -280,6 +280,8 @@ def handle_collect_phase(
     phases: Dict[str, ExecutionResult],
     flags: RunFlags,
     ui_log: Callable[[str], None],
+    plugin_assets: Optional[PluginAssetConfig] = None,
+    plugin_name: Optional[str] = None,
 ) -> None:
     """Execute the collect playbook and backfill timings."""
     res_run = phases.get(f"run_{test_name}")

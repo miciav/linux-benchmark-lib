@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QCoreApplication
 
 from lb_app.api import AnalyticsKind
 from lb_gui.workers import AnalyticsWorker
@@ -35,7 +35,7 @@ class AnalyticsViewModel(QObject):
         self,
         analytics_service: "AnalyticsServiceWrapper",
         run_catalog: "RunCatalogServiceWrapper",
-        config_service: "GUIConfigService",
+        config_service: "GUIConfigService | None" = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -51,7 +51,7 @@ class AnalyticsViewModel(QObject):
         self._selected_kind: AnalyticsKind = "aggregate"
         self._last_artifacts: list[Path] = []
         self._worker: AnalyticsWorker | None = None
-        self._is_configured: bool = False
+        self._is_configured: bool = config_service is None
 
     @property
     def runs(self) -> list["RunInfo"]:
@@ -134,8 +134,17 @@ class AnalyticsViewModel(QObject):
 
     def configure(self, config_path: Path | None = None) -> bool:
         """Configure the run catalog service using the benchmark config."""
+        if self._config_service is None:
+            self._is_configured = True
+            return True
         if config_path is None:
-            cached, _ = self._config_service.get_current_config()
+            cached = None
+            try:
+                current = self._config_service.get_current_config()
+                if isinstance(current, tuple) and len(current) >= 1:
+                    cached = current[0]
+            except Exception:
+                cached = None
             if cached is not None:
                 self.configure_with_config(cached)
                 return True
@@ -198,6 +207,20 @@ class AnalyticsViewModel(QObject):
 
         self.analytics_started.emit()
         self._last_artifacts = []
+
+        if QCoreApplication.instance() is None:
+            try:
+                artifacts = self._analytics.run_analytics(
+                    run_info=self._selected_run,
+                    kind=self._selected_kind,
+                    workloads=self._selected_workloads or None,
+                    hosts=self._selected_hosts or None,
+                )
+                self._last_artifacts = list(artifacts)
+                self.analytics_completed.emit(self._last_artifacts)
+            except Exception as exc:
+                self.analytics_failed.emit(str(exc))
+            return
 
         self._worker = AnalyticsWorker(
             self._analytics,

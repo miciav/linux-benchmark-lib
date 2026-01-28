@@ -22,8 +22,10 @@ from tests.helpers.multipass import (
     ensure_ansible_available,
     ensure_multipass_access,
     get_intensity,
+    launch_multipass_vm,
     make_test_ansible_env,
     stage_private_key,
+    wait_for_multipass_ip,
 )
 
 # Explicitly set the start method for multiprocessing on macOS
@@ -117,19 +119,10 @@ def _vm_name(index: int, total: int) -> str:
     return f"{VM_NAME_PREFIX}-{index + 1}"
 
 def _wait_for_ip(vm_name: str) -> str:
-    for _ in range(10):
-        info_proc = subprocess.run(
-            ["multipass", "info", vm_name, "--format", "json"],
-            capture_output=True,
-            text=True,
-        )
-        if info_proc.returncode == 0:
-            info = json.loads(info_proc.stdout)
-            ipv4 = info["info"][vm_name]["ipv4"]
-            if ipv4:
-                return ipv4[0]
-        time.sleep(2)
-    pytest.fail(f"Could not retrieve VM IP address for {vm_name}.")
+    try:
+        return wait_for_multipass_ip(vm_name)
+    except RuntimeError as exc:
+        pytest.fail(str(exc))
 
 def _inject_ssh_key(vm_name: str, pub_key: str) -> None:
     cmd = (
@@ -154,33 +147,13 @@ def _launch_vm(vm_name: str, pub_key: str) -> dict:
     print(f"Launching multipass VM: {vm_name}...")
     primary = os.environ.get("LB_MULTIPASS_IMAGE", "24.04")
     fallback = os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts")
-    tried = []
-    for image in [primary, fallback]:
-        if image in tried:
-            continue
-        tried.append(image)
-        try:
-            subprocess.run(
-                [
-                    "multipass",
-                    "launch",
-                    "--name",
-                    vm_name,
-                    "--cpus",
-                    str(_vm_cpus()),
-                    "--memory",
-                    _vm_memory(),
-                    "--disk",
-                    _vm_disk(),
-                    image,
-                ],
-                check=True,
-            )
-            break
-        except subprocess.CalledProcessError:
-            print(f"Image '{image}' failed to launch, trying next option...")
-            if image == tried[-1] and len(tried) == 2:
-                raise
+    launch_multipass_vm(
+        vm_name,
+        image_candidates=[primary, fallback],
+        cpus=_vm_cpus(),
+        memory=_vm_memory(),
+        disk=_vm_disk(),
+    )
     ip_address = _wait_for_ip(vm_name)
     print(f"VM {vm_name} started at {ip_address}. Injecting SSH key...")
     _inject_ssh_key(vm_name, pub_key)

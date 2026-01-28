@@ -173,6 +173,10 @@ def apply_plugin_assets(
         teardown_path = None
         setup_extravars: Dict[str, Any] = {}
         teardown_extravars: Dict[str, Any] = {}
+        collect_pre_path = None
+        collect_post_path = None
+        collect_pre_extravars: Dict[str, Any] = {}
+        collect_post_extravars: Dict[str, Any] = {}
         if hasattr(plugin, "get_ansible_setup_path"):
             setup_path = plugin.get_ansible_setup_path()
         if hasattr(plugin, "get_ansible_teardown_path"):
@@ -181,11 +185,23 @@ def apply_plugin_assets(
             setup_extravars = plugin.get_ansible_setup_extravars() or {}
         if hasattr(plugin, "get_ansible_teardown_extravars"):
             teardown_extravars = plugin.get_ansible_teardown_extravars() or {}
+        if hasattr(plugin, "get_ansible_collect_pre_path"):
+            collect_pre_path = plugin.get_ansible_collect_pre_path()
+        if hasattr(plugin, "get_ansible_collect_post_path"):
+            collect_post_path = plugin.get_ansible_collect_post_path()
+        if hasattr(plugin, "get_ansible_collect_pre_extravars"):
+            collect_pre_extravars = plugin.get_ansible_collect_pre_extravars() or {}
+        if hasattr(plugin, "get_ansible_collect_post_extravars"):
+            collect_post_extravars = plugin.get_ansible_collect_post_extravars() or {}
         assets[name] = PluginAssetConfig(
             setup_playbook=setup_path,
             teardown_playbook=teardown_path,
             setup_extravars=setup_extravars,
             teardown_extravars=teardown_extravars,
+            collect_pre_playbook=collect_pre_path,
+            collect_post_playbook=collect_post_path,
+            collect_pre_extravars=collect_pre_extravars,
+            collect_post_extravars=collect_post_extravars,
         )
     config.plugin_assets = assets
 

@@ -23,3 +23,15 @@ class PluginAssetConfig(BaseModel):
     teardown_extravars: Dict[str, Any] = Field(
         default_factory=dict, description="Teardown extravars"
     )
+    collect_pre_playbook: Optional[Path] = Field(
+        default=None, description="Plugin collect pre-playbook path"
+    )
+    collect_post_playbook: Optional[Path] = Field(
+        default=None, description="Plugin collect post-playbook path"
+    )
+    collect_pre_extravars: Dict[str, Any] = Field(
+        default_factory=dict, description="Collect pre extravars"
+    )
+    collect_post_extravars: Dict[str, Any] = Field(
+        default_factory=dict, description="Collect post extravars"
+    )

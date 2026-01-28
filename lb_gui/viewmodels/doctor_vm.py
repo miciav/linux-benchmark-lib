@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QCoreApplication
 
 from lb_gui.workers import DoctorWorker
 
@@ -82,6 +82,21 @@ class DoctorViewModel(QObject):
         self._is_running = True
         self._reports = []
         self.checks_started.emit()
+
+        if QCoreApplication.instance() is None:
+            try:
+                reports: list["DoctorReport"] = []
+                reports.append(self._doctor.check_controller())
+                reports.append(self._doctor.check_local_tools())
+                if self._config is not None and self._config.remote_hosts:
+                    reports.append(self._doctor.check_connectivity(self._config))
+                self._reports = reports
+                self._is_running = False
+                self.checks_completed.emit(self._reports)
+            except Exception as exc:
+                self._is_running = False
+                self.error_occurred.emit(f"Check failed: {exc}")
+            return
 
         self._worker = DoctorWorker(self._doctor, self._config)
         self._worker.signals.progress.connect(self.check_progress.emit)

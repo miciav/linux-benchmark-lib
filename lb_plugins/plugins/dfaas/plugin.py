@@ -21,6 +21,8 @@ class DfaasPlugin(SimpleWorkloadPlugin):
     CONFIG_CLS = DfaasConfig
     GENERATOR_CLS = DfaasGenerator
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_global.yml"
+    COLLECT_PRE_PLAYBOOK = Path(__file__).parent / "ansible" / "collect" / "pre.yml"
+    COLLECT_POST_PLAYBOOK = Path(__file__).parent / "ansible" / "collect" / "post.yml"
     GRAFANA_ASSETS = GRAFANA_ASSETS
 
     def export_results_to_csv(

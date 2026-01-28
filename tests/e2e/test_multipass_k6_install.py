@@ -15,6 +15,7 @@ from tests.helpers.multipass import (
     ensure_ansible_available,
     ensure_multipass_access,
     inject_multipass_ssh_key,
+    launch_multipass_vm,
     make_test_ansible_env,
     wait_for_multipass_ip,
 )
@@ -23,20 +24,13 @@ pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.sl
 
 
 def _launch_vm(vm_name: str) -> None:
-    images = [
-        os.environ.get("LB_MULTIPASS_IMAGE", "24.04"),
-        os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts"),
-    ]
-    for image in images:
-        try:
-            subprocess.run(
-                ["multipass", "launch", "--name", vm_name, image],
-                check=True,
-            )
-            return
-        except subprocess.CalledProcessError:
-            if image == images[-1]:
-                raise
+    launch_multipass_vm(
+        vm_name,
+        image_candidates=[
+            os.environ.get("LB_MULTIPASS_IMAGE", "24.04"),
+            os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts"),
+        ],
+    )
 
 
 def _write_inventory(inventory_path: Path, vm_name: str, ip_addr: str, key_path: Path) -> None:
