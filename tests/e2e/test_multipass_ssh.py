@@ -1,4 +1,4 @@
-import os
+import json
 import subprocess
 import time
 from pathlib import Path
@@ -9,6 +9,7 @@ from tests.helpers.multipass import (
     ensure_ansible_available,
     ensure_multipass_access,
     inject_multipass_ssh_key,
+    launch_multipass_vm,
     make_test_ansible_env,
     wait_for_multipass_ip,
 )
@@ -50,21 +51,8 @@ def test_multipass_ssh_roundtrip(tmp_path: Path) -> None:
             stderr=subprocess.DEVNULL,
         )
 
-        # Launch VM (prefer image from env, fallback to 24.04 then lts)
-        images = [
-            os.environ.get("LB_MULTIPASS_IMAGE", "24.04"),
-            os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts"),
-        ]
-        for image in images:
-            try:
-                subprocess.run(
-                    ["multipass", "launch", "--name", vm_name, image],
-                    check=True,
-                )
-                break
-            except subprocess.CalledProcessError:
-                if image == images[-1]:
-                    raise
+        # Launch VM with retries/fallback handled by shared helper.
+        launch_multipass_vm(vm_name)
 
         ip_addr = wait_for_multipass_ip(vm_name)
         inject_multipass_ssh_key(vm_name, pub_path)
@@ -124,21 +112,8 @@ def test_multipass_ansible_ping(tmp_path: Path) -> None:
             stderr=subprocess.DEVNULL,
         )
 
-        # Launch VM
-        images = [
-            os.environ.get("LB_MULTIPASS_IMAGE", "24.04"),
-            os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts"),
-        ]
-        for image in images:
-            try:
-                subprocess.run(
-                    ["multipass", "launch", "--name", vm_name, image],
-                    check=True,
-                )
-                break
-            except subprocess.CalledProcessError:
-                if image == images[-1]:
-                    raise
+        # Launch VM with retries/fallback handled by shared helper.
+        launch_multipass_vm(vm_name)
 
         ip_addr = wait_for_multipass_ip(vm_name)
         inject_multipass_ssh_key(vm_name, pub_path)
@@ -206,20 +181,8 @@ def test_multipass_ansible_stress_ng(tmp_path: Path) -> None:
             stderr=subprocess.DEVNULL,
         )
 
-        images = [
-            os.environ.get("LB_MULTIPASS_IMAGE", "24.04"),
-            os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts"),
-        ]
-        for image in images:
-            try:
-                subprocess.run(
-                    ["multipass", "launch", "--name", vm_name, image],
-                    check=True,
-                )
-                break
-            except subprocess.CalledProcessError:
-                if image == images[-1]:
-                    raise
+        # Launch VM with retries/fallback handled by shared helper.
+        launch_multipass_vm(vm_name)
 
         ip_addr = wait_for_multipass_ip(vm_name)
         inject_multipass_ssh_key(vm_name, pub_path)
@@ -298,20 +261,8 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             stderr=subprocess.DEVNULL,
         )
 
-        images = [
-            os.environ.get("LB_MULTIPASS_IMAGE", "24.04"),
-            os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts"),
-        ]
-        for image in images:
-            try:
-                subprocess.run(
-                    ["multipass", "launch", "--name", vm_name, image],
-                    check=True,
-                )
-                break
-            except subprocess.CalledProcessError:
-                if image == images[-1]:
-                    raise
+        # Launch VM with retries/fallback handled by shared helper.
+        launch_multipass_vm(vm_name)
 
         ip_addr = wait_for_multipass_ip(vm_name)
         inject_multipass_ssh_key(vm_name, pub_path)
