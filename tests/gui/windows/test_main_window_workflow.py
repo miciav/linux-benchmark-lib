@@ -177,3 +177,16 @@ def test_on_start_run_sets_ui_adapter_and_stop_file(main_window, mock_services):
 
     assert request.ui_adapter is not None
     assert main_window._current_stop_file == request.stop_file
+
+
+def test_stop_button_touches_stop_file(main_window, tmp_path):
+    """Test stop button creates stop file after confirmation."""
+    main_window._current_stop_file = tmp_path / "STOP"
+    main_window._current_worker = MagicMock()
+    main_window._current_worker.is_running.return_value = True
+    main_window._set_ui_busy(True)
+
+    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+        main_window._on_stop_clicked()
+
+    assert main_window._current_stop_file.exists()
