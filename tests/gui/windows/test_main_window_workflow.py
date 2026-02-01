@@ -70,6 +70,7 @@ def main_window(mock_services):
         
         window = MainWindow(mock_services)
         yield window
+        window._current_worker = None
         window.close()
 
 
@@ -151,6 +152,17 @@ def test_close_event_worker_running_confirm(main_window):
     with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
         main_window.closeEvent(event)
         event.accept.assert_called_once()
+
+def test_fixture_teardown_does_not_prompt(monkeypatch, main_window):
+    """Ensure fixture teardown does not trigger a confirmation dialog."""
+    def fail_on_prompt(*_args, **_kwargs):
+        raise AssertionError("Unexpected confirmation dialog on teardown")
+
+    monkeypatch.setattr(QMessageBox, "question", fail_on_prompt)
+
+    worker = MagicMock()
+    worker.is_running.return_value = True
+    main_window._current_worker = worker
 
 
 def test_on_start_run_sets_ui_adapter_and_stop_file(main_window, mock_services):
