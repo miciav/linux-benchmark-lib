@@ -110,3 +110,26 @@ class TestSigintDoublePressHandler:
         handler._handle_sigint(signal.SIGINT, None)
         on_first.assert_called_once() # count stays 1
         on_confirmed.assert_called_once()
+
+    def test_handler_skips_install_when_not_main_thread(self):
+        sm = Mock()
+        sm.on_sigint.return_value = SigintDecision.WARN_ARM
+        dummy_thread = object()
+        main_thread = object()
+
+        with (
+            patch("lb_controller.engine.interrupts.threading.current_thread", return_value=dummy_thread),
+            patch("lb_controller.engine.interrupts.threading.main_thread", return_value=main_thread),
+            patch("signal.signal", side_effect=ValueError("signal only works in main thread")) as mock_signal,
+            patch("signal.getsignal") as mock_getsignal,
+        ):
+            with SigintDoublePressHandler(
+                state_machine=sm,
+                run_active=lambda: True,
+                on_first_sigint=Mock(),
+                on_confirmed_sigint=Mock(),
+            ):
+                pass
+
+        mock_signal.assert_not_called()
+        mock_getsignal.assert_not_called()
