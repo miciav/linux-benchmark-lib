@@ -1,0 +1,3 @@
+[submodule "lb_gui"]
+	path = lb_gui
+	url = https://github.com/miciav/linux-benchmark-gui.git
