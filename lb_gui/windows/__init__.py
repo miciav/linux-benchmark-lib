@@ -1,1 +1,0 @@
-"""Main window and dialogs."""
