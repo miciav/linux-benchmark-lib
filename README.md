@@ -43,6 +43,13 @@ lb plugin enable stress_ng
 lb run --remote --run-id demo-run
 ```
 
+## Quickstart (GUI)
+
+```bash
+# Avvia l'interfaccia grafica moderna
+lb-gui
+```
+
 Dev-only provisioning (requires `.lb_dev_cli` or `LB_ENABLE_TEST_CLI=1`):
 
 ```bash
@@ -91,8 +98,9 @@ Extras:
 
 ```bash
 uv pip install -e ".[ui]"          # CLI/TUI
+uv pip install -e ".[gui]"         # Graphical UI (Qt)
 uv pip install -e ".[controller]"  # Ansible + analytics
-uv pip install -e ".[ui,controller]"  # full CLI
+uv pip install -e ".[ui,gui,controller]"  # Full installation
 uv pip install -e ".[dev]"         # test + lint tools
 uv pip install -e ".[docs]"        # mkdocs
 ```
@@ -108,12 +116,13 @@ bash scripts/switch_mode.sh dev
 
 ## Project layout
 
-```
+```text
 linux-benchmark-lib/
 |-- lb_runner/        # Runner (collectors, local execution helpers)
 |-- lb_controller/    # Orchestration and journaling
 |-- lb_app/           # Stable API for CLI/UI integrations
 |-- lb_ui/            # CLI/TUI implementation
+|-- lb_gui/           # Graphical UI (Git Submodule)
 |-- lb_analytics/     # Reporting and analytics
 |-- lb_plugins/       # Workload plugins and registry
 |-- lb_provisioner/   # Docker/Multipass helpers

@@ -128,6 +128,10 @@ class ConnectivityService:
 
         # Add SSH key if specified
         ssh_key = getattr(host, "ssh_key", None) or getattr(host, "key_file", None)
+        if not ssh_key:
+            vars_map = getattr(host, "vars", None) or {}
+            if isinstance(vars_map, dict):
+                ssh_key = vars_map.get("ansible_ssh_private_key_file")
         if ssh_key:
             ssh_cmd.extend(["-i", str(ssh_key)])
 

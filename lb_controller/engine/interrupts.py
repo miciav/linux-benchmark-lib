@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import signal
+import threading
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
@@ -84,6 +85,8 @@ class SigintDoublePressHandler(AbstractContextManager["SigintDoublePressHandler"
         self._prev_handler: Any = None
 
     def __enter__(self) -> "SigintDoublePressHandler":
+        if threading.current_thread() is not threading.main_thread():
+            return self
         self._prev_handler = signal.getsignal(signal.SIGINT)
         signal.signal(signal.SIGINT, self._handle_sigint)  # type: ignore[arg-type]
         return self
