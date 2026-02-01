@@ -179,6 +179,7 @@ def test_on_start_run_sets_ui_adapter_and_stop_file(main_window, mock_services):
     mock_services.run_controller.build_journal.return_value = MagicMock()
 
     worker = MagicMock()
+    worker.is_running.return_value = True
     worker.signals = MagicMock()
     for name in ("log_line", "status_line", "warning", "journal_update", "finished"):
         setattr(worker.signals, name, MagicMock())
@@ -189,6 +190,7 @@ def test_on_start_run_sets_ui_adapter_and_stop_file(main_window, mock_services):
 
     assert request.ui_adapter is not None
     assert main_window._current_stop_file == request.stop_file
+    assert main_window._stop_button.isEnabled()
 
 
 def test_stop_button_touches_stop_file(main_window, tmp_path):
