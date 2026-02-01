@@ -1,6 +1,7 @@
 """Tests for MainWindow workflow logic (navigation locking, shutdown)."""
 
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -58,7 +59,8 @@ def main_window(mock_services):
          patch("lb_gui.viewmodels.ConfigViewModel"), \
          patch("lb_gui.viewmodels.PluginsViewModel"), \
          patch("lb_gui.viewmodels.DoctorViewModel"), \
-         patch("lb_gui.views.RunSetupView", side_effect=MockView), \
+         patch("lb_gui.views.RunSetupView", new=MockView), \
+         patch("lb_gui.views.run_setup_view.RunSetupView", new=MockView), \
          patch("lb_gui.views.DashboardView", side_effect=MockView), \
          patch("lb_gui.views.ResultsView", side_effect=MockView), \
          patch("lb_gui.views.AnalyticsView", side_effect=MockView), \
@@ -149,3 +151,29 @@ def test_close_event_worker_running_confirm(main_window):
     with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
         main_window.closeEvent(event)
         event.accept.assert_called_once()
+
+
+def test_on_start_run_sets_ui_adapter_and_stop_file(main_window, mock_services):
+    """Test that on_start_run injects UI adapter and tracks stop file."""
+    request = MagicMock()
+    request.config = MagicMock()
+    request.tests = ["dfaas"]
+    request.execution_mode = "remote"
+    request.run_id = "run-1"
+    request.stop_file = Path("/tmp/stop")
+    request.ui_adapter = None
+
+    mock_services.run_controller.get_run_plan.return_value = []
+    mock_services.run_controller.build_journal.return_value = MagicMock()
+
+    worker = MagicMock()
+    worker.signals = MagicMock()
+    for name in ("log_line", "status_line", "warning", "journal_update", "finished"):
+        setattr(worker.signals, name, MagicMock())
+    mock_services.run_controller.create_worker.return_value = worker
+
+    run_setup_view = main_window.get_view("run_setup")
+    run_setup_view.start_run_requested.emit(request)
+
+    assert request.ui_adapter is not None
+    assert main_window._current_stop_file == request.stop_file
