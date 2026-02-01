@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -90,6 +92,11 @@ class RunSetupView(QWidget):
         refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(self._on_refresh_workloads)
         layout.addWidget(refresh_btn)
+
+        # Load Config button
+        load_btn = QPushButton("Load Config...")
+        load_btn.clicked.connect(self._on_load_config)
+        layout.addWidget(load_btn)
 
         # Workload list (multi-select)
         self._workload_list = QListWidget()
@@ -194,6 +201,18 @@ class RunSetupView(QWidget):
     def _on_refresh_workloads(self) -> None:
         """Handle refresh button click."""
         self._vm.refresh_workloads()
+
+    def _on_load_config(self) -> None:
+        """Handle load config button click."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load Configuration",
+            "",
+            "YAML files (*.yaml *.yml);;JSON files (*.json);;All files (*)",
+        )
+        if path:
+            self._vm.load_config(Path(path))
+            self._vm.refresh_workloads()
 
     def _on_workload_selection_changed(self) -> None:
         """Handle workload selection change."""

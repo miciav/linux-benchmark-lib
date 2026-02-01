@@ -1,0 +1,151 @@
+"""Tests for MainWindow workflow logic (navigation locking, shutdown)."""
+
+import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QMessageBox
+
+from lb_gui.windows.main_window import MainWindow
+
+# Ensure QApplication exists
+qapp = QApplication.instance()
+if not qapp:
+    qapp = QApplication(sys.argv)
+
+
+@pytest.fixture
+def mock_services():
+    """Mock ServiceContainer and its dependencies."""
+    services = MagicMock()
+    
+    # Mock specific services used in MainWindow init
+    services.plugin_service = MagicMock()
+    services.config_service = MagicMock()
+    services.run_catalog = MagicMock()
+    services.analytics_service = MagicMock()
+    services.doctor_service = MagicMock()
+    services.run_controller = MagicMock()
+    
+    # Mock config service behavior to avoid NoneType errors during setup
+    services.config_service.get_current_config.return_value = (None, None)
+    
+    return services
+
+
+from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
+from PySide6.QtCore import Signal
+
+# ...
+
+class MockView(QWidget):
+    """Mock View that is a real QWidget and has signals."""
+    start_run_requested = Signal(object)
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+@pytest.fixture
+def main_window(mock_services):
+    """Create a MainWindow instance with mocked services."""
+    # Patch ViewModels and Views at their source
+    # Views must return a real QWidget for QStackedWidget to accept them
+    with patch("lb_gui.viewmodels.RunSetupViewModel"), \
+         patch("lb_gui.viewmodels.GUIDashboardViewModel"), \
+         patch("lb_gui.viewmodels.ResultsViewModel"), \
+         patch("lb_gui.viewmodels.AnalyticsViewModel"), \
+         patch("lb_gui.viewmodels.ConfigViewModel"), \
+         patch("lb_gui.viewmodels.PluginsViewModel"), \
+         patch("lb_gui.viewmodels.DoctorViewModel"), \
+         patch("lb_gui.views.RunSetupView", side_effect=MockView), \
+         patch("lb_gui.views.DashboardView", side_effect=MockView), \
+         patch("lb_gui.views.ResultsView", side_effect=MockView), \
+         patch("lb_gui.views.AnalyticsView", side_effect=MockView), \
+         patch("lb_gui.views.ConfigView", side_effect=MockView), \
+         patch("lb_gui.views.PluginsView", side_effect=MockView), \
+         patch("lb_gui.views.DoctorView", side_effect=MockView):
+        
+        window = MainWindow(mock_services)
+        yield window
+        window.close()
+
+
+def test_set_ui_busy(main_window):
+    """Test that _set_ui_busy updates sidebar and cursor."""
+    # Initial state
+    assert main_window._sidebar.isEnabled()
+    
+    # Set busy
+    main_window._set_ui_busy(True)
+    assert not main_window._sidebar.isEnabled()
+    
+    # Unset busy
+    main_window._set_ui_busy(False)
+    assert main_window._sidebar.isEnabled()
+
+
+def test_on_run_finished_success(main_window):
+    """Test _on_run_finished handling for success."""
+    # Simulate busy state
+    main_window._set_ui_busy(True)
+    main_window._current_worker = MagicMock()
+    
+    # Call handler
+    main_window._on_run_finished(True, "")
+    
+    # Verify state restored
+    assert main_window._sidebar.isEnabled()
+    assert main_window._current_worker is None
+
+
+def test_on_run_finished_failure(main_window):
+    """Test _on_run_finished handling for failure."""
+    # Simulate busy state
+    main_window._set_ui_busy(True)
+    main_window._current_worker = MagicMock()
+    
+    # Mock QMessageBox to check for critical error
+    with patch.object(QMessageBox, "critical") as mock_critical:
+        main_window._on_run_finished(False, "Some error")
+        
+        mock_critical.assert_called_once()
+        args = mock_critical.call_args[0]
+        assert "Run Failed" in args[1] # title
+        assert "Some error" in args[2] # text
+    
+    # Verify state restored regardless of error
+    assert main_window._sidebar.isEnabled()
+    assert main_window._current_worker is None
+
+def test_close_event_no_worker(main_window):
+    """Test closing window with no worker running."""
+    event = MagicMock()
+    main_window.closeEvent(event)
+    event.accept.assert_called_once()
+
+def test_close_event_worker_running_cancel(main_window):
+    """Test closing window with running worker (user cancels close)."""
+    worker = MagicMock()
+    worker.is_running.return_value = True
+    main_window._current_worker = worker
+    
+    event = MagicMock()
+    
+    # Simulate user clicking "No" (don't force quit)
+    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No):
+        main_window.closeEvent(event)
+        event.ignore.assert_called_once()
+
+def test_close_event_worker_running_confirm(main_window):
+    """Test closing window with running worker (user confirms close)."""
+    worker = MagicMock()
+    worker.is_running.return_value = True
+    main_window._current_worker = worker
+    
+    event = MagicMock()
+    
+    # Simulate user clicking "Yes" (force quit)
+    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+        main_window.closeEvent(event)
+        event.accept.assert_called_once()

@@ -251,6 +251,16 @@ class MainWindow(QMainWindow):
 
         def on_start_run(request: object) -> None:
             """Handle run start request."""
+            # Check if a run is already in progress
+            if hasattr(self, "_current_worker") and self._current_worker is not None:
+                if self._current_worker.is_running():  # type: ignore
+                    QMessageBox.warning(
+                        self,
+                        "Error",
+                        "A run is already in progress. Please wait for it to finish.",
+                    )
+                    return
+
             # Get the run plan for initializing dashboard
             try:
                 plan = self.services.run_controller.get_run_plan(
@@ -279,6 +289,9 @@ class MainWindow(QMainWindow):
             # Switch to dashboard view
             self.select_section("dashboard")
 
+            # Lock UI
+            self._set_ui_busy(True)
+
             # Create and start worker
             worker = self.services.run_controller.create_worker(request)  # type: ignore
 
@@ -288,12 +301,54 @@ class MainWindow(QMainWindow):
             worker.signals.warning.connect(dashboard_vm.on_warning)  # type: ignore
             worker.signals.journal_update.connect(dashboard_vm.on_journal_update)  # type: ignore
             worker.signals.finished.connect(dashboard_vm.on_run_finished)  # type: ignore
+            
+            # Connect worker signals to main window for cleanup
+            worker.signals.finished.connect(self._on_run_finished)  # type: ignore
 
             # Store worker reference to prevent garbage collection
             self._current_worker = worker
             worker.start()
 
         run_setup_view.start_run_requested.connect(on_start_run)
+
+    def _set_ui_busy(self, busy: bool) -> None:
+        """Enable or disable UI interaction during run."""
+        self._sidebar.setEnabled(not busy)
+        if busy:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        else:
+            QApplication.restoreOverrideCursor()
+
+    def _on_run_finished(self, success: bool, error: str) -> None:
+        """Handle run completion to restore UI state."""
+        self._set_ui_busy(False)
+        self._current_worker = None
+        
+        if not success:
+             QMessageBox.critical(
+                self,
+                "Run Failed",
+                f"Benchmark run failed or completed with error:\n{error}",
+            )
+
+    def closeEvent(self, event: object) -> None:
+        """Handle window close request."""
+        # Use getattr to check existence safely
+        worker = getattr(self, "_current_worker", None)
+        if worker is not None and worker.is_running():  # type: ignore
+            reply = QMessageBox.question(
+                self,
+                "Benchmark Running",
+                "A benchmark is currently running. Closing the application may leave "
+                "remote processes active.\n\nAre you sure you want to force quit?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.No:
+                event.ignore()  # type: ignore
+                return
+        
+        event.accept()  # type: ignore
 
     def _connect_config_flow(
         self,
