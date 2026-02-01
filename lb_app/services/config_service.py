@@ -20,6 +20,7 @@ from lb_plugins.api import (
     PluginRegistry,
     hydrate_plugin_settings,
 )
+from lb_app.services.config_defaults import apply_platform_defaults
 from lb_app.services.config_repository import ConfigRepository
 
 
@@ -83,14 +84,7 @@ class ConfigService:
         cfg: BenchmarkConfig, platform_config: PlatformConfig
     ) -> None:
         """Apply platform defaults without mutating workload selection."""
-        if platform_config.output_dir:
-            cfg.output_dir = platform_config.output_dir
-        if platform_config.report_dir:
-            cfg.report_dir = platform_config.report_dir
-        if platform_config.data_export_dir:
-            cfg.data_export_dir = platform_config.data_export_dir
-        if platform_config.loki:
-            cfg.loki = platform_config.loki
+        apply_platform_defaults(cfg, platform_config)
 
     def load_platform_config(self) -> tuple[PlatformConfig, Path, bool]:
         """Load platform config from ~/.config/lb/platform.json (empty if missing)."""
@@ -231,6 +225,27 @@ class ConfigService:
         if set_default:
             self._repo.write_saved_config_path(target)
         return cfg, target, stale
+
+    def remove_remote_host(
+        self,
+        name: str,
+        config: Optional[Path],
+    ) -> Tuple[BenchmarkConfig, Path, Optional[Path], bool]:
+        """Remove a remote host by name from the config.
+
+        Returns (config, target_path, stale_pointer, removed_flag).
+        """
+        cfg, target, stale, _ = self.load_for_write(config, allow_create=False)
+        original_count = len(cfg.remote_hosts)
+        cfg.remote_hosts = [h for h in cfg.remote_hosts if h.name != name]
+        removed = len(cfg.remote_hosts) < original_count
+
+        # Disable remote execution if no hosts remain
+        if not cfg.remote_hosts:
+            cfg.remote_execution.enabled = False
+
+        self._repo.write_benchmark_config(cfg, target)
+        return cfg, target, stale, removed
 
     def write_saved_config_path(self, path: Path) -> None:
         """Persist a pointer to the preferred config path."""

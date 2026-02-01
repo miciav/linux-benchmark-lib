@@ -65,6 +65,52 @@ def _docker_cleanup(names: list[str], network: str) -> None:
     subprocess.run(["docker", "network", "rm", network], capture_output=True)
 
 
+class _DockerResult:
+    def __init__(self, stdout: str, stderr: str, exited: int) -> None:
+        self.stdout = stdout
+        self.stderr = stderr
+        self.exited = exited
+        self.failed = exited != 0
+
+
+class _DockerConnection:
+    def __init__(self, container: str) -> None:
+        self._container = container
+
+    def run(self, command: str, **kwargs: object) -> _DockerResult:
+        result = subprocess.run(
+            ["docker", "exec", "-u", "0", self._container, "/bin/sh", "-c", command],
+            capture_output=True,
+            text=True,
+        )
+        out_stream = kwargs.get("out_stream")
+        if out_stream and result.stdout:
+            try:
+                out_stream.write(result.stdout)
+            except Exception:
+                pass
+        if result.returncode != 0 and not kwargs.get("warn", False):
+            raise RuntimeError(result.stderr or result.stdout)
+        return _DockerResult(result.stdout, result.stderr, result.returncode)
+
+    def put(self, local: str, remote: str) -> None:
+        subprocess.run(
+            ["docker", "cp", local, f"{self._container}:{remote}"],
+            check=True,
+            capture_output=True,
+        )
+
+    def get(self, remote: str, local: str) -> None:
+        subprocess.run(
+            ["docker", "cp", f"{self._container}:{remote}", local],
+            check=True,
+            capture_output=True,
+        )
+
+    def close(self) -> None:
+        return None
+
+
 def test_dfaas_end_to_end_with_docker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     if not _docker_available():
         pytest.skip("Docker not available.")
@@ -192,6 +238,10 @@ def test_dfaas_end_to_end_with_docker(tmp_path: Path, monkeypatch: pytest.Monkey
         )
 
         _wait_for_ready(f"http://127.0.0.1:{host_port}/-/ready")
+        monkeypatch.setattr(
+            "lb_plugins.plugins.dfaas.services.k6_runner.K6Runner._get_connection",
+            lambda self: _DockerConnection(k6_name),
+        )
 
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()

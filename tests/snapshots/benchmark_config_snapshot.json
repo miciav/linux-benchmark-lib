@@ -1,0 +1,122 @@
+{
+  "collect_system_info": true,
+  "collectors": {
+    "cli_commands": [
+      "vmstat 1"
+    ],
+    "enable_ebpf": false,
+    "perf_config": {
+      "cpu": null,
+      "events": [
+        "cpu-cycles"
+      ],
+      "interval_ms": 1000,
+      "pid": null
+    },
+    "psutil_interval": 1.0
+  },
+  "cooldown_seconds": 2,
+  "influxdb_bucket": "performance",
+  "influxdb_enabled": false,
+  "influxdb_org": "benchmark",
+  "influxdb_token": "",
+  "influxdb_url": "http://localhost:8086",
+  "loki": {
+    "backoff_base": 0.5,
+    "backoff_factor": 2.0,
+    "batch_size": 100,
+    "enabled": false,
+    "endpoint": "http://localhost:3100",
+    "flush_interval_ms": 1000,
+    "labels": {},
+    "max_queue_size": 10000,
+    "max_retries": 3,
+    "timeout_seconds": 5.0
+  },
+  "metrics_interval_seconds": 1.0,
+  "plugin_assets": {},
+  "plugin_settings": {
+    "dd": {
+      "bs": "4M",
+      "conv": "fdatasync",
+      "count": null,
+      "debug": false,
+      "if_path": "/dev/zero",
+      "max_retries": 0,
+      "of_path": "/tmp/lb_test_dd.img",
+      "oflag": "direct",
+      "tags": [],
+      "timeout": 60,
+      "timeout_buffer": 10
+    },
+    "fio": {
+      "bs": "4k",
+      "debug": false,
+      "directory": "/tmp/lb_test_fio",
+      "iodepth": 16,
+      "job_file": null,
+      "max_retries": 0,
+      "name": "benchmark",
+      "numjobs": 1,
+      "output_format": "json",
+      "runtime": 20,
+      "rw": "randrw",
+      "size": "256M",
+      "tags": [],
+      "timeout_buffer": 10
+    },
+    "stress_ng": {
+      "cpu_method": "matrixprod",
+      "cpu_workers": 2,
+      "debug": false,
+      "extra_args": [],
+      "io_workers": 1,
+      "max_retries": 0,
+      "metrics_brief": true,
+      "tags": [],
+      "timeout": 20,
+      "timeout_buffer": 10,
+      "vm_bytes": "1G",
+      "vm_workers": 1
+    }
+  },
+  "remote_execution": {
+    "collect_playbook": null,
+    "enabled": false,
+    "inventory_path": null,
+    "lb_workdir": "{{ (ansible_user == 'root') | ternary('/root', '/home/' ~ ansible_user) }}/.lb",
+    "run_collect": true,
+    "run_playbook": null,
+    "run_setup": true,
+    "run_teardown": true,
+    "setup_playbook": null,
+    "teardown_playbook": null,
+    "upgrade_pip": false,
+    "use_container_fallback": false
+  },
+  "remote_hosts": [],
+  "repetitions": 1,
+  "test_duration_seconds": 30,
+  "warmup_seconds": 2,
+  "workloads": {
+    "stress_ng": {
+      "enabled": true,
+      "intensity": "user_defined",
+      "options": {
+        "cpu_method": "matrixprod",
+        "cpu_workers": 2,
+        "debug": false,
+        "extra_args": [],
+        "io_workers": 1,
+        "max_retries": 0,
+        "metrics_brief": true,
+        "tags": [],
+        "timeout": 20,
+        "timeout_buffer": 10,
+        "vm_bytes": "1G",
+        "vm_workers": 1
+      },
+      "plugin": "stress_ng"
+    }
+  }
+}

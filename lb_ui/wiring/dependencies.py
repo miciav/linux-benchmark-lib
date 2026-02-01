@@ -16,7 +16,7 @@ from lb_app.api import (
 from lb_common.api import configure_logging
 from lb_ui.tui.adapters.tui_adapter import TUIAdapter
 from lb_ui.tui.system.facade import TUI
-from lb_ui.tui.system.protocols import UI
+from lb_ui.tui.core.protocols import UI
 
 
 @dataclass

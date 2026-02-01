@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Callable
+from typing import Any, Callable
 
 from lb_runner.models.events import RunEvent, StdoutEmitter
 
@@ -36,6 +36,10 @@ class RunProgressEmitter:
         repetition: int,
         total_repetitions: int,
         status: str,
+        message: str = "",
+        *,
+        error_type: str | None = None,
+        error_context: dict[str, Any] | None = None,
     ) -> None:
         """Notify progress callback and stdout marker for remote parsing."""
         event = RunEvent(
@@ -45,7 +49,10 @@ class RunProgressEmitter:
             repetition=repetition,
             total_repetitions=total_repetitions,
             status=status,
+            message=message,
             timestamp=time.time(),
+            error_type=error_type,
+            error_context=error_context,
         )
         if self._callback:
             try:

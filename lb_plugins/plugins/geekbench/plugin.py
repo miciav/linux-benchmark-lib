@@ -12,7 +12,6 @@ import json
 import logging
 import os
 import platform
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
@@ -323,6 +322,28 @@ def _resolve_json_path(gen_result: dict[str, Any], output_dir: Path) -> Optional
         output_dir.glob("*geekbench*.json")
     )
     return candidates[0] if candidates else None
+
+
+class GeekbenchResultParser:
+    """Parse Geekbench JSON exports into summary rows."""
+
+    def __init__(self, output_dir: Path, default_version: str) -> None:
+        self._output_dir = output_dir
+        self._default_version = default_version
+
+    def collect_rows(
+        self,
+        results: List[Dict[str, Any]],
+        run_id: str,
+        test_name: str,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        return _collect_geekbench_rows(
+            results,
+            self._output_dir,
+            run_id,
+            test_name,
+            self._default_version,
+        )
 
 
 def _collect_geekbench_rows(
@@ -682,12 +703,11 @@ class GeekbenchPlugin(SimpleWorkloadPlugin):
         if parsing fails.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
-        summary_rows, subtest_rows = _collect_geekbench_rows(
+        parser = GeekbenchResultParser(output_dir, self.config_cls().version)
+        summary_rows, subtest_rows = parser.collect_rows(
             results,
-            output_dir,
             run_id,
             test_name,
-            self.config_cls().version,
         )
         if not summary_rows:
             return []

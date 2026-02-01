@@ -1,7 +1,7 @@
 import pytest
 
-from lb_ui.tui.system.components import picker as picker_module
 from lb_ui.tui.system.models import PickItem
+from lb_ui.tui.screens.picker_screen import PickerSelectionState
 
 pytestmark = pytest.mark.unit_ui
 
@@ -13,11 +13,12 @@ def test_picker_app_seeds_selected_items() -> None:
         PickItem(id="c", title="C", selected=True),
     ]
 
-    app = picker_module._PickerApp(items, title="Test", multi_select=True)
+    state = PickerSelectionState(items)
+    state.seed_from_items()
 
-    assert set(app.selections.keys()) == {0, 2}
-    assert app.selections[0] is None
-    assert app.selections[2] is None
+    assert set(state.selections.keys()) == {0, 2}
+    assert state.selections[0] is None
+    assert state.selections[2] is None
 
 
 def test_two_level_picker_seeds_variant_selection() -> None:
@@ -31,12 +32,13 @@ def test_two_level_picker_seeds_variant_selection() -> None:
         PickItem(id="fio", title="fio"),
     ]
 
-    tree = picker_module._build_tree(items)
-    picker = picker_module._TwoLevelMultiPicker(tree, title="Test")
+    state = PickerSelectionState(items)
+    state.seed_from_items()
 
-    assert "stress_ng" in picker.selected
-    assert picker.selected["stress_ng"].label == "high"
-    assert "fio" not in picker.selected
+    selected_idx = state.selections.get(0)
+    assert selected_idx is not None
+    assert items[0].variants[selected_idx].title == "high"
+    assert 1 not in state.selections
 
 
 def test_two_level_picker_defaults_to_medium_variant() -> None:
@@ -49,10 +51,12 @@ def test_two_level_picker_defaults_to_medium_variant() -> None:
         PickItem(id="stress_ng", title="stress_ng", variants=variants, selected=True),
     ]
 
-    tree = picker_module._build_tree(items)
-    picker = picker_module._TwoLevelMultiPicker(tree, title="Test")
+    state = PickerSelectionState(items)
+    state.seed_from_items()
 
-    assert picker.selected["stress_ng"].label == "medium"
+    selected_idx = state.selections.get(0)
+    assert selected_idx is not None
+    assert items[0].variants[selected_idx].title == "medium"
 
 
 def test_two_level_picker_ignores_disabled_items() -> None:
@@ -70,7 +74,7 @@ def test_two_level_picker_ignores_disabled_items() -> None:
         ),
     ]
 
-    tree = picker_module._build_tree(items)
-    picker = picker_module._TwoLevelMultiPicker(tree, title="Test")
+    state = PickerSelectionState(items)
+    state.seed_from_items()
 
-    assert picker.selected == {}
+    assert state.selections == {}

@@ -38,4 +38,5 @@ class RunRequest:
     node_count: int = 1
     docker_engine: str = "docker"
     ui_adapter: UIAdapter | None = None
-
+    skip_connectivity_check: bool = False
+    connectivity_timeout: int = 10

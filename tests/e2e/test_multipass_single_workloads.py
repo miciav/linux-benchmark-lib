@@ -96,8 +96,9 @@ def _assert_artifacts(host_output_dir: Path, workload: str, expected_reps: int) 
         missing.append(f"Plugin CSV missing/empty: {plugin_csv}")
 
     for rep in range(1, expected_reps + 1):
-        cli_csv = workload_dir / f"{workload}_rep{rep}_CLICollector.csv"
-        psutil_csv = workload_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
+        rep_dir = workload_dir / f"rep{rep}"
+        cli_csv = rep_dir / f"{workload}_rep{rep}_CLICollector.csv"
+        psutil_csv = rep_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
         for path in (cli_csv, psutil_csv):
             if not path.exists() or path.stat().st_size == 0:
                 missing.append(f"Collector CSV missing/empty: {path}")
@@ -223,6 +224,7 @@ def test_multipass_geekbench_three_reps(multipass_vm, tmp_path: Path) -> None:
     intensity = get_intensity()
     arch = platform.machine().lower()
     is_arm = "arm" in arch or "aarch64" in arch
+    geekbench_min_runtime = int(os.environ.get("LB_MULTIPASS_GEEKBENCH_TIMEOUT", "600"))
     download_checksum = (
         # Geekbench 6.3.0 Linux ARM preview tarball.
         "7db7f4d6a6bdc31de4f63f0012abf7f1f00cdc5f6d64e727a47ff06bff6b6b04"
@@ -230,12 +232,14 @@ def test_multipass_geekbench_three_reps(multipass_vm, tmp_path: Path) -> None:
         # Geekbench 6.3.0 Linux (x86_64) tarball.
         else "01727999719cd515a7224075dcab4876deef2844c45e8c2e9f34197224039f3b"
     )
-    # Keep runtime bounded for e2e (Geekbench otherwise hints ~1800s).
+    # Keep runtime bounded for e2e while allowing slow hosts to finish.
     geek_cfg = GeekbenchConfig(
         output_dir=Path("/tmp"),
         skip_cleanup=True,
         run_gpu=False,
-        expected_runtime_seconds=max(120, int(intensity.get("stress_timeout", 120))),
+        expected_runtime_seconds=max(
+            geekbench_min_runtime, int(intensity.get("stress_timeout", 120))
+        ),
         download_checksum=download_checksum,
     )
     workload_cfg = WorkloadConfig(

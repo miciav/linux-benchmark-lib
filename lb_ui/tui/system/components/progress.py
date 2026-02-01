@@ -1,6 +1,6 @@
 from typing import ContextManager
 from rich.console import Console
-from lb_ui.tui.system.protocols import Progress
+from lb_ui.tui.core.protocols import Progress
 
 class RichProgress(Progress):
     def __init__(self, console: Console):

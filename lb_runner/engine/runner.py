@@ -11,35 +11,26 @@ import os
 import logging
 import platform
 import time
-from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 
+from lb_common.errors import LBError
 from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
 from lb_runner.models.events import RunEvent
-from lb_runner.services.log_handler import LBEventLogHandler
 from lb_runner.services.runner_log_manager import RunnerLogManager
 from lb_runner.services.runner_output_manager import RunnerOutputManager
-from lb_plugins.api import BaseGenerator, PluginRegistry, WorkloadPlugin
+from lb_plugins.api import PluginRegistry, WorkloadPlugin
 from lb_runner.metric_collectors.builtin import builtin_collectors
 from lb_runner.metric_collectors.registry import CollectorRegistry
 from lb_runner.registry import RunnerRegistry
-from lb_runner.engine.execution import (
-    StopRequested,
-    generator_running,
-    pre_test_cleanup,
-    prepare_generator,
-    resolve_duration,
-    wait_for_generator,
-)
+from lb_runner.engine.executor import RepetitionExecutor
+from lb_runner.engine.context import RunnerContext
 from lb_runner.engine.progress import RunProgressEmitter
 from lb_runner.engine.planning import RunPlanner
 from lb_runner.engine.run_scope import RunScopeManager
-from lb_runner.services.collector_coordinator import CollectorCoordinator
 from lb_runner.services.result_persister import ResultPersister
-from lb_runner.services.results import build_rep_result
+from lb_runner.engine.stop_context import should_stop, stop_context
 from lb_runner.engine.stop_token import StopToken
-from lb_runner.services import system_info
+from lb_runner.engine.metrics import MetricManager
 logger = logging.getLogger(__name__)
 
 
@@ -62,7 +53,6 @@ class LocalRunner:
             config: Benchmark configuration
         """
         self.config = config
-        self.system_info: Optional[Dict[str, Any]] = None
         self.test_results: List[Dict[str, Any]] = []
         self.plugin_registry = self._resolve_registry(registry, collector_registry)
         workloads = getattr(self.config, "workloads", {})
@@ -75,7 +65,6 @@ class LocalRunner:
             plugin_settings=plugin_settings,
         )
         self._scope_manager = RunScopeManager(self.config, logger)
-        self._collector_coordinator = CollectorCoordinator(self.plugin_registry)
         self._result_persister = ResultPersister()
         self._current_run_id: Optional[str] = None
         self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
@@ -91,6 +80,15 @@ class LocalRunner:
             host_name=self._host_name,
             logger=logger,
         )
+        self._metric_manager = MetricManager(
+            registry=self.plugin_registry,
+            output_manager=self._output_manager,
+            host_name=self._host_name,
+        )
+
+    @property
+    def system_info(self) -> Optional[Dict[str, Any]]:
+        return self._metric_manager.system_info
 
     @staticmethod
     def _resolve_registry(
@@ -109,213 +107,8 @@ class LocalRunner:
         Returns:
             Dictionary containing system information
         """
-        logger.info("Collecting system information")
+        return self._metric_manager.collect_system_info()
 
-        collected = system_info.collect_system_info()
-        self.system_info = collected.to_dict()
-
-        # Persist JSON/CSV alongside run outputs when available
-        self._output_manager.write_system_info(collected)
-
-        return self.system_info
-
-    def _workload_output_dir(self, workload: str) -> Path:
-        """
-        Return the workload-scoped output directory for the current run.
-
-        Ensures the directory exists so collectors and plugins can write into it.
-        """
-        return self._output_manager.workload_output_dir(workload)
-
-    def _run_single_test(
-        self,
-        test_name: str,
-        generator: Any,
-        repetition: int,
-        total_repetitions: int,
-        stop_token: StopToken | None = None,
-    ) -> Dict[str, Any]:
-        """
-        Run a single test with the specified generator.
-        
-        Args:
-            test_name: Name of the test
-            generator: Workload generator instance
-            repetition: Repetition number
-            
-        Returns:
-            Dictionary containing test results
-        """
-        logger.info(f"Running test '{test_name}' - Repetition {repetition}")
-        workload_dir, rep_dir = self._prepare_workload_dirs(test_name, repetition)
-        collectors = self._collector_coordinator.create_collectors(self.config)
-        duration = self._resolve_duration(generator)
-        log_handler = self._attach_event_logger(
-            test_name, repetition, total_repetitions
-        )
-
-        test_start_time, test_end_time = self._execute_generator(
-            generator,
-            collectors,
-            duration,
-            test_name,
-            repetition,
-            stop_token=stop_token,
-        )
-
-        if log_handler:
-            logging.getLogger().removeHandler(log_handler)
-
-        result = self._finalize_single_test(
-            generator,
-            collectors,
-            workload_dir,
-            rep_dir,
-            test_name,
-            repetition,
-            total_repetitions,
-            test_start_time,
-            test_end_time,
-        )
-
-        return result
-
-    def _prepare_workload_dirs(self, test_name: str, repetition: int) -> tuple[Path, Path]:
-        workload_dir = self._workload_output_dir(test_name)
-        rep_dir = workload_dir / f"rep{repetition}"
-        rep_dir.mkdir(parents=True, exist_ok=True)
-        return workload_dir, rep_dir
-
-    def _resolve_duration(self, generator: Any) -> int:
-        return resolve_duration(self.config, generator, logger)
-
-    def _attach_event_logger(
-        self, test_name: str, repetition: int, total_repetitions: int
-    ) -> logging.Handler | None:
-        raw = os.environ.get("LB_ENABLE_EVENT_LOGGING", "1").strip().lower()
-        if raw in {"0", "false", "no"}:
-            return None
-        handler = LBEventLogHandler(
-            run_id=self._current_run_id or "",
-            host=self._host_name,
-            workload=test_name,
-            repetition=repetition,
-            total_repetitions=total_repetitions,
-        )
-        handler.setFormatter(logging.Formatter("%(message)s"))
-        logging.getLogger().addHandler(handler)
-        return handler
-
-    def _execute_generator(
-        self,
-        generator: Any,
-        collectors: list[Any],
-        duration: int,
-        test_name: str,
-        repetition: int,
-        stop_token: StopToken | None = None,
-    ) -> tuple[datetime | None, datetime | None]:
-        self._set_log_phase(
-            "setup",
-            workload=test_name,
-            repetition=repetition,
-        )
-        self._pre_test_cleanup()
-        if stop_token and stop_token.should_stop():
-            raise StopRequested("Stopped by user")
-
-        self._prepare_generator(generator)
-        self._collector_coordinator.start(collectors, logger)
-
-        test_start_time = datetime.now()
-        generator.start()
-        self._set_log_phase(
-            None,
-            workload=test_name,
-            repetition=repetition,
-        )
-        logger.info("Running test for %s seconds", duration)
-
-        test_end_time = self._wait_for_generator(
-            generator, duration, test_name, repetition, stop_token
-        )
-        self._set_log_phase(
-            "teardown",
-            workload=test_name,
-            repetition=repetition,
-        )
-        self._cleanup_after_run(generator, collectors)
-        self._set_log_phase(
-            None,
-            workload=test_name,
-            repetition=repetition,
-        )
-        return test_start_time, test_end_time
-
-    def _prepare_generator(self, generator: Any) -> None:
-        prepare_generator(generator, self.config.warmup_seconds, logger)
-
-    def _wait_for_generator(
-        self,
-        generator: Any,
-        duration: int,
-        test_name: str,
-        repetition: int,
-        stop_token: StopToken | None,
-    ) -> datetime:
-        return wait_for_generator(
-            generator,
-            duration,
-            test_name,
-            repetition,
-            stop_token,
-            logger,
-        )
-
-    def _cleanup_after_run(
-        self, generator: Any, collectors: list[Any], generator_started: bool = True
-    ) -> None:
-        if generator_started and hasattr(generator, "stop"):
-            try:
-                if generator_running(generator):
-                    logger.info("Stopping generator due to error or interruption...")
-                generator.stop()
-            except Exception as exc:
-                logger.error("Failed to stop generator during cleanup: %s", exc)
-        self._collector_coordinator.stop(collectors, logger)
-
-    def _finalize_single_test(
-        self,
-        generator: Any,
-        collectors: list[Any],
-        workload_dir: Path,
-        rep_dir: Path,
-        test_name: str,
-        repetition: int,
-        total_repetitions: int,
-        test_start_time: datetime | None,
-        test_end_time: datetime | None,
-    ) -> Dict[str, Any]:
-        result = build_rep_result(
-            test_name=test_name,
-            repetition=repetition,
-            rep_dir=rep_dir,
-            generator_result=generator.get_result(),
-            test_start_time=test_start_time,
-            test_end_time=test_end_time,
-        )
-        duration_seconds = result.get("duration_seconds", 0) or 0
-        if duration_seconds:
-            logger.info("Repetition %s completed in %.2fs", repetition, duration_seconds)
-        self._collector_coordinator.collect(
-            collectors, workload_dir, rep_dir, test_name, repetition, result
-        )
-        self._output_manager.persist_rep_result(rep_dir, result)
-        return result
-    
-    def _pre_test_cleanup(self) -> None:
-        pre_test_cleanup(logger)
-    
     def run_benchmark(
         self,
         test_type: str,
@@ -332,44 +125,45 @@ class LocalRunner:
             repetition_override: When set, run only this repetition index.
             total_repetitions: Total repetitions planned (for display purposes).
         """
-        total_reps = total_repetitions or self.config.repetitions
-        reps = self._planner.select_repetitions(repetition_override, pending_reps)
-        first_rep = reps[0] if reps else 1
+        with stop_context(self._stop_token):
+            total_reps = total_repetitions or self.config.repetitions
+            reps = self._planner.select_repetitions(repetition_override, pending_reps)
+            first_rep = reps[0] if reps else 1
 
-        self._prepare_run_scope(
-            run_id,
-            workload=test_type,
-            repetition=first_rep,
-            phase="setup",
-        )
-        logger.info(f"Starting benchmark: {test_type}")
-
-        if self.config.collect_system_info and not self.system_info:
-            self.collect_system_info()
-
-        workload_cfg = self._planner.resolve_workload(test_type)
-        plugin: WorkloadPlugin = self.plugin_registry.get(workload_cfg.plugin)
-
-        success_overall = True
-        for idx, rep in enumerate(reps):
-            success = self._run_single_repetition(
-                test_type=test_type,
-                workload_cfg=workload_cfg,
-                plugin=plugin,
-                repetition=rep,
-                total_reps=total_reps,
+            self._prepare_run_scope(
+                run_id,
+                workload=test_type,
+                repetition=first_rep,
+                phase="setup",
             )
-            success_overall = success_overall and success
+            logger.info(f"Starting benchmark: {test_type}")
 
-            if idx < len(reps) - 1 and self.config.cooldown_seconds > 0:
-                logger.info("Cooldown period: %s seconds", self.config.cooldown_seconds)
-                time.sleep(self.config.cooldown_seconds)
+            if self.config.collect_system_info and not self.system_info:
+                self.collect_system_info()
 
-            if self._stop_token and self._stop_token.should_stop():
-                break
+            workload_cfg = self._planner.resolve_workload(test_type)
+            plugin: WorkloadPlugin = self.plugin_registry.get(workload_cfg.plugin)
 
-        logger.info(f"Completed benchmark: {test_type}")
-        return success_overall
+            success_overall = True
+            for idx, rep in enumerate(reps):
+                success = self._run_single_repetition(
+                    test_type=test_type,
+                    workload_cfg=workload_cfg,
+                    plugin=plugin,
+                    repetition=rep,
+                    total_reps=total_reps,
+                )
+                success_overall = success_overall and success
+
+                if idx < len(reps) - 1 and self.config.cooldown_seconds > 0:
+                    logger.info("Cooldown period: %s seconds", self.config.cooldown_seconds)
+                    time.sleep(self.config.cooldown_seconds)
+
+                if should_stop(self._stop_token):
+                    break
+
+            logger.info(f"Completed benchmark: {test_type}")
+            return success_overall
 
     def _prepare_run_scope(
         self,
@@ -404,82 +198,100 @@ class LocalRunner:
         repetition: int,
         total_reps: int,
     ) -> bool:
-        self._set_log_phase(
-            "setup",
-            workload=test_type,
-            repetition=repetition,
-        )
-        if self._stop_token and self._stop_token.should_stop():
+        if should_stop(self._stop_token):
             logger.info("Stop requested; aborting remaining repetitions.")
             self._emit_progress(test_type, repetition, total_reps, "stopped")
             return False
 
         logger.info("Starting repetition %s/%s", repetition, total_reps)
         config_input = self._planner.resolve_config_input(workload_cfg, plugin)
+        
+        context = RunnerContext(
+            run_id=self._current_run_id,
+            config=self.config,
+            output_manager=self._output_manager,
+            log_manager=self._log_manager,
+            metric_manager=self._metric_manager,
+            stop_token=self._stop_token,
+            host_name=self._host_name,
+        )
+
+        executor = RepetitionExecutor(context)
 
         try:
             generator = self.plugin_registry.create_generator(
                 workload_cfg.plugin, config_input
             )
             self._emit_progress(test_type, repetition, total_reps, "running")
-            result = self._run_single_test(
+            outcome = executor.run_attempt(
                 test_name=test_type,
                 generator=generator,
                 repetition=repetition,
                 total_repetitions=total_reps,
-                stop_token=self._stop_token,
+                plugin=plugin,
             )
-            if isinstance(generator, BaseGenerator):
-                self._cleanup_generator(generator, test_type, repetition)
-            self._process_results(test_type, [result], plugin=plugin)
-            
-            success = bool(result.get("success", True))
+            if outcome.status == "stopped":
+                logger.info("Benchmark interrupted.")
             self._emit_progress(
-                test_type, 
-                repetition, 
-                total_reps, 
-                "done" if success else "failed"
+                test_type,
+                repetition,
+                total_reps,
+                outcome.status,
+                message=outcome.message,
+                error_type=outcome.error_type,
+                error_context=outcome.error_context,
             )
-            return success
-        except StopRequested:
-            logger.info("Benchmark interrupted.")
-            self._emit_progress(test_type, repetition, total_reps, "stopped")
-            return False
-        except Exception as exc:
-            logger.error("Skipping workload '%s' on repetition %s: %s", test_type, repetition, exc)
-            self._emit_progress(test_type, repetition, total_reps, "failed")
-            return False
-
-    def _cleanup_generator(
-        self, generator: BaseGenerator, test_type: str, repetition: int
-    ) -> None:
-        try:
-            generator.cleanup()
-        except Exception as exc:  # pragma: no cover - best effort cleanup
-            logger.warning(
-                "Generator cleanup failed for %s rep %s: %s", test_type, repetition, exc
+            return outcome.success
+        except LBError as exc:
+            logger.exception(
+                "Workload '%s' failed on repetition %s", test_type, repetition
             )
-    
-    def _process_results(
-        self,
-        test_name: str,
-        results: List[Dict[str, Any]],
-        plugin: WorkloadPlugin | None = None,
-    ) -> None:
-        """Process and save test results."""
-        target_root = self._workload_output_dir(test_name)
-        self._output_manager.process_results(
-            plugin=plugin,
-            results=results,
-            target_root=target_root,
-            test_name=test_name,
-        )
+            outcome = executor.handle_failure(
+                test_name=test_type,
+                repetition=repetition,
+                generator=None,
+                error=exc,
+                plugin=plugin,
+            )
+            self._emit_progress(
+                test_type,
+                repetition,
+                total_reps,
+                outcome.status,
+                message=outcome.message,
+                error_type=outcome.error_type,
+                error_context=outcome.error_context,
+            )
+            return False
+        except Exception:
+            logger.exception(
+                "Unexpected failure running workload '%s' rep %s",
+                test_type,
+                repetition,
+            )
+            raise
 
     def _emit_progress(
-        self, test_name: str, repetition: int, total_repetitions: int, status: str
+        self,
+        test_name: str,
+        repetition: int,
+        total_repetitions: int,
+        status: str,
+        message: str = "",
+        *,
+        error_type: str | None = None,
+        error_context: dict[str, Any] | None = None,
     ) -> None:
         """Notify progress callback and stdout marker for remote parsing."""
-        self._progress.emit(test_name, repetition, total_repetitions, status)
+        self._progress.emit(
+            test_name,
+            repetition,
+            total_repetitions,
+            status,
+            message=message,
+            error_type=error_type,
+            error_context=error_context,
+        )
 
     def run_all_benchmarks(self) -> None:
         """Run all configured benchmark tests."""
@@ -490,23 +302,5 @@ class LocalRunner:
                 continue
             try:
                 self.run_benchmark(test_name, run_id=run_id)
-            except Exception as e:
-                logger.error(f"Failed to run {test_name} benchmark: {e}", exc_info=True)
-
-    def _set_log_phase(
-        self,
-        phase: str | None,
-        *,
-        workload: str,
-        repetition: int,
-    ) -> None:
-        if not self._current_run_id:
-            return
-        output_dir = self._output_manager.output_root() or self.config.output_dir
-        self._log_manager.attach(
-            output_dir=output_dir,
-            run_id=self._current_run_id,
-            workload=workload,
-            repetition=repetition,
-            phase=phase,
-        )
+            except Exception:
+                logger.exception("Failed to run %s benchmark", test_name)

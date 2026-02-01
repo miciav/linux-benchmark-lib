@@ -1,6 +1,0 @@
-Scanning 234 files...
-
-[1mlb_plugins/plugins/dfaas/services/k6_runner.py[m[36m:[m17[36m:[m1[36m:[m [1m[31mDEP003[m 'invoke' imported but it is a transitive dependency
-[1m[31mFound 1 dependency issue.[m
-
-For more information, see the documentation: https://deptry.com/

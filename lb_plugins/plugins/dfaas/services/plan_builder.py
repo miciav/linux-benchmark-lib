@@ -109,11 +109,8 @@ class DfaasPlanBuilder:
         return sorted(fn.name for fn in self.config.functions)
 
     def build_rates(self) -> list[int]:
-        return generate_rates_list(
-            self.config.rates.min_rate,
-            self.config.rates.max_rate,
-            self.config.rates.step,
-        )
+        """Generate rates using the configured strategy."""
+        return self.config.rate_strategy.generate_rates()
 
     def build_rates_by_function(self, rates: list[int]) -> dict[str, list[int]]:
         rates_by_function: dict[str, list[int]] = {}

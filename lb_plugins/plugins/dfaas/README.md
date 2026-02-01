@@ -60,7 +60,8 @@ persists legacy-compatible CSV outputs.
 - `generator.py`: config generation, k6 orchestration, Prometheus queries.
 - `queries.yml`: PromQL queries.
 - `ansible/`: setup and run playbooks.
-  - `setup_target.yml` installs k3s/OpenFaaS/Prometheus stack.
+  - `setup_target.yml` installs k3s/OpenFaaS/Prometheus stack (target-only; does not install k6).
+  - `setup_global.yml` orchestrates both target and k6 host setup.
   - `setup_k6.yml` installs k6 and prepares workspace.
   - `run_k6.yml` runs a single config on the k6 host.
 - `ansible/manifests/`: Kubernetes manifests for Prometheus and exporters.
@@ -133,6 +134,7 @@ ansible-playbook -i target_inventory.ini \
   -e '{"openfaas_functions":["figlet","env"]}' \
   lb_plugins/plugins/dfaas/ansible/setup_target.yml
 ```
+Note: `setup_target.yml` does not install k6.
 
 Key variables:
 - `openfaas_gateway_node_port` (default 31112)
@@ -145,6 +147,13 @@ Verification:
 ssh target-host kubectl get nodes
 faas-cli list --gateway http://<target-ip>:31112
 curl http://<target-ip>:30411/-/ready
+```
+
+To provision both the target and k6 hosts in one go, run:
+```bash
+ansible-playbook -i target_inventory.ini \
+  -e "benchmark_config=<path-to-benchmark-config>" \
+  lb_plugins/plugins/dfaas/ansible/setup_global.yml
 ```
 
 ### Step 4: Setup k6 host

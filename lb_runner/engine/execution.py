@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 
 from lb_runner.engine.stop_token import StopToken
+from lb_runner.engine.stop_context import should_stop
 
 
 logger = logging.getLogger(__name__)
@@ -80,8 +81,8 @@ def wait_for_generator(
     duration: int,
     test_name: str,
     repetition: int,
-    stop_token: StopToken | None,
     logger: logging.Logger,
+    stop_token: StopToken | None = None,
 ) -> datetime:
     """Block until the generator stops or exceeds the maximum duration."""
     safety_buffer = 10
@@ -89,7 +90,7 @@ def wait_for_generator(
     elapsed = 0
     last_progress_log = 0
     while elapsed < max_wait:
-        if stop_token and stop_token.should_stop():
+        if should_stop(stop_token):
             raise StopRequested("Stopped by user")
         if not generator_running(generator):
             break
@@ -152,4 +153,3 @@ def generator_running(generator: Any) -> bool:
 
 class StopRequested(Exception):
     """Raised when execution is stopped by user request."""
-

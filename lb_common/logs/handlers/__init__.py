@@ -7,11 +7,11 @@ from .jsonl_handler import (
     resolve_jsonl_path,
 )
 from .loki_handler import (
-    LokiLogEntry,
     LokiPushHandler,
     build_loki_payload,
     normalize_loki_endpoint,
 )
+from .loki_types import LokiLogEntry
 
 __all__ = [
     "DEFAULT_JSONL_TEMPLATE",

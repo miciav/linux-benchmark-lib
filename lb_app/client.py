@@ -12,7 +12,13 @@ from lb_app.services.provision_service import (
     ProvisionService,
     ProvisionStatus,
 )
-from lb_controller.api import BenchmarkConfig, RemoteHostConfig, RunJournal, WorkloadConfig
+from lb_controller.api import (
+    BenchmarkConfig,
+    ConnectivityService,
+    RemoteHostConfig,
+    RunJournal,
+    WorkloadConfig,
+)
 from lb_app.services.run_service import RunService
 from lb_app.services.run_service import RunResult
 from lb_common.api import RemoteHostSpec, configure_logging
@@ -186,6 +192,25 @@ class ApplicationClient:
             node_count=request.node_count,
             preloaded_config=cfg,
         )
+
+        # Pre-flight connectivity check for remote mode
+        if (
+            not request.skip_connectivity_check
+            and request.execution_mode == "remote"
+            and cfg.remote_hosts
+        ):
+            connectivity_service = ConnectivityService(
+                timeout_seconds=request.connectivity_timeout
+            )
+            connectivity_report = connectivity_service.check_hosts(cfg.remote_hosts)
+            if not connectivity_report.all_reachable:
+                unreachable = ", ".join(connectivity_report.unreachable_hosts)
+                hooks.on_warning(
+                    f"Unreachable hosts: {unreachable}. "
+                    "Use --skip-connectivity-check to bypass this check.",
+                    ttl=10,
+                )
+                return None
 
         # Provision according to execution mode
         prov_result = None

@@ -12,8 +12,6 @@
   vars:
     # Additional runtime variables (can be overridden via extra-vars)
     openfaas_functions: []
-    k6_setup_enabled: true
-    k6_setup_playbook_path: ""
   tasks:
     - name: Install base packages
       ansible.builtin.apt:
@@ -22,12 +20,6 @@
           - curl
           - jq
           - gnupg
-        state: present
-        update_cache: true
-
-    - name: Install ansible-playbook (for k6 provisioning)
-      ansible.builtin.apt:
-        name: ansible
         state: present
         update_cache: true
 
@@ -140,66 +132,6 @@
       when:
         - openfaas_functions | length == 0
         - benchmark_config is defined
-    - name: Derive k6 settings from benchmark config
-      ansible.builtin.set_fact:
-        k6_host: >-
-          {{
-            (
-              (benchmark_config.plugin_settings | default({})).dfaas | default({})
-            )
-            .k6_host | default('')
-          }}
-        k6_user: >-
-          {{
-            (
-              (benchmark_config.plugin_settings | default({})).dfaas | default({})
-            )
-            .k6_user | default(k6_user)
-          }}
-        k6_ssh_key: >-
-          {{
-            (
-              (benchmark_config.plugin_settings | default({})).dfaas | default({})
-            )
-            .k6_ssh_key | default(k6_ssh_key)
-          }}
-        k6_port: >-
-          {{
-            (
-              (benchmark_config.plugin_settings | default({})).dfaas | default({})
-            )
-            .k6_port | default(k6_port)
-          }}
-        k6_workspace_root: >-
-          {{
-            (
-              (benchmark_config.plugin_settings | default({})).dfaas | default({})
-            )
-            .k6_workspace_root | default(k6_workspace_root)
-          }}
-        prometheus_url: >-
-          {{
-            (
-              (benchmark_config.plugin_settings | default({})).dfaas | default({})
-            )
-            .prometheus_url | default(prometheus_url)
-          }}
-      when:
-        - benchmark_config is defined
-    - name: Resolve k6 setup playbook path
-      ansible.builtin.set_fact:
-        k6_setup_playbook_path: >-
-          {{
-            ((lb_workdir | default('')) | length > 0)
-            | ternary(
-              (
-                lb_workdir
-                | default((ansible_user == 'root') | ternary('/root', '/home/' ~ ansible_user) ~ '/.lb')
-              ) ~ '/lb_plugins/plugins/dfaas/ansible/setup_k6.yml',
-              playbook_dir ~ '/setup_k6.yml'
-            )
-          }}
-      when: k6_setup_enabled
 
     - name: Copy Prometheus manifests
       ansible.builtin.copy:
@@ -363,63 +295,3 @@
         helm upgrade --install {{ scaphandre_release }} {{ scaphandre_chart }}
         --namespace {{ prometheus_namespace }}
       when: scaphandre_enabled
-
-    - name: Ensure k6 setup settings are present
-      ansible.builtin.assert:
-        that:
-          - k6_host | length > 0
-          - k6_ssh_key | length > 0
-        fail_msg: "Set plugins.dfaas.k6_host and plugins.dfaas.k6_ssh_key to provision k6."
-      when: k6_setup_enabled
-
-    - name: Build k6 SSH key path
-      ansible.builtin.set_fact:
-        k6_ssh_key_path: >-
-          {{
-            k6_ssh_key | regex_replace('^~', ansible_facts['env']['HOME'])
-          }}
-      when: k6_setup_enabled
-
-    - name: Ensure k6 SSH key exists on target
-      ansible.builtin.stat:
-        path: "{{ k6_ssh_key_path }}"
-      register: k6_ssh_key_stat
-      when: k6_setup_enabled
-
-    - name: Fail if k6 SSH key is missing on target
-      ansible.builtin.fail:
-        msg: "k6_ssh_key not found on target: {{ k6_ssh_key_path }}"
-      when:
-        - k6_setup_enabled
-        - not k6_ssh_key_stat.stat.exists
-
-    - name: Write k6 inventory for generator host
-      ansible.builtin.copy:
-        dest: "/tmp/dfaas-k6-inventory.ini"
-        mode: "0600"
-        content: |-
-          [k6]
-          k6_host ansible_host={{ k6_host }} ansible_user={{ k6_user }} ansible_port={{ k6_port }} ansible_ssh_private_key_file={{ k6_ssh_key_path }} ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' ansible_python_interpreter=/usr/bin/python3
-      when: k6_setup_enabled
-
-    - name: Install k6 on generator via setup_k6.yml
-      block:
-        - name: Run setup_k6.yml on generator
-          ansible.builtin.command: >
-            ansible-playbook
-            -i /tmp/dfaas-k6-inventory.ini
-            {{ k6_setup_playbook_path }}
-            -e k6_workspace_root={{ k6_workspace_root }}
-          environment:
-            ANSIBLE_HOST_KEY_CHECKING: "False"
-          register: k6_setup_result
-          changed_when: true
-          failed_when: k6_setup_result.rc != 0
-      rescue:
-        - name: Report k6 setup failure output
-          ansible.builtin.fail:
-            msg: |-
-              setup_k6.yml failed.
-              {{ k6_setup_result.stdout | default('No stdout') }}
-              {{ k6_setup_result.stderr | default('No stderr') }}
-      when: k6_setup_enabled

@@ -211,7 +211,7 @@ class K6Runner:
         log_path = f"{workspace}/k6.log"
 
         try:
-            conn.run(f"mkdir -p {workspace}", hide=True)
+            conn.run(f"mkdir -p {workspace}", hide=True, in_stream=False)
 
             with tempfile.NamedTemporaryFile("w", delete=False) as f:
                 f.write(script)
@@ -233,7 +233,8 @@ class K6Runner:
                     full_cmd,
                     hide=True,
                     out_stream=out_writer,
-                    warn=True
+                    warn=True,
+                    in_stream=False,  # Disable stdin to avoid pytest capture issues
                 )
             except UnexpectedExit as e:
                 raise K6ExecutionError(
@@ -361,12 +362,28 @@ class K6Runner:
     def _extract_metric_value(
         self, metric: dict[str, Any] | None, key: str
     ) -> float | None:
+        """Extract a metric value from k6 summary JSON.
+
+        Supports both old format ({"values": {"rate": ...}}) and
+        new format ({"value": ..., "avg": ..., "count": ...}).
+        """
         if not isinstance(metric, dict):
             return None
+
+        # Try new k6 format first (values at top level)
+        # For Rate metrics: key="rate" maps to "value"
+        # For Trend metrics: key="avg" maps to "avg"
+        # For Counter metrics: key="count" maps to "count"
+        if key == "rate" and "value" in metric:
+            return float(metric["value"])
+        if key in metric:
+            return float(metric[key])
+
+        # Fall back to old format with nested "values" dict
         values = metric.get("values")
-        if not isinstance(values, dict):
-            return None
-        value = values.get(key)
-        if value is None:
-            return None
-        return float(value)
+        if isinstance(values, dict):
+            value = values.get(key)
+            if value is not None:
+                return float(value)
+
+        return None

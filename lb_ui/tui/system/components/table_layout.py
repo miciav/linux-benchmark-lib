@@ -8,6 +8,7 @@ from rich.table import Table
 from rich.text import Text
 
 from lb_ui.tui.system.models import TableModel
+from lb_ui.tui.core import theme
 
 
 def _console_width(console: Console) -> int | None:
@@ -29,9 +30,9 @@ def build_rich_table(
     *,
     console: Console,
     show_lines: bool = True,
-    border_style: str = "blue",
-    header_style: str = "bold blue",
-    title_style: str = "bold blue",
+    border_style: str | None = None,
+    header_style: str | None = None,
+    title_style: str | None = None,
     box_style: box.Box = box.ROUNDED,
 ) -> Table:
     """
@@ -58,9 +59,9 @@ def build_rich_table(
         expand=True,
         width=max_table_width,
         box=box_style,
-        border_style=border_style,
-        header_style=header_style,
-        title_style=title_style,
+        border_style=border_style or theme.RICH_BORDER_STYLE,
+        header_style=header_style or theme.RICH_ACCENT_BOLD,
+        title_style=title_style or theme.RICH_ACCENT_BOLD,
     )
 
     def _cell_width(value: str) -> int:

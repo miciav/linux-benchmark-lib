@@ -19,11 +19,17 @@ You MUST run these scripts from repo root and consume their outputs:
 1) ./scripts/arch_audit.sh <TARGET>
 2) uv run python scripts/arch_smells.py <TARGET>
 
+OUTPUT MANAGEMENT (MANDATORY)
+- The scripts overwrite arch_report/ on each run. After each TARGET, copy the entire arch_report/ to arch_report/targets/<TARGET>/ before running the next target.
+- Keep the most recent run’s artifacts at arch_report/ (top-level) and use arch_report/targets/<TARGET>/ for per-target evidence.
+- If any tool output is missing or a step fails, record the exact error in the report and explain the impact. Do not invent results.
+- Persist deliverables under arch_report/: save the final review as arch_report/ARCH_REVIEW.md and the issue plan files under arch_report/issues/.
+
 TARGETS
-- Detect the top-level packages automatically by scanning repo root for directories containing __init__.py.
-- Run the scripts at least for the main packages. If there are many, choose the top 2-4 by size (number of .py files) and justify your selection.
+- Detect the top-level packages automatically by scanning repo root for directories containing __init__.py (exclude tests/ from target selection).
+- Run the scripts at least for the main packages. If there are many, choose the top 2-4 by size (number of .py files) in addition to required packages, and justify your selection.
 - Additionally, always include: lb_app, lb_runner, lb_common.
-- For each target, store outputs under arch_report/ (already done by scripts). If you run multiple targets, keep the most recent output, and also summarize differences between targets.
+- For each target, store outputs under arch_report/targets/<TARGET>/ (see OUTPUT MANAGEMENT). If you run multiple targets, keep the most recent output in arch_report/ and summarize differences between targets.
 
 EXECUTION PLAN (MANDATORY)
 Step 0 — Pre-flight
@@ -81,6 +87,10 @@ D) Complexity hotspots:
 - Use radon_cc, xenon, lizard to find functions/classes exceeding thresholds.
 - Explain what refactor technique applies (extract method, introduce strategy, split module, dependency inversion).
 
+Evidence quality bar:
+- Every claim must cite arch_report/targets/<TARGET>/... or direct source files with line ranges.
+- When line numbers are missing, fetch them with numbered output (e.g., nl -ba) before citing.
+
 E) Dead code / unused abstractions:
 - Use vulture.txt to find unused vars/classes/imports; interpret whether they indicate:
   - legacy leftovers
@@ -122,6 +132,18 @@ For EACH refactor item:
 - Validation strategy (which tests / what new tests)
 - Expected payoff (coupling reduction, readability, extensibility)
 
+Step 6 — Issue plan artifacts (MANDATORY)
+- Create an issue backlog from the findings (at least 6 issues), each scoped and actionable.
+- For each issue, create a file under arch_report/issues/ with the name: ISSUE-<NN>-<short_slug>.md
+- Each issue file must include:
+  - Title, severity, and impacted packages
+  - Evidence links (arch_report/targets/... + source file line ranges)
+  - Proposed solution outline
+  - Detailed step-by-step plan (bulleted)
+  - Risk level and rollback plan
+  - Validation strategy (tests, manual checks)
+  - Dependencies on other issues
+
 DELIVERABLE FORMAT (MANDATORY)
 1) Executive summary (max 20 bullets, ranked by impact)
 2) Current architecture map (packages -> roles) + entry points
@@ -134,7 +156,11 @@ DELIVERABLE FORMAT (MANDATORY)
    3.6 Dependency hygiene (deptry) + implications
 4) Proposed target architecture (boundaries + dependency rules)
 5) Staged refactoring roadmap (Stage 0/1/2)
-6) “Do NOT do yet” list (tempting refactors that are risky now)
+6) Issue backlog summary (list of issues with IDs + one-line goals)
+7) “Do NOT do yet” list (tempting refactors that are risky now)
+8) Saved artifacts:
+   - arch_report/ARCH_REVIEW.md
+   - arch_report/issues/ISSUE-<NN>-<short_slug>.md
 
 START NOW
 Begin with Step 0 (pre-flight), then Step 1 (run scripts), then proceed through Step 5.

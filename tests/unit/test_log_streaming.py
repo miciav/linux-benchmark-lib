@@ -24,10 +24,14 @@ def test_run_event_defaults():
     )
     assert event.type == "status"
     assert event.level == "INFO"
+    assert event.error_type is None
+    assert event.error_context is None
     
     as_dict = event.to_dict()
     assert as_dict["type"] == "status"
     assert as_dict["level"] == "INFO"
+    assert as_dict["error_type"] is None
+    assert as_dict["error_context"] is None
 
 
 @pytest.mark.unit_controller

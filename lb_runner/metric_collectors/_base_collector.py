@@ -13,6 +13,8 @@ import logging
 from pathlib import Path
 import pandas as pd
 
+from lb_common.errors import MetricCollectionError
+
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ class BaseCollector(ABC):
         self._lock = threading.Lock()
         self._start_time: Optional[datetime] = None
         self._stop_time: Optional[datetime] = None
+        self._errors: list[MetricCollectionError] = []
         
     @abstractmethod
     def _collect_metrics(self) -> Dict[str, Any]:
@@ -64,11 +67,15 @@ class BaseCollector(ABC):
             return
             
         if not self._validate_environment():
-            raise RuntimeError(f"{self.name} collector cannot run in this environment")
+            raise MetricCollectionError(
+                f"{self.name} collector cannot run in this environment",
+                context={"collector": self.name},
+            )
         
         self._is_running = True
         self._start_time = datetime.now()
         self._data.clear()
+        self._errors.clear()
         
         self._thread = threading.Thread(target=self._collection_loop, daemon=True)
         self._thread.start()
@@ -113,7 +120,15 @@ class BaseCollector(ABC):
                     time.sleep(sleep_time)
                     
             except Exception as e:
-                logger.error(f"Error in {self.name} collector: {e}", exc_info=True)
+                error = MetricCollectionError(
+                    f"{self.name} collector failed to collect metrics",
+                    context={"collector": self.name},
+                    cause=e,
+                )
+                self._errors.append(error)
+                logger.error(
+                    "Error in %s collector: %s", self.name, e, exc_info=True
+                )
                 # Continue collecting even on error
     
     def get_data(self) -> List[Dict[str, Any]]:
@@ -125,6 +140,10 @@ class BaseCollector(ABC):
         """
         with self._lock:
             return self._data.copy()
+
+    def get_errors(self) -> list[MetricCollectionError]:
+        """Return collected metric errors, if any."""
+        return list(self._errors)
     
     def get_dataframe(self) -> pd.DataFrame:
         """

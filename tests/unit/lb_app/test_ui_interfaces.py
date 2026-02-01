@@ -25,8 +25,7 @@ def test_noop_ui_adapter_defaults() -> None:
     assert isinstance(progress, NoOpProgressHandle)
     progress.update(1)
     progress.finish()
-    journal = SimpleNamespace()
-    dashboard = adapter.create_dashboard([], journal)
+    dashboard = adapter.create_dashboard([], SimpleNamespace())
     assert isinstance(dashboard, NoOpDashboardHandle)
     with dashboard.live():
         dashboard.add_log("line")

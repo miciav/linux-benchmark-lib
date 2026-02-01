@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Dict, Iterable
 
@@ -20,7 +20,7 @@ PLAYBOOK_FILES = {
 
 def generate_run_id() -> str:
     """Generate a monotonic timestamp-based run identifier."""
-    return datetime.utcnow().strftime("run-%Y%m%d-%H%M%S")
+    return datetime.now(UTC).strftime("run-%Y%m%d-%H%M%S")
 
 
 def prepare_run_dirs(

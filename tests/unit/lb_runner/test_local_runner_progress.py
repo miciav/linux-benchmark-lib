@@ -1,7 +1,8 @@
 """Unit tests for runner progress events."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -27,47 +28,79 @@ def test_run_single_repetition_emits_done() -> None:
     runner = _make_runner()
     runner._planner = MagicMock()
     runner._planner.resolve_config_input.return_value = {}
-    runner._set_log_phase = MagicMock()
-    runner._run_single_test = MagicMock(return_value={"success": True})
-    runner._cleanup_generator = MagicMock()
-    runner._process_results = MagicMock()
     runner._emit_progress = MagicMock()
 
     workload_cfg = WorkloadConfig(plugin="stress_ng")
 
-    result = runner._run_single_repetition(
-        "dummy",
-        workload_cfg,
-        MagicMock(),
-        repetition=1,
-        total_reps=1,
-    )
+    # Mock RepetitionExecutor.run_attempt
+    with patch("lb_runner.engine.runner.RepetitionExecutor") as MockExecutor:
+        executor_instance = MockExecutor.return_value
+        executor_instance.run_attempt.return_value = SimpleNamespace(
+            success=True,
+            status="done",
+            result={"success": True},
+            message="",
+            error_type=None,
+            error_context=None,
+        )
+
+        result = runner._run_single_repetition(
+            "dummy",
+            workload_cfg,
+            MagicMock(),
+            repetition=1,
+            total_reps=1,
+        )
 
     assert result is True
     runner._emit_progress.assert_any_call("dummy", 1, 1, "running")
-    runner._emit_progress.assert_any_call("dummy", 1, 1, "done")
+    runner._emit_progress.assert_any_call(
+        "dummy",
+        1,
+        1,
+        "done",
+        message="",
+        error_type=None,
+        error_context=None,
+    )
 
 
 def test_run_single_repetition_emits_failed() -> None:
     runner = _make_runner()
     runner._planner = MagicMock()
     runner._planner.resolve_config_input.return_value = {}
-    runner._set_log_phase = MagicMock()
-    runner._run_single_test = MagicMock(return_value={"success": False})
-    runner._cleanup_generator = MagicMock()
-    runner._process_results = MagicMock()
     runner._emit_progress = MagicMock()
 
     workload_cfg = WorkloadConfig(plugin="stress_ng")
 
-    result = runner._run_single_repetition(
-        "dummy",
-        workload_cfg,
-        MagicMock(),
-        repetition=1,
-        total_reps=1,
-    )
+    # Mock RepetitionExecutor.run_attempt
+    with patch("lb_runner.engine.runner.RepetitionExecutor") as MockExecutor:
+        executor_instance = MockExecutor.return_value
+        executor_instance.run_attempt.return_value = SimpleNamespace(
+            success=False,
+            status="failed",
+            result={"success": False},
+            message="",
+            error_type=None,
+            error_context=None,
+        )
+
+        result = runner._run_single_repetition(
+            "dummy",
+            workload_cfg,
+            MagicMock(),
+            repetition=1,
+            total_reps=1,
+        )
 
     assert result is False
     runner._emit_progress.assert_any_call("dummy", 1, 1, "running")
-    runner._emit_progress.assert_any_call("dummy", 1, 1, "failed")
+    runner._emit_progress.assert_any_call(
+        "dummy",
+        1,
+        1,
+        "failed",
+        message="",
+        error_type=None,
+        error_context=None,
+    )

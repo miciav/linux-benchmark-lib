@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from lb_common.errors import MetricCollectionError, error_to_payload
 from lb_runner.services.results import collect_metrics
 
 
@@ -19,18 +20,34 @@ class CollectorCoordinator:
         return self._registry.create_collectors(config)
 
     def start(self, collectors: list[Any], logger: logging.Logger) -> None:
+        errors: list[MetricCollectionError] = []
         for collector in collectors:
             try:
                 collector.start()
             except Exception as exc:
-                logger.error("Failed to start collector %s: %s", collector.name, exc)
+                error = MetricCollectionError(
+                    "Collector start failed",
+                    context={"collector": getattr(collector, "name", "unknown")},
+                    cause=exc,
+                )
+                errors.append(error)
+                logger.exception(
+                    "Failed to start collector %s", getattr(collector, "name", "unknown")
+                )
+        if errors:
+            raise MetricCollectionError(
+                "One or more collectors failed to start",
+                context={"errors": [error_to_payload(err) for err in errors]},
+            )
 
     def stop(self, collectors: list[Any], logger: logging.Logger) -> None:
         for collector in collectors:
             try:
                 collector.stop()
             except Exception as exc:
-                logger.error("Failed to stop collector %s: %s", collector.name, exc)
+                logger.exception(
+                    "Failed to stop collector %s", getattr(collector, "name", "unknown")
+                )
 
     def collect(
         self,

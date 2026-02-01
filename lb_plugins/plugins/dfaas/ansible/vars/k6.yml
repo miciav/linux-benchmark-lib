@@ -14,6 +14,7 @@ k6_workspace_root: >-
 k6_keyring_path: "/usr/share/keyrings/k6-archive-keyring.gpg"
 k6_keyserver: "hkp://keyserver.ubuntu.com:80"
 k6_key_fingerprint: "C5AD17C747E3415A3642D57D77C6C491D6AC1D69"
+k6_key_url: "https://dl.k6.io/key.gpg"
 k6_repo: "deb [signed-by={{ k6_keyring_path }}] https://dl.k6.io/deb stable main"
 
 # Version and architecture

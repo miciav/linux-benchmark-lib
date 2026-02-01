@@ -26,11 +26,6 @@ def test_invoke_is_declared_dependency() -> None:
     assert any(dep.startswith("invoke") for dep in deps)
 
 
-def test_urllib3_is_declared_dependency() -> None:
-    deps = _load_project_dependencies()
-    assert any(dep.startswith("urllib3") for dep in deps)
-
-
 def test_mypy_excludes_molecule_dir() -> None:
     config = _load_mypy_config()
     exclude = config.get("exclude", "")

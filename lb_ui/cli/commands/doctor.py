@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Optional
+
 import typer
 
 from lb_ui.wiring.dependencies import UIContext
@@ -46,6 +49,35 @@ def create_doctor_app(ctx: UIContext) -> typer.Typer:
     def doctor_multipass() -> None:
         """Check Multipass installation."""
         report = ctx.doctor_service.check_multipass()
+        ok = render_doctor_report(ctx.ui, report)
+        if not ok:
+            raise typer.Exit(1)
+
+    @app.command("hosts")
+    def doctor_hosts(
+        config: Optional[Path] = typer.Option(
+            None,
+            "--config",
+            "-c",
+            help="Config file to load; uses saved default or local benchmark_config.json when omitted.",
+        ),
+        timeout: int = typer.Option(
+            10,
+            "--timeout",
+            "-t",
+            help="Timeout in seconds for each host connection check.",
+        ),
+    ) -> None:
+        """Check SSH connectivity to configured remote hosts."""
+        cfg, resolved, stale = ctx.config_service.load_for_read(config)
+        if stale:
+            ctx.ui.present.warning(f"Saved default config not found: {stale}")
+        if resolved:
+            ctx.ui.present.info(f"Using config: {resolved}")
+        else:
+            ctx.ui.present.warning("No config file found; using built-in defaults.")
+
+        report = ctx.doctor_service.check_remote_hosts(cfg, timeout_seconds=timeout)
         ok = render_doctor_report(ctx.ui, report)
         if not ok:
             raise typer.Exit(1)

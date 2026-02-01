@@ -1,0 +1,45 @@
+---
+- name: Optional cleanup for STREAM Intel compiler install
+  hosts: all
+  gather_facts: true
+  become: true
+
+  vars:
+    stream_cleanup_intel_compiler: false
+    stream_intel_compiler_packages:
+      - intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic
+    stream_intel_repo_file: "/etc/apt/sources.list.d/oneapi.list"
+    stream_intel_keyring: "/usr/share/keyrings/oneapi-archive-keyring.gpg"
+    stream_intel_symlinks:
+      - icc
+      - icx
+
+  tasks:
+    - name: Remove Intel compiler packages
+      ansible.builtin.apt:
+        name: "{{ stream_intel_compiler_packages }}"
+        state: absent
+        purge: true
+        autoremove: true
+      when:
+        - stream_cleanup_intel_compiler
+        - ansible_facts['os_family'] | default('') == 'Debian'
+
+    - name: Remove Intel oneAPI repo file
+      ansible.builtin.file:
+        path: "{{ stream_intel_repo_file }}"
+        state: absent
+      when: stream_cleanup_intel_compiler
+
+    - name: Remove Intel oneAPI keyring
+      ansible.builtin.file:
+        path: "{{ stream_intel_keyring }}"
+        state: absent
+      when: stream_cleanup_intel_compiler
+
+    - name: Remove Intel compiler symlinks
+      ansible.builtin.file:
+        path: "/usr/local/bin/{{ item }}"
+        state: absent
+      loop: "{{ stream_intel_symlinks }}"
+      when: stream_cleanup_intel_compiler

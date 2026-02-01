@@ -8,16 +8,20 @@ import pytest
 
 from lb_ui.api import RichDashboard
 from lb_ui.api import HeadlessUI
-from lb_ui.api import TUIAdapter, ThreadedDashboardHandle
-from lb_controller.api import RunJournal
-from lb_ui.tui.system.components.dashboard_adapter import DashboardAdapter
+from lb_ui.api import TUIAdapter
+from lb_app.api import RunJournal, build_dashboard_viewmodel
+from lb_ui.tui.adapters.dashboard_handle import DashboardHandleAdapter
 
 
 pytestmark = pytest.mark.unit_ui
 
 
 def _fake_journal():
-    cfg = SimpleNamespace(remote_hosts=[SimpleNamespace(name="localhost")], repetitions=1, workloads={"w": {}})
+    cfg = SimpleNamespace(
+        remote_hosts=[SimpleNamespace(name="localhost")],
+        repetitions=1,
+        workloads={"w": {}},
+    )
     journal = RunJournal.initialize("run-1", cfg, ["w"])
     return journal
 
@@ -25,10 +29,11 @@ def _fake_journal():
 def test_dashboard_log_slicing_respects_height():
     journal = _fake_journal()
     plan = [{"name": "w", "plugin": "stress_ng", "intensity": "low"}]
+    viewmodel = build_dashboard_viewmodel(plan, journal)
+    console = SimpleNamespace(size=SimpleNamespace(height=20, width=80))
     dash = RichDashboard(
-        console=SimpleNamespace(size=SimpleNamespace(height=20, width=80)),  # type: ignore[arg-type]
-        plan_rows=plan,
-        journal=journal,
+        console=console,  # type: ignore[arg-type]
+        viewmodel=viewmodel,
     )
     # Simulate many logs
     for i in range(50):
@@ -44,19 +49,20 @@ def test_headless_adapter_progress_and_dashboard():
     prog.update(1)
     prog.finish()
     dash = adapter.create_dashboard([], _fake_journal())
-    assert isinstance(dash, ThreadedDashboardHandle)
+    assert isinstance(dash, DashboardHandleAdapter)
 
 
 def test_headless_dashboard_records_logs():
     ui = HeadlessUI()
-    dashboard = ui.dashboard.create([], _fake_journal())
+    viewmodel = build_dashboard_viewmodel([], _fake_journal())
+    dashboard = ui.dashboard.create(viewmodel)
     with dashboard.live():
         dashboard.add_log("line-1")
     assert ui.recorded_dashboard_logs == ["line-1"]
     assert "DASHBOARD: live()" in ui.recorded_messages
 
 
-def test_threaded_dashboard_dispatches_calls():
+def test_threaded_dashboard_handle_dispatches_calls():
     class _RecordingDashboard:
         def __init__(self) -> None:
             self.calls: list[tuple[str, str | None]] = []
@@ -88,7 +94,7 @@ def test_threaded_dashboard_dispatches_calls():
             self.calls.append(("set_controller_state", state))
 
     sink = _RecordingDashboard()
-    dashboard = ThreadedDashboardHandle(sink)
+    dashboard = DashboardHandleAdapter(sink, threaded=True)
     with dashboard.live():
         dashboard.add_log("log")
         assert sink.log_event.wait(1.0)
@@ -97,7 +103,7 @@ def test_threaded_dashboard_dispatches_calls():
     assert ("refresh", None) in sink.calls
 
 
-def test_dashboard_adapter_dispatches_unthreaded_calls():
+def test_dashboard_handle_dispatches_unthreaded_calls():
     class _RecordingDashboard:
         def __init__(self) -> None:
             self.calls: list[tuple[str, str | None]] = []
@@ -125,7 +131,7 @@ def test_dashboard_adapter_dispatches_unthreaded_calls():
             self.calls.append(("set_controller_state", state))
 
     sink = _RecordingDashboard()
-    dashboard = DashboardAdapter(sink, threaded=False)
+    dashboard = DashboardHandleAdapter(sink, threaded=False)
     with dashboard.live():
         dashboard.add_log("line")
         dashboard.refresh()

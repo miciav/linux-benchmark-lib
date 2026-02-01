@@ -317,7 +317,7 @@ class SubprocessRunner:
         return proc.returncode
 
 
-class PlaybookProcessRunner:
+class PlaybookProcessRunner(ProcessStopController):
     """Handle subprocess-based ansible-playbook execution."""
 
     def __init__(
@@ -327,20 +327,14 @@ class PlaybookProcessRunner:
         output_callback: Optional[Callable[[str, str], None]],
         stop_token: StopToken | None,
     ) -> None:
+        super().__init__(stop_token)
         self._private_data_dir = private_data_dir
         self._stream_output = stream_output
-        self._controller = ProcessStopController(stop_token)
         self._runner = SubprocessRunner(
             private_data_dir=private_data_dir,
-            controller=self._controller,
+            controller=self,
             streamer=ProcessOutputStreamer(output_callback),
         )
-
-    def clear_interrupt(self) -> None:
-        self._controller.clear_interrupt()
-
-    def should_stop(self, cancellable: bool) -> bool:
-        return self._controller.should_stop(cancellable)
 
     def run(
         self, cmd: list[str], env: Dict[str, str], *, cancellable: bool
@@ -351,15 +345,3 @@ class PlaybookProcessRunner:
             stream_output=self._stream_output,
             cancellable=cancellable,
         )
-
-    def interrupt(self) -> None:
-        self._controller.interrupt()
-
-    def is_running(self) -> bool:
-        return self._controller.is_running()
-
-    def set_active_process(self, proc: subprocess.Popen[str] | None) -> None:
-        self._controller.set_active_process(proc)
-
-    def get_active_process(self) -> subprocess.Popen[str] | None:
-        return self._controller.get_active_process()

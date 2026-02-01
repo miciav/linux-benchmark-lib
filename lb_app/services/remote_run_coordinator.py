@@ -20,13 +20,13 @@ from lb_app.services.run_output import AnsibleOutputFormatter
 from lb_app.ui_interfaces import UIAdapter
 
 if TYPE_CHECKING:
-    from lb_app.services.run_service import RunService
+    from lb_app.services.interfaces import IRunService
 
 
 class ControllerLogHandlers:
     """Attach controller log handlers and ensure cleanup."""
 
-    def __init__(self, service: "RunService", context: RunContext, session: _RemoteSession) -> None:
+    def __init__(self, service: IRunService, context: RunContext, session: _RemoteSession) -> None:
         self._service = service
         self._context = context
         self._session = session
@@ -53,7 +53,7 @@ class ControllerLogHandlers:
 class RemoteRunCoordinator:
     """Coordinate remote execution steps for RunService."""
 
-    def __init__(self, service: "RunService") -> None:
+    def __init__(self, service: IRunService) -> None:
         self._service = service
 
     def run(

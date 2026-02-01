@@ -1,7 +1,0 @@
-Found 1 known vulnerability in 1 package
-Name    Version ID                  Fix Versions
-------- ------- ------------------- ------------
-urllib3 2.6.2   GHSA-38jv-5279-wg99 2.6.3
-Name                Skip Reason
-------------------- -----------------------------------------------------------------------------------
-linux-benchmark-lib Dependency not found on PyPI and could not be audited: linux-benchmark-lib (0.63.0)

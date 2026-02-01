@@ -1,9 +1,0 @@
-sim=0.89 | lb_plugins/plugins/unixbench/plugin.py:UnixBenchGenerator  <->  lb_plugins/plugins/sysbench/plugin.py:SysbenchGenerator
-  common_methods=['__init__', '_build_command', '_log_failure', '_popen_kwargs', '_timeout_seconds', '_validate_environment']
-
-sim=0.82 | lb_plugins/plugins/stress_ng/plugin.py:StressNGGenerator  <->  lb_plugins/plugins/dd/plugin.py:DDGenerator
-  common_methods=['__init__', '_build_command', '_consume_process_output', '_log_failure', '_popen_kwargs', '_validate_environment']
-
-sim=0.75 | lb_plugins/plugins/stress_ng/plugin.py:StressNGGenerator  <->  lb_plugins/plugins/sysbench/plugin.py:SysbenchGenerator
-  common_methods=['__init__', '_build_command', '_log_failure', '_popen_kwargs', '_validate_environment']
-

@@ -29,12 +29,13 @@ def test_async_localrunner_emits_events_to_stream_file(tmp_path: Path) -> None:
         "workloads": {
             "baseline": {
                 "plugin": "baseline",
-                "options": {"duration_seconds": 2},
+                "options": {"duration": 2},
             }
         },
         "collectors": {
             "psutil_interval": 1.0,
             "enable_ebpf": False,
+            "cli_commands": [],
         },
     }
 
@@ -69,7 +70,7 @@ def test_async_localrunner_emits_events_to_stream_file(tmp_path: Path) -> None:
         env=env,
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=30,
         cwd=str(tmp_path),
     )
 
@@ -121,12 +122,13 @@ def test_async_localrunner_daemonized_emits_events(tmp_path: Path) -> None:
         "workloads": {
             "baseline": {
                 "plugin": "baseline",
-                "options": {"duration_seconds": 2},
+                "options": {"duration": 2},
             }
         },
         "collectors": {
             "psutil_interval": 1.0,
             "enable_ebpf": False,
+            "cli_commands": [],
         },
     }
 
@@ -176,7 +178,7 @@ def test_async_localrunner_daemonized_emits_events(tmp_path: Path) -> None:
     assert pid_path.exists(), "PID file not created after daemonization"
 
     # Wait for the daemon to complete (status file appears)
-    deadline = time.time() + 60
+    deadline = time.time() + 30
     while not status_path.exists() and time.time() < deadline:
         time.sleep(0.5)
 
@@ -335,6 +337,7 @@ def test_async_localrunner_merges_plugin_settings_into_workload_options(
         "collectors": {
             "psutil_interval": 1.0,
             "enable_ebpf": False,
+            "cli_commands": [],
         },
     }
 

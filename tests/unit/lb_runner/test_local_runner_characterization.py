@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 import pytest
 
@@ -68,17 +69,21 @@ def test_local_runner_writes_results(tmp_path, monkeypatch):
     generator = DummyGenerator()
     registry = DummyRegistry(plugin, generator)
 
-    monkeypatch.setattr(LocalRunner, "_pre_test_cleanup", lambda _self: None)
+    # _pre_test_cleanup is no longer on LocalRunner, it's called by RepetitionExecutor
+    # We can mock it in execution module if needed, but for characterization 
+    # we might want to let it run (it deletes temp files).
+    # Since we are mocking other things, let's just let it run or patch it out globally.
+    
+    with patch("lb_runner.engine.execution.pre_test_cleanup"):
+        runner = LocalRunner(cfg, registry=registry)
+        run_id = "run-characterization"
 
-    runner = LocalRunner(cfg, registry=registry)
-    run_id = "run-characterization"
-
-    success = runner.run_benchmark(
-        "dummy",
-        repetition_override=1,
-        total_repetitions=1,
-        run_id=run_id,
-    )
+        success = runner.run_benchmark(
+            "dummy",
+            repetition_override=1,
+            total_repetitions=1,
+            run_id=run_id,
+        )
 
     results_path = cfg.output_dir / run_id / "dummy" / "dummy_results.json"
     assert success is True

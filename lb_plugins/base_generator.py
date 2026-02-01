@@ -11,6 +11,8 @@ import subprocess
 import threading
 from typing import Any, Optional, Protocol
 
+from lb_common.errors import WorkloadError, error_to_payload
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,7 @@ class BaseGenerator(ABC):
         self._is_running = False
         self._thread: Optional[threading.Thread] = None
         self._result: Optional[Any] = None
+        self._error: WorkloadError | None = None
     
     @abstractmethod
     def _run_command(self) -> None:
@@ -84,12 +87,26 @@ class BaseGenerator(ABC):
             return
 
         if not self._validate_environment():
-            raise RuntimeError(f"{self.name} generator cannot run in this environment")
+            raise WorkloadError(
+                f"{self.name} generator cannot run in this environment",
+                context={"workload": self.name},
+            )
 
         self._is_running = True
         def _wrapper() -> None:
             try:
                 self._run_command()
+            except WorkloadError as exc:
+                self._set_error(exc)
+                logger.error("%s workload error: %s", self.name, exc)
+            except Exception as exc:
+                error = WorkloadError(
+                    f"{self.name} workload failed",
+                    context={"workload": self.name},
+                    cause=exc,
+                )
+                self._set_error(error)
+                logger.exception("%s workload crashed", self.name)
             finally:
                 # Always clear running flag when the worker exits (success or failure)
                 self._is_running = False
@@ -135,6 +152,18 @@ class BaseGenerator(ABC):
             The result obtained from the workload generation
         """
         return self._result
+
+    def get_error(self) -> WorkloadError | None:
+        """Return any captured workload error."""
+        return self._error
+
+    def _set_error(self, error: WorkloadError) -> None:
+        self._error = error
+        payload = error_to_payload(error)
+        if isinstance(self._result, dict):
+            self._result.update(payload)
+        else:
+            self._result = payload
 
 
 @dataclass
@@ -264,9 +293,26 @@ class CommandGenerator(BaseGenerator):
             self._result = self._build_result(cmd, stdout, stderr, returncode)
             if returncode not in (None, 0):
                 self._log_failure(returncode, stdout, stderr, cmd)
+                error = WorkloadError(
+                    f"{self.name} returned non-zero exit code",
+                    context={
+                        "workload": self.name,
+                        "returncode": returncode,
+                        "command": " ".join(cmd),
+                    },
+                )
+                self._set_error(error)
             self._after_run(cmd, stdout, stderr, returncode)
             if self._result_parser and isinstance(self._result, dict):
-                self._result = self._result_parser.parse(self._result)
+                try:
+                    self._result = self._result_parser.parse(self._result)
+                except Exception as exc:
+                    error = WorkloadError(
+                        f"{self.name} result parsing failed",
+                        context={"workload": self.name},
+                        cause=exc,
+                    )
+                    self._set_error(error)
         except subprocess.TimeoutExpired:
             timeout = self._timeout_seconds()
             logger.error(
@@ -274,11 +320,22 @@ class CommandGenerator(BaseGenerator):
                 self.name,
                 timeout,
             )
-            self._result = {"error": f"Timeout after {timeout}s", "returncode": -1}
+            error = WorkloadError(
+                f"{self.name} timed out after {timeout}s",
+                context={"workload": self.name, "timeout_seconds": timeout},
+            )
+            self._result = {"returncode": -1}
+            self._set_error(error)
             self._stop_workload()
         except Exception as exc:
             logger.error("Error running %s: %s", self.name, exc)
-            self._result = {"error": str(exc), "returncode": -2}
+            error = WorkloadError(
+                f"{self.name} execution failed",
+                context={"workload": self.name},
+                cause=exc,
+            )
+            self._result = {"returncode": -2}
+            self._set_error(error)
         finally:
             self._process = None
             self._active_timeout = None

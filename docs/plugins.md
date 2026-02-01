@@ -22,7 +22,7 @@ plugins, entry point plugins, and user plugins from the configured plugin direct
 ## CLI workflow
 
 - List plugins: `lb plugin list`
-- Enable/disable a plugin (platform config): `lb plugin list --enable stress_ng` / `lb plugin list --disable stress_ng`
+- Enable/disable a plugin (platform config): `lb plugin enable stress_ng` / `lb plugin disable stress_ng`
 - Add/remove workloads in a run config: `lb config enable-workload <name>` / `lb config disable-workload <name>`
 - Interactive plugin selection (platform config): `lb plugin select`
 - Interactive workload selection (run config): `lb config select-workloads`
@@ -62,6 +62,9 @@ programmatically:
 
 `plugin_assets` is populated automatically by the controller from the registry and
 includes any plugin-specific setup/teardown playbooks and extravars.
+Collect pre/post assets are also stored here and executed during the collect phase.
+Collect assets are included with `include_tasks`, so they must be task files (not
+playbooks with `hosts:`).
 
 ## Plugin interface
 
@@ -86,6 +89,8 @@ Optional members:
 - `get_required_apt_packages()`, `get_required_pip_packages()`, `get_required_local_tools()`.
 - `get_ansible_setup_path()`, `get_ansible_teardown_path()`.
 - `get_ansible_setup_extravars()`, `get_ansible_teardown_extravars()`.
+- `get_ansible_collect_pre_path()`, `get_ansible_collect_post_path()`.
+- `get_ansible_collect_pre_extravars()`, `get_ansible_collect_post_extravars()`.
 - `export_results_to_csv(results, output_dir, run_id, test_name)` to override CSV export.
 
 `SimpleWorkloadPlugin` provides a lighter base that uses class attributes
@@ -140,6 +145,10 @@ plugin_interface:
     get_ansible_teardown_path: "callable() -> Path|None"
     get_ansible_setup_extravars: "callable() -> dict"
     get_ansible_teardown_extravars: "callable() -> dict"
+    get_ansible_collect_pre_path: "callable() -> Path|None"
+    get_ansible_collect_post_path: "callable() -> Path|None"
+    get_ansible_collect_pre_extravars: "callable() -> dict"
+    get_ansible_collect_post_extravars: "callable() -> dict"
     export_results_to_csv: "callable(results, output_dir, run_id, test_name) -> list[Path]"
 
 config_model:
@@ -156,6 +165,10 @@ config_model:
     teardown_playbook: "Path|None"
     setup_extravars: "dict"
     teardown_extravars: "dict"
+    collect_pre_playbook: "Path|None"
+    collect_post_playbook: "Path|None"
+    collect_pre_extravars: "dict"
+    collect_post_extravars: "dict"
 
 discovery:
   entrypoint_group: linux_benchmark.workloads
