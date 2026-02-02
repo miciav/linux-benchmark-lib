@@ -26,6 +26,7 @@ class MockRemoteHostConfig:
     port: int = 22
     user: str = "root"
     ssh_key: str | None = None
+    vars: dict[str, str] | None = None
 
 
 def test_empty_hosts_returns_success():
@@ -132,6 +133,29 @@ def test_ssh_key_included_when_specified():
         assert "-i" in call_args
         key_index = call_args.index("-i")
         assert call_args[key_index + 1] == "/home/user/.ssh/id_rsa"
+
+
+def test_ansible_ssh_private_key_file_included_when_present():
+    """Ansible private key var should be included when specified."""
+    host = MockRemoteHostConfig(
+        name="node1",
+        address="192.168.1.100",
+        vars={"ansible_ssh_private_key_file": "/home/user/.ssh/ansible_key"},
+    )
+
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "ok\n"
+    mock_result.stderr = ""
+
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        service = ConnectivityService(timeout_seconds=5)
+        service.check_hosts([host])
+
+        call_args = mock_run.call_args[0][0]
+        assert "-i" in call_args
+        key_index = call_args.index("-i")
+        assert call_args[key_index + 1] == "/home/user/.ssh/ansible_key"
 
 
 def test_custom_port_included():

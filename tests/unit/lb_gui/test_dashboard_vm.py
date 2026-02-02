@@ -45,6 +45,22 @@ class TestGUIDashboardViewModel:
             assert vm.snapshot == mock_snapshot
             mock_build.assert_called_once_with(mock_plan, mock_journal)
 
+    def test_refresh_snapshot_reads_real_journal(self) -> None:
+        """Test refresh_snapshot builds rows from the real journal."""
+        from lb_gui.viewmodels.dashboard_vm import GUIDashboardViewModel
+        from lb_controller.services.journal import RunJournal, TaskState
+
+        vm = GUIDashboardViewModel()
+        journal = RunJournal(run_id="run-1", tasks={})
+        journal.add_task(TaskState(host="host1", workload="dfaas", repetition=1))
+
+        vm.initialize([{"name": "dfaas", "intensity": "low"}], journal)
+        vm.refresh_snapshot()
+
+        rows = vm.get_journal_rows()
+        assert rows
+        assert rows[0][0] == "host1"
+
     def test_on_log_line_accumulates(self) -> None:
         """Test on_log_line accumulates log lines."""
         from lb_gui.viewmodels.dashboard_vm import GUIDashboardViewModel

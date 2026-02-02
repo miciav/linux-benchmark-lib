@@ -218,6 +218,30 @@ class TestRunSetupViewModel:
         assert request.node_count == 2
         assert request.run_id == "test-run"
 
+    def test_build_run_request_generates_run_id_and_stop_file(
+        self, mock_services: tuple[MagicMock, MagicMock]
+    ) -> None:
+        """Test build_run_request generates run_id and stop_file when missing."""
+        from lb_gui.viewmodels.run_setup_vm import RunSetupViewModel
+
+        plugin_service, config_service = mock_services
+        vm = RunSetupViewModel(plugin_service, config_service)
+
+        mock_config = MagicMock()
+        mock_config.remote_hosts = ["host1"]
+        mock_config.output_dir = Path("/tmp/benchmark_results")
+        vm._config = mock_config
+        vm._selected_workloads = ["stress_ng"]
+        vm._execution_mode = "remote"
+        vm._run_id = ""
+        vm._stop_file = ""
+
+        request = vm.build_run_request()
+
+        assert request is not None
+        assert request.run_id
+        assert request.stop_file == Path("/tmp/benchmark_results") / request.run_id / "STOP"
+
     def test_refresh_workloads_loads_enabled_plugins(
         self, mock_services: tuple[MagicMock, MagicMock]
     ) -> None:
