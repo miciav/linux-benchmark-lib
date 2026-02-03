@@ -2,6 +2,8 @@
 
 from lb_common.hosts import RemoteHostSpec
 from lb_common.logging import configure_logging
+from lb_common.logs.core import attach_jsonl_handler, attach_loki_handler
+from lb_common.logs.handlers.jsonl_handler import JsonlLogFormatter
 from lb_common.run_info import RunInfo
 
 
@@ -34,6 +36,9 @@ def parse_int_env(value: str | None) -> int | None:
 
 __all__ = [
     "configure_logging",
+    "attach_jsonl_handler",
+    "attach_loki_handler",
+    "JsonlLogFormatter",
     "parse_bool_env",
     "parse_int_env",
     "RemoteHostSpec",
