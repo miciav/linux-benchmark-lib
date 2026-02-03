@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lb_plugins.plugins.peva_faas.config import DfaasConfig, DfaasFunctionConfig
-from lb_plugins.plugins.peva_faas.services.run_execution import (
+from lb_plugins.plugins.dfaas.config import DfaasConfig, DfaasFunctionConfig
+from lb_plugins.plugins.dfaas.services.run_execution import (
     DfaasConfigExecutor,
     DfaasResultWriter,
     DfaasRunContext,

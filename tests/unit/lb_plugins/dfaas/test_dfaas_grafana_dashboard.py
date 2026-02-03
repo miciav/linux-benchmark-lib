@@ -5,7 +5,7 @@ import pytest
 
 pytestmark = [pytest.mark.unit_plugins]
 
-DASHBOARD_PATH = Path("lb_plugins/plugins/peva_faas/grafana/dfaas-dashboard.json")
+DASHBOARD_PATH = Path("lb_plugins/plugins/dfaas/grafana/dfaas-dashboard.json")
 
 
 def _load_dashboard() -> dict:

@@ -11,8 +11,8 @@ import pytest
 from fabric import Connection
 from invoke.exceptions import UnexpectedExit
 
-from lb_plugins.plugins.peva_faas.services.k6_runner import K6Runner, K6ExecutionError
-from lb_plugins.plugins.peva_faas.config import DfaasFunctionConfig
+from lb_plugins.plugins.dfaas.services.k6_runner import K6Runner, K6ExecutionError
+from lb_plugins.plugins.dfaas.config import DfaasFunctionConfig
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def k6_runner():
 
 class TestK6RunnerFabric:
     
-    @patch("lb_plugins.plugins.peva_faas.services.k6_runner.Connection")
+    @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
     def test_get_connection(self, mock_conn_cls, k6_runner):
         """Test Fabric connection initialization."""
         conn = k6_runner._get_connection()
@@ -47,7 +47,7 @@ class TestK6RunnerFabric:
         )
         assert conn == mock_conn_cls.return_value
 
-    @patch("lb_plugins.plugins.peva_faas.services.k6_runner.Connection")
+    @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
     @patch("tempfile.NamedTemporaryFile")
     @patch("pathlib.Path.read_text")
     @patch("os.unlink")
@@ -115,7 +115,7 @@ class TestK6RunnerFabric:
         assert result.config_id == "cfg1"
         assert result.metric_ids == test_metric_ids
 
-    @patch("lb_plugins.plugins.peva_faas.services.k6_runner.Connection")
+    @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
     @patch("tempfile.NamedTemporaryFile")
     @patch("os.unlink")
     def test_execute_failure_k6_error(self, mock_unlink, mock_tempfile, mock_conn_cls, k6_runner):
@@ -139,7 +139,7 @@ class TestK6RunnerFabric:
         assert excinfo.value.stdout == "Error log"
         mock_conn.close.assert_called()
 
-    @patch("lb_plugins.plugins.peva_faas.services.k6_runner.Connection")
+    @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
     @patch("tempfile.NamedTemporaryFile")
     @patch("os.unlink")
     def test_execute_failure_ssh_error(self, mock_unlink, mock_tempfile, mock_conn_cls, k6_runner):

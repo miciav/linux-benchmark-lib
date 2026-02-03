@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from lb_plugins.plugins.peva_faas.config import DfaasConfig
+from lb_plugins.plugins.dfaas.config import DfaasConfig
 
 pytestmark = [pytest.mark.unit_plugins]
 
