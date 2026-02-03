@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from lb_plugins.plugins.peva_faas.config import DfaasOverloadConfig
-from lb_plugins.plugins.peva_faas.services.cooldown import MetricsSnapshot
-from lb_plugins.plugins.peva_faas.services.result_builder import DfaasResultBuilder
+from lb_plugins.plugins.dfaas.config import DfaasOverloadConfig
+from lb_plugins.plugins.dfaas.services.cooldown import MetricsSnapshot
+from lb_plugins.plugins.dfaas.services.result_builder import DfaasResultBuilder
 
 pytestmark = [pytest.mark.unit_plugins]
 

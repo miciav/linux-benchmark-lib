@@ -1,0 +1,68 @@
+- name: Derive DFaaS k6 settings from benchmark config
+  ansible.builtin.set_fact:
+    dfaas_k6_host: >-
+      {{
+        (
+          (benchmark_config.plugin_settings | default({})).dfaas | default({})
+        )
+        .k6_host | default('')
+      }}
+    dfaas_k6_user: >-
+      {{
+        (
+          (benchmark_config.plugin_settings | default({})).dfaas | default({})
+        )
+        .k6_user | default('ubuntu')
+      }}
+    dfaas_k6_ssh_key: >-
+      {{
+        (
+          (benchmark_config.plugin_settings | default({})).dfaas | default({})
+        )
+        .k6_ssh_key | default('')
+      }}
+    dfaas_k6_port: >-
+      {{
+        (
+          (benchmark_config.plugin_settings | default({})).dfaas | default({})
+        )
+        .k6_port | default(22)
+      }}
+    dfaas_k6_workspace_root: >-
+      {{
+        (
+          (benchmark_config.plugin_settings | default({})).dfaas | default({})
+        )
+        .k6_workspace_root | default('/home/ubuntu/.dfaas-k6')
+      }}
+    dfaas_k6_ssh_key_path: >-
+      {{
+        (
+          (dfaas_k6_ssh_key | default('') | length > 0)
+        )
+        | ternary(
+            dfaas_k6_ssh_key | regex_replace('^~', lookup('env', 'HOME')),
+            ''
+          )
+      }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Register DFaaS k6 host
+  ansible.builtin.add_host:
+    name: "dfaas_k6"
+    ansible_host: "{{ dfaas_k6_host }}"
+    ansible_user: "{{ dfaas_k6_user }}"
+    ansible_port: "{{ dfaas_k6_port }}"
+    ansible_ssh_private_key_file: >-
+      {{
+        (dfaas_k6_ssh_key_path | length > 0)
+        | ternary(dfaas_k6_ssh_key_path, omit)
+      }}
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    k6_workspace_root: "{{ dfaas_k6_workspace_root }}"
+  delegate_to: localhost
+  run_once: true
+  when:
+    - dfaas_k6_host is defined
+    - dfaas_k6_host | length > 0

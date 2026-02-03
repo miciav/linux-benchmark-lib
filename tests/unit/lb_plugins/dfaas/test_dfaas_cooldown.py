@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import MagicMock
 
-from lb_plugins.plugins.peva_faas.services.cooldown import (
+from lb_plugins.plugins.dfaas.services.cooldown import (
     CooldownManager,
     CooldownResult,
     CooldownTimeoutError,
@@ -92,7 +92,7 @@ class TestCooldownManager:
                 return high_cpu
             return normal
 
-        monkeypatch.setattr("lb_plugins.plugins.peva_faas.services.cooldown.time.sleep", lambda _: None)
+        monkeypatch.setattr("lb_plugins.plugins.dfaas.services.cooldown.time.sleep", lambda _: None)
 
         manager = CooldownManager(
             max_wait_seconds=60,
@@ -118,7 +118,7 @@ class TestCooldownManager:
                 replica_count[0] -= 1
             return {name: current for name in names}
 
-        monkeypatch.setattr("lb_plugins.plugins.peva_faas.services.cooldown.time.sleep", lambda _: None)
+        monkeypatch.setattr("lb_plugins.plugins.dfaas.services.cooldown.time.sleep", lambda _: None)
 
         manager = CooldownManager(
             max_wait_seconds=60,
@@ -137,7 +137,7 @@ class TestCooldownManager:
         baseline = MetricsSnapshot(cpu=10.0, ram=1000.0, ram_pct=50.0, power=100.0)
         high_cpu = MetricsSnapshot(cpu=50.0, ram=1000.0, ram_pct=50.0, power=100.0)
 
-        monkeypatch.setattr("lb_plugins.plugins.peva_faas.services.cooldown.time.sleep", lambda _: None)
+        monkeypatch.setattr("lb_plugins.plugins.dfaas.services.cooldown.time.sleep", lambda _: None)
 
         manager = CooldownManager(
             max_wait_seconds=10,

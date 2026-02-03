@@ -8,13 +8,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lb_plugins.plugins.peva_faas.services.metrics_collector import (
+from lb_plugins.plugins.dfaas.services.metrics_collector import (
     FunctionMetrics,
     MetricsCollector,
     NodeMetrics,
 )
-from lb_plugins.plugins.peva_faas.services.cooldown import MetricsSnapshot
-from lb_plugins.plugins.peva_faas.queries import PrometheusQueryError
+from lb_plugins.plugins.dfaas.services.cooldown import MetricsSnapshot
+from lb_plugins.plugins.dfaas.queries import PrometheusQueryError
 
 pytestmark = [pytest.mark.unit_plugins]
 
@@ -47,7 +47,7 @@ queries:
 
 class TestMetricsCollectorInit:
     def test_initializes_with_valid_config(self, queries_path: Path) -> None:
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner"):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner"):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,
@@ -59,7 +59,7 @@ class TestMetricsCollectorInit:
             assert collector.scaphandre_enabled is False
 
     def test_loads_queries_from_path(self, queries_path: Path) -> None:
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner"):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner"):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,
@@ -71,7 +71,7 @@ class TestMetricsCollectorInit:
             assert "power_usage_node" not in collector._queries  # scaphandre disabled
 
     def test_loads_power_queries_when_scaphandre_enabled(self, queries_path: Path) -> None:
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner"):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner"):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,
@@ -90,7 +90,7 @@ queries:
     query: "avg(rate(node_cpu_seconds_total{mode!='idle'}[{time_span}]))*100"
 """
         )
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner"):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner"):
             with pytest.raises(ValueError, match="Missing required Prometheus queries"):
                 MetricsCollector(
                     prometheus_url="http://localhost:9090",
@@ -118,7 +118,7 @@ queries:
     query: "sum(container_memory_usage_bytes{container='{function_name}'})"
 """
         )
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner"):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner"):
             with pytest.raises(ValueError, match="Missing required Prometheus queries"):
                 MetricsCollector(
                     prometheus_url="http://localhost:9090",
@@ -133,7 +133,7 @@ class TestGetNodeSnapshot:
         mock_runner = MagicMock()
         mock_runner.execute.side_effect = [10.5, 2048.0, 45.0]  # cpu, ram, ram_pct
 
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,
@@ -152,7 +152,7 @@ class TestGetNodeSnapshot:
         mock_runner = MagicMock()
         mock_runner.execute.side_effect = [10.5, 2048.0, 45.0, 150.0]  # cpu, ram, ram_pct, power
 
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,
@@ -167,7 +167,7 @@ class TestGetNodeSnapshot:
         mock_runner = MagicMock()
         mock_runner.execute.return_value = 0.0
 
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,
@@ -186,7 +186,7 @@ class TestGetFunctionMetrics:
         mock_runner = MagicMock()
         mock_runner.execute.side_effect = [5.0, 512.0]  # cpu, ram
 
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,
@@ -204,7 +204,7 @@ class TestGetFunctionMetrics:
         mock_runner = MagicMock()
         mock_runner.execute.side_effect = [5.0, 512.0, 25.0]  # cpu, ram, power
 
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,
@@ -220,7 +220,7 @@ class TestGetFunctionMetrics:
         mock_runner = MagicMock()
         mock_runner.execute.side_effect = PrometheusQueryError("Connection failed")
 
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,
@@ -245,7 +245,7 @@ class TestCollectAllMetrics:
             4.0, 384.0,  # func2
         ]
 
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,
@@ -268,7 +268,7 @@ class TestCollectAllMetrics:
         mock_runner = MagicMock()
         mock_runner.execute.return_value = 0.0
 
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,
@@ -291,7 +291,7 @@ class TestCollectAllMetrics:
         mock_runner = MagicMock()
         mock_runner.execute.return_value = 0.0
 
-        with patch("lb_plugins.plugins.peva_faas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
+        with patch("lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner", return_value=mock_runner):
             collector = MetricsCollector(
                 prometheus_url="http://localhost:9090",
                 queries_path=queries_path,

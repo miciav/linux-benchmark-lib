@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 from unittest.mock import patch
-from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
-from lb_plugins.plugins.peva_faas.context import ExecutionContext
-from lb_plugins.plugins.peva_faas.config import DfaasConfig, DfaasFunctionConfig
+from lb_plugins.plugins.dfaas.generator import DfaasGenerator
+from lb_plugins.plugins.dfaas.context import ExecutionContext
+from lb_plugins.plugins.dfaas.config import DfaasConfig, DfaasFunctionConfig
 
 @pytest.fixture
 def generator():

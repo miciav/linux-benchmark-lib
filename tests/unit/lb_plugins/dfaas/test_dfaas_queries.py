@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from lb_plugins.plugins.peva_faas.queries import (
+from lb_plugins.plugins.dfaas.queries import (
     load_queries,
     parse_instant_value,
     parse_range_average,
@@ -14,7 +14,7 @@ pytestmark = [pytest.mark.unit_plugins]
 
 def test_queries_load_from_file() -> None:
     repo_root = Path(__file__).resolve().parents[4]
-    queries = load_queries(repo_root / "lb_plugins" / "plugins" / "peva_faas" / "queries.yml")
+    queries = load_queries(repo_root / "lb_plugins" / "plugins" / "dfaas" / "queries.yml")
     names = {query.name for query in queries}
     assert "cpu_usage_node" in names
     assert "ram_usage_function" in names
