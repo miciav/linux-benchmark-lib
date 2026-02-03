@@ -34,12 +34,12 @@ TARGET_REQUIRED_VARS = {
 
 def _get_ansible_dir() -> Path:
     """Get the DFaaS ansible directory path."""
-    return Path(__file__).resolve().parents[4] / "lb_plugins" / "plugins" / "dfaas" / "ansible"
+    return Path(__file__).resolve().parents[4] / "lb_plugins" / "plugins" / "peva_faas" / "ansible"
 
 
 def _load_playbook(name: str) -> list[dict]:
     repo_root = Path(__file__).resolve().parents[4]
-    path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / name
+    path = repo_root / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / name
     data = yaml.safe_load(path.read_text())
     assert isinstance(data, list)
     assert data
@@ -148,7 +148,7 @@ def test_setup_k6_playbook_imports_install_tasks() -> None:
 def test_install_k6_tasks_has_apt_install() -> None:
     """Verify tasks/install_k6.yml contains k6 apt installation."""
     repo_root = Path(__file__).resolve().parents[4]
-    path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "tasks" / "install_k6.yml"
+    path = repo_root / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "tasks" / "install_k6.yml"
     tasks = yaml.safe_load(path.read_text())
     assert isinstance(tasks, list)
     # k6 is installed via apt with ignore_errors, falling back to tarball if APT fails
@@ -158,7 +158,7 @@ def test_install_k6_tasks_has_apt_install() -> None:
 def test_install_k6_tasks_has_key_download_fallback() -> None:
     """Verify k6 key download fallback is present."""
     repo_root = Path(__file__).resolve().parents[4]
-    path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "tasks" / "install_k6.yml"
+    path = repo_root / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "tasks" / "install_k6.yml"
     tasks = yaml.safe_load(path.read_text())
     assert isinstance(tasks, list)
     assert _find_get_url_tasks(tasks, "k6_key_url"), "k6 key download fallback missing"
@@ -168,7 +168,7 @@ def test_install_k6_tasks_has_key_download_fallback() -> None:
 def test_install_k6_tasks_checks_apt_availability() -> None:
     """Verify install_k6.yml checks apt availability before install."""
     repo_root = Path(__file__).resolve().parents[4]
-    path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "tasks" / "install_k6.yml"
+    path = repo_root / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "tasks" / "install_k6.yml"
     tasks = yaml.safe_load(path.read_text())
     assert isinstance(tasks, list)
     assert _find_command_tasks(tasks, "apt-cache policy k6"), "k6 apt-cache check missing"
@@ -179,7 +179,7 @@ def test_install_k6_tasks_checks_apt_availability() -> None:
 def test_install_k6_tasks_sets_keyring_permissions() -> None:
     """Verify tasks/install_k6.yml ensures the k6 keyring is apt-readable."""
     repo_root = Path(__file__).resolve().parents[4]
-    path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "tasks" / "install_k6.yml"
+    path = repo_root / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "tasks" / "install_k6.yml"
     tasks = yaml.safe_load(path.read_text())
     assert isinstance(tasks, list)
     assert _find_file_tasks(
