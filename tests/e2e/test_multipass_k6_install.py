@@ -73,7 +73,7 @@ def test_multipass_k6_install(tmp_path: Path) -> None:
         env = make_test_ansible_env(tmp_path)
         env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
-        playbook = Path(__file__).resolve().parents[2] / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "setup_k6.yml"
+        playbook = Path(__file__).resolve().parents[2] / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "setup_k6.yml"
         subprocess.run(
             ["ansible-playbook", "-i", str(inventory_path), str(playbook)],
             cwd=tmp_path,

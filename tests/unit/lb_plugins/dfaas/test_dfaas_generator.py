@@ -9,17 +9,17 @@ from unittest.mock import Mock
 
 import pytest
 
-from lb_plugins.plugins.dfaas.generator import DfaasGenerator
-from lb_plugins.plugins.dfaas.context import ExecutionContext
-from lb_plugins.plugins.dfaas.services.k6_runner import K6Runner
-from lb_plugins.plugins.dfaas.services.annotation_service import DfaasAnnotationService
-from lb_plugins.plugins.dfaas.services.plan_builder import (
+from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
+from lb_plugins.plugins.peva_faas.context import ExecutionContext
+from lb_plugins.plugins.peva_faas.services.k6_runner import K6Runner
+from lb_plugins.plugins.peva_faas.services.annotation_service import DfaasAnnotationService
+from lb_plugins.plugins.peva_faas.services.plan_builder import (
     DfaasPlanBuilder,
     dominates,
     generate_configurations,
     generate_rates_list,
 )
-from lb_plugins.plugins.dfaas.config import (
+from lb_plugins.plugins.peva_faas.config import (
     DfaasCombinationConfig,
     DfaasConfig,
     DfaasFunctionConfig,
@@ -187,7 +187,7 @@ def test_k6_outputs_returns_configured_outputs(
 
 def test_dfaas_annotations_emit_grafana_tags(monkeypatch: pytest.MonkeyPatch) -> None:
     """Annotation service should create Grafana annotations for run events."""
-    from lb_plugins.plugins.dfaas.config import DfaasConfig, GrafanaConfig
+    from lb_plugins.plugins.peva_faas.config import DfaasConfig, GrafanaConfig
     from unittest.mock import MagicMock
 
     config = DfaasConfig(
@@ -233,7 +233,7 @@ def test_dfaas_annotations_emit_grafana_tags(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_k6_log_event_skips_when_lb_event_handler_present() -> None:
     from lb_runner.services.log_handler import LBEventLogHandler
-    from lb_plugins.plugins.dfaas.services.log_manager import DfaasLogManager
+    from lb_plugins.plugins.peva_faas.services.log_manager import DfaasLogManager
 
     cfg = DfaasConfig()
     exec_ctx = ExecutionContext(
@@ -319,7 +319,7 @@ def test_get_function_replicas_parses_replicas_column(
         "eat-memory ghcr.io/openfaas/eat-memory:latest 5 1\n"
     )
     monkeypatch.setattr(
-        "lb_plugins.plugins.dfaas.generator.subprocess.run",
+        "lb_plugins.plugins.peva_faas.generator.subprocess.run",
         lambda *args, **kwargs: Mock(stdout=output),
     )
     cfg = DfaasConfig(
@@ -349,7 +349,7 @@ def test_validate_environment_requires_faas_cli_only(
         return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
 
     monkeypatch.setattr(
-        "lb_plugins.plugins.dfaas.generator.subprocess.run", fake_run
+        "lb_plugins.plugins.peva_faas.generator.subprocess.run", fake_run
     )
 
     assert generator._validate_environment() is True

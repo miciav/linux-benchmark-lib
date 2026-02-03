@@ -40,7 +40,7 @@ Sostituire l'uso di Ansible nel loop di test con connessioni SSH dirette gestite
 ## Piano di Implementazione
 
 ### Fase A: Preparazione Controller & Setup
-1.  **Modifica `lb_plugins/plugins/dfaas/ansible/setup.yml`**:
+1.  **Modifica `lb_plugins/plugins/peva_faas/ansible/setup.yml`**:
     *   Attualmente questo file configura il *target* (login faas-cli, etc).
     *   Va esteso (o creato un `setup_global.yml`) per includere la logica di provisioning del *generatore*.
     *   Deve usare `add_host` per includere `k6_host` nel play.
@@ -48,7 +48,7 @@ Sostituire l'uso di Ansible nel loop di test con connessioni SSH dirette gestite
 
 ### Fase B: Refactoring K6Runner (Fabric)
 1.  **Dipendenze**: Aggiungere `fabric` al progetto.
-2.  **Modifica `lb_plugins/plugins/dfaas/services/k6_runner.py`**:
+2.  **Modifica `lb_plugins/plugins/peva_faas/services/k6_runner.py`**:
     *   Rimuovere il metodo `execute` basato su `subprocess(ansible)`.
     *   Implementare `_ssh_conn()` che restituisce una connessione Fabric riutilizzabile o nuova.
     *   Implementare `execute` usando `conn.run()` e `conn.put()`.

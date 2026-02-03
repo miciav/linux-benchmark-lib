@@ -104,7 +104,7 @@ def test_collect_playbook_has_log_collection_tasks() -> None:
 
 def test_dfaas_plugin_collect_post_playbook() -> None:
     repo_root = Path(__file__).resolve().parents[3]
-    path = repo_root / "lb_plugins" / "plugins" / "dfaas" / "ansible" / "collect" / "post.yml"
+    path = repo_root / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "collect" / "post.yml"
     data = yaml.safe_load(path.read_text())
     assert isinstance(data, list)
     if data and isinstance(data[0], dict) and "tasks" in data[0]:

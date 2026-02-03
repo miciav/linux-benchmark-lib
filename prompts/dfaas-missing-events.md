@@ -49,7 +49,7 @@ On local controller:
 - [ ] LocalRunner entrypoint: `lb_runner/services/async_localrunner.py`
 - [ ] Event log handler: `lb_runner/services/log_handler.py`
 - [ ] Runner execution/logging: `lb_runner/engine/runner.py`
-- [ ] DFaaS generator: `lb_plugins/plugins/dfaas/generator.py`
+- [ ] DFaaS generator: `lb_plugins/plugins/peva_faas/generator.py`
 - [ ] Polling loop: `lb_controller/ansible/roles/workload_runner/tasks/stream_events_step.yml`
 
 ## Hypotheses to validate
