@@ -29,3 +29,7 @@
 
 ## Security & Environment Notes
 - Some collectors require root or Linux-only tooling; avoid running perf/eBPF-heavy commands on shared hosts without approval. Prefer the Docker flow for consistent system dependencies and to isolate high-load generators.
+
+## Worktree Cleanup (Submodules)
+- If a worktree contains submodules, remove it with `scripts/remove_worktree_with_submodules.sh /path/to/worktree` (this deinitializes submodules first, then force-removes the worktree).
+
