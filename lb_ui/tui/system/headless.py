@@ -1,11 +1,25 @@
-from typing import Sequence, ContextManager, Any, IO
+from typing import IO, ContextManager, Sequence, TYPE_CHECKING
 from dataclasses import dataclass, field
 from contextlib import nullcontext
 
-from lb_ui.tui.system.components.dashboard_adapter import DashboardAdapter
-from lb_ui.tui.system.components.presenter_base import PresenterBase, PresenterSink
-from lb_ui.tui.system.protocols import UI, Picker, TablePresenter, Form, Progress, Dashboard, DashboardFactory, HierarchicalPicker
+from lb_ui.tui.core.bases import NullDashboard, Presenter
+from lb_ui.tui.core.protocols import (
+    Dashboard,
+    DashboardFactory,
+    Form,
+    HierarchicalPicker,
+    Picker,
+    PresenterSink,
+    Progress,
+    TablePresenter,
+    UI,
+)
+from lb_ui.tui.adapters.dashboard_handle import DashboardHandleAdapter
 from lb_ui.tui.system.models import TableModel, PickItem, SelectionNode
+
+if TYPE_CHECKING:
+    from lb_app.api import DashboardViewModel
+
 
 @dataclass
 class RecordedTable:
@@ -34,14 +48,27 @@ class HeadlessUI(UI):
         self.progress = _HeadlessProgress(self)
         self.dashboard = _HeadlessDashboardFactory(self)
 
+
 class _HeadlessPicker(Picker):
     def __init__(self, ui: HeadlessUI):
         self._ui = ui
 
-    def pick_one(self, items: Sequence[PickItem], *, title: str, query_hint: str = "") -> PickItem | None:
+    def pick_one(
+        self,
+        items: Sequence[PickItem],
+        *,
+        title: str,
+        query_hint: str = "",
+    ) -> PickItem | None:
         return self._ui.next_pick_one
 
-    def pick_many(self, items: Sequence[PickItem], *, title: str, query_hint: str = "") -> list[PickItem] | None:
+    def pick_many(
+        self,
+        items: Sequence[PickItem],
+        *,
+        title: str,
+        query_hint: str = "",
+    ) -> list[PickItem] | None:
         return self._ui.next_pick_many
 
 class _HeadlessHierarchicalPicker(HierarchicalPicker):
@@ -56,7 +83,9 @@ class _HeadlessHierarchicalPicker(HierarchicalPicker):
         return self._first_leaf(root)
 
     @classmethod
-    def _pick_by_path(cls, root: SelectionNode, path: Sequence[str]) -> SelectionNode | None:
+    def _pick_by_path(
+        cls, root: SelectionNode, path: Sequence[str]
+    ) -> SelectionNode | None:
         node: SelectionNode | None = root
         segments = list(path)
         if segments and segments[0] == root.id:
@@ -116,7 +145,7 @@ class _HeadlessPresenterSink(PresenterSink):
     def emit_rule(self, title: str) -> None:
         self._ui.recorded_messages.append(f"RULE: {title}")
 
-class _HeadlessPresenter(PresenterBase):
+class _HeadlessPresenter(Presenter):
     def __init__(self, ui: HeadlessUI) -> None:
         super().__init__(_HeadlessPresenterSink(ui))
 
@@ -124,7 +153,9 @@ class _HeadlessForm(Form):
     def __init__(self, ui: HeadlessUI):
         self._ui = ui
 
-    def ask(self, prompt: str, default: str | None = None, password: bool = False) -> str:
+    def ask(
+        self, prompt: str, default: str | None = None, password: bool = False
+    ) -> str:
         return self._ui.next_form_response
 
     def confirm(self, prompt: str, default: bool = True) -> bool:
@@ -138,7 +169,7 @@ class _HeadlessProgress(Progress):
         self._ui.recorded_messages.append(f"STATUS: {message}")
         return nullcontext()
 
-class _HeadlessDashboardSink(Dashboard):
+class _HeadlessDashboardSink(NullDashboard):
     def __init__(self, ui: HeadlessUI) -> None:
         self._ui = ui
 
@@ -149,30 +180,18 @@ class _HeadlessDashboardSink(Dashboard):
     def add_log(self, line: str) -> None:
         self._ui.recorded_dashboard_logs.append(line)
 
-    def refresh(self) -> None:
-        pass
-
-    def mark_event(self, source: str) -> None:
-        pass
-
-    def set_warning(self, message: str, ttl: float = 10.0) -> None:
-        pass
-
-    def clear_warning(self) -> None:
-        pass
-
-    def set_controller_state(self, state: str) -> None:
-        pass
-
 class _HeadlessDashboardFactory(DashboardFactory):
     def __init__(self, ui: HeadlessUI):
         self._ui = ui
 
     def create(
         self,
-        plan: list[Any],
-        journal: Any,
+        viewmodel: "DashboardViewModel",
         ui_log_file: IO[str] | None = None,
     ) -> Dashboard:
-        self._ui.recorded_messages.append(f"DASHBOARD: create(plan={len(plan)} items)")
-        return DashboardAdapter(_HeadlessDashboardSink(self._ui))
+        snapshot = viewmodel.snapshot()
+        self._ui.recorded_messages.append(
+            "DASHBOARD: create("
+            f"rows={snapshot.row_count}, plan={len(snapshot.plan_rows)})"
+        )
+        return DashboardHandleAdapter(_HeadlessDashboardSink(self._ui), threaded=False)

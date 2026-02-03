@@ -9,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
 
-from lb_common.hosts import RemoteHostSpec
+from lb_common.models.hosts import RemoteHostSpec
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +159,6 @@ def _to_namespace(config: Any | Mapping[str, Any] | None) -> Any | None:
     if isinstance(config, Mapping):
         return SimpleNamespace(**config)
     return config
-
 
 def _template_has_host_placeholder(
     template: str,

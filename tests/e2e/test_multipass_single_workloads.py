@@ -29,7 +29,7 @@ from lb_runner.api import (
 )
 from lb_controller.api import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController, ControllerOptions
-import tests.e2e.test_multipass_benchmark as _multipass_benchmark  # noqa: F401
+from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
 
 pytestmark = [
@@ -96,8 +96,9 @@ def _assert_artifacts(host_output_dir: Path, workload: str, expected_reps: int) 
         missing.append(f"Plugin CSV missing/empty: {plugin_csv}")
 
     for rep in range(1, expected_reps + 1):
-        cli_csv = workload_dir / f"{workload}_rep{rep}_CLICollector.csv"
-        psutil_csv = workload_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
+        rep_dir = workload_dir / f"rep{rep}"
+        cli_csv = rep_dir / f"{workload}_rep{rep}_CLICollector.csv"
+        psutil_csv = rep_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
         for path in (cli_csv, psutil_csv):
             if not path.exists() or path.stat().st_size == 0:
                 missing.append(f"Collector CSV missing/empty: {path}")
@@ -181,7 +182,6 @@ def test_multipass_stress_ng_three_reps(multipass_vm, tmp_path: Path) -> None:
     stress_cfg = StressNGConfig(cpu_workers=1, timeout=intensity["stress_timeout"])
     workload_cfg = WorkloadConfig(
         plugin="stress_ng",
-        enabled=True,
         options=stress_cfg.model_dump(mode="json"),
     )
     _run_single_workload("stress_ng", workload_cfg, {"stress_ng": stress_cfg}, multipass_vm, tmp_path)
@@ -193,7 +193,6 @@ def test_multipass_dd_three_reps(multipass_vm, tmp_path: Path) -> None:
     dd_cfg = DDConfig(bs="1M", count=intensity["dd_count"], of_path="/tmp/dd_test")
     workload_cfg = WorkloadConfig(
         plugin="dd",
-        enabled=True,
         options=dd_cfg.model_dump(mode="json"),
     )
     _run_single_workload("dd", workload_cfg, {"dd": dd_cfg}, multipass_vm, tmp_path)
@@ -215,7 +214,6 @@ def test_multipass_fio_three_reps(multipass_vm, tmp_path: Path) -> None:
     )
     workload_cfg = WorkloadConfig(
         plugin="fio",
-        enabled=True,
         options=fio_cfg.model_dump(mode="json"),
     )
     _run_single_workload("fio", workload_cfg, {"fio": fio_cfg}, multipass_vm, tmp_path)
@@ -226,6 +224,7 @@ def test_multipass_geekbench_three_reps(multipass_vm, tmp_path: Path) -> None:
     intensity = get_intensity()
     arch = platform.machine().lower()
     is_arm = "arm" in arch or "aarch64" in arch
+    geekbench_min_runtime = int(os.environ.get("LB_MULTIPASS_GEEKBENCH_TIMEOUT", "600"))
     download_checksum = (
         # Geekbench 6.3.0 Linux ARM preview tarball.
         "7db7f4d6a6bdc31de4f63f0012abf7f1f00cdc5f6d64e727a47ff06bff6b6b04"
@@ -233,17 +232,18 @@ def test_multipass_geekbench_three_reps(multipass_vm, tmp_path: Path) -> None:
         # Geekbench 6.3.0 Linux (x86_64) tarball.
         else "01727999719cd515a7224075dcab4876deef2844c45e8c2e9f34197224039f3b"
     )
-    # Keep runtime bounded for e2e (Geekbench otherwise hints ~1800s).
+    # Keep runtime bounded for e2e while allowing slow hosts to finish.
     geek_cfg = GeekbenchConfig(
         output_dir=Path("/tmp"),
         skip_cleanup=True,
         run_gpu=False,
-        expected_runtime_seconds=max(120, int(intensity.get("stress_timeout", 120))),
+        expected_runtime_seconds=max(
+            geekbench_min_runtime, int(intensity.get("stress_timeout", 120))
+        ),
         download_checksum=download_checksum,
     )
     workload_cfg = WorkloadConfig(
         plugin="geekbench",
-        enabled=True,
         options=geek_cfg.model_dump(mode="json"),
     )
     _run_single_workload(
@@ -271,7 +271,6 @@ def test_multipass_hpl_three_reps(multipass_vm, tmp_path: Path) -> None:
     )
     workload_cfg = WorkloadConfig(
         plugin="hpl",
-        enabled=True,
         options=hpl_cfg.model_dump(mode="json"),
     )
     _run_single_workload(
@@ -298,7 +297,6 @@ def test_multipass_yabs_three_reps(multipass_vm, tmp_path: Path) -> None:
     )
     workload_cfg = WorkloadConfig(
         plugin="yabs",
-        enabled=True,
         options=yabs_cfg.model_dump(mode="json"),
     )
     _run_single_workload(

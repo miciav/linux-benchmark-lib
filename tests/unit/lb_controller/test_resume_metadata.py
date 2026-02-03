@@ -17,7 +17,7 @@ pytestmark = pytest.mark.unit_controller
 def _make_config(tmp_path, host_names=None) -> BenchmarkConfig:
     cfg = BenchmarkConfig()
     cfg.output_dir = tmp_path / "benchmark_results"
-    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng", enabled=True)}
+    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
     cfg.repetitions = 1
     if host_names:
         cfg.remote_hosts = [
@@ -52,7 +52,7 @@ def test_new_journal_sets_execution_mode_and_node_count(tmp_path):
     context = _make_context(cfg, execution_mode="docker")
     service = RunService(lambda: PluginRegistry({}))
 
-    journal, _, _, _ = service._prepare_journal_and_dashboard(
+    journal, _, _, _ = service._session_manager._prepare_journal_and_dashboard(
         context, run_id=None, ui_adapter=None
     )
 
@@ -75,7 +75,7 @@ def test_resume_journal_populates_metadata_when_missing(tmp_path):
     )
     service = RunService(lambda: PluginRegistry({}))
 
-    resumed, _, _, _ = service._prepare_journal_and_dashboard(
+    resumed, _, _, _ = service._session_manager._prepare_journal_and_dashboard(
         context, run_id=None, ui_adapter=None
     )
 
@@ -88,7 +88,7 @@ def test_remote_node_count_defaults_to_host_count(tmp_path):
     context = _make_context(cfg, execution_mode="remote")
     service = RunService(lambda: PluginRegistry({}))
 
-    journal, _, _, _ = service._prepare_journal_and_dashboard(
+    journal, _, _, _ = service._session_manager._prepare_journal_and_dashboard(
         context, run_id=None, ui_adapter=None
     )
 

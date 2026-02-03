@@ -7,8 +7,8 @@ import logging
 import queue
 import threading
 import time
-from typing import Any, Iterable, Mapping
-from urllib import error, request
+from typing import Iterable, Mapping, Any
+from urllib import request, error
 from urllib.parse import urlparse
 
 from lb_common.logs.handlers.loki_helpers import LokiLabelBuilder, LokiWorker

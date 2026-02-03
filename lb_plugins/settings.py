@@ -30,7 +30,7 @@ class SupportsWorkloads(Protocol):
 class WorkloadFactory(Protocol):
     """Factory for workload config objects."""
 
-    def __call__(self, *, plugin: str, enabled: bool, options: Dict[str, Any]) -> Any:
+    def __call__(self, *, plugin: str, options: Dict[str, Any]) -> Any:
         ...
 
 
@@ -131,7 +131,6 @@ def ensure_workloads_from_plugin_settings(
         if name not in config.workloads:
             config.workloads[name] = workload_factory(
                 plugin=name,
-                enabled=False,
                 options=_settings_to_options(settings),
             )
         else:

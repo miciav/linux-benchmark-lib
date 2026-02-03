@@ -1,46 +1,63 @@
 """Public API surface for lb_common."""
 
-from lb_common.hosts import RemoteHostSpec
-from lb_common.logging import configure_logging
-from lb_common.logs.core import attach_jsonl_handler, attach_loki_handler
+from lb_common.config.env import (
+    parse_bool_env,
+    parse_float_env,
+    parse_int_env,
+    parse_labels_env,
+)
+from lb_common.discovery.entrypoints import (
+    discover_entrypoints,
+    load_entrypoint,
+    load_pending_entrypoints,
+)
+from lb_common.logs.core import (
+    attach_jsonl_handler,
+    attach_loki_handler,
+    configure_logging,
+)
 from lb_common.logs.handlers.jsonl_handler import JsonlLogFormatter
-from lb_common.run_info import RunInfo
-
-
-def parse_bool_env(value: str | None) -> bool | None:
-    """Parse a boolean env value, returning None when unset or invalid."""
-    if value is None:
-        return None
-    normalized = value.strip().lower()
-    if not normalized:
-        return None
-    if normalized in {"1", "true", "yes", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "off"}:
-        return False
-    return None
-
-
-def parse_int_env(value: str | None) -> int | None:
-    """Parse an integer env value, returning None when unset or invalid."""
-    if value is None:
-        return None
-    normalized = value.strip()
-    if not normalized:
-        return None
-    try:
-        return int(normalized)
-    except (TypeError, ValueError):
-        return None
-
+from lb_common.logs.handlers.loki_handler import normalize_loki_endpoint
+from lb_common.models.hosts import RemoteHostSpec
+from lb_common.models.run_info import RunInfo
+from lb_common.observability.grafana_client import GrafanaClient
+from lb_common.errors import (
+    ConfigurationError,
+    LBError,
+    MetricCollectionError,
+    OutputParseError,
+    RemoteExecutionError,
+    ResultPersistenceError,
+    WorkloadError,
+    error_to_payload,
+    normalize_context,
+    wrap_error,
+)
 
 __all__ = [
-    "configure_logging",
-    "attach_jsonl_handler",
-    "attach_loki_handler",
+    "GrafanaClient",
     "JsonlLogFormatter",
-    "parse_bool_env",
-    "parse_int_env",
     "RemoteHostSpec",
     "RunInfo",
+    "attach_jsonl_handler",
+    "attach_loki_handler",
+    "configure_logging",
+    "discover_entrypoints",
+    "load_entrypoint",
+    "load_pending_entrypoints",
+    "normalize_loki_endpoint",
+    "parse_bool_env",
+    "parse_float_env",
+    "parse_int_env",
+    "parse_labels_env",
+    "ConfigurationError",
+    "LBError",
+    "MetricCollectionError",
+    "OutputParseError",
+    "RemoteExecutionError",
+    "ResultPersistenceError",
+    "WorkloadError",
+    "error_to_payload",
+    "normalize_context",
+    "wrap_error",
 ]

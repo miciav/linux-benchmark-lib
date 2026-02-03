@@ -7,6 +7,7 @@ import yaml # Added yaml import
 import pandas as pd
 from pydantic import BaseModel, Field # Added Pydantic imports
 
+from lb_plugins.observability import GrafanaAssets
 
 class WorkloadIntensity(str, Enum):
     LOW = "low"
@@ -148,6 +149,32 @@ class WorkloadPlugin(ABC):
         """Return extra vars merged into the plugin teardown playbook run."""
         return {}
 
+    def get_ansible_collect_pre_path(self) -> Optional[Path]:
+        """
+        Return the path to the Ansible collect pre-playbook.
+        Executed before the collect phase (e.g., to add dynamic hosts to inventory).
+        """
+        return None
+
+    def get_ansible_collect_post_path(self) -> Optional[Path]:
+        """
+        Return the path to the Ansible collect post-playbook.
+        Executed after the collect phase for plugin-specific log collection.
+        """
+        return None
+
+    def get_ansible_collect_pre_extravars(self) -> Dict[str, Any]:
+        """Return extra vars merged into the plugin collect pre-playbook run."""
+        return {}
+
+    def get_ansible_collect_post_extravars(self) -> Dict[str, Any]:
+        """Return extra vars merged into the plugin collect post-playbook run."""
+        return {}
+
+    def get_grafana_assets(self) -> GrafanaAssets | None:
+        """Return Grafana datasources/dashboards provided by this plugin."""
+        return None
+
     # Optional: allow plugins to normalize their own results into CSV before collection
     def export_results_to_csv(
         self,
@@ -199,6 +226,9 @@ class SimpleWorkloadPlugin(WorkloadPlugin):
     REQUIRED_LOCAL_TOOLS: List[str] = []
     SETUP_PLAYBOOK: Optional[Path] = None
     TEARDOWN_PLAYBOOK: Optional[Path] = None
+    COLLECT_PRE_PLAYBOOK: Optional[Path] = None
+    COLLECT_POST_PLAYBOOK: Optional[Path] = None
+    GRAFANA_ASSETS: GrafanaAssets | None = None
 
     @property
     def name(self) -> str:
@@ -221,6 +251,9 @@ class SimpleWorkloadPlugin(WorkloadPlugin):
             raise NotImplementedError("SimpleWorkloadPlugin.GENERATOR_CLS must be set")
         return self.GENERATOR_CLS(config)
 
+    def get_grafana_assets(self) -> GrafanaAssets | None:
+        return self.GRAFANA_ASSETS
+
     def get_required_apt_packages(self) -> List[str]:
         return list(self.REQUIRED_APT_PACKAGES)
 
@@ -238,4 +271,14 @@ class SimpleWorkloadPlugin(WorkloadPlugin):
     def get_ansible_teardown_path(self) -> Optional[Path]:
         if self.TEARDOWN_PLAYBOOK and self.TEARDOWN_PLAYBOOK.exists():
             return self.TEARDOWN_PLAYBOOK
+        return None
+
+    def get_ansible_collect_pre_path(self) -> Optional[Path]:
+        if self.COLLECT_PRE_PLAYBOOK and self.COLLECT_PRE_PLAYBOOK.exists():
+            return self.COLLECT_PRE_PLAYBOOK
+        return None
+
+    def get_ansible_collect_post_path(self) -> Optional[Path]:
+        if self.COLLECT_POST_PLAYBOOK and self.COLLECT_POST_PLAYBOOK.exists():
+            return self.COLLECT_POST_PLAYBOOK
         return None

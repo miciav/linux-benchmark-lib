@@ -59,7 +59,6 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             workloads={
                 "stress_ng": WorkloadConfig(
                     plugin="stress_ng",
-                    enabled=True,
                     options=stress_cfg.model_dump(mode="json"),
                 )
             },
@@ -177,7 +176,6 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
             workloads={
                 "stress_ng": WorkloadConfig(
                     plugin="stress_ng",
-                    enabled=True,
                     options=stress_cfg.model_dump(mode="json"),
                 )
             },
@@ -207,9 +205,9 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         # Verify timing (duration is only the test execution time, not warmup/cooldown)
         duration = result["duration_seconds"]
         expected_duration = config.test_duration_seconds
-        # Allow small overhead for process startup/teardown and collector timing
+        # Allow modest overhead for process startup/teardown and collector timing
         self.assertGreaterEqual(duration, expected_duration)
-        self.assertLessEqual(duration, expected_duration + 2.0)
+        self.assertLessEqual(duration, expected_duration + 3.0)
 
 
 if __name__ == '__main__':

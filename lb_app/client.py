@@ -5,9 +5,20 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from lb_app.interfaces import AppClient, UIHooks, RunRequest
+from lb_app.interfaces import UIHooks, RunRequest
 from lb_app.services.config_service import ConfigService
-from lb_controller.api import BenchmarkConfig, RemoteHostConfig, RunJournal, WorkloadConfig
+from lb_app.services.provision_service import (
+    ProvisionConfigSummary,
+    ProvisionService,
+    ProvisionStatus,
+)
+from lb_controller.api import (
+    BenchmarkConfig,
+    ConnectivityService,
+    RemoteHostConfig,
+    RunJournal,
+    WorkloadConfig,
+)
 from lb_app.services.run_service import RunService
 from lb_app.services.run_service import RunResult
 from lb_common.api import RemoteHostSpec, configure_logging
@@ -20,13 +31,14 @@ from lb_provisioner.api import (
 from lb_plugins.api import create_registry
 
 
-class ApplicationClient(AppClient):
+class ApplicationClient:
     """Concrete application-layer client."""
 
     def __init__(self) -> None:
         configure_logging()
         self._config_service = ConfigService()
         self._run_service = RunService(registry_factory=create_registry)
+        self._provision_service = ProvisionService(self._config_service)
         self._provisioner = ProvisioningService(
             enforce_ui_caller=True, allowed_callers=("lb_ui", "lb_app")
         )
@@ -43,7 +55,13 @@ class ApplicationClient(AppClient):
         return RunJournal.list_runs(config.output_dir)
 
     def get_run_plan(self, config: BenchmarkConfig, tests: Sequence[str], execution_mode: str = "remote"):
-        return self._run_service.get_run_plan(config, list(tests), execution_mode=execution_mode)
+        platform_cfg, _, _ = self._config_service.load_platform_config()
+        return self._run_service.get_run_plan(
+            config,
+            list(tests),
+            execution_mode=execution_mode,
+            platform_config=platform_cfg,
+        )
 
     def _provision(
         self,
@@ -152,11 +170,11 @@ class ApplicationClient(AppClient):
     def start_run(self, request: RunRequest, hooks: UIHooks) -> RunResult | None:
         cfg = request.config
         target_tests = list(
-            request.tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+            request.tests or list(cfg.workloads.keys())
         )
         for name in target_tests:
             if name not in cfg.workloads:
-                cfg.workloads[name] = WorkloadConfig(plugin=name, enabled=True)
+                cfg.workloads[name] = WorkloadConfig(plugin=name, options={})
 
         context = self._run_service.create_session(
             self._config_service,
@@ -174,6 +192,25 @@ class ApplicationClient(AppClient):
             node_count=request.node_count,
             preloaded_config=cfg,
         )
+
+        # Pre-flight connectivity check for remote mode
+        if (
+            not request.skip_connectivity_check
+            and request.execution_mode == "remote"
+            and cfg.remote_hosts
+        ):
+            connectivity_service = ConnectivityService(
+                timeout_seconds=request.connectivity_timeout
+            )
+            connectivity_report = connectivity_service.check_hosts(cfg.remote_hosts)
+            if not connectivity_report.all_reachable:
+                unreachable = ", ".join(connectivity_report.unreachable_hosts)
+                hooks.on_warning(
+                    f"Unreachable hosts: {unreachable}. "
+                    "Use --skip-connectivity-check to bypass this check.",
+                    ttl=10,
+                )
+                return None
 
         # Provision according to execution mode
         prov_result = None
@@ -216,3 +253,48 @@ class ApplicationClient(AppClient):
                     prov_result.keep_nodes = True
                     hooks.on_warning("Leaving provisioned nodes for inspection", ttl=5)
         return run_result
+
+    def install_loki_grafana(
+        self,
+        *,
+        mode: str,
+        config_path: Path | None,
+        grafana_url: str | None,
+        grafana_api_key: str | None,
+        grafana_admin_user: str | None,
+        grafana_admin_password: str | None,
+        grafana_token_name: str | None,
+        grafana_org_id: int | None,
+        loki_endpoint: str | None,
+        configure_assets: bool = True,
+    ) -> ProvisionConfigSummary | None:
+        return self._provision_service.install_loki_grafana(
+            mode=mode,
+            config_path=config_path,
+            grafana_url=grafana_url,
+            grafana_api_key=grafana_api_key,
+            grafana_admin_user=grafana_admin_user,
+            grafana_admin_password=grafana_admin_password,
+            grafana_token_name=grafana_token_name,
+            grafana_org_id=grafana_org_id,
+            loki_endpoint=loki_endpoint,
+            configure_assets=configure_assets,
+        )
+
+    def remove_loki_grafana(self, *, remove_data: bool = False) -> None:
+        self._provision_service.remove_loki_grafana(remove_data=remove_data)
+
+    def status_loki_grafana(
+        self,
+        *,
+        grafana_url: str | None,
+        grafana_api_key: str | None,
+        grafana_org_id: int | None,
+        loki_endpoint: str | None,
+    ) -> ProvisionStatus:
+        return self._provision_service.status_loki_grafana(
+            grafana_url=grafana_url,
+            grafana_api_key=grafana_api_key,
+            grafana_org_id=grafana_org_id,
+            loki_endpoint=loki_endpoint,
+        )

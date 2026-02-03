@@ -1,65 +1,24 @@
 import json
-import os
-import shutil
 import subprocess
 import time
 from pathlib import Path
 
 import pytest
 
-from tests.helpers.multipass import ensure_ansible_available, make_test_ansible_env
+from tests.helpers.multipass import (
+    ensure_ansible_available,
+    ensure_multipass_access,
+    inject_multipass_ssh_key,
+    launch_multipass_vm,
+    make_test_ansible_env,
+    wait_for_multipass_ip,
+)
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
-
-
-def _multipass_available() -> bool:
-    """Return True when the multipass CLI is present."""
-    return shutil.which("multipass") is not None
-
-
-def _wait_for_ip(vm_name: str, attempts: int = 10, delay: int = 2) -> str:
-    """Poll multipass info until an IPv4 address is available."""
-    for _ in range(attempts):
-        proc = subprocess.run(
-            ["multipass", "info", vm_name, "--format", "json"],
-            capture_output=True,
-            text=True,
-        )
-        if proc.returncode == 0:
-            info = json.loads(proc.stdout)
-            ipv4 = info["info"][vm_name]["ipv4"]
-            if ipv4:
-                return ipv4[0]
-        time.sleep(delay)
-    raise RuntimeError(f"Failed to retrieve IP for {vm_name}")
-
-
-def _inject_ssh_key(vm_name: str, pub_key_path: Path) -> None:
-    """Copy the public key into the VM authorized_keys."""
-    temp_remote = "/home/ubuntu/lb_test_key.pub"
-    subprocess.run(
-        ["multipass", "transfer", str(pub_key_path), f"{vm_name}:{temp_remote}"],
-        check=True,
-    )
-    subprocess.run(
-        [
-            "multipass",
-            "exec",
-            vm_name,
-            "--",
-            "bash",
-            "-c",
-            "mkdir -p ~/.ssh "
-            "&& cat ~/lb_test_key.pub >> ~/.ssh/authorized_keys "
-            "&& chmod 600 ~/.ssh/authorized_keys "
-            "&& rm ~/lb_test_key.pub",
-        ],
-        check=True,
-    )
 
 
 @pytest.mark.inter_generic
@@ -73,8 +32,7 @@ def test_multipass_ssh_roundtrip(tmp_path: Path) -> None:
     - SSH in and run a simple command
     - Tear everything down (VM + key files)
     """
-    if not _multipass_available():
-        pytest.skip("Multipass not available on this host")
+    ensure_multipass_access()
 
     vm_name = f"lb-ssh-test-{int(time.time())}"
     key_path = tmp_path / "lb_test_key"
@@ -93,24 +51,11 @@ def test_multipass_ssh_roundtrip(tmp_path: Path) -> None:
             stderr=subprocess.DEVNULL,
         )
 
-        # Launch VM (prefer image from env, fallback to 24.04 then lts)
-        images = [
-            os.environ.get("LB_MULTIPASS_IMAGE", "24.04"),
-            os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts"),
-        ]
-        for image in images:
-            try:
-                subprocess.run(
-                    ["multipass", "launch", "--name", vm_name, image],
-                    check=True,
-                )
-                break
-            except subprocess.CalledProcessError:
-                if image == images[-1]:
-                    raise
+        # Launch VM with retries/fallback handled by shared helper.
+        launch_multipass_vm(vm_name)
 
-        ip_addr = _wait_for_ip(vm_name)
-        _inject_ssh_key(vm_name, pub_path)
+        ip_addr = wait_for_multipass_ip(vm_name)
+        inject_multipass_ssh_key(vm_name, pub_path)
 
         # SSH roundtrip
         ssh_cmd = [
@@ -148,8 +93,7 @@ def test_multipass_ansible_ping(tmp_path: Path) -> None:
     """
     End-to-end smoke test: provision VM, inject key, run Ansible ping.
     """
-    if not _multipass_available():
-        pytest.skip("Multipass not available on this host")
+    ensure_multipass_access()
     ensure_ansible_available()
 
     vm_name = f"lb-ssh-test-{int(time.time())}"
@@ -168,24 +112,11 @@ def test_multipass_ansible_ping(tmp_path: Path) -> None:
             stderr=subprocess.DEVNULL,
         )
 
-        # Launch VM
-        images = [
-            os.environ.get("LB_MULTIPASS_IMAGE", "24.04"),
-            os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts"),
-        ]
-        for image in images:
-            try:
-                subprocess.run(
-                    ["multipass", "launch", "--name", vm_name, image],
-                    check=True,
-                )
-                break
-            except subprocess.CalledProcessError:
-                if image == images[-1]:
-                    raise
+        # Launch VM with retries/fallback handled by shared helper.
+        launch_multipass_vm(vm_name)
 
-        ip_addr = _wait_for_ip(vm_name)
-        _inject_ssh_key(vm_name, pub_path)
+        ip_addr = wait_for_multipass_ip(vm_name)
+        inject_multipass_ssh_key(vm_name, pub_path)
 
         # Build inventory and playbook
         inventory_path = tmp_path / "hosts.ini"
@@ -232,8 +163,7 @@ def test_multipass_ansible_stress_ng(tmp_path: Path) -> None:
     """
     Run a minimal stress-ng workload via Ansible on a fresh Multipass VM.
     """
-    if not _multipass_available():
-        pytest.skip("Multipass not available on this host")
+    ensure_multipass_access()
     ensure_ansible_available()
 
     vm_name = f"lb-ssh-test-{int(time.time())}"
@@ -251,23 +181,11 @@ def test_multipass_ansible_stress_ng(tmp_path: Path) -> None:
             stderr=subprocess.DEVNULL,
         )
 
-        images = [
-            os.environ.get("LB_MULTIPASS_IMAGE", "24.04"),
-            os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts"),
-        ]
-        for image in images:
-            try:
-                subprocess.run(
-                    ["multipass", "launch", "--name", vm_name, image],
-                    check=True,
-                )
-                break
-            except subprocess.CalledProcessError:
-                if image == images[-1]:
-                    raise
+        # Launch VM with retries/fallback handled by shared helper.
+        launch_multipass_vm(vm_name)
 
-        ip_addr = _wait_for_ip(vm_name)
-        _inject_ssh_key(vm_name, pub_path)
+        ip_addr = wait_for_multipass_ip(vm_name)
+        inject_multipass_ssh_key(vm_name, pub_path)
 
         inventory_path = tmp_path / "hosts.ini"
         inventory_path.write_text(
@@ -325,8 +243,7 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
     """
     Run the repo's setup playbook against a Multipass VM with controller-like extravars.
     """
-    if not _multipass_available():
-        pytest.skip("Multipass not available on this host")
+    ensure_multipass_access()
     ensure_ansible_available()
 
     vm_name = f"lb-ssh-test-{int(time.time())}"
@@ -344,23 +261,11 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             stderr=subprocess.DEVNULL,
         )
 
-        images = [
-            os.environ.get("LB_MULTIPASS_IMAGE", "24.04"),
-            os.environ.get("LB_MULTIPASS_FALLBACK_IMAGE", "lts"),
-        ]
-        for image in images:
-            try:
-                subprocess.run(
-                    ["multipass", "launch", "--name", vm_name, image],
-                    check=True,
-                )
-                break
-            except subprocess.CalledProcessError:
-                if image == images[-1]:
-                    raise
+        # Launch VM with retries/fallback handled by shared helper.
+        launch_multipass_vm(vm_name)
 
-        ip_addr = _wait_for_ip(vm_name)
-        _inject_ssh_key(vm_name, pub_path)
+        ip_addr = wait_for_multipass_ip(vm_name)
+        inject_multipass_ssh_key(vm_name, pub_path)
 
         inventory_path = tmp_path / "hosts.ini"
         inventory_path.write_text(
@@ -424,7 +329,7 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             (
                 f"test -x {lb_workdir}/.venv/bin/python "
                 f"&& test -f {lb_workdir}/lb_controller/__init__.py "
-                f"&& test -f {lb_workdir}/lb_common/logging.py"
+                f"&& test -f {lb_workdir}/lb_common/logs/core.py"
             ),
         ]
         subprocess.run(ssh_cmd, check=True)
@@ -435,7 +340,6 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
             "workloads": {
                 "stress_ng": {
                     "plugin": "stress_ng", 
-                    "enabled": True, 
                     "options": {"vm_workers": 0, "cpu_workers": 1, "timeout": 3, "metrics_brief": True}
                 }
             },

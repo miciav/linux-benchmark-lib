@@ -6,11 +6,14 @@
 # Create a config and prompt for a remote host
 lb config init -i
 
-# Enable a workload
-lb plugin list --enable stress_ng
+# Enable the plugin at the platform level
+lb plugin enable stress_ng
+
+# Add the workload to the run config
+lb config enable-workload stress_ng
 
 # Or pick workloads interactively
-lb plugin list --select
+lb config select-workloads
 
 # Run remotely (uses the config's remote hosts)
 lb run --remote --run-id demo-run

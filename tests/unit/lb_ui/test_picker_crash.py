@@ -1,9 +1,11 @@
-import pytest
 from dataclasses import dataclass
 from typing import Any
-from lb_ui.api import _PickerApp
+
+import pytest
+
 from lb_ui.api import PickItem
-from lb_ui.tui.system.components import picker as picker_module
+from lb_ui.tui.system.components import flat_picker_panel as panel_module
+from lb_ui.tui.system.components.flat_picker_panel import FlatPickerPanel
 
 pytestmark = pytest.mark.unit_ui
 
@@ -16,8 +18,9 @@ class UnhashablePayload:
 
 def test_picker_filter_with_unhashable_payload():
     """
-    Verify that the picker filtering does not crash when items contain unhashable payloads.
-    This reproduces the 'Exception unhashable type: WorkloadConfig' error found with rapidfuzz.
+    Verify that the picker filtering does not crash when items contain unhashable
+    payloads. This reproduces the 'Exception unhashable type: WorkloadConfig'
+    error found with rapidfuzz.
     """
     # Create items with unhashable payload
     items = [
@@ -25,45 +28,53 @@ def test_picker_filter_with_unhashable_payload():
         PickItem(id="2", title="Item Two", payload=UnhashablePayload({"b": 2})),
     ]
     
-    app = _PickerApp(items, title="Test Picker")
-    
-    # Simulate typing in search box to trigger filtering
-    app.search.text = "One"
-    
-    # Manually trigger the filter logic (normally triggered by callback)
+    panel = FlatPickerPanel(
+        items, row_renderer=lambda item, is_selected: ("", item.title)
+    )
+    panel.search.text = "One"
+
+    # Manually trigger the filter logic (normally triggered by callback).
     try:
-        app._apply_filter()
+        panel.apply_filter(reset_index=True)
     except TypeError as e:
         pytest.fail(f"Picker crashed on filtering unhashable payload: {e}")
     except Exception as e:
         pytest.fail(f"Picker crashed with unexpected error: {e}")
 
     # Verify filtering worked
-    assert len(app.filtered) == 1
-    assert app.filtered[0].title == "Item One"
+    assert len(panel.filtered) == 1
+    assert panel.filtered[0].title == "Item One"
 
 
-def test_two_level_picker_filter_uses_string_choices(monkeypatch: pytest.MonkeyPatch) -> None:
-    root = picker_module._Node(id="root", label="Root", kind="root")
-    child_one = picker_module._Node(id="one", label="Alpha", kind="item")
-    child_two = picker_module._Node(id="two", label="Beta", kind="item")
-    root.children = [child_one, child_two]
+def test_flat_picker_filter_uses_string_choices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    items = [
+        PickItem(id="one", title="Alpha"),
+        PickItem(id="two", title="Beta"),
+    ]
+    panel = FlatPickerPanel(
+        items, row_renderer=lambda item, is_selected: ("", item.title)
+    )
+    panel.search.text = "alp"
 
-    picker = picker_module._TwoLevelMultiPicker(root, title="Test")
-    picker.state.query = "alp"
-
-    def fake_extract(query, choices, scorer=None):
+    def fake_extract(query, choices, scorer=None, **kwargs):
         assert all(isinstance(choice, str) for choice in choices)
         assert choices[0].startswith("Alpha")
         assert choices[1].startswith("Beta")
         return [(choices[0], 100, 0)]
 
-    class DummyFuzz:
-        WRatio = object()
+    class DummyProcess:
+        @staticmethod
+        def extract(query, choices, scorer=None, **kwargs):
+            return fake_extract(query, choices, scorer=scorer, **kwargs)
 
-    monkeypatch.setattr(picker_module, "_HAS_RAPIDFUZZ", True)
-    monkeypatch.setattr(picker_module, "process", type("Proc", (), {"extract": fake_extract}), raising=False)
-    monkeypatch.setattr(picker_module, "fuzz", DummyFuzz(), raising=False)
+    monkeypatch.setattr(panel_module, "has_fuzzy_search", lambda: True)
+    monkeypatch.setattr(
+        panel_module,
+        "fuzzy_matcher",
+        lambda: (DummyProcess, object()),
+    )
 
-    results = picker._filter(root.children)
-    assert results == [child_one]
+    panel.apply_filter(reset_index=True)
+    assert [item.title for item in panel.filtered] == ["Alpha"]

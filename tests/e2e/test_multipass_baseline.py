@@ -17,7 +17,7 @@ from lb_runner.api import (
     WorkloadConfig,
 )
 from lb_controller.api import AnsibleRunnerExecutor, BenchmarkController, ControllerOptions
-import tests.e2e.test_multipass_benchmark as _multipass_benchmark  # noqa: F401
+from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
 from tests.helpers.multipass import make_test_ansible_env, stage_private_key
 
 pytestmark = [
@@ -82,8 +82,9 @@ def _assert_artifacts(host_output_dir: Path, workload: str, expected_reps: int) 
         missing.append(f"Plugin CSV missing/empty: {plugin_csv}")
 
     for rep in range(1, expected_reps + 1):
-        cli_csv = workload_dir / f"{workload}_rep{rep}_CLICollector.csv"
-        psutil_csv = workload_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
+        rep_dir = workload_dir / f"rep{rep}"
+        cli_csv = rep_dir / f"{workload}_rep{rep}_CLICollector.csv"
+        psutil_csv = rep_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
         for path in (cli_csv, psutil_csv):
             if not path.exists() or path.stat().st_size == 0:
                 missing.append(f"Collector CSV missing/empty: {path}")
@@ -162,7 +163,6 @@ def test_multipass_baseline_three_reps(multipass_vm, tmp_path: Path) -> None:
     baseline_cfg = BaselineConfig(duration=5)
     workload_cfg = WorkloadConfig(
         plugin="baseline",
-        enabled=True,
         options=baseline_cfg.model_dump(mode="json"),
     )
     

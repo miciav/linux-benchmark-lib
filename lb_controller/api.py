@@ -6,6 +6,9 @@ from lb_controller.adapters.remote_runner import ControllerRunner
 from lb_controller.models.state import ControllerState, ControllerStateMachine
 from lb_controller.models.contracts import (
     BenchmarkConfig,
+    GrafanaPlatformConfig,
+    LokiConfig,
+    PlatformConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
@@ -23,6 +26,11 @@ from lb_controller.models.pending import pending_exists
 from lb_controller.services import RunCatalogService
 from lb_controller.services.paths import apply_playbook_defaults, prepare_run_dirs
 from lb_controller.services.journal_sync import backfill_timings_from_results
+from lb_controller.services.connectivity_service import (
+    ConnectivityService,
+    ConnectivityReport,
+    HostConnectivityResult,
+)
 from lb_controller.models.controller_options import ControllerOptions
 from lb_controller.models.types import (
     ExecutionResult,
@@ -39,12 +47,18 @@ from lb_runner.api import RunEvent, StopToken, workload_output_dir
 
 __all__ = [
     "BenchmarkConfig",
+    "GrafanaPlatformConfig",
+    "LokiConfig",
+    "PlatformConfig",
     "BenchmarkController",
     "CallbackModule",
+    "ConnectivityReport",
+    "ConnectivityService",
     "ControllerRunner",
     "ControllerState",
     "ControllerStateMachine",
     "ControllerOptions",
+    "HostConnectivityResult",
     "DoubleCtrlCStateMachine",
     "RunInterruptState",
     "SigintDecision",

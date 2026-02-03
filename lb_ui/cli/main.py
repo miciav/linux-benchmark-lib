@@ -17,7 +17,8 @@ from pathlib import Path
 from lb_ui.cli.commands.config import create_config_app
 from lb_ui.cli.commands.doctor import create_doctor_app
 from lb_ui.cli.commands.plugin import create_plugin_app
-from lb_ui.cli.commands.runs import create_runs_app, register_analyze_command
+from lb_ui.cli.commands.provision import create_provision_app
+from lb_ui.cli.commands.runs import create_runs_app
 from lb_ui.cli.commands.resume import register_resume_command
 from lb_ui.cli.commands.test import create_test_app
 from lb_ui.cli.commands.run import register_run_command
@@ -37,6 +38,7 @@ runs_app = create_runs_app(ctx_store)
 config_app = create_config_app(ctx_store)
 test_app = create_test_app(ctx_store)
 plugin_app = create_plugin_app(ctx_store)
+provision_app = create_provision_app(ctx_store)
 
 app = typer.Typer(help="Run linux-benchmark workloads on provisioned hosts (remote, Docker, Multipass).", no_args_is_help=True)
 
@@ -69,13 +71,13 @@ def entry(
         raise typer.Exit()
 
 
-register_analyze_command(app, ctx_store)
 register_resume_command(app, ctx_store)
 
 
 app.add_typer(config_app, name="config")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(plugin_app, name="plugin")
+app.add_typer(provision_app, name="provision")
 app.add_typer(runs_app, name="runs")
 if bool(os.environ.get("LB_ENABLE_TEST_CLI")) or ctx_store.dev_mode:
     app.add_typer(test_app, name="test")
@@ -98,12 +100,6 @@ register_run_command(
 
 
 
-
-
-@app.command("plugins", hidden=True)
-def list_plugins() -> None:
-    """Compatibility alias for plugin list."""
-    ctx_store.ui.present.info("Use `lb plugin list`.")
 
 
 def main() -> None:

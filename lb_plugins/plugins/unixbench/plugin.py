@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import logging
 import os
-import subprocess
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from pydantic import Field
 
-from ...base_generator import CommandGenerator, CommandSpec
+from ...base_generator import CommandSpec
 from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
+from ..command_base import StdoutCommandGenerator
 
 
 logger = logging.getLogger(__name__)
@@ -45,8 +45,10 @@ class _UnixBenchCommandBuilder:
         return CommandSpec(cmd=cmd)
 
 
-class UnixBenchGenerator(CommandGenerator):
+class UnixBenchGenerator(StdoutCommandGenerator):
     """Run UnixBench as a workload generator."""
+
+    tool_name = "UnixBench"
 
     def __init__(self, config: UnixBenchConfig, name: str = "UnixBenchGenerator"):
         self._command_builder = _UnixBenchCommandBuilder()
@@ -55,14 +57,8 @@ class UnixBenchGenerator(CommandGenerator):
     def _build_command(self) -> List[str]:
         return self._command_builder.build(self.config).cmd
 
-    def _popen_kwargs(self) -> dict[str, Any]:
-        return {
-            "cwd": self.config.workdir,
-            "stdout": subprocess.PIPE,
-            "stderr": subprocess.STDOUT,
-            "text": True,
-            "bufsize": 1,
-        }
+    def _command_workdir(self) -> Path | None:
+        return self.config.workdir
 
     def _timeout_seconds(self) -> Optional[int]:
         return self.config.timeout_buffer + max(120, 60 * self.config.iterations)
@@ -81,14 +77,6 @@ class UnixBenchGenerator(CommandGenerator):
             return False
         return True
 
-    def _log_failure(
-        self, returncode: int, stdout: str, stderr: str, cmd: list[str]
-    ) -> None:
-        output = stdout or stderr
-        if output:
-            logger.error("UnixBench failed with return code %s: %s", returncode, output)
-        else:
-            logger.error("UnixBench failed with return code %s", returncode)
 
 
 class UnixBenchPlugin(SimpleWorkloadPlugin):

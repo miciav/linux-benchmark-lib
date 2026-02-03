@@ -23,7 +23,7 @@ Order used by commands that need a config:
 
 ## Top-level commands
 
-- `lb run [WORKLOAD ...] [-c FILE] [--run-id ID] [--resume [latest|ID]] [--remote/--no-remote] [--repetitions N] [--intensity LEVEL] [--setup/--no-setup] [--stop-file PATH] [--debug]`
+- `lb run [WORKLOAD ...] [-c FILE] [--run-id ID] [--remote/--no-remote] [--repetitions N] [--intensity LEVEL] [--setup/--no-setup] [--stop-file PATH] [--debug]`
   Run workloads remotely via Ansible. Local execution is not supported by the CLI.
 - `lb run ... --docker [--docker-engine docker|podman] [--nodes N]`
   Dev-only: provision containers and run via Ansible (requires `.lb_dev_cli` or `LB_ENABLE_TEST_CLI=1`).
@@ -33,10 +33,12 @@ Order used by commands that need a config:
   Resume a previous run; without RUN_ID, pick interactively from `benchmark_results/`.
 - `lb runs list [--root PATH] [-c FILE]` / `lb runs show RUN_ID [--root PATH] [-c FILE]`
   Inspect stored runs under `benchmark_results/`.
-- `lb analyze [RUN_ID] [--kind aggregate] [--root PATH] [--workload NAME] [--host NAME]`
+- `lb runs analyze [RUN_ID] [--kind aggregate] [--root PATH] [--workload NAME] [--host NAME]`
   Run analytics on an existing run.
 - `lb plugin ...`
   Inspect and manage workload plugins.
+- `lb provision loki-grafana install|remove|status [--mode local|docker] [--grafana-url URL] [--grafana-api-key KEY] [--loki-endpoint URL] [--no-configure]`
+  Install/remove Loki + Grafana and configure datasources/dashboards.
 - `lb config ...`
   Create and manage benchmark configuration files.
 - `lb doctor ...`
@@ -46,17 +48,18 @@ Order used by commands that need a config:
 
 ## Plugin management (`lb plugin ...`)
 
-- `lb plugin list [--select] [--enable NAME | --disable NAME] [-c FILE] [--set-default]`
-- `lb plugin select [-c FILE] [--set-default]`
-
-Running `lb plugin` with no subcommand is equivalent to `lb plugin list`.
+- `lb plugin list`
+- `lb plugin enable NAME`
+- `lb plugin disable NAME`
+- `lb plugin select`
+Plugin enablement is stored in the platform config (`~/.config/lb/platform.json`); workloads live in the run config.
 
 ## Config management (`lb config ...`)
 
-- `lb config init [-i] [--path FILE] [--set-default/--no-set-default]`
+- `lb config init [-i] [-c FILE] [--set-default/--no-set-default]`
 - `lb config set-repetitions N [-c FILE] [--set-default/--no-set-default]`
 - `lb config set-default FILE` / `lb config unset-default` / `lb config show-default`
-- `lb config edit [-p FILE]`
+- `lb config edit [-c FILE]`
 - `lb config workloads [-c FILE]`
 - `lb config enable-workload NAME [-c FILE] [--set-default]`
 - `lb config disable-workload NAME [-c FILE] [--set-default]`

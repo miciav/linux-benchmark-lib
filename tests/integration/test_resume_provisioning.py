@@ -53,7 +53,7 @@ class _Hooks:
 def test_resume_provisioning_preserves_node_names(tmp_path, mode):
     cfg = BenchmarkConfig()
     cfg.output_dir = tmp_path / "benchmark_results"
-    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng", enabled=True)}
+    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
     cfg.repetitions = 2
     cfg.remote_hosts = [
         RemoteHostConfig(name="lb-node-b", address="10.0.0.2"),

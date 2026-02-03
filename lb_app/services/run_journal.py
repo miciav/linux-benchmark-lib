@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -203,6 +203,8 @@ def update_task_status_from_result(
     gen_result = entry.get("generator_result") or {}
     gen_error = gen_result.get("error")
     gen_rc = gen_result.get("returncode")
+    entry_error_type = entry.get("error_type")
+    entry_error_context = entry.get("error_context")
     if gen_error or (gen_rc not in (None, 0)):
         journal.update_task(
             host_name,
@@ -210,7 +212,21 @@ def update_task_status_from_result(
             rep,
             RunStatus.FAILED,
             action="container_run",
-            error=gen_error or f"returncode={gen_rc}",
+            error=entry.get("error") or gen_error or f"returncode={gen_rc}",
+            error_type=entry_error_type,
+            error_context=entry_error_context,
+        )
+        return
+    if entry_error_type:
+        journal.update_task(
+            host_name,
+            test_name,
+            rep,
+            RunStatus.FAILED,
+            action="container_run",
+            error=entry.get("error") or "error recorded",
+            error_type=entry_error_type,
+            error_context=entry_error_context,
         )
         return
     journal.update_task(
@@ -310,4 +326,4 @@ def _parse_run_id(run_id: str) -> datetime | None:
 
 def generate_run_id() -> str:
     """Generate a timestamped run id matching the controller's format."""
-    return datetime.utcnow().strftime("run-%Y%m%d-%H%M%S")
+    return datetime.now(UTC).strftime("run-%Y%m%d-%H%M%S")

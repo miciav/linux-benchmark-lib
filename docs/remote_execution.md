@@ -42,6 +42,16 @@ Plugins can also provide per-workload setup/teardown playbooks via the plugin
 interface (`get_ansible_setup_path`, `get_ansible_teardown_path`). These assets are
 resolved into `config.plugin_assets` and executed around each workload.
 
+Plugins may also provide collect assets:
+
+- `get_ansible_collect_pre_path` / `get_ansible_collect_post_path`
+- `get_ansible_collect_pre_extravars` / `get_ansible_collect_post_extravars`
+
+Collect pre/post assets are included from the global collect playbook via
+`include_tasks`, so they must be task files (not full playbooks with `hosts:`).
+Use `delegate_to` or other task-level targeting when you need to reach dynamic
+hosts added during collect.
+
 ### Provisioned targets (dev-only)
 
 The CLI can provision ephemeral nodes for testing:

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Protocol, Sequence
+from typing import Protocol, Sequence
 
 from lb_controller.api import BenchmarkConfig, RunEvent
 from lb_controller.api import RunJournal
-from lb_app.services.run_service import RunResult
 from lb_app.ui_interfaces import UIAdapter
 
 
@@ -39,13 +38,5 @@ class RunRequest:
     node_count: int = 1
     docker_engine: str = "docker"
     ui_adapter: UIAdapter | None = None
-
-
-class AppClient(Protocol):
-    """Minimal interface that the UI can call into."""
-
-    def load_config(self, path: Path | None = None) -> BenchmarkConfig: ...
-    def save_config(self, config: BenchmarkConfig, path: Path) -> None: ...
-    def list_runs(self, config: BenchmarkConfig) -> Iterable[RunJournal]: ...
-    def get_run_plan(self, config: BenchmarkConfig, tests: Sequence[str], execution_mode: str = "remote"): ...
-    def start_run(self, request: RunRequest, hooks: UIHooks) -> RunResult | None: ...
+    skip_connectivity_check: bool = False
+    connectivity_timeout: int = 10

@@ -2,19 +2,18 @@ from typing import Sequence
 
 from rich.console import Console
 
-from lb_ui.tui.system.protocols import (
-    UI,
-    Picker,
-    TablePresenter,
-    Presenter,
-    Form,
-    Progress,
+from lb_ui.tui.core.protocols import (
     DashboardFactory,
+    Form,
     HierarchicalPicker,
+    Picker,
+    Presenter,
+    Progress,
+    TablePresenter,
+    UI,
 )
 from lb_ui.tui.system.components.table import RichTablePresenter
-from lb_ui.tui.system.components.picker import PowerPicker
-from lb_ui.tui.system.components.hierarchical_picker import PowerHierarchicalPicker
+from lb_ui.tui.system.components.picker import PowerHierarchicalPicker, PowerPicker
 from lb_ui.tui.system.components.presenter import RichPresenter
 from lb_ui.tui.system.components.form import RichForm
 from lb_ui.tui.system.components.progress import RichProgress

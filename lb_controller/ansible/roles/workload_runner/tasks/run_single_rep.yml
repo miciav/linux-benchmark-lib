@@ -41,6 +41,15 @@
 
 - name: Run workload repetition via LocalRunner
   block:
+    - name: "{{ run_prefix }} Clean up previous run artifacts"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ workload_runner_workdir }}/lb_localrunner.status.json"
+        - "{{ workload_runner_workdir }}/lb_localrunner.pid"
+        - "{{ workload_runner_workdir }}/lb_poll_start.time"
+
     - name: "{{ run_prefix }} Execute {{ workload_runner_current_workload }} repetition {{ workload_runner_current_rep }}"
       ansible.builtin.command: >
         {{ workload_runner_uv_bin }} run python -m lb_runner.services.async_localrunner
@@ -48,6 +57,7 @@
         chdir: "{{ workload_runner_workdir }}"
       environment:
         LB_RUN_HOST: "{{ inventory_hostname }}"
+        LB_RUN_HOST_ADDRESS: "{{ ansible_host | default(inventory_hostname) }}"
         LB_RUN_WORKLOAD: "{{ workload_runner_current_workload }}"
         LB_RUN_REPETITION: "{{ workload_runner_current_rep }}"
         LB_RUN_TOTAL_REPS: "{{ workload_runner_total_reps }}"
@@ -60,6 +70,8 @@
         LB_RUN_DAEMONIZE: "1"
         LB_RUN_PID_PATH: "{{ workload_runner_workdir }}/lb_localrunner.pid"
         LB_RUN_STATUS_PATH: "{{ workload_runner_workdir }}/lb_localrunner.status.json"
+        LB_LOKI_ENABLED: "{{ (workload_runner_config.loki.enabled | default(false)) | ternary('1', '0') }}"
+        LB_LOKI_ENDPOINT: "{{ workload_runner_config.loki.endpoint | default('') }}"
       register: workload_runner_async
       changed_when: true
       async: 45
@@ -75,10 +87,8 @@
       ansible.builtin.set_fact:
         workload_runner_finished: false
 
-    - name: "{{ run_prefix }} Stream LB_EVENT lines (polling loop)"
+    - name: "{{ run_prefix }} Stream LB_EVENT lines (recursive polling)"
       ansible.builtin.include_tasks: stream_events_step.yml
-      loop: "{{ range(workload_runner_poll_max_iterations | default(1000) | int) | list }}"
-      when: not workload_runner_finished | default(false)
 
     - name: "{{ run_prefix }} Check stop file"
       ansible.builtin.stat:

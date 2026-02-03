@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Optional, Mapping, Any
 
 import structlog
 
@@ -110,6 +110,7 @@ def build_loki_handler(
     Priority: explicit parameters > environment variables > defaults.
     Environment variables are only used as fallbacks when parameters are None.
     """
+    # enabled: parameter > env var > False
     env_enabled = parse_bool_env(os.environ.get("LB_LOKI_ENABLED"))
     resolved_enabled = (
         enabled
@@ -119,14 +120,16 @@ def build_loki_handler(
     if not resolved_enabled:
         return None
 
+    # endpoint: parameter > env var > default
     resolved_endpoint = (
         endpoint or os.environ.get("LB_LOKI_ENDPOINT") or "http://localhost:3100"
     )
 
+    # labels: merge env labels first, then config labels override
     env_labels = parse_labels_env(os.environ.get("LB_LOKI_LABELS"))
     resolved_labels = dict(env_labels or {})
     if labels:
-        resolved_labels.update(labels)
+        resolved_labels.update(labels)  # Config labels override env labels
 
     resolved_batch_size = batch_size
     if resolved_batch_size is None:

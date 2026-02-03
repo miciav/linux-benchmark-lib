@@ -7,9 +7,9 @@ from typing import List, Optional
 import typer
 
 from lb_app.api import MAX_NODES
-from lb_ui.wiring.dependencies import UIContext
+from lb_ui.cli.commands.run_helpers import print_run_journal_summary, resolve_stop_file
 from lb_ui.presenters.plan import build_run_plan_table
-from lb_ui.presenters.journal import build_journal_table
+from lb_ui.wiring.dependencies import UIContext
 
 
 def register_run_command(
@@ -18,34 +18,11 @@ def register_run_command(
 ) -> None:
     """Register the main run command on the given Typer app."""
 
-    def _print_run_journal_summary(
-        journal_path: Path,
-        log_path: Path | None = None,
-        ui_log_path: Path | None = None,
-    ) -> None:
-        """Load and render a completed run journal, with log hints."""
-        try:
-            from lb_app.api import RunJournal
-            journal = RunJournal.load(journal_path)
-        except Exception as exc:
-            ctx.ui.present.warning(f"Could not read run journal at {journal_path}: {exc}")
-            if log_path:
-                ctx.ui.present.info(f"Ansible output log: {log_path}")
-            return
-
-        ctx.ui.tables.show(build_journal_table(journal))
-
-        ctx.ui.present.info(f"Journal saved to {journal_path}")
-        if log_path:
-            ctx.ui.present.info(f"Ansible output log saved to {log_path}")
-        if ui_log_path:
-            ctx.ui.present.info(f"Dashboard log stream saved to {ui_log_path}")
-
     @app.command("run")
     def run(
         tests: List[str] = typer.Argument(
             None,
-            help="Workload names to run; defaults to enabled workloads in the config.",
+            help="Workload names to run; defaults to configured workloads in the config.",
         ),
         config: Optional[Path] = typer.Option(
             None,
@@ -57,12 +34,6 @@ def register_run_command(
             None,
             "--run-id",
             help="Optional run identifier for tracking results.",
-        ),
-        resume: Optional[str] = typer.Option(
-            None,
-            "--resume",
-            help="Resume a previous run; omit value to resume the latest.",
-            flag_value="latest",
         ),
         remote: Optional[bool] = typer.Option(
             None,
@@ -117,8 +88,20 @@ def register_run_command(
             "--setup/--no-setup",
             help="Run environment setup (Global + Workload) before execution.",
         ),
+        skip_connectivity_check: bool = typer.Option(
+            False,
+            "--skip-connectivity-check",
+            help="Skip the pre-run SSH connectivity check for remote hosts.",
+        ),
+        connectivity_timeout: int = typer.Option(
+            10,
+            "--connectivity-timeout",
+            help="Timeout in seconds for the SSH connectivity check.",
+        ),
     ) -> None:
         """Run workloads using Ansible on remote, Docker, or Multipass targets."""
+        import time
+        start_ts = time.time()
         from lb_common.api import configure_logging
 
         if not ctx.dev_mode and (docker or multipass):
@@ -150,11 +133,7 @@ def register_run_command(
             ctx.ui.present.error("Repetitions must be at least 1.")
             raise typer.Exit(1)
 
-        stop_file_resolved = stop_file or (
-            Path(os.environ["LB_STOP_FILE"])
-            if os.environ.get("LB_STOP_FILE")
-            else None
-        )
+        stop_file_resolved = resolve_stop_file(stop_file)
 
         cfg, resolved, stale = ctx.config_service.load_for_read(config)
         if stale:
@@ -175,85 +154,10 @@ def register_run_command(
                 return "remote"
             return None
 
-        def _load_resume_journal_path() -> Path | None:
-            journal_path = None
-            if resume == "latest":
-                candidates = []
-                for child in cfg.output_dir.iterdir():
-                    if not child.is_dir():
-                        continue
-                    candidate = child / "run_journal.json"
-                    if candidate.exists():
-                        candidates.append(candidate)
-                if candidates:
-                    journal_path = max(candidates, key=lambda p: p.stat().st_mtime)
-            elif resume:
-                journal_path = cfg.output_dir / resume / "run_journal.json"
-            return journal_path if journal_path and journal_path.exists() else None
-
-        def _resolve_resume_execution_mode() -> str:
-            journal_path = _load_resume_journal_path()
-            if journal_path is None:
-                ctx.ui.present.warning(
-                    "Resume requires execution mode; journal not found."
-                )
-                ctx.ui.present.error(
-                    "Specify --docker, --multipass, or --remote to resume."
-                )
-                raise typer.Exit(1)
-
-            from lb_app.api import RunJournal
-            journal = RunJournal.load(journal_path)
-            mode = (journal.metadata or {}).get("execution_mode")
-            if not mode:
-                ctx.ui.present.warning(
-                    "Resume journal has no execution mode metadata."
-                )
-                ctx.ui.present.error(
-                    "Specify --docker, --multipass, or --remote to resume."
-                )
-                raise typer.Exit(1)
-            return str(mode).lower()
-
-        def _resolve_resume_node_count() -> int:
-            journal_path = _load_resume_journal_path()
-            if journal_path is None:
-                ctx.ui.present.warning(
-                    "Resume requires node count; journal not found."
-                )
-                ctx.ui.present.error(
-                    "Specify --nodes to resume docker or multipass runs."
-                )
-                raise typer.Exit(1)
-            from lb_app.api import RunJournal
-            journal = RunJournal.load(journal_path)
-            count = (journal.metadata or {}).get("node_count")
-            if not count:
-                ctx.ui.present.warning(
-                    "Resume journal has no node count metadata."
-                )
-                ctx.ui.present.error(
-                    "Specify --nodes to resume docker or multipass runs."
-                )
-                raise typer.Exit(1)
-            return int(count)
-
-        explicit_mode = _explicit_execution_mode()
-        if resume and explicit_mode is None:
-            execution_mode = _resolve_resume_execution_mode()
-            ctx.ui.present.info(
-                f"Using execution mode from journal: {execution_mode}"
-            )
-        else:
-            execution_mode = explicit_mode or "remote"
+        execution_mode = _explicit_execution_mode() or "remote"
 
         resolved_node_count = node_count
         if execution_mode in ("docker", "multipass"):
-            if resolved_node_count is None and resume:
-                resolved_node_count = _resolve_resume_node_count()
-                ctx.ui.present.info(
-                    f"Using node count from journal: {resolved_node_count}"
-                )
             if resolved_node_count is None:
                 resolved_node_count = 1
             if resolved_node_count < 1:
@@ -265,21 +169,29 @@ def register_run_command(
         else:
             resolved_node_count = len(cfg.remote_hosts or []) or 1
 
+        from lb_ui.notifications import send_notification
+        from lb_ui.services.tray import TrayManager
+
+        tray = TrayManager()
+        tray_enabled = not ctx.headless
+        if tray_enabled:
+            tray.start()
+
         result = None
+        run_success = False
         try:
             from lb_app.api import RunRequest
 
-            selected_tests = tests or [name for name, wl in cfg.workloads.items() if wl.enabled]
+            selected_tests = tests or list(cfg.workloads.keys())
             if not selected_tests:
                 ctx.ui.present.error("No workloads selected to run.")
-                ctx.ui.present.info("Enable workloads first with `lb plugin list --enable NAME` or use `lb config select-workloads`.")
+                ctx.ui.present.info("Add workloads first with `lb config enable-workload NAME` or use `lb config select-workloads`.")
                 raise typer.Exit(1)
 
             run_request = RunRequest(
                 config=cfg,
                 tests=selected_tests,
                 run_id=run_id,
-                resume=resume,
                 debug=debug,
                 intensity=intensity,
                 setup=setup,
@@ -289,6 +201,8 @@ def register_run_command(
                 node_count=resolved_node_count,
                 docker_engine=docker_engine,
                 ui_adapter=ctx.ui_adapter,
+                skip_connectivity_check=skip_connectivity_check,
+                connectivity_timeout=connectivity_timeout,
             )
 
             plan = ctx.app_client.get_run_plan(cfg, selected_tests, execution_mode=execution_mode)
@@ -312,6 +226,7 @@ def register_run_command(
 
             run_result = ctx.app_client.start_run(run_request, _Hooks())
             result = run_result
+            run_success = True
 
         except ValueError as e:
             ctx.ui.present.warning(str(e))
@@ -319,8 +234,33 @@ def register_run_command(
         except Exception as exc:
             ctx.ui.present.error(f"Run failed: {exc}")
             raise typer.Exit(1)
+        finally:
+            if tray_enabled:
+                tray.stop()
 
-        if result and result.journal_path and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes"):
-            _print_run_journal_summary(result.journal_path, log_path=result.log_path, ui_log_path=result.ui_log_path)
+            total_duration = time.time() - start_ts
+            if not ctx.headless:
+                status_word = "SUCCESS" if run_success else "FAILED"
+                msg_body = f"Benchmark execution finished with status: {status_word}"
+
+                send_notification(
+                    title=f"Benchmark {status_word}",
+                    message=msg_body,
+                    success=run_success,
+                    run_id=run_id,
+                    duration_s=total_duration,
+                )
+
+        if (
+            result
+            and result.journal_path
+            and os.getenv("LB_SUPPRESS_SUMMARY", "").lower() not in ("1", "true", "yes")
+        ):
+            print_run_journal_summary(
+                ctx,
+                result.journal_path,
+                log_path=result.log_path,
+                ui_log_path=result.ui_log_path,
+            )
 
         ctx.ui.present.success("Run completed.")

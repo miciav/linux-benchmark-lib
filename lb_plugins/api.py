@@ -24,6 +24,12 @@ from lb_plugins.interface import (
     WorkloadIntensity,
     WorkloadPlugin,
 )
+from lb_plugins.observability import (
+    GrafanaAssets,
+    GrafanaDashboardAsset,
+    GrafanaDatasourceAsset,
+    resolve_grafana_assets,
+)
 from lb_plugins.installer import PluginInstaller
 from lb_plugins.plugin_assets import PluginAssetConfig
 from lb_plugins.registry import PluginRegistry
@@ -80,6 +86,7 @@ from lb_plugins.plugins.unixbench.plugin import (
     UnixBenchPlugin,
 )
 from lb_plugins.plugins.yabs.plugin import YabsConfig, YabsGenerator, YabsPlugin
+from lb_common.observability import GrafanaClient
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +173,10 @@ def apply_plugin_assets(
         teardown_path = None
         setup_extravars: Dict[str, Any] = {}
         teardown_extravars: Dict[str, Any] = {}
+        collect_pre_path = None
+        collect_post_path = None
+        collect_pre_extravars: Dict[str, Any] = {}
+        collect_post_extravars: Dict[str, Any] = {}
         if hasattr(plugin, "get_ansible_setup_path"):
             setup_path = plugin.get_ansible_setup_path()
         if hasattr(plugin, "get_ansible_teardown_path"):
@@ -174,13 +185,57 @@ def apply_plugin_assets(
             setup_extravars = plugin.get_ansible_setup_extravars() or {}
         if hasattr(plugin, "get_ansible_teardown_extravars"):
             teardown_extravars = plugin.get_ansible_teardown_extravars() or {}
+        if hasattr(plugin, "get_ansible_collect_pre_path"):
+            collect_pre_path = plugin.get_ansible_collect_pre_path()
+        if hasattr(plugin, "get_ansible_collect_post_path"):
+            collect_post_path = plugin.get_ansible_collect_post_path()
+        if hasattr(plugin, "get_ansible_collect_pre_extravars"):
+            collect_pre_extravars = plugin.get_ansible_collect_pre_extravars() or {}
+        if hasattr(plugin, "get_ansible_collect_post_extravars"):
+            collect_post_extravars = plugin.get_ansible_collect_post_extravars() or {}
         assets[name] = PluginAssetConfig(
             setup_playbook=setup_path,
             teardown_playbook=teardown_path,
             setup_extravars=setup_extravars,
             teardown_extravars=teardown_extravars,
+            collect_pre_playbook=collect_pre_path,
+            collect_post_playbook=collect_post_path,
+            collect_pre_extravars=collect_pre_extravars,
+            collect_post_extravars=collect_post_extravars,
         )
     config.plugin_assets = assets
+
+
+def collect_grafana_assets(
+    registry: PluginRegistry,
+    plugin_settings: Dict[str, Any] | None = None,
+    enabled_plugins: Dict[str, bool] | None = None,
+    remote_hosts: list[Any] | None = None,
+) -> GrafanaAssets:
+    """Collect Grafana assets from enabled plugins, resolving datasource URLs."""
+    settings = plugin_settings or {}
+    datasources: list[GrafanaDatasourceAsset] = []
+    dashboards: list[GrafanaDashboardAsset] = []
+    for name, plugin in registry.available(load_entrypoints=True).items():
+        if enabled_plugins is not None and not enabled_plugins.get(name, True):
+            continue
+        assets = plugin.get_grafana_assets()
+        if not assets:
+            continue
+        config = settings.get(name)
+        if config is None:
+            try:
+                config = plugin.config_cls()
+            except Exception:
+                config = None
+        resolved = resolve_grafana_assets(
+            assets,
+            config,
+            hosts=remote_hosts,
+        )
+        datasources.extend(resolved.datasources)
+        dashboards.extend(resolved.dashboards)
+    return GrafanaAssets(datasources=tuple(datasources), dashboards=tuple(dashboards))
 
 
 __all__ = [
@@ -215,6 +270,12 @@ __all__ = [
     "SupportsWorkloads",
     "WorkloadFactory",
     "PluginAssetConfig",
+    "GrafanaAssets",
+    "GrafanaDashboardAsset",
+    "GrafanaDatasourceAsset",
+    "resolve_grafana_assets",
+    "collect_grafana_assets",
+    "GrafanaClient",
     "BaselineConfig",
     "BaselineGenerator",
     "BaselinePlugin",

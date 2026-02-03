@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from lb_runner.services import system_info
@@ -18,11 +19,12 @@ def ensure_run_dirs(config: BenchmarkConfig, run_id: str) -> tuple[Path, Path, P
         """
         Attach run_id unless the path is already scoped.
 
-        Remote runs pass in an output_dir that already contains run_id; avoid
+        Remote runs pass in an output_dir that already contains run_id and host; avoid
         nesting an extra level in that case so collectors and plugins write
         where the controller expects to fetch from.
         """
-        if run_id in base.parts:
+        host = os.environ.get("LB_RUN_HOST")
+        if run_id in base.parts or (host and host in base.parts):
             return base.resolve()
         return (base / run_id).resolve()
 

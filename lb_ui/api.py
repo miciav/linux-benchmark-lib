@@ -8,9 +8,8 @@ from lb_ui.cli import app, ctx_store, main
 from lb_ui.cli.commands import plugin as plugin_commands
 from lb_ui.presenters.journal import build_journal_summary
 from lb_ui.presenters.plan import build_run_plan_table
-from lb_ui.tui.adapters.tui_adapter import TUIAdapter, ThreadedDashboardHandle
+from lb_ui.tui.adapters.tui_adapter import TUIAdapter
 from lb_ui.tui.system.components.dashboard import RichDashboard
-from lb_ui.tui.system.components.picker import _PickerApp
 from lb_ui.tui.system.headless import HeadlessUI
 from lb_ui.tui.system.models import PickItem, SelectionNode
 
@@ -29,8 +28,6 @@ __all__ = [
     "RichDashboard",
     "HeadlessUI",
     "TUIAdapter",
-    "ThreadedDashboardHandle",
-    "_PickerApp",
     "PickItem",
     "SelectionNode",
     # Dynamic exports via __getattr__ forwarding to lb_ui.cli:

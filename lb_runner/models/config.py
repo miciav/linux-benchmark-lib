@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from lb_plugins.api import PluginAssetConfig
+from lb_runner.models.loki_env import apply_loki_env_fallbacks
 
 # --- Pydantic Models for Configuration ---
 
@@ -54,8 +55,66 @@ class MetricCollectorConfig(BaseModel):
     enable_ebpf: bool = Field(default=False, description="Enable eBPF-based metric collection")
 
 
+class LokiConfig(BaseModel):
+    """Configuration for Loki log shipping."""
+
+    enabled: bool = Field(default=False, description="Enable Loki log push")
+    endpoint: str = Field(
+        default="http://localhost:3100",
+        description="Loki base URL or push endpoint",
+    )
+    labels: Dict[str, str] = Field(
+        default_factory=dict, description="Static labels sent with Loki logs"
+    )
+    batch_size: int = Field(default=100, gt=0, description="Logs per batch")
+    flush_interval_ms: int = Field(
+        default=1000, gt=0, description="Flush interval in milliseconds"
+    )
+    timeout_seconds: float = Field(
+        default=5.0, gt=0, description="HTTP timeout for Loki push"
+    )
+    max_retries: int = Field(default=3, ge=0, description="Max retries on failure")
+    max_queue_size: int = Field(
+        default=10000, gt=0, description="Max pending logs in queue"
+    )
+    backoff_base: float = Field(
+        default=0.5, ge=0, description="Base backoff delay in seconds"
+    )
+    backoff_factor: float = Field(
+        default=2.0, ge=1.0, description="Backoff multiplier"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_env_fallbacks(cls, values: Any) -> Any:
+        """Apply environment variables as fallbacks for missing config values.
+
+        Priority: config file > environment variables > field defaults.
+        Environment variables are only used when the config file doesn't
+        provide a value (None or missing key).
+        """
+        if isinstance(values, cls):
+            return values
+        if not isinstance(values, dict):
+            return values
+
+        return apply_loki_env_fallbacks(values)
+
+
+class GrafanaPlatformConfig(BaseModel):
+    """Platform-level Grafana connection settings."""
+
+    url: str = Field(default="http://localhost:3000", description="Grafana base URL")
+    api_key: str | None = Field(default=None, description="Grafana API key (optional)")
+    org_id: int = Field(default=1, ge=1, description="Grafana organization id")
+
+    model_config = {"extra": "ignore"}
+
+
 class RemoteHostConfig(BaseModel):
     """Configuration for a remote benchmark host."""
+
+    model_config = ConfigDict(extra="ignore")
 
     name: str = Field(description="Unique name for the remote host")
     address: str = Field(description="IP address or hostname of the remote host")
@@ -94,6 +153,8 @@ class RemoteHostConfig(BaseModel):
 class RemoteExecutionConfig(BaseModel):
     """Configuration for remote execution via Ansible."""
 
+    model_config = ConfigDict(extra="ignore")
+
     enabled: bool = Field(default=False, description="Enable remote execution")
     inventory_path: Optional[Path] = Field(default=None, description="Path to a custom Ansible inventory file")
     lb_workdir: str = Field(
@@ -114,14 +175,18 @@ class RemoteExecutionConfig(BaseModel):
 class WorkloadConfig(BaseModel):
     """Configuration wrapper for workload plugins."""
 
+    model_config = ConfigDict(extra="ignore")
+
     plugin: str = Field(description="Name of the plugin to use")
-    enabled: bool = Field(default=True, description="Enable or disable this workload")
+    enabled: bool = Field(default=True, description="Whether this workload is enabled")
     intensity: str = Field(default="user_defined", description="Pre-defined intensity level (low, medium, high, user_defined)")
     options: Dict[str, Any] = Field(default_factory=dict, description="Plugin-specific options for the workload")
 
 
 class BenchmarkConfig(BaseModel):
     """Main configuration for benchmark tests."""
+
+    model_config = ConfigDict(extra="ignore")
 
     # Test execution parameters
     repetitions: int = Field(default=3, gt=0, description="Number of repetitions for each test")
@@ -154,6 +219,11 @@ class BenchmarkConfig(BaseModel):
 
     # System information collection
     collect_system_info: bool = Field(default=True, description="Collect system information before running benchmarks")
+
+    # Loki configuration (optional)
+    loki: LokiConfig = Field(
+        default_factory=LokiConfig, description="Loki log shipping configuration"
+    )
 
     # InfluxDB configuration (optional)
     influxdb_enabled: bool = Field(default=False, description="Enable InfluxDB integration")
@@ -198,3 +268,40 @@ class BenchmarkConfig(BaseModel):
         return cls.model_validate_json(filepath.read_text())
 
     # Removed _normalize_playbook_paths as its logic is now within RemoteExecutionConfig's model_validator
+
+
+class PlatformConfig(BaseModel):
+    """Platform-level configuration for defaults and plugin enablement."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    plugins: Dict[str, bool] = Field(
+        default_factory=dict,
+        description="Plugin enable/disable map (missing entries default to enabled)",
+    )
+    output_dir: Optional[Path] = Field(
+        default=None, description="Default benchmark output directory"
+    )
+    report_dir: Optional[Path] = Field(
+        default=None, description="Default report directory"
+    )
+    data_export_dir: Optional[Path] = Field(
+        default=None, description="Default data export directory"
+    )
+    loki: Optional[LokiConfig] = Field(
+        default=None, description="Optional Loki defaults for the platform"
+    )
+    grafana: Optional[GrafanaPlatformConfig] = Field(
+        default=None, description="Optional Grafana defaults for the platform"
+    )
+
+    def is_plugin_enabled(self, name: str) -> bool:
+        """Return True when the plugin is enabled or not explicitly disabled."""
+        return self.plugins.get(name, True)
+
+    def save(self, filepath: Path) -> None:
+        filepath.write_text(self.model_dump_json(indent=2))
+
+    @classmethod
+    def load(cls, filepath: Path) -> "PlatformConfig":
+        return cls.model_validate_json(filepath.read_text())

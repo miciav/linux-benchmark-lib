@@ -62,7 +62,12 @@ class UIAdapter(Protocol):
     def create_progress(self, description: str, total: int) -> ProgressHandle:
         """Create a progress task."""
 
-    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any, ui_log_file: IO[str] | None = None) -> DashboardHandle:
+    def create_dashboard(
+        self,
+        plan: list[dict[str, Any]],
+        journal: Any,
+        ui_log_file: IO[str] | None = None,
+    ) -> DashboardHandle:
         """Create a run dashboard."""
 
     def prompt_multipass_scenario(self, options: list[str], default_level: str) -> tuple[str, str] | None:
@@ -73,6 +78,7 @@ class NoOpProgressHandle(ProgressHandle):
     """No-op progress handle."""
 
     def update(self, completed: int) -> None:  # pragma: no cover - trivial
+        _ = completed
         pass
 
     def finish(self) -> None:  # pragma: no cover - trivial
@@ -86,12 +92,14 @@ class NoOpDashboardHandle(DashboardHandle):
         return nullcontext()
 
     def add_log(self, line: str) -> None:  # pragma: no cover - trivial
+        _ = line
         pass
 
     def refresh(self) -> None:  # pragma: no cover - trivial
         pass
 
     def mark_event(self, source: str) -> None:  # pragma: no cover - trivial
+        _ = source
         pass
 
 
@@ -99,34 +107,60 @@ class NoOpUIAdapter(UIAdapter):
     """No-op UI adapter that discards all output."""
 
     def show_info(self, message: str) -> None:  # pragma: no cover - trivial
-        pass
+        """Render an informational message."""
+        _ = message
 
     def show_warning(self, message: str) -> None:  # pragma: no cover - trivial
-        pass
+        """Render a warning message."""
+        _ = message
 
     def show_error(self, message: str) -> None:  # pragma: no cover - trivial
-        pass
+        """Render an error message."""
+        _ = message
 
     def show_success(self, message: str) -> None:  # pragma: no cover - trivial
-        pass
+        """Render a success message."""
+        _ = message
 
-    def show_panel(self, message: str, title: str | None = None, border_style: str | None = None) -> None:  # pragma: no cover - trivial
-        pass
+    def show_panel(
+        self, message: str, title: str | None = None, border_style: str | None = None
+    ) -> None:  # pragma: no cover - trivial
+        """Render a block/panel container."""
+        _ = (message, title, border_style)
 
     def show_rule(self, title: str) -> None:  # pragma: no cover - trivial
-        pass
+        """Render a horizontal rule with a title."""
+        _ = title
 
-    def show_table(self, title: str, columns: Sequence[str], rows: list[Sequence[str]]) -> None:  # pragma: no cover - trivial
-        pass
+    def show_table(
+        self, title: str, columns: Sequence[str], rows: list[Sequence[str]]
+    ) -> None:  # pragma: no cover - trivial
+        """Render a simple table."""
+        _ = (title, columns, rows)
 
     def status(self, message: str) -> AbstractContextManager[None]:
+        """Context manager that shows a status/spinner while work is running."""
+        _ = message
         return nullcontext()
 
     def create_progress(self, description: str, total: int) -> ProgressHandle:
+        """Create a progress task."""
+        _ = (description, total)
         return NoOpProgressHandle()
 
-    def create_dashboard(self, plan: list[dict[str, Any]], journal: Any, ui_log_file: IO[str] | None = None) -> DashboardHandle:
+    def create_dashboard(
+        self,
+        plan: list[dict[str, Any]],
+        journal: Any,
+        ui_log_file: IO[str] | None = None,
+    ) -> DashboardHandle:
+        """Create a run dashboard."""
+        _ = (plan, journal, ui_log_file)
         return NoOpDashboardHandle()
 
-    def prompt_multipass_scenario(self, options: list[str], default_level: str) -> tuple[str, str] | None:  # pragma: no cover - trivial
+    def prompt_multipass_scenario(
+        self, options: list[str], default_level: str
+    ) -> tuple[str, str] | None:  # pragma: no cover - trivial
+        """Prompt user for multipass scenario selection."""
+        _ = (options, default_level)
         return None

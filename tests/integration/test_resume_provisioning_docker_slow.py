@@ -69,9 +69,42 @@ def test_resume_provisioning_real_docker(
     if not _docker_ready():
         pytest.skip("Docker is not available or not running.")
 
+    from lb_provisioner.providers import docker as docker_provider
+
+    def _fast_run_container(
+        self, engine: str, image: str, name: str, host_port: int
+    ) -> None:
+        cmd = [
+            engine,
+            "run",
+            "-d",
+            "--rm",
+            "--name",
+            name,
+            "--hostname",
+            name,
+            "-p",
+            f"{host_port}:22",
+            image,
+            "sh",
+            "-c",
+            "sleep infinity",
+        ]
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+    monkeypatch.setattr(
+        docker_provider.DockerProvisioner, "_run_container", _fast_run_container
+    )
+    monkeypatch.setattr(
+        docker_provider.DockerProvisioner, "_inject_ssh_key", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        docker_provider.DockerProvisioner, "_wait_for_ssh", lambda *args, **kwargs: None
+    )
+
     cfg = BenchmarkConfig()
     cfg.output_dir = tmp_path / "benchmark_results"
-    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng", enabled=True)}
+    cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
     cfg.repetitions = 3
 
     suffix = str(int(time.time()))
@@ -126,6 +159,7 @@ def test_resume_provisioning_real_docker(
 
     fake_executor = FakeExecutor()
     client = ApplicationClient()
+    from lb_app.services import remote_run_coordinator as remote_run_module
     from lb_app.services import run_service as run_service_module
     from lb_controller.api import BenchmarkController, ControllerOptions
 
@@ -137,6 +171,7 @@ def test_resume_provisioning_real_docker(
         return BenchmarkController(config, options)
 
     monkeypatch.setattr(run_service_module, "BenchmarkController", fake_controller)
+    monkeypatch.setattr(remote_run_module, "BenchmarkController", fake_controller)
 
     request = RunRequest(
         config=cfg,

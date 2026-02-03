@@ -7,7 +7,7 @@ import json
 import time
 from dataclasses import dataclass
 from typing import Any, Mapping
-from urllib import error, parse, request
+from urllib import request, error, parse
 
 
 def _validate_http_url(url: str, label: str) -> str:

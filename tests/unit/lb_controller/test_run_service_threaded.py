@@ -1,5 +1,6 @@
 import pytest
-
+import lb_app.services.execution_loop as execution_loop_module
+import lb_app.services.remote_run_coordinator as coordinator_module
 from lb_app.api import RunService, RunContext, RunResult, run_service_module
 from lb_plugins.api import PluginRegistry
 from lb_runner.api import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
@@ -9,7 +10,7 @@ pytestmark = pytest.mark.unit_controller
 
 
 class DummyController:
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self.called = False
 
     def run(self, *args, **kwargs):
@@ -22,7 +23,7 @@ class DummyController:
 
 def test_run_service_uses_controller_runner(monkeypatch):
     cfg = BenchmarkConfig()
-    cfg.workloads = {"dummy": WorkloadConfig(plugin="stress_ng", enabled=True)}
+    cfg.workloads = {"dummy": WorkloadConfig(plugin="stress_ng")}
     cfg.remote_hosts = [
         RemoteHostConfig(
             name="host1",
@@ -48,7 +49,7 @@ def test_run_service_uses_controller_runner(monkeypatch):
 
     dummy_controller = DummyController()
     monkeypatch.setattr(
-        run_service_module, "BenchmarkController", lambda *_args, **_kwargs: dummy_controller
+        coordinator_module, "BenchmarkController", lambda *_args, **_kwargs: dummy_controller
     )
 
     run_called = {"flag": False}
@@ -64,7 +65,8 @@ def test_run_service_uses_controller_runner(monkeypatch):
             run_called["flag"] = True
             return self._run_callable()
 
-    monkeypatch.setattr(run_service_module, "ControllerRunner", FakeRunner)
+    # Patch ControllerRunner in execution_loop module where it is used
+    monkeypatch.setattr(execution_loop_module, "ControllerRunner", FakeRunner)
 
     service = RunService(lambda: registry)
 

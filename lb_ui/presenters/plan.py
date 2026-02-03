@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import List, Any, Dict
+from typing import Any, Dict, List
+
+from lb_app.api import plan_rows
 from lb_ui.tui.system.models import TableModel
 
 
@@ -10,14 +12,14 @@ def build_run_plan_table(plan: List[Dict[str, Any]]) -> TableModel:
     """Transform a list of plan items into a TableModel."""
     rows = [
         [
-            item["name"],
-            item["plugin"],
-            item["intensity"],
-            item["details"],
-            str(item.get("repetitions", "")),
-            item["status"],
+            name,
+            plugin,
+            intensity,
+            details,
+            str(repetitions),
+            status,
         ]
-        for item in plan
+        for name, plugin, intensity, details, repetitions, status in plan_rows(plan)
     ]
     return TableModel(
         title="Run Plan",

@@ -15,9 +15,11 @@ from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import DEFAULT_LB_WORKDIR, RemoteHostConfig
 
 if TYPE_CHECKING:
-    from ..controller import AnsibleRunnerExecutor, InventorySpec
+    from lb_controller.api import AnsibleRunnerExecutor, InventorySpec
 
 logger = logging.getLogger(__name__)
+install_logger = logging.LoggerAdapter(logger, {"lb_phase": "install"})
+teardown_logger = logging.LoggerAdapter(logger, {"lb_phase": "teardown"})
 
 # Assuming standard layout: lb_controller/ansible/playbooks
 ANSIBLE_ROOT = Path(__file__).resolve().parent.parent / "ansible"
@@ -27,7 +29,7 @@ class SetupService:
     """Manages environment provisioning via Ansible."""
 
     def __init__(self, executor: Optional["AnsibleRunnerExecutor"] = None):
-        from ..controller import AnsibleRunnerExecutor, InventorySpec
+        from lb_controller.api import AnsibleRunnerExecutor, InventorySpec
 
         self._inventory_cls: Type["InventorySpec"] = InventorySpec
         self.executor = executor or AnsibleRunnerExecutor(stream_output=True)
@@ -59,7 +61,7 @@ class SetupService:
         """
         playbook = ANSIBLE_ROOT / "playbooks" / "setup.yml"
         if not playbook.exists():
-            logger.warning(f"Global setup playbook not found at {playbook}")
+            install_logger.warning("Global setup playbook not found at %s", playbook)
             return False
 
         inventory = (
@@ -68,7 +70,7 @@ class SetupService:
             else self._get_local_inventory()
         )
 
-        logger.info("Running global setup...")
+        install_logger.info("Running global setup...")
         workdir = lb_workdir or DEFAULT_LB_WORKDIR
         result = self.executor.run_playbook(
             playbook,
@@ -88,7 +90,7 @@ class SetupService:
         """
         playbook = plugin_assets.setup_playbook if plugin_assets else None
         if not playbook:
-            logger.debug("No setup playbook for plugin %s", plugin_name)
+            install_logger.debug("No setup playbook for plugin %s", plugin_name)
             return True
 
         inventory = (
@@ -101,7 +103,7 @@ class SetupService:
         if plugin_assets:
             extravars.update(plugin_assets.setup_extravars)
 
-        logger.info("Running setup for %s...", plugin_name)
+        install_logger.info("Running setup for %s...", plugin_name)
         result = self.executor.run_playbook(
             playbook, inventory=inventory, extravars=extravars or None
         )
@@ -130,7 +132,7 @@ class SetupService:
         if plugin_assets:
             extravars.update(plugin_assets.teardown_extravars)
 
-        logger.info("Running teardown for %s...", plugin_name)
+        teardown_logger.info("Running teardown for %s...", plugin_name)
         result = self.executor.run_playbook(
             playbook,
             inventory=inventory,
@@ -157,7 +159,7 @@ class SetupService:
             else self._get_local_inventory()
         )
 
-        logger.info("Running global teardown...")
+        teardown_logger.info("Running global teardown...")
         workdir = lb_workdir or DEFAULT_LB_WORKDIR
         result = self.executor.run_playbook(
             playbook,

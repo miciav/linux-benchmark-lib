@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Dict, Optional, Set
 
@@ -13,7 +12,7 @@ from lb_app.api import (
     WorkloadConfig,
     build_plugin_table,
 )
-from lb_ui.tui.system.protocols import UI
+from lb_ui.tui.core.protocols import UI
 from lb_ui.tui.system.models import PickItem, TableModel
 
 
@@ -26,9 +25,8 @@ def select_workloads_interactively(
     set_default: bool,
 ) -> None:
     """Interactively toggle configured workloads using arrows + space."""
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
-        ui.present.error("Interactive selection requires a TTY.")
-        sys.exit(1)
+    if not is_tty_available():
+        raise UIFlowError("Interactive selection requires a TTY.")
 
     available_plugins = registry.available()
     items = []
@@ -42,11 +40,13 @@ def select_workloads_interactively(
     ]
 
     # Prepare items for picker with variants as intensities
+    configured_plugins = set()
+    platform_cfg, _, _ = config_service.load_platform_config()
+
     for name, wl in sorted(cfg.workloads.items()):
+        configured_plugins.add(wl.plugin)
         plugin_obj = available_plugins.get(wl.plugin)
-        is_missing = plugin_obj is None
-        is_disabled = is_missing or not wl.enabled
-        if is_missing:
+        if plugin_obj is None:
             missing_plugins.add(wl.plugin)
         description = getattr(plugin_obj, "description", "") if plugin_obj else "missing plugin"
         current_intensity = wl.intensity if wl.intensity else "user_defined"
@@ -65,8 +65,7 @@ def select_workloads_interactively(
                     tags=variant.tags,
                     search_blob=variant.search_blob or label,
                     preview=variant.preview,
-                    selected=wl.enabled and variant.id == current_intensity and not is_disabled,
-                    disabled=is_disabled,
+                    selected=variant.id == current_intensity,
                 )
             )
 
@@ -77,22 +76,51 @@ def select_workloads_interactively(
             payload=wl,
             variants=variant_list,
             search_blob=f"{name} {wl.plugin} {description}",
-            selected=wl.enabled and not is_disabled,
-            disabled=is_disabled,
+            selected=True,
         )
         items.append(item)
+
+    # Add unconfigured plugins as selectable or disabled items
+    for plugin_name in sorted(available_plugins.keys()):
+        if plugin_name in configured_plugins:
+            continue
+
+        plugin_obj = available_plugins[plugin_name]
+        description = getattr(plugin_obj, "description", "")
+        is_plugin_platform_enabled = platform_cfg.is_plugin_enabled(plugin_name)
+
+        if is_plugin_platform_enabled:
+            # Shown as selectable, but not currently in workloads.
+            # No [red] tags, the UI will show this as a normal, selectable item.
+            items.append(
+                PickItem(
+                    id=plugin_name,
+                    title=plugin_name,
+                    description=f"{description} (Available - click to add to config)",
+                    disabled=False,
+                    selected=False,
+                )
+            )
+        else:
+            # Only plugins explicitly disabled in platform.json appear as disabled (red).
+            items.append(
+                PickItem(
+                    id=plugin_name,
+                    title=plugin_name,
+                    description=f"{description} (Disabled in platform configuration)",
+                    disabled=True,
+                    selected=False,
+                )
+            )
 
     if missing_plugins:
         missing_list = ", ".join(sorted(missing_plugins))
         ui.present.warning(
-            f"Missing plugins (disabled in picker): {missing_list}. "
-            "Install them to enable selection."
+            f"Missing plugins: {missing_list}. "
+            "Install them or remove the workloads from the config."
         )
-    elif items and all(item.disabled for item in items):
-        ui.present.warning(
-            "All workloads are disabled. Enable workloads first with "
-            "`lb plugin list --enable NAME`."
-        )
+    elif not items:
+        ui.present.warning("No plugins installed.")
 
     selection = ui.picker.pick_many(items, title="Select Configured Workloads")
     if selection is None:
@@ -111,18 +139,41 @@ def select_workloads_interactively(
 
     if not selection:
         ui.present.warning("Selection cancelled or empty.")
-        if not ui.form.confirm("Do you want to proceed with NO workloads enabled?", default=False):
-            sys.exit(1)
+        if not ui.form.confirm(
+            "Do you want to proceed with NO workloads configured?",
+            default=False,
+        ):
+            raise UIFlowError("Workload selection cancelled.")
 
     cfg_write, target, stale, _ = config_service.load_for_write(config, allow_create=True)
-    disabled_names = {item.id for item in items if item.disabled}
-    for name, wl in cfg_write.workloads.items():
-        if name in disabled_names:
-            continue
-        wl.enabled = name in selected_names
-        if wl.enabled and name in intensities:
-            wl.intensity = intensities[name]
-        cfg_write.workloads[name] = wl
+    
+    # 1. Remove workloads that were deselected
+    for name in list(cfg_write.workloads.keys()):
+        if name not in selected_names:
+            cfg_write.workloads.pop(name, None)
+
+    # 2. Add or update selected workloads
+    for name in selected_names:
+        if name in cfg_write.workloads:
+            wl = cfg_write.workloads[name]
+            if name in intensities:
+                wl.intensity = intensities[name]
+        else:
+            # New workload from an enabled plugin
+            # Name matches plugin_name here for new ones
+            wl = WorkloadConfig(
+                plugin=name,
+                options={},
+                intensity=intensities.get(name, "medium"),
+            )
+            cfg_write.workloads[name] = wl
+            
+            # Ensure plugin settings are populated
+            if name not in cfg_write.plugin_settings:
+                plugin = registry.get(name)
+                if hasattr(plugin, "config_cls"):
+                    cfg_write.plugin_settings[name] = plugin.config_cls()
+
     cfg_write.save(target)
     if set_default:
         config_service.write_saved_config_path(target)
@@ -137,9 +188,8 @@ def select_plugins_interactively(
     enabled_map: Dict[str, bool]
 ) -> Optional[Set[str]]:
     """Prompt the user to enable/disable plugins using arrows and space."""
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
-        ui.present.error("Interactive selection requires a TTY.")
-        return None
+    if not is_tty_available():
+        raise UIFlowError("Interactive selection requires a TTY.")
         
     headers, rows = build_plugin_table(registry, enabled=enabled_map)
     ui.tables.show(TableModel(title="Available Workload Plugins", columns=headers, rows=rows))
@@ -173,24 +223,12 @@ def apply_plugin_selection(
     config_service: ConfigService,
     registry: PluginRegistry,
     selection: Set[str],
-    config: Optional[Path],
-    set_default: bool,
 ) -> Dict[str, bool]:
     """
     Persist the selected plugins to the config and return the updated enabled map.
     """
-    cfg, target, stale, _ = config_service.load_for_write(config, allow_create=True)
-    for name in registry.available():
-        workload = cfg.workloads.get(name) or WorkloadConfig(plugin=name, options={})
-        workload.enabled = name in selection
-        cfg.workloads[name] = workload
-    cfg.save(target)
-    if set_default:
-        config_service.write_saved_config_path(target)
-    if stale:
-        ui.present.warning(f"Saved default config not found: {stale}")
+    cfg, target = config_service.set_plugin_selection(selection, registry)
     ui.present.success(f"Plugin selection saved to {target}")
-    return {
-        name: cfg.workloads.get(name, WorkloadConfig(plugin=name)).enabled
-        for name in registry.available()
-    }
+    return {name: cfg.is_plugin_enabled(name) for name in registry.available()}
+from lb_ui.flows.errors import UIFlowError
+from lb_ui.tui.core.capabilities import is_tty_available

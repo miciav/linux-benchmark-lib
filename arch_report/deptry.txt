@@ -1,8 +1,0 @@
-Scanning 206 files...
-
-[1mlb_plugins/plugins/dfaas/legacy_materials/samples_generator/samples-generator-profiler.py[m[36m:[m13[36m:[m1[36m:[m [1m[31mDEP001[m 'utils' imported but missing from the dependency definitions
-[1mlb_plugins/plugins/dfaas/legacy_materials/samples_generator/samples-generator.py[m[36m:[m16[36m:[m8[36m:[m [1m[31mDEP001[m 'utils' imported but missing from the dependency definitions
-[1mlb_plugins/plugins/dfaas/legacy_materials/samples_generator/utils.py[m[36m:[m20[36m:[m8[36m:[m [1m[31mDEP003[m 'requests' imported but it is a transitive dependency
-[1m[31mFound 3 dependency issues.[m
-
-For more information, see the documentation: https://deptry.com/

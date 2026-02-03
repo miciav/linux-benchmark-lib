@@ -59,6 +59,7 @@ run_step "2/12 Tree snapshot" bash -lc "
   find . -maxdepth 4 -type f \\( -name '*.py' -o -name 'pyproject.toml' -o -name '*.md' \\) | sed 's|^\\./||' | sort > \"$OUT/tree_files.txt\"
 "
 
+if [[ -z "${SKIP_GLOBAL:-}" ]]; then
 run_step "3/12 Ruff (lint)" bash -lc "
   cd \"$ROOT\" || exit 1
   uv run ruff check . --output-format=concise > \"$OUT/ruff_check.txt\" 2>&1 || true
@@ -77,6 +78,7 @@ run_step "5/12 Type checking" bash -lc "
     uv run mypy . > \"$OUT/mypy.txt\" 2>&1 || true
   fi
 "
+fi
 
 run_step "6/12 Complexity (radon/xenon/lizard)" bash -lc "
   cd \"$ROOT\" || exit 1
@@ -91,6 +93,7 @@ run_step "7/12 Dead code (vulture)" bash -lc "
   uv run vulture \"$TARGET\" --min-confidence 80 > \"$OUT/vulture.txt\" 2>&1 || true
 "
 
+if [[ -z "${SKIP_GLOBAL:-}" ]]; then
 run_step "8/12 Dependency hygiene (deptry)" bash -lc "
   cd \"$ROOT\" || exit 1
   uv run deptry . > \"$OUT/deptry.txt\" 2>&1 || true
@@ -102,6 +105,7 @@ run_step "9/12 Security (pip-audit/bandit/semgrep)" bash -lc "
   uv run bandit -r \"$TARGET\" -q > \"$OUT/bandit.txt\" 2>&1 || true
   uv run semgrep --config auto \"$TARGET\" > \"$OUT/semgrep_auto.txt\" 2>&1 || true
 "
+fi
 
 # --- Grimp: robust block (no tee, no fragile pipes) ---
 run_step "10/12 Import graph + cycles (grimp)" bash -lc "

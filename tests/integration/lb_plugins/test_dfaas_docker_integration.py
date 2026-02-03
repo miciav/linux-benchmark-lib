@@ -12,9 +12,9 @@ from urllib.request import urlopen
 
 import pytest
 
-from lb_plugins.plugins.dfaas.generator import DfaasGenerator
-from lb_plugins.plugins.dfaas.config import DfaasConfig, DfaasFunctionConfig
-from lb_plugins.plugins.dfaas.plugin import DfaasPlugin
+from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
+from lb_plugins.plugins.peva_faas.config import DfaasConfig, DfaasFunctionConfig
+from lb_plugins.plugins.peva_faas.plugin import DfaasPlugin
 
 pytestmark = [pytest.mark.inter_plugins, pytest.mark.inter_docker]
 
@@ -63,6 +63,52 @@ def _docker_cleanup(names: list[str], network: str) -> None:
     for name in names:
         subprocess.run(["docker", "rm", "-f", name], capture_output=True)
     subprocess.run(["docker", "network", "rm", network], capture_output=True)
+
+
+class _DockerResult:
+    def __init__(self, stdout: str, stderr: str, exited: int) -> None:
+        self.stdout = stdout
+        self.stderr = stderr
+        self.exited = exited
+        self.failed = exited != 0
+
+
+class _DockerConnection:
+    def __init__(self, container: str) -> None:
+        self._container = container
+
+    def run(self, command: str, **kwargs: object) -> _DockerResult:
+        result = subprocess.run(
+            ["docker", "exec", "-u", "0", self._container, "/bin/sh", "-c", command],
+            capture_output=True,
+            text=True,
+        )
+        out_stream = kwargs.get("out_stream")
+        if out_stream and result.stdout:
+            try:
+                out_stream.write(result.stdout)
+            except Exception:
+                pass
+        if result.returncode != 0 and not kwargs.get("warn", False):
+            raise RuntimeError(result.stderr or result.stdout)
+        return _DockerResult(result.stdout, result.stderr, result.returncode)
+
+    def put(self, local: str, remote: str) -> None:
+        subprocess.run(
+            ["docker", "cp", local, f"{self._container}:{remote}"],
+            check=True,
+            capture_output=True,
+        )
+
+    def get(self, remote: str, local: str) -> None:
+        subprocess.run(
+            ["docker", "cp", f"{self._container}:{remote}", local],
+            check=True,
+            capture_output=True,
+        )
+
+    def close(self) -> None:
+        return None
 
 
 def test_dfaas_end_to_end_with_docker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -192,6 +238,10 @@ def test_dfaas_end_to_end_with_docker(tmp_path: Path, monkeypatch: pytest.Monkey
         )
 
         _wait_for_ready(f"http://127.0.0.1:{host_port}/-/ready")
+        monkeypatch.setattr(
+            "lb_plugins.plugins.peva_faas.services.k6_runner.K6Runner._get_connection",
+            lambda self: _DockerConnection(k6_name),
+        )
 
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
@@ -266,7 +316,7 @@ def test_dfaas_end_to_end_with_docker(tmp_path: Path, monkeypatch: pytest.Monkey
             duration="2s",
             iterations=1,
             cooldown={"max_wait_seconds": 5, "sleep_step_seconds": 1, "idle_threshold_pct": 15},
-            queries_path=str(Path("lb_plugins/plugins/dfaas/queries.yml").resolve()),
+            queries_path=str(Path("lb_plugins/plugins/peva_faas/queries.yml").resolve()),
         )
 
         generator = DfaasGenerator(cfg)

@@ -9,6 +9,7 @@ from json import JSONEncoder
 from pathlib import Path
 from typing import Any
 
+from lb_common.errors import MetricCollectionError, ResultPersistenceError, error_to_payload
 from lb_plugins.api import WorkloadPlugin
 
 
@@ -70,20 +71,67 @@ def collect_metrics(
     repetition: int,
     result: dict[str, Any],
 ) -> None:
+    metric_errors: list[dict[str, Any]] = []
     for collector in collectors:
-        collector_data = collector.get_data()
-        result["metrics"][collector.name] = collector_data
-        filename = f"{test_name}_rep{repetition}_{collector.name}.csv"
+        name = getattr(collector, "name", "unknown")
+        try:
+            collector_data = collector.get_data()
+            result["metrics"][name] = collector_data
+        except Exception as exc:
+            logger.exception("Collector %s failed to return metrics", name)
+            error = MetricCollectionError(
+                "Collector data retrieval failed",
+                context={"collector": name, "test_name": test_name},
+                cause=exc,
+            )
+            metric_errors.append(error_to_payload(error))
+            continue
+
+        filename = f"{test_name}_rep{repetition}_{name}.csv"
         rep_filepath = rep_dir / filename
-        collector.save_data(rep_filepath)
+        try:
+            collector.save_data(rep_filepath)
+        except Exception as exc:
+            logger.exception("Collector %s failed to save metrics", name)
+            error = MetricCollectionError(
+                "Collector data persistence failed",
+                context={"collector": name, "test_name": test_name},
+                cause=exc,
+            )
+            metric_errors.append(error_to_payload(error))
+
+        get_errors = getattr(collector, "get_errors", None)
+        if callable(get_errors):
+            errors = get_errors()
+            if isinstance(errors, list):
+                for err in errors:
+                    if isinstance(err, MetricCollectionError):
+                        metric_errors.append(error_to_payload(err))
+
+    if metric_errors:
+        result["metric_errors"] = metric_errors
+        result["success"] = False
+        if not result.get("error_type"):
+            result.update(
+                {
+                    "error_type": "MetricCollectionError",
+                    "error": "Metric collection reported errors",
+                    "error_context": {"errors": metric_errors},
+                }
+            )
 
 
 def persist_rep_result(rep_dir: Path, result: dict[str, Any]) -> None:
     try:
         rep_result_path = rep_dir / "result.json"
         rep_result_path.write_text(json.dumps(result, indent=2, cls=DateTimeEncoder))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.exception("Failed to persist repetition result to %s", rep_dir)
+        raise ResultPersistenceError(
+            "Failed to persist repetition result",
+            context={"rep_dir": str(rep_dir)},
+            cause=exc,
+        ) from exc
 
 
 def merge_results(

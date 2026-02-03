@@ -1,6 +1,6 @@
 [project]
 name = "linux-benchmark-lib"
-version = "0.62.0"
+version = "0.64.0"
 description = "A robust and configurable Python library for benchmarking Linux computational node performance"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -15,7 +15,12 @@ dependencies = [
     "PyYAML>=6.0",
     "pydantic>=2.0.0", # Added pydantic
     "structlog>=24.2.0",
-    "fabric>=3.0.0",
+    "plyer>=2.1.0",
+    "pystray>=0.19.5",
+    "pillow>=12.0.0",
+    "desktop-notifier>=6.2.0",
+    "fabric>=3.2.2",
+    "invoke>=2.2.1",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +41,7 @@ dev = [
     "typer>=0.12.5",
     "rapidfuzz>=3.0.0",
     "prompt_toolkit>=3.0.0",
+    "PySide6>=6.6.0",
     "pytest-cov>=4.1.0",
     "vulture>=2.10",
     "molecule>=6",
@@ -52,6 +58,9 @@ docs = [
     "rapidfuzz>=3.0.0",
     "prompt_toolkit>=3.0.0",
 ]
+gui = [
+    "PySide6>=6.6.0",
+]
 
 
 [build-system]
@@ -59,7 +68,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["lb_runner*", "lb_controller*", "lb_ui*", "lb_analytics*", "lb_provisioner*", "lb_app*", "lb_common*", "lb_plugins*"]
+include = ["lb_runner*", "lb_controller*", "lb_ui*", "lb_gui*", "lb_analytics*", "lb_provisioner*", "lb_app*", "lb_common*", "lb_plugins*"]
 exclude = ["reports*", "data_exports*", "benchmark_results*", "tests*"]
 
 [tool.setuptools.package-data]
@@ -69,10 +78,17 @@ lb_plugins = [
 lb_controller = [
     "ansible/**/*",
 ]
+lb_provisioner = [
+    "assets/**/*",
+]
+lb_gui = [
+    "resources/**/*",
+]
 
 [project.scripts]
 lb = "lb_ui.cli.main:main"
 lb-ui = "lb_ui.cli.main:main"
+lb-gui = "lb_gui.main:main"
 
 [project.entry-points."linux_benchmark.collectors"]
 psutil = "lb_runner.metric_collectors.builtin:PSUTIL_COLLECTOR"
@@ -112,6 +128,12 @@ minversion = "7.0"
 addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
 markers = [
+    # Test levels
+    "unit: all unit tests (fast, isolated)",
+    "integration: integration tests (service-level)",
+    "e2e: end-to-end tests (full stack)",
+
+    # Module-specific unit markers
     "unit_runner: tests for the lb_runner package (execution, local logic)",
     "unit_controller: tests for the lb_controller package (orchestration, state)",
     "unit_ui: tests for the User Interface (CLI commands, TUI, prompts)",
@@ -119,6 +141,9 @@ markers = [
     "unit_analytics: tests for lb_analytics (data processing, reporting)",
     "unit_plugins: unit tests specific to workload plugins",
     "unit_baseline: unit tests for the baseline workload plugin",
+    "unit_common: tests for lb_common utilities",
+
+    # Integration markers (legacy naming)
     "inter_generic: marks tests as integration tests (deselect with '-m \"not inter_generic\"')",
     "inter_docker: integration tests that build/run plugin Docker images",
     "inter_multipass: integration tests that validate plugin multipass/ansible assets",
@@ -126,6 +151,8 @@ markers = [
     "inter_e2e: full end-to-end tests (e.g., with real VMs)",
     "inter_plugins: integration tests specific to workload plugins",
     "inter_baseline: integration tests for the baseline workload plugin",
+
+    # Performance markers
     "slow: tests that require > 1 second",
     "slowest: very slow tests (minutes) such as VM provisioning",
 ]
@@ -147,6 +174,7 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+exclude = "^molecule/"
 
 [tool.pydocstyle]
 inherit = false
@@ -163,6 +191,7 @@ dev = [
     "typer>=0.12.5",
     "rapidfuzz>=3.0.0",
     "prompt_toolkit>=3.0.0",
+    "PySide6>=6.6.0",
     "black>=23.0.0",
     "flake8>=6.0.0",
     "flake8-tidy-imports>=4.12.0",

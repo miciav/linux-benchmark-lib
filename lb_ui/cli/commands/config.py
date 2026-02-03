@@ -5,10 +5,11 @@ from typing import Optional
 
 import typer
 
-from lb_app.api import BenchmarkConfig, PluginRegistry, create_registry
+from lb_app.api import BenchmarkConfig, PluginRegistry, RemoteHostConfig, create_registry
 from lb_ui.wiring.dependencies import UIContext
 from lb_ui.tui.system.models import TableModel
 from lb_ui.flows.config_wizard import run_config_wizard
+from lb_ui.flows.errors import UIFlowError
 from lb_ui.flows.selection import select_workloads_interactively
 
 
@@ -30,26 +31,26 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
 
     @app.command("edit")
     def config_edit(
-        path: Optional[Path] = typer.Option(
+        config_path: Optional[Path] = typer.Option(
             None,
-            "--path",
-            "-p",
+            "--config",
+            "-c",
             help="Config file to edit; uses saved default or local benchmark_config.json when omitted.",
         )
     ) -> None:
         """Open a config file in $EDITOR."""
         try:
-            ctx.config_service.open_editor(path)
+            ctx.config_service.open_editor(config_path)
         except Exception as exc:
             ctx.ui.present.error(str(exc))
             raise typer.Exit(1)
 
     @app.command("init")
     def config_init(
-        path: Optional[Path] = typer.Option(
+        config_path: Optional[Path] = typer.Option(
             None,
-            "--path",
-            "-p",
+            "--config",
+            "-c",
             help="Where to write the config; defaults to ~/.config/lb/config.json",
         ),
         set_default: bool = typer.Option(
@@ -71,7 +72,11 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         ),
     ) -> None:
         """Create a config file from defaults and optionally set it as default."""
-        target = Path(path).expanduser() if path else ctx.config_service.default_target
+        target = (
+            Path(config_path).expanduser()
+            if config_path
+            else ctx.config_service.default_target
+        )
         target.parent.mkdir(parents=True, exist_ok=True)
 
         if repetitions < 1:
@@ -149,14 +154,11 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             None, "--config", "-c", help="Config file to inspect."
         )
     ) -> None:
-        """List workloads and their enabled status."""
+        """List configured workloads."""
         cfg = _load_config(config)
-        rows = [
-            [name, wl.plugin, "yes" if wl.enabled else "no"]
-            for name, wl in sorted(cfg.workloads.items())
-        ]
+        rows = [[name, wl.plugin] for name, wl in sorted(cfg.workloads.items())]
         ctx.ui.tables.show(
-            TableModel(title="Configured Workloads", columns=["Name", "Plugin", "Enabled"], rows=rows)
+            TableModel(title="Configured Workloads", columns=["Name", "Plugin"], rows=rows)
         )
 
     @app.command("enable-workload")
@@ -169,12 +171,12 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             help="Also remember this config as the default.",
         ),
     ) -> None:
-        """Enable a workload in the configuration (creates it if missing)."""
+        """Add a workload to the configuration (creates it if missing)."""
         try:
-            cfg, target, stale = ctx.config_service.update_workload_enabled(name, True, config, set_default)
+            cfg, target, stale = ctx.config_service.add_workload(name, config, set_default)
             if stale:
                 ctx.ui.present.warning(f"Saved default config not found: {stale}")
-            ctx.ui.present.success(f"Workload '{name}' enabled in {target}")
+            ctx.ui.present.success(f"Workload '{name}' added in {target}")
         except ValueError as e:
             ctx.ui.present.error(str(e))
             raise typer.Exit(1)
@@ -189,11 +191,15 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             help="Also remember this config as the default.",
         ),
     ) -> None:
-        """Disable a workload in the configuration (creates it if missing)."""
-        cfg, target, stale = ctx.config_service.update_workload_enabled(name, False, config, set_default)
+        """Remove a workload from the configuration (and its plugin settings)."""
+        cfg, target, stale, removed = ctx.config_service.remove_plugin(name, config)
         if stale:
             ctx.ui.present.warning(f"Saved default config not found: {stale}")
-        ctx.ui.present.success(f"Workload '{name}' disabled in {target}")
+        if not removed:
+            ctx.ui.present.warning(f"No workload named '{name}' found in the config.")
+        if set_default:
+            ctx.config_service.write_saved_config_path(target)
+        ctx.ui.present.success(f"Workload '{name}' removed from {target}")
 
     def _select_workloads_interactively(
         cfg: BenchmarkConfig,
@@ -202,7 +208,13 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         set_default: bool,
     ) -> None:
         """Interactively toggle configured workloads using arrows + space."""
-        select_workloads_interactively(ctx.ui, ctx.config_service, cfg, registry, config, set_default)
+        try:
+            select_workloads_interactively(
+                ctx.ui, ctx.config_service, cfg, registry, config, set_default
+            )
+        except UIFlowError as exc:
+            ctx.ui.present.error(str(exc))
+            raise typer.Exit(exc.exit_code)
 
     @app.command("select-workloads")
     def config_select_workloads(
@@ -215,13 +227,120 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             help="Remember the config after saving selection.",
         ),
     ) -> None:
-        """Interactively enable/disable workloads using arrows + space."""
+        """Interactively toggle workloads using arrows + space."""
         cfg = _load_config(config)
         if not cfg.workloads:
-            ctx.ui.present.warning("No workloads configured yet. Enable plugins first with `lb plugin list --enable NAME`.")
+            ctx.ui.present.warning("No workloads configured yet. Add workloads with `lb config enable-workload NAME`.")
             return
 
         registry = create_registry()
         _select_workloads_interactively(cfg, registry, config, set_default)
+
+    @app.command("hosts")
+    def config_list_hosts(
+        config: Optional[Path] = typer.Option(
+            None, "--config", "-c", help="Config file to inspect."
+        )
+    ) -> None:
+        """List configured remote hosts."""
+        cfg = _load_config(config)
+        if not cfg.remote_hosts:
+            ctx.ui.present.warning("No remote hosts configured.")
+            ctx.ui.present.info(
+                "Add hosts with `lb config add-host NAME --address IP`"
+            )
+            return
+
+        rows = [
+            [h.name, h.address, str(h.port), h.user, "Yes" if h.become else "No"]
+            for h in cfg.remote_hosts
+        ]
+        ctx.ui.tables.show(
+            TableModel(
+                title="Remote Hosts",
+                columns=["Name", "Address", "Port", "User", "Become"],
+                rows=rows,
+            )
+        )
+
+    @app.command("add-host")
+    def config_add_host(
+        name: str = typer.Argument(..., help="Unique name for the host."),
+        address: str = typer.Option(
+            ..., "--address", "-a", help="IP address or hostname."
+        ),
+        port: int = typer.Option(22, "--port", "-p", help="SSH port."),
+        user: str = typer.Option("root", "--user", "-u", help="SSH user."),
+        key: Optional[str] = typer.Option(
+            None, "--key", "-k", help="Path to SSH private key."
+        ),
+        become: bool = typer.Option(
+            True, "--become/--no-become", help="Use sudo (Ansible become)."
+        ),
+        config: Optional[Path] = typer.Option(
+            None, "--config", "-c", help="Config file to update."
+        ),
+        set_default: bool = typer.Option(
+            False,
+            "--set-default/--no-set-default",
+            help="Also remember this config as the default.",
+        ),
+    ) -> None:
+        """Add or update a remote host in the configuration."""
+        # Build vars dict with SSH key if provided
+        host_vars: dict = {
+            "ansible_ssh_common_args": "-o StrictHostKeyChecking=no",
+        }
+        if key:
+            key_path = Path(key).expanduser()
+            if not key_path.exists():
+                ctx.ui.present.warning(f"SSH key not found: {key_path}")
+            host_vars["ansible_ssh_private_key_file"] = str(key_path)
+
+        host = RemoteHostConfig(
+            name=name,
+            address=address,
+            port=port,
+            user=user,
+            become=become,
+            vars=host_vars,
+        )
+
+        try:
+            cfg, target, stale = ctx.config_service.add_remote_host(
+                host, config, enable_remote=True, set_default=set_default
+            )
+            if stale:
+                ctx.ui.present.warning(f"Saved default config not found: {stale}")
+            ctx.ui.present.success(
+                f"Host '{name}' ({address}:{port}) added to {target}"
+            )
+        except ValueError as e:
+            ctx.ui.present.error(str(e))
+            raise typer.Exit(1)
+
+    @app.command("remove-host")
+    def config_remove_host(
+        name: str = typer.Argument(..., help="Name of the host to remove."),
+        config: Optional[Path] = typer.Option(
+            None, "--config", "-c", help="Config file to update."
+        ),
+    ) -> None:
+        """Remove a remote host from the configuration."""
+        try:
+            cfg, target, stale, removed = ctx.config_service.remove_remote_host(
+                name, config
+            )
+            if stale:
+                ctx.ui.present.warning(f"Saved default config not found: {stale}")
+            if not removed:
+                ctx.ui.present.warning(f"No host named '{name}' found in the config.")
+                raise typer.Exit(1)
+            ctx.ui.present.success(f"Host '{name}' removed from {target}")
+            if not cfg.remote_hosts:
+                ctx.ui.present.info("No hosts remaining. Remote execution disabled.")
+        except FileNotFoundError as e:
+            ctx.ui.present.error(str(e))
+            raise typer.Exit(1)
 
     return app

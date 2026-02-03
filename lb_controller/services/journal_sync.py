@@ -148,9 +148,19 @@ def _update_task_status(task, entry: Dict) -> None:
     gen_result = entry.get("generator_result") or {}
     gen_error = gen_result.get("error")
     gen_rc = gen_result.get("returncode")
+    entry_error_type = entry.get("error_type")
+    entry_error_context = entry.get("error_context")
     if gen_error or (gen_rc not in (None, 0)):
         task.status = RunStatus.FAILED
         task.current_action = task.error = _format_error_message(gen_error, gen_rc, gen_result)
+        task.error_type = entry_error_type
+        task.error_context = entry_error_context
+        return
+    if entry_error_type:
+        task.status = RunStatus.FAILED
+        task.current_action = task.error = entry.get("error") or "error recorded"
+        task.error_type = entry_error_type
+        task.error_context = entry_error_context
         return
     if task.status not in (RunStatus.FAILED, RunStatus.SKIPPED):
         task.status = RunStatus.COMPLETED

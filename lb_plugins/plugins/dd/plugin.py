@@ -6,18 +6,45 @@ Modular plugin version.
 import logging
 import os
 import platform
+import re
 import subprocess
 import tempfile
 import uuid
 from pathlib import Path
 from typing import Any, List, Optional
 
+import pandas as pd
 from pydantic import Field
 
 from ...interface import SimpleWorkloadPlugin, WorkloadIntensity, BasePluginConfig
-from ...base_generator import CommandGenerator, CommandSpec
+from ...base_generator import CommandSpec
+from ..command_base import ProcessCommandGenerator
 
 logger = logging.getLogger(__name__)
+
+_DD_SUMMARY_RE = re.compile(
+    r"(?P<bytes>\d+) bytes .* copied, (?P<seconds>[0-9.]+) s, (?P<rate>[0-9.]+) (?P<rate_unit>\S+/s)"
+)
+
+
+def _summarize_dd_stderr(stderr: str) -> dict[str, Any]:
+    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    if not lines:
+        return {}
+    for line in reversed(lines):
+        match = _DD_SUMMARY_RE.search(line)
+        if match:
+            bytes_val = int(match.group("bytes"))
+            seconds = float(match.group("seconds"))
+            return {
+                "dd_summary": line,
+                "dd_bytes": bytes_val,
+                "dd_seconds": seconds,
+                "dd_rate": float(match.group("rate")),
+                "dd_rate_unit": match.group("rate_unit"),
+                "dd_bytes_per_sec": (bytes_val / seconds) if seconds else None,
+            }
+    return {"dd_summary": lines[-1]}
 
 
 def _default_dd_output_path() -> str:
@@ -74,8 +101,10 @@ class _DDCommandBuilder:
         return CommandSpec(cmd=cmd)
 
 
-class DDGenerator(CommandGenerator):
+class DDGenerator(ProcessCommandGenerator):
     """Workload generator using dd command."""
+
+    tool_name = "dd"
 
     def __init__(self, config: DDConfig, name: str = "DDGenerator"):
         """
@@ -93,12 +122,6 @@ class DDGenerator(CommandGenerator):
 
     def _popen_kwargs(self) -> dict[str, Any]:
         return {"stdout": subprocess.DEVNULL, "stderr": subprocess.PIPE, "text": True}
-
-    def _consume_process_output(
-        self, proc: subprocess.Popen[str]
-    ) -> tuple[str, str]:
-        stdout, stderr = proc.communicate(timeout=self._timeout_seconds())
-        return stdout or "", stderr or ""
 
     def _log_command(self, cmd: list[str]) -> None:
         if self.config.debug:
@@ -139,13 +162,7 @@ class DDGenerator(CommandGenerator):
         Returns:
             True if dd is available and path is writable, False otherwise
         """
-        try:
-            result = subprocess.run(["which", "dd"], capture_output=True, text=True)
-            if result.returncode != 0:
-                logger.error("dd command not found")
-                return False
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Error checking for dd: %s", exc)
+        if not super()._validate_environment():
             return False
 
         if not self.config.of_path:
@@ -186,13 +203,11 @@ class DDPlugin(SimpleWorkloadPlugin):
             return DDConfig(
                 bs="1M",
                 count=1024, # 1GB
-                oflag="direct"
             )
         elif level == WorkloadIntensity.MEDIUM:
             return DDConfig(
                 bs="4M",
                 count=2048, # 8GB
-                oflag="direct"
             )
         elif level == WorkloadIntensity.HIGH:
             return DDConfig(
@@ -202,6 +217,48 @@ class DDPlugin(SimpleWorkloadPlugin):
                 conv="fdatasync"
             )
         return None
+
+    def export_results_to_csv(
+        self,
+        results: List[dict[str, Any]],
+        output_dir: Path,
+        run_id: str,
+        test_name: str,
+    ) -> List[Path]:
+        rows: list[dict[str, Any]] = []
+        for entry in results:
+            row = {
+                "run_id": run_id,
+                "workload": test_name,
+                "repetition": entry.get("repetition"),
+                "duration_seconds": entry.get("duration_seconds"),
+                "success": entry.get("success"),
+            }
+            gen_result = entry.get("generator_result") or {}
+            if isinstance(gen_result, dict):
+                stderr = gen_result.get("stderr") or ""
+                stdout = gen_result.get("stdout") or ""
+                row["generator_stdout"] = stdout
+                row["generator_returncode"] = gen_result.get("returncode")
+                row["generator_command"] = gen_result.get("command")
+                row["generator_max_retries"] = gen_result.get("max_retries")
+                row["generator_tags"] = gen_result.get("tags")
+                if entry.get("success"):
+                    summary = _summarize_dd_stderr(stderr)
+                    row.update(summary)
+                    row["generator_stderr"] = summary.get("dd_summary", "")
+                else:
+                    row["generator_stderr"] = stderr
+            rows.append(row)
+
+        if not rows:
+            return []
+
+        df = pd.DataFrame(rows)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = output_dir / f"{test_name}_plugin.csv"
+        df.to_csv(csv_path, index=False)
+        return [csv_path]
 
 
 PLUGIN = DDPlugin()

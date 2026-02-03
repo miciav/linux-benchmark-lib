@@ -11,6 +11,7 @@ from lb_runner.api import (
     RemoteHostConfig,
     WorkloadConfig,
 )
+from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
 from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
@@ -84,17 +85,14 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
         workloads={
             "stress_ng": WorkloadConfig(
                 plugin="stress_ng",
-                enabled=True,
                 options=stress_cfg.model_dump(mode="json"),
             ),
             "dd": WorkloadConfig(
                 plugin="dd",
-                enabled=True,
                 options=dd_cfg.model_dump(mode="json"),
             ),
             "fio": WorkloadConfig(
                 plugin="fio",
-                enabled=True,
                 options=fio_cfg.model_dump(mode="json"),
             ),
         },
