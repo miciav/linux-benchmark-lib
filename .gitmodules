@@ -1,0 +1,3 @@
+[submodule "lb_plugins/plugins/peva_faas"]
+	path = lb_plugins/plugins/peva_faas
+	url = git@github.com:miciav/PEVA-faas.git
