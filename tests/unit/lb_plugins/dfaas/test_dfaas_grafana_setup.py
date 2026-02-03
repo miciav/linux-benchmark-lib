@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from lb_plugins.plugins.dfaas.config import DfaasConfig
-from lb_plugins.plugins.dfaas.context import ExecutionContext
-from lb_plugins.plugins.dfaas.generator import DfaasGenerator
-from lb_plugins.plugins.dfaas.grafana_assets import GRAFANA_DASHBOARD_UID
-from lb_plugins.plugins.dfaas.services.annotation_service import DfaasAnnotationService
-import lb_plugins.plugins.dfaas.services.annotation_service as annotation_mod
+from lb_plugins.plugins.peva_faas.config import DfaasConfig
+from lb_plugins.plugins.peva_faas.context import ExecutionContext
+from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
+from lb_plugins.plugins.peva_faas.grafana_assets import GRAFANA_DASHBOARD_UID
+from lb_plugins.plugins.peva_faas.services.annotation_service import DfaasAnnotationService
+import lb_plugins.plugins.peva_faas.services.annotation_service as annotation_mod
 
 pytestmark = [pytest.mark.unit_plugins]
 

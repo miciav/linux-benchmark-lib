@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from lb_plugins.plugins.dfaas.queries import (
+from lb_plugins.plugins.peva_faas.queries import (
     load_queries,
     parse_instant_value,
     parse_range_average,

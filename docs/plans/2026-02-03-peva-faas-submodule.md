@@ -12,7 +12,7 @@
 
 **Files:**
 - Create: `/tmp/PEVA-faas` (local repo)
-- Source: `lb_plugins/plugins/dfaas` (copy in)
+- Source: `lb_plugins/plugins/peva_faas` (copy in)
 
 **Step 1: Create the remote repo**
 
@@ -26,7 +26,7 @@ Expected: Empty git repo initialized.
 
 **Step 3: Copy current plugin contents**
 
-Run: `rsync -a --delete <worktree>/lb_plugins/plugins/dfaas/ /tmp/PEVA-faas/`
+Run: `rsync -a --delete <worktree>/lb_plugins/plugins/peva_faas/ /tmp/PEVA-faas/`
 Expected: /tmp/PEVA-faas matches dfaas contents.
 
 **Step 4: Commit and push**
@@ -45,12 +45,12 @@ Expected: Repo has initial commit with dfaas content.
 
 **Files:**
 - Modify: `.gitmodules`
-- Remove: `lb_plugins/plugins/dfaas`
+- Remove: `lb_plugins/plugins/peva_faas`
 - Create: `lb_plugins/plugins/peva_faas` (submodule)
 
 **Step 1: Remove local dfaas directory**
 
-Run: `rm -rf lb_plugins/plugins/dfaas`
+Run: `rm -rf lb_plugins/plugins/peva_faas`
 Expected: Directory removed from main repo.
 
 **Step 2: Add submodule**
@@ -79,7 +79,7 @@ Expected: List of files to update to `lb_plugins.plugins.peva_faas`.
 
 **Step 2: Update filesystem path references**
 
-Run: `rg -n "lb_plugins/plugins/dfaas" lb_plugins tests docs`
+Run: `rg -n "lb_plugins/plugins/peva_faas" lb_plugins tests docs`
 Expected: List of files to update to `lb_plugins/plugins/peva_faas`.
 
 **Step 3: Apply changes**
@@ -100,11 +100,11 @@ Expected: Main repo references new module path.
 
 **Files:**
 - Modify: `lb_plugins/plugins/peva_faas/config.py`
-- Modify: any other file in submodule that hard-codes `lb_plugins/plugins/dfaas`
+- Modify: any other file in submodule that hard-codes `lb_plugins/plugins/peva_faas`
 
 **Step 1: Find hard-coded paths**
 
-Run: `rg -n "lb_plugins/plugins/dfaas" lb_plugins/plugins/peva_faas`
+Run: `rg -n "lb_plugins/plugins/peva_faas" lb_plugins/plugins/peva_faas`
 Expected: Files needing updates to peva_faas path.
 
 **Step 2: Update paths**

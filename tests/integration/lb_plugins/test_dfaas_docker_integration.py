@@ -12,9 +12,9 @@ from urllib.request import urlopen
 
 import pytest
 
-from lb_plugins.plugins.dfaas.generator import DfaasGenerator
-from lb_plugins.plugins.dfaas.config import DfaasConfig, DfaasFunctionConfig
-from lb_plugins.plugins.dfaas.plugin import DfaasPlugin
+from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
+from lb_plugins.plugins.peva_faas.config import DfaasConfig, DfaasFunctionConfig
+from lb_plugins.plugins.peva_faas.plugin import DfaasPlugin
 
 pytestmark = [pytest.mark.inter_plugins, pytest.mark.inter_docker]
 
@@ -239,7 +239,7 @@ def test_dfaas_end_to_end_with_docker(tmp_path: Path, monkeypatch: pytest.Monkey
 
         _wait_for_ready(f"http://127.0.0.1:{host_port}/-/ready")
         monkeypatch.setattr(
-            "lb_plugins.plugins.dfaas.services.k6_runner.K6Runner._get_connection",
+            "lb_plugins.plugins.peva_faas.services.k6_runner.K6Runner._get_connection",
             lambda self: _DockerConnection(k6_name),
         )
 
@@ -316,7 +316,7 @@ def test_dfaas_end_to_end_with_docker(tmp_path: Path, monkeypatch: pytest.Monkey
             duration="2s",
             iterations=1,
             cooldown={"max_wait_seconds": 5, "sleep_step_seconds": 1, "idle_threshold_pct": 15},
-            queries_path=str(Path("lb_plugins/plugins/dfaas/queries.yml").resolve()),
+            queries_path=str(Path("lb_plugins/plugins/peva_faas/queries.yml").resolve()),
         )
 
         generator = DfaasGenerator(cfg)

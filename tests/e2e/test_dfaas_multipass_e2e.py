@@ -27,20 +27,20 @@ from lb_controller.api import (
     _extract_lb_event,
 )
 from lb_plugins.api import PluginAssetConfig
-from lb_plugins.plugins.dfaas.generator import DfaasGenerator
-from lb_plugins.plugins.dfaas.services.plan_builder import (
+from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
+from lb_plugins.plugins.peva_faas.services.plan_builder import (
     config_id,
     generate_configurations,
 )
-from lb_plugins.plugins.dfaas.config import (
+from lb_plugins.plugins.peva_faas.config import (
     DfaasCombinationConfig,
     DfaasConfig,
     DfaasCooldownConfig,
     DfaasFunctionConfig,
     DfaasRatesConfig,
 )
-from lb_plugins.plugins.dfaas.plugin import DfaasPlugin
-from lb_plugins.plugins.dfaas.queries import (
+from lb_plugins.plugins.peva_faas.plugin import DfaasPlugin
+from lb_plugins.plugins.peva_faas.queries import (
     PrometheusQueryRunner,
     filter_queries,
     load_queries,
@@ -416,8 +416,8 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
     _write_inventory(target_inventory, target_host)
     _write_inventory(k6_inventory, k6_host)
 
-    setup_target = Path("lb_plugins/plugins/dfaas/ansible/setup_target.yml")
-    setup_k6 = Path("lb_plugins/plugins/dfaas/ansible/setup_k6.yml")
+    setup_target = Path("lb_plugins/plugins/peva_faas/ansible/setup_target.yml")
+    setup_k6 = Path("lb_plugins/plugins/peva_faas/ansible/setup_k6.yml")
 
     try:
         _run_playbook(
@@ -491,7 +491,7 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
                 _wait_for_prometheus_metric(prometheus_url, "node_cpu_seconds_total")
                 _wait_for_prometheus_metric(prometheus_url, "node_memory_MemTotal_bytes")
                 _wait_for_prometheus_metric(prometheus_url, "container_cpu_usage_seconds_total")
-                queries = load_queries(Path("lb_plugins/plugins/dfaas/queries.yml"))
+                queries = load_queries(Path("lb_plugins/plugins/peva_faas/queries.yml"))
                 active_queries = filter_queries(queries, scaphandre_enabled=False)
                 queries_by_name = {query.name: query for query in active_queries}
                 time_span = "30s"
@@ -616,8 +616,8 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
     _write_inventory(target_inventory, target_host)
     _write_inventory(k6_inventory, k6_host)
 
-    setup_target = Path("lb_plugins/plugins/dfaas/ansible/setup_target.yml")
-    setup_k6 = Path("lb_plugins/plugins/dfaas/ansible/setup_k6.yml")
+    setup_target = Path("lb_plugins/plugins/peva_faas/ansible/setup_target.yml")
+    setup_k6 = Path("lb_plugins/plugins/peva_faas/ansible/setup_k6.yml")
 
     try:
         _run_playbook(
@@ -1272,8 +1272,8 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
     _write_inventory(k6_inventory, k6_host)
 
     # Setup target and k6 generator from the controller
-    setup_target = Path("lb_plugins/plugins/dfaas/ansible/setup_target.yml")
-    setup_k6 = Path("lb_plugins/plugins/dfaas/ansible/setup_k6.yml")
+    setup_target = Path("lb_plugins/plugins/peva_faas/ansible/setup_target.yml")
+    setup_k6 = Path("lb_plugins/plugins/peva_faas/ansible/setup_k6.yml")
 
     # Ensure benchmark library is deployed for CLI run (skip controller setup later).
     if not _deploy_code_to_vm(target_vm["name"], ansible_dir, staged_key, lb_workdir):
@@ -1907,8 +1907,8 @@ def test_dfaas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> None
     _write_inventory(k6_inventory, k6_host)
 
     # Setup target and k6 generator from the controller
-    setup_target = Path("lb_plugins/plugins/dfaas/ansible/setup_target.yml")
-    setup_k6 = Path("lb_plugins/plugins/dfaas/ansible/setup_k6.yml")
+    setup_target = Path("lb_plugins/plugins/peva_faas/ansible/setup_target.yml")
+    setup_k6 = Path("lb_plugins/plugins/peva_faas/ansible/setup_k6.yml")
 
     # Use fixed /tmp path for output to avoid cross-platform path issues (macOS -> Linux VM)
     output_dir = Path("/tmp/lb_e2e_results")
