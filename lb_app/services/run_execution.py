@@ -6,8 +6,7 @@ import logging
 import platform
 from typing import Callable
 
-from lb_controller.api import BenchmarkController, StopToken
-from lb_runner.api import RunEvent
+from lb_controller.api import BenchmarkController, RunEvent, StopToken
 
 from lb_app.services.execution_loop import RunExecutionLoop
 from lb_app.services.remote_run_coordinator import RemoteRunCoordinator

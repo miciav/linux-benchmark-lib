@@ -6,8 +6,7 @@ import threading
 import time
 from pathlib import Path
 
-from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
-from lb_controller.api import BenchmarkController, ControllerOptions
+from lb_controller.api import AnsibleRunnerExecutor, BenchmarkController, ControllerOptions
 from lb_runner.api import (
     BenchmarkConfig,
     RemoteExecutionConfig,

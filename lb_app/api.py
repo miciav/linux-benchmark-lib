@@ -18,7 +18,7 @@ from lb_app.services.run_service import RunService
 from lb_app.services.run_types import RunContext, RunResult
 from lb_app.services.test_service import TestService
 from lb_app.services.run_output import AnsibleOutputFormatter, _extract_lb_event_data
-from lb_app.services.run_journal import results_exist_for_run
+from lb_app.services.run_journal import generate_run_id, results_exist_for_run
 from lb_app.services.run_system_info import summarize_system_info
 from lb_app.services import run_service as run_service_module
 from lb_app.services import test_service as test_service_module
@@ -81,6 +81,7 @@ __all__ = [
     "AnsibleOutputFormatter",
     "_extract_lb_event_data",
     "summarize_system_info",
+    "generate_run_id",
     "results_exist_for_run",
     "DashboardLogMetadata",
     "DashboardRow",

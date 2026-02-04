@@ -9,7 +9,7 @@ from json import JSONEncoder
 from pathlib import Path
 from typing import Any
 
-from lb_common.errors import MetricCollectionError, ResultPersistenceError, error_to_payload
+from lb_common.api import MetricCollectionError, ResultPersistenceError, error_to_payload
 from lb_plugins.api import WorkloadPlugin
 
 

@@ -9,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
 
-from lb_common.models.hosts import RemoteHostSpec
+from lb_common.api import RemoteHostSpec
 
 logger = logging.getLogger(__name__)
 

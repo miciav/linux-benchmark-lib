@@ -13,7 +13,7 @@ import platform
 import time
 from typing import Any, Dict, List, Optional, Callable
 
-from lb_common.errors import LBError
+from lb_common.api import LBError
 from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
 from lb_runner.models.events import RunEvent
 from lb_runner.services.runner_log_manager import RunnerLogManager

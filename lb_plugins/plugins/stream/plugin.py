@@ -19,7 +19,7 @@ from typing import Any, List, Optional
 
 from pydantic import Field, model_validator
 
-from lb_common.errors import WorkloadError
+from lb_common.api import WorkloadError
 from ...base_generator import CommandGenerator
 from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
 

@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from lb_common.errors import MetricCollectionError, error_to_payload
+from lb_common.api import MetricCollectionError, error_to_payload
 from lb_runner.services.results import collect_metrics
 
 

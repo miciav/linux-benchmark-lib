@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from ..config import GrafanaConfig
 from ..context import ExecutionContext
 from ..grafana_assets import GRAFANA_DASHBOARD_UID
-from lb_common.observability import GrafanaClient
+from lb_common.api import GrafanaClient
 
 logger = logging.getLogger(__name__)
 

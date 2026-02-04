@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 import pandas as pd
 
-from lb_common.errors import MetricCollectionError
+from lb_common.api import MetricCollectionError
 
 
 logger = logging.getLogger(__name__)

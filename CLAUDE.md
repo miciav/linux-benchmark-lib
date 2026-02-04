@@ -92,3 +92,12 @@ Generated at runtime (gitignored):
 - Python 3.12+, Black (88 chars), strict MyPy
 - `snake_case` for functions/variables, `PascalCase` for classes
 - Prefer dataclasses for configuration objects
+
+## Import Boundary Rules
+
+**lb_controller must only be imported via lb_controller.api** from other packages (lb_app, lb_ui, lb_plugins, etc.).
+
+Direct imports like `from lb_controller.services.X import Y` or `from lb_controller.engine.X import Y` are violations when done from outside lb_controller/.
+
+This rule is enforced by flake8-tidy-imports in .flake8.
+

@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from lb_common.errors import LBError, WorkloadError, error_to_payload
+from lb_common.api import LBError, WorkloadError, error_to_payload
 from lb_plugins.api import BaseGenerator, WorkloadPlugin
 from lb_runner.engine.stop_context import should_stop
 from lb_runner.engine.execution import (

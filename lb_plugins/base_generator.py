@@ -11,7 +11,7 @@ import subprocess
 import threading
 from typing import Any, Optional, Protocol
 
-from lb_common.errors import WorkloadError, error_to_payload
+from lb_common.api import WorkloadError, error_to_payload
 
 
 logger = logging.getLogger(__name__)
