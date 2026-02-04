@@ -31,3 +31,23 @@ uv run python scripts/gen_release_notes.py --version 0.22.0 --output release_not
 ```
 
 This file can be passed to `release_flow.sh` via `-n`.
+
+## scripts/bump_version/
+
+Interactive CLI tool for simplified version bumping. Unlike `release_flow.sh`, this tool focuses only on:
+- Bumping version in `pyproject.toml`
+- Creating git tag and pushing
+- Creating GitHub release
+
+It does NOT manage PRs or branch rebasing.
+
+Setup and usage:
+```bash
+cd scripts/bump_version
+uv sync
+uv run bump_version.py              # Interactive mode
+uv run bump_version.py --patch      # Non-interactive patch bump
+uv run bump_version.py --dry-run    # Preview without executing
+```
+
+See `scripts/bump_version/README.md` for full documentation.
