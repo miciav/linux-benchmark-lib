@@ -1,0 +1,85 @@
+- name: Setup Phoronix Test Suite workload profile
+  hosts: all
+  gather_facts: true
+  become: true
+
+  vars:
+    pts_profile: "{{ pts_profile | default('') }}"
+    pts_deb_relpath: "{{ pts_deb_relpath | default('') }}"
+    lb_workdir: "{{ (ansible_user == 'root') | ternary('/root', '/home/' ~ ansible_user) }}/.lb"
+    # This is used as PTS_USER_PATH_OVERRIDE (must be a directory path with trailing slash).
+    pts_home_root: "{{ pts_home_root | default(lb_workdir + '/.phoronix-test-suite/') }}"
+    pts_apt_packages: "{{ pts_apt_packages | default(['gdebi-core', 'unzip']) }}"
+
+  tasks:
+    - name: Validate required vars
+      ansible.builtin.assert:
+        that:
+          - pts_profile | length > 0
+          - pts_deb_relpath | length > 0
+        fail_msg: >-
+          Missing required variables. Expected pts_profile and pts_deb_relpath.
+
+    - name: Install PTS prerequisites (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name: "{{ pts_apt_packages }}"
+        state: present
+        update_cache: true
+      when: ansible_facts['os_family'] | default('Debian') == 'Debian'
+
+    - name: Check if phoronix-test-suite is installed
+      ansible.builtin.shell: |
+        set -e
+        command -v phoronix-test-suite >/dev/null 2>&1
+      register: pts_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Install phoronix-test-suite from bundled .deb (via gdebi)
+      ansible.builtin.shell: |
+        set -e
+        DEB="{{ lb_workdir }}/{{ pts_deb_relpath }}"
+        test -f "$DEB"
+        gdebi -n "$DEB"
+      when: pts_installed.rc != 0
+      register: pts_install
+      changed_when: true
+
+    - name: Ensure PTS home root exists
+      ansible.builtin.file:
+        path: "{{ pts_home_root }}"
+        state: directory
+        mode: "0755"
+
+    - name: Configure PTS batch mode (non-interactive)
+      ansible.builtin.shell: |
+        set -e
+        export PTS_USER_PATH_OVERRIDE="{{ pts_home_root }}"
+        if [ -f /etc/phoronix-test-suite.xml ] && grep -qi "<Configured>TRUE</Configured>" /etc/phoronix-test-suite.xml; then
+          exit 0
+        fi
+        if [ -f "{{ pts_home_root }}/user-config.xml" ] && grep -qi "<Configured>TRUE</Configured>" "{{ pts_home_root }}/user-config.xml"; then
+          exit 0
+        fi
+        phoronix-test-suite batch-setup <<'EOF'
+        Y
+        N
+        N
+        N
+        N
+        N
+        N
+        EOF
+      register: pts_batch_setup
+      changed_when: "'Batch settings saved.' in (pts_batch_setup.stdout | default(''))"
+
+    - name: Install PTS profile (idempotent best-effort, non-interactive)
+      ansible.builtin.shell: |
+        set -e
+        export PTS_USER_PATH_OVERRIDE="{{ pts_home_root }}"
+        if phoronix-test-suite batch-install "{{ pts_profile }}" </dev/null; then
+          exit 0
+        fi
+        phoronix-test-suite install "{{ pts_profile }}" </dev/null
+      register: pts_profile_install
+      changed_when: true

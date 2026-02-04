@@ -1,0 +1,145 @@
+---
+- name: Install STREAM (stream-benchmark) from prebuilt package
+  hosts: all
+  gather_facts: true
+  become: true
+
+  vars:
+    stream_version: "5.10"
+    stream_arch_map:
+      x86_64: amd64
+      amd64: amd64
+      aarch64: arm64
+      arm64: arm64
+    stream_arch: "{{ stream_arch_map.get(ansible_facts['architecture'] | default('amd64'), 'amd64') }}"
+    stream_deb_default: "{{ playbook_dir + '/../stream-benchmark_' + stream_version + '-1_' + stream_arch + '.deb' }}"
+    stream_deb_src_resolved: "{{ stream_deb_src | default(stream_deb_default, true) }}"
+    stream_deb_dest: "/tmp/stream-benchmark_{{ stream_version }}.deb"
+    stream_workspace: "{{ ansible_facts['env']['HOME'] + '/.lb/workspaces/stream' }}"
+    stream_install_intel_compiler: false
+    stream_intel_key_url: "https://apt.repos.intel.com/oneapi/gpgkey"
+    stream_intel_key_tmp: "/tmp/oneapi.gpg"
+    stream_intel_keyring: "/usr/share/keyrings/oneapi-archive-keyring.gpg"
+    stream_intel_repo_file: "/etc/apt/sources.list.d/oneapi.list"
+    stream_intel_repo: >-
+      deb [signed-by={{ stream_intel_keyring }}]
+      https://apt.repos.intel.com/oneapi all main
+    stream_intel_compiler_packages:
+      - intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic
+    stream_intel_bin_dir: "/opt/intel/oneapi/compiler/latest/linux/bin/intel64"
+    stream_intel_symlinks:
+      - icc
+      - icx
+
+    stream_packages:
+      - ca-certificates
+      - libgomp1
+      - gcc
+      - gnupg
+      - make
+      - procps
+      - sysstat
+      - numactl
+
+  tasks:
+    - name: Abort on unsupported OS family
+      ansible.builtin.fail:
+        msg: "STREAM .deb install is supported on Debian/Ubuntu only."
+      when: ansible_facts['os_family'] | default('') != 'Debian'
+
+    - name: Install STREAM runtime/build dependencies
+      ansible.builtin.apt:
+        name: "{{ stream_packages }}"
+        state: present
+        update_cache: true
+
+    - name: Skip Intel oneAPI install on unsupported architectures
+      ansible.builtin.debug:
+        msg: "Intel oneAPI compiler install is only supported on amd64; skipping."
+      when:
+        - stream_install_intel_compiler
+        - stream_arch != "amd64"
+
+    - name: Install Intel oneAPI compiler (optional)
+      when:
+        - stream_install_intel_compiler
+        - stream_arch == "amd64"
+      block:
+        - name: Download Intel oneAPI GPG key
+          ansible.builtin.get_url:
+            url: "{{ stream_intel_key_url }}"
+            dest: "{{ stream_intel_key_tmp }}"
+            mode: "0644"
+
+        - name: Install Intel oneAPI keyring
+          ansible.builtin.command:
+            cmd: "gpg --dearmor --yes -o {{ stream_intel_keyring }} {{ stream_intel_key_tmp }}"
+          args:
+            creates: "{{ stream_intel_keyring }}"
+
+        - name: Configure Intel oneAPI apt repo
+          ansible.builtin.copy:
+            dest: "{{ stream_intel_repo_file }}"
+            content: "{{ stream_intel_repo }}\n"
+            mode: "0644"
+
+        - name: Install Intel oneAPI compiler packages
+          ansible.builtin.apt:
+            name: "{{ stream_intel_compiler_packages }}"
+            state: present
+            update_cache: true
+          environment:
+            ACCEPT_EULA: "Y"
+
+        - name: Check Intel compiler bin directory
+          ansible.builtin.stat:
+            path: "{{ stream_intel_bin_dir }}"
+          register: stream_intel_bin_stat
+
+        - name: Link Intel compilers into /usr/local/bin
+          ansible.builtin.file:
+            src: "{{ stream_intel_bin_dir }}/{{ item }}"
+            dest: "/usr/local/bin/{{ item }}"
+            state: link
+          loop: "{{ stream_intel_symlinks }}"
+          when: stream_intel_bin_stat.stat.isdir
+
+    - name: Validate STREAM package source exists on controller
+      delegate_to: localhost
+      run_once: true
+      become: false
+      ansible.builtin.stat:
+        path: "{{ stream_deb_src_resolved }}"
+      register: stream_deb_src_stat
+
+    - name: Fail if STREAM package is missing
+      ansible.builtin.fail:
+        msg: >-
+          STREAM .deb not found at {{ stream_deb_src_resolved }}.
+          Build it via Docker Buildx (see plugin README) or override stream_deb_src.
+      when: not stream_deb_src_stat.stat.exists
+
+    - name: Copy STREAM package to target
+      ansible.builtin.copy:
+        src: "{{ stream_deb_src_resolved }}"
+        dest: "{{ stream_deb_dest }}"
+        mode: "0644"
+
+    - name: Install STREAM package
+      ansible.builtin.apt:
+        deb: "{{ stream_deb_dest }}"
+        state: present
+        update_cache: true
+
+    - name: Ensure workspace bin directory exists
+      ansible.builtin.file:
+        path: "{{ stream_workspace }}/stream-{{ stream_version }}/bin"
+        state: directory
+        mode: "0755"
+
+    - name: Copy stream binary into workspace for convenience
+      ansible.builtin.copy:
+        src: "/opt/stream-{{ stream_version }}/bin/stream"
+        dest: "{{ stream_workspace }}/stream-{{ stream_version }}/bin/stream"
+        mode: "0755"
+        remote_src: true

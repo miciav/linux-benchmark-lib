@@ -1,0 +1,124 @@
+---
+- name: Install HPL from prebuilt package
+  hosts: all
+  gather_facts: true
+  become: true
+
+  vars:
+    lb_workdir: "{{ (ansible_user == 'root') | ternary('/root', '/home/' ~ ansible_user) }}/.lb"
+    hpl_version: "2.3"
+    hpl_workspace: "{{ ansible_facts['env']['HOME'] + '/.lb/workspaces/hpl' }}"
+    hpl_arch_map:
+      x86_64: amd64
+      amd64: amd64
+      aarch64: arm64
+      arm64: arm64
+    hpl_arch: "{{ hpl_arch_map.get(ansible_facts['architecture'] | default('amd64'), 'amd64') }}"
+    hpl_deb_default: "{{ playbook_dir + '/../hpl_2.3-1_' + hpl_arch + '.deb' }}"
+    hpl_deb_src_resolved: "{{ hpl_deb_src | default(hpl_deb_default, true) }}"
+    hpl_deb_dest: "/tmp/hpl_{{ hpl_version }}.deb"
+    hpl_packages:
+      - openmpi-bin
+      - libopenmpi-dev
+      - libopenblas-dev
+      - procps
+      - sysstat
+    hpl_relax_openmpi_dep: false
+
+  tasks:
+    - name: Detect OpenMPI runtime package on target
+      ansible.builtin.command: apt-cache show libopenmpi3t64
+      register: hpl_libopenmpi3t64_check
+      changed_when: false
+      failed_when: false
+
+    - name: Select OpenMPI runtime dependency for repack
+      ansible.builtin.set_fact:
+        hpl_openmpi_runtime_pkg: "{{ 'libopenmpi3t64' if hpl_libopenmpi3t64_check.rc == 0 else 'libopenmpi3' }}"
+
+    - name: Decide whether to repack HPL package
+      ansible.builtin.set_fact:
+        hpl_should_repack: "{{ (hpl_relax_openmpi_dep | bool) or (hpl_openmpi_runtime_pkg != 'libopenmpi3t64') }}"
+
+    - name: Abort on unsupported OS family
+      ansible.builtin.fail:
+        msg: "HPL .deb install is supported on Debian/Ubuntu only."
+      when: ansible_facts['os_family'] | default('') != 'Debian'
+
+    - name: Install HPL runtime dependencies
+      ansible.builtin.apt:
+        name: "{{ hpl_packages }}"
+        state: present
+        update_cache: true
+
+    - name: Validate HPL package source exists on controller
+      delegate_to: localhost
+      run_once: true
+      become: false
+      ansible.builtin.stat:
+        path: "{{ hpl_deb_src_resolved }}"
+      register: hpl_deb_src_stat
+
+    - name: Fail if HPL package is missing
+      ansible.builtin.fail:
+        msg: >-
+          HPL .deb not found at {{ hpl_deb_src }}.
+          Override hpl_deb_src with a valid path or URL.
+      when: not hpl_deb_src_stat.stat.exists
+
+    - name: Copy HPL package to target
+      ansible.builtin.copy:
+        src: "{{ hpl_deb_src_resolved }}"
+        dest: "{{ hpl_deb_dest }}"
+        mode: "0644"
+
+    - name: Prepare temp dir for HPL package repack
+      ansible.builtin.file:
+        path: /tmp/hpl-deb-unpacked
+        state: absent
+      when: hpl_should_repack | bool
+
+    - name: Unpack HPL package for dependency relaxation
+      ansible.builtin.command: dpkg-deb -R {{ hpl_deb_dest }} /tmp/hpl-deb-unpacked
+      when: hpl_should_repack | bool
+
+    - name: Relax libopenmpi dependency constraint
+      ansible.builtin.replace:
+        path: /tmp/hpl-deb-unpacked/DEBIAN/control
+        regexp: 'libopenmpi3t64 \\(>= [^)]+\\)'
+        replace: "{{ hpl_openmpi_runtime_pkg }}"
+      when: hpl_should_repack | bool
+
+    - name: Replace libopenmpi runtime dependency when needed
+      ansible.builtin.replace:
+        path: /tmp/hpl-deb-unpacked/DEBIAN/control
+        regexp: '\\blibopenmpi3t64\\b'
+        replace: "{{ hpl_openmpi_runtime_pkg }}"
+      when:
+        - hpl_should_repack | bool
+        - hpl_openmpi_runtime_pkg != 'libopenmpi3t64'
+
+    - name: Repack HPL package after dependency relaxation
+      ansible.builtin.command: dpkg-deb -b /tmp/hpl-deb-unpacked {{ hpl_deb_dest }}
+      when: hpl_should_repack | bool
+
+    - name: Install HPL package
+      ansible.builtin.apt:
+        deb: "{{ hpl_deb_dest }}"
+        state: present
+        update_cache: true
+
+    - name: Ensure workspace bin directory exists
+      ansible.builtin.file:
+        path: "{{ hpl_workspace }}/hpl-{{ hpl_version }}/bin/Linux"
+        state: directory
+        mode: "0755"
+        owner: "{{ ansible_user | default('root') }}"
+        group: "{{ ansible_user | default('root') }}"
+
+    - name: Copy xhpl into workspace for convenience
+      ansible.builtin.copy:
+        src: "/opt/hpl-{{ hpl_version }}/bin/Linux/xhpl"
+        dest: "{{ hpl_workspace }}/hpl-{{ hpl_version }}/bin/Linux/xhpl"
+        mode: "0755"
+        remote_src: true
