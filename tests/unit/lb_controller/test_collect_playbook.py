@@ -78,21 +78,6 @@ def _has_plugin_derive_task(tasks: list[dict]) -> bool:
     return False
 
 
-def _has_k6_log_collection(tasks: list[dict]) -> bool:
-    found = False
-    for task in tasks:
-        find_cfg = task.get("ansible.builtin.find", {})
-        if isinstance(find_cfg, dict) and find_cfg.get("patterns") == "k6.log":
-            found = True
-            continue
-        fetch_cfg = task.get("ansible.builtin.fetch", {})
-        if isinstance(fetch_cfg, dict):
-            dest = fetch_cfg.get("dest", "")
-            if isinstance(dest, str) and "/logs/k6/" in dest:
-                found = True
-    return found
-
-
 def test_collect_playbook_has_log_collection_tasks() -> None:
     tasks = _load_playbook("playbooks/collect.yml")
     assert _has_find_jsonl_task(tasks)
@@ -100,15 +85,3 @@ def test_collect_playbook_has_log_collection_tasks() -> None:
     assert _has_logs_dir_task(tasks)
     assert _has_stream_log_fetch_task(tasks)
     assert _has_plugin_derive_task(tasks)
-
-
-def test_dfaas_plugin_collect_post_playbook() -> None:
-    repo_root = Path(__file__).resolve().parents[3]
-    path = repo_root / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "collect" / "post.yml"
-    data = yaml.safe_load(path.read_text())
-    assert isinstance(data, list)
-    if data and isinstance(data[0], dict) and "tasks" in data[0]:
-        tasks = data[0].get("tasks", [])
-    else:
-        tasks = data
-    assert _has_k6_log_collection(tasks)

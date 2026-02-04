@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import subprocess
 import time
@@ -93,15 +92,7 @@ def test_build_k6_script_includes_scenarios() -> None:
         DfaasFunctionConfig(name="figlet", method="POST", body="hi"),
         DfaasFunctionConfig(name="eat-memory", method="GET", body=""),
     ]
-    k6_runner = K6Runner(
-        k6_host="127.0.0.1",
-        k6_user="ubuntu",
-        k6_ssh_key="~/.ssh/id_rsa",
-        k6_port=22,
-        k6_workspace_root="/home/ubuntu/.peva_faas-k6",
-        gateway_url="http://example.com:31112",
-        duration="30s",
-    )
+    k6_runner = K6Runner(gateway_url="http://example.com:31112", duration="30s")
     script, metric_ids = k6_runner.build_script(
         [("figlet", 10), ("eat-memory", 0)], functions
     )
@@ -112,15 +103,7 @@ def test_build_k6_script_includes_scenarios() -> None:
 
 
 def test_parse_k6_summary_extracts_metrics() -> None:
-    k6_runner = K6Runner(
-        k6_host="127.0.0.1",
-        k6_user="ubuntu",
-        k6_ssh_key="~/.ssh/id_rsa",
-        k6_port=22,
-        k6_workspace_root="/home/ubuntu/.peva_faas-k6",
-        gateway_url="http://example.com:31112",
-        duration="30s",
-    )
+    k6_runner = K6Runner(gateway_url="http://example.com:31112", duration="30s")
     summary = {
         "metrics": {
             "success_rate_fn_figlet": {"values": {"rate": 0.9}},
@@ -135,15 +118,7 @@ def test_parse_k6_summary_extracts_metrics() -> None:
 
 
 def test_parse_k6_summary_missing_metrics_raises() -> None:
-    k6_runner = K6Runner(
-        k6_host="127.0.0.1",
-        k6_user="ubuntu",
-        k6_ssh_key="~/.ssh/id_rsa",
-        k6_port=22,
-        k6_workspace_root="/home/ubuntu/.peva_faas-k6",
-        gateway_url="http://example.com:31112",
-        duration="30s",
-    )
+    k6_runner = K6Runner(gateway_url="http://example.com:31112", duration="30s")
     summary = {"metrics": {}}
     with pytest.raises(ValueError, match="Missing k6 summary metrics"):
         k6_runner.parse_summary(summary, {"figlet": "fn_figlet"})
@@ -151,23 +126,20 @@ def test_parse_k6_summary_missing_metrics_raises() -> None:
 
 def test_build_k6_command_includes_outputs_and_tags() -> None:
     """Test that _build_k6_command properly formats outputs and tags."""
-    k6_runner = K6Runner(
-        k6_host="host", k6_user="user", k6_ssh_key="key", k6_port=22,
-        k6_workspace_root="/root", gateway_url="http://gw", duration="30s"
-    )
+    k6_runner = K6Runner(gateway_url="http://gw", duration="30s")
     cmd = k6_runner._build_k6_command(
-        script_path="/path/script.js",
-        summary_path="/path/summary.json",
+        script_path=Path("/path/script.js"),
+        summary_path=Path("/path/summary.json"),
         outputs=["loki=http://localhost:3100/loki/api/v1/push"],
         tags={"run_id": "run-1", "component": "k6"},
     )
 
+    assert cmd[:3] == ["k6", "run", "--summary-export"]
     assert "--out" in cmd
     assert "loki=http://localhost:3100/loki/api/v1/push" in cmd
     assert "--tag" in cmd
     assert "run_id=run-1" in cmd
     assert "component=k6" in cmd
-    assert "--summary-export" in cmd
 
 
 def test_k6_outputs_returns_configured_outputs(
@@ -266,44 +238,46 @@ def test_k6_log_event_skips_when_lb_event_handler_present() -> None:
         root_logger.removeHandler(handler)
 
 
-def test_k6_runner_execute_passes_outputs_and_tags(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_k6_runner_execute_passes_outputs_and_tags(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """K6Runner.execute() should include outputs and tags in the k6 command."""
-    from unittest.mock import MagicMock, patch
+    import io
 
-    k6_runner = K6Runner(
-        k6_host="host", k6_user="user", k6_ssh_key="key", k6_port=22,
-        k6_workspace_root="/root", gateway_url="http://gw", duration="30s"
+    k6_runner = K6Runner(gateway_url="http://gw", duration="30s")
+    executed_commands: list[list[str]] = []
+
+    class FakeProcess:
+        def __init__(self) -> None:
+            self.stdout = io.StringIO("k6 run ok\n")
+
+        def wait(self) -> int:
+            return 0
+
+    def fake_popen(cmd, **_kwargs):
+        executed_commands.append(cmd)
+        summary_index = cmd.index("--summary-export") + 1
+        summary_path = Path(cmd[summary_index])
+        summary_path.write_text("{\"metrics\": {}}")
+        return FakeProcess()
+
+    monkeypatch.setattr(
+        "lb_plugins.plugins.peva_faas.services.k6_runner.subprocess.Popen", fake_popen
     )
 
-    # Mock Fabric Connection
-    mock_conn = MagicMock()
-    mock_conn.run.return_value = MagicMock(failed=False)
-    mock_conn.get = MagicMock()
+    k6_runner.execute(
+        "cfg1",
+        "script",
+        "target",
+        "run1",
+        metric_ids={"fn": "fn_id"},
+        output_dir=tmp_path,
+        outputs=["loki=http://loki"],
+        tags={"custom": "tag"},
+    )
 
-    # Track the k6 command that gets executed
-    executed_commands = []
-
-    def capture_run(cmd, **kwargs):
-        executed_commands.append(cmd)
-        return MagicMock(failed=False)
-
-    mock_conn.run.side_effect = capture_run
-
-    with patch.object(k6_runner, "_get_connection", return_value=mock_conn):
-        with patch("tempfile.NamedTemporaryFile") as mock_temp:
-            mock_temp.return_value.__enter__.return_value.name = "/tmp/test"
-            with patch("os.unlink"):
-                with patch("pathlib.Path.read_text", return_value='{"metrics": {}}'):
-                    k6_runner.execute(
-                        "cfg1", "script", "target", "run1",
-                        metric_ids={"fn": "fn_id"},
-                        outputs=["loki=http://loki"],
-                        tags={"custom": "tag"},
-                    )
-
-    # Find the k6 run command (not mkdir)
-    k6_cmd = next((c for c in executed_commands if "k6 run" in c), None)
-    assert k6_cmd is not None, f"No k6 run command found in: {executed_commands}"
+    k6_cmd = executed_commands[0]
+    assert k6_cmd[0:2] == ["k6", "run"]
     assert "--out" in k6_cmd
     assert "loki=http://loki" in k6_cmd
     assert "--tag" in k6_cmd
@@ -335,21 +309,27 @@ def test_get_function_replicas_parses_replicas_column(
     assert replicas["eat-memory"] == 1
 
 
-def test_validate_environment_requires_faas_cli_only(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+def test_validate_environment_requires_faas_cli_and_k6(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    key_path = tmp_path / "id_rsa"
-    key_path.write_text("dummy")
-    cfg = DfaasConfig(k6_ssh_key=str(key_path))
-    generator = DfaasGenerator(cfg)
+    generator = DfaasGenerator(DfaasConfig())
 
-    def fake_run(cmd, **_kwargs):
+    def fake_run_all_present(cmd, **_kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(
+        "lb_plugins.plugins.peva_faas.generator.subprocess.run", fake_run_all_present
+    )
+    assert generator._validate_environment() is True
+
+    def fake_run_missing_k6(cmd, **_kwargs):
         if cmd[:2] == ["which", "faas-cli"]:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if cmd[:2] == ["which", "k6"]:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
         return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
 
     monkeypatch.setattr(
-        "lb_plugins.plugins.peva_faas.generator.subprocess.run", fake_run
+        "lb_plugins.plugins.peva_faas.generator.subprocess.run", fake_run_missing_k6
     )
-
-    assert generator._validate_environment() is True
+    assert generator._validate_environment() is False

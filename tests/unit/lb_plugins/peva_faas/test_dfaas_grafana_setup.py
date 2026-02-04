@@ -33,29 +33,25 @@ class UnhealthyGrafanaClient(FakeGrafanaClient):
 
 
 def test_resolve_prometheus_url_rewrites_localhost() -> None:
-    cfg = DfaasConfig(prometheus_url="http://127.0.0.1:30411")
-    exec_ctx = ExecutionContext(
-        host="remote-host",
-        host_address="10.0.0.5",
-        repetition=1,
-        total_repetitions=1,
+    cfg = DfaasConfig(
+        k3s_host="10.0.0.5",
+        prometheus_url="http://127.0.0.1:30411",
     )
-    generator = DfaasGenerator(cfg, execution_context=exec_ctx)
+    generator = DfaasGenerator(cfg)
 
-    resolved = generator._resolve_prometheus_url("10.0.0.5")
+    resolved = generator._resolve_prometheus_url()
 
     assert resolved == "http://10.0.0.5:30411"
 
 
-def test_resolve_prometheus_url_replaces_host_address(monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg = DfaasConfig(prometheus_url="http://{host.address}:30411")
+def test_resolve_prometheus_url_replaces_host_address() -> None:
+    cfg = DfaasConfig(
+        k3s_host="192.168.1.50",
+        prometheus_url="http://{host.address}:30411",
+    )
     generator = DfaasGenerator(cfg)
 
-    # Mock _get_local_ip to return a stable IP (used when target_name is empty)
-    monkeypatch.setattr(generator, "_get_local_ip", lambda: "192.168.1.50")
-
-    # Pass empty target_name to trigger _get_local_ip() fallback
-    resolved = generator._resolve_prometheus_url("")
+    resolved = generator._resolve_prometheus_url()
 
     assert resolved == "http://192.168.1.50:30411"
 

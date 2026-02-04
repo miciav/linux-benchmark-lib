@@ -19,8 +19,8 @@ K6_REQUIRED_VARS = {
     "k6_extract_dir",
 }
 
-# Variables required by tasks/setup_target_tasks.yml
-TARGET_REQUIRED_VARS = {
+# Variables required by tasks/setup_k3s_tasks.yml
+K3S_REQUIRED_VARS = {
     "k3s_version",
     "k3s_install_exec",
     "openfaas_namespace",
@@ -244,11 +244,7 @@ def _get_play_defined_vars(play: dict) -> set[str]:
 
 
 def test_vars_k6_yml_defines_required_variables() -> None:
-    """Verify vars/k6.yml defines all variables required by install_k6.yml.
-
-    This test prevents regression of the bug where k6 variables were
-    accidentally removed from setup_global.yml, causing Ansible failures.
-    """
+    """Verify vars/k6.yml defines all variables required by install_k6.yml."""
     vars_data = _load_vars_file("k6.yml")
     defined_vars = set(vars_data.keys())
 
@@ -260,63 +256,60 @@ def test_vars_k6_yml_defines_required_variables() -> None:
 
 
 def test_vars_target_yml_defines_required_variables() -> None:
-    """Verify vars/target.yml defines all variables required by setup_target_tasks.yml."""
+    """Verify vars/target.yml defines all variables required by setup_k3s_tasks.yml."""
     vars_data = _load_vars_file("target.yml")
     defined_vars = set(vars_data.keys())
 
-    missing = TARGET_REQUIRED_VARS - defined_vars
+    missing = K3S_REQUIRED_VARS - defined_vars
     assert not missing, (
         f"vars/target.yml is missing required variables: {missing}\n"
-        f"These variables are required by tasks/setup_target_tasks.yml"
+        f"These variables are required by tasks/setup_k3s_tasks.yml"
     )
 
 
-def test_setup_global_yml_has_vars_files_for_k6() -> None:
-    """Verify setup_global.yml includes vars/k6.yml for the k6 generator play.
+def test_setup_plugin_yml_has_vars_files_for_k6() -> None:
+    """Verify setup_plugin.yml includes vars/k6.yml for the k6 runner play."""
+    playbook = _load_playbook("setup_plugin.yml")
 
-    This test prevents regression of the bug where setup_global.yml
-    imported tasks/install_k6.yml without defining the required variables.
-    """
-    playbook = _load_playbook("setup_global.yml")
-
-    # Find the "Configure K6 Generator" play (not "Register K6 Generator Host from Config")
+    # Find the "Configure K6 Runner" play (not "Register K3s Host from Config")
     k6_play = None
     for play in playbook:
         name = play.get("name", "").lower()
-        if "configure" in name and "k6" in name and "generator" in name:
+        if "configure" in name and "k6" in name:
             k6_play = play
             break
 
-    assert k6_play is not None, "Could not find 'Configure K6 Generator' play"
+    assert k6_play is not None, "Could not find 'Configure K6 Runner' play"
 
     # Check that it has vars_files including k6.yml
     vars_files = k6_play.get("vars_files", [])
     has_k6_vars = any("k6.yml" in str(vf) for vf in vars_files)
 
     assert has_k6_vars, (
-        "setup_global.yml 'Configure K6 Generator' play must include vars/k6.yml\n"
+        "setup_plugin.yml 'Configure K6 Runner' play must include vars/k6.yml\n"
         "Without this, tasks/install_k6.yml will fail due to undefined variables"
     )
 
 
-def test_setup_global_yml_has_vars_files_for_target() -> None:
-    """Verify setup_global.yml includes vars/target.yml for the target play."""
-    playbook = _load_playbook("setup_global.yml")
+def test_setup_plugin_yml_has_vars_files_for_k3s() -> None:
+    """Verify setup_plugin.yml includes vars/target.yml for the k3s play."""
+    playbook = _load_playbook("setup_plugin.yml")
 
-    # Find the "Configure Benchmark Targets" play
+    # Find the "Configure K3s/OpenFaaS Node" play (not the inventory registration)
     target_play = None
     for play in playbook:
-        if "target" in play.get("name", "").lower() and "benchmark" in play.get("name", "").lower():
+        name = play.get("name", "").lower()
+        if "configure" in name and "k3s" in name:
             target_play = play
             break
 
-    assert target_play is not None, "Could not find 'Configure Benchmark Targets' play"
+    assert target_play is not None, "Could not find 'Configure K3s/OpenFaaS Node' play"
 
     # Check that it has vars_files including target.yml
     vars_files = target_play.get("vars_files", [])
     has_target_vars = any("target.yml" in str(vf) for vf in vars_files)
 
     assert has_target_vars, (
-        "setup_global.yml 'Configure Benchmark Targets' play must include vars/target.yml\n"
-        "Without this, tasks/setup_target_tasks.yml will fail due to undefined variables"
+        "setup_plugin.yml 'Configure K3s/OpenFaaS Node' play must include vars/target.yml\n"
+        "Without this, tasks/setup_k3s_tasks.yml will fail due to undefined variables"
     )
