@@ -28,52 +28,19 @@ class LokiLabelBuilder:
 
     def build(self, record: logging.LogRecord) -> dict[str, str]:
         labels: dict[str, str] = {}
-        if self.component:
-            labels["component"] = str(self.component)
-        if self.host:
-            labels["host"] = str(self.host)
-        if self.run_id:
-            labels["run_id"] = str(self.run_id)
-        if self.workload:
-            labels["workload"] = str(self.workload)
-        if self.package:
-            labels["package"] = str(self.package)
-        if self.plugin:
-            labels["plugin"] = str(self.plugin)
-        if self.scenario:
-            labels["scenario"] = str(self.scenario)
-        if self.repetition is not None:
-            labels["repetition"] = str(self.repetition)
+        _add_label_if_value(labels, "component", self.component)
+        _add_label_if_value(labels, "host", self.host)
+        _add_label_if_value(labels, "run_id", self.run_id)
+        _add_label_if_value(labels, "workload", self.workload)
+        _add_label_if_value(labels, "package", self.package)
+        _add_label_if_value(labels, "plugin", self.plugin)
+        _add_label_if_value(labels, "scenario", self.scenario)
+        _add_label_if_not_none(labels, "repetition", self.repetition)
 
-        record_labels = getattr(record, "lb_labels", None)
-        if isinstance(record_labels, Mapping):
-            for key, value in record_labels.items():
-                if value is None:
-                    continue
-                labels[str(key)] = str(value)
-
-        phase = getattr(record, "lb_phase", None)
-        if phase is not None:
-            labels["phase"] = str(phase)
-
-        for key, value in self.labels.items():
-            if value is None:
-                continue
-            labels[str(key)] = str(value)
-
-        overrides = {
-            "component": getattr(record, "lb_component", None),
-            "host": getattr(record, "lb_host", None),
-            "run_id": getattr(record, "lb_run_id", None),
-            "workload": getattr(record, "lb_workload", None),
-            "package": getattr(record, "lb_package", None),
-            "plugin": getattr(record, "lb_plugin", None),
-            "scenario": getattr(record, "lb_scenario", None),
-            "repetition": getattr(record, "lb_repetition", None),
-        }
-        for key, value in overrides.items():
-            if value is not None:
-                labels[key] = str(value)
+        _merge_record_labels(labels, record)
+        _merge_phase_label(labels, record)
+        _merge_static_labels(labels, self.labels)
+        _apply_label_overrides(labels, record)
 
         return labels
 
@@ -93,19 +60,77 @@ class LokiWorker:
         next_flush = time.monotonic() + self.flush_interval
         while not self.stop_event.is_set() or not self.queue.empty() or pending:
             timeout = max(0.0, next_flush - time.monotonic())
-            try:
-                entry = self.queue.get(timeout=timeout)
-                if entry.line or entry.labels:
-                    pending.append(entry)
-                self.queue.task_done()
-            except queue.Empty:
-                pass
+            entry = self._get_entry(timeout)
+            if entry and (entry.line or entry.labels):
+                pending.append(entry)
 
-            now = time.monotonic()
-            if pending and (len(pending) >= self.batch_size or now >= next_flush):
-                self.push_entries(pending)
-                pending = []
-                next_flush = now + self.flush_interval
+            next_flush = self._flush_if_ready(pending, next_flush)
 
         if pending:
             self.push_entries(pending)
+
+    def _get_entry(self, timeout: float) -> LokiLogEntry | None:
+        try:
+            entry = self.queue.get(timeout=timeout)
+        except queue.Empty:
+            return None
+        self.queue.task_done()
+        return entry
+
+    def _flush_if_ready(self, pending: list[LokiLogEntry], next_flush: float) -> float:
+        now = time.monotonic()
+        if pending and (len(pending) >= self.batch_size or now >= next_flush):
+            self.push_entries(pending)
+            pending.clear()
+            return now + self.flush_interval
+        return next_flush
+
+
+def _add_label_if_value(labels: dict[str, str], key: str, value: object) -> None:
+    if value:
+        labels[key] = str(value)
+
+
+def _add_label_if_not_none(labels: dict[str, str], key: str, value: object) -> None:
+    if value is not None:
+        labels[key] = str(value)
+
+
+def _merge_record_labels(labels: dict[str, str], record: logging.LogRecord) -> None:
+    record_labels = getattr(record, "lb_labels", None)
+    if isinstance(record_labels, Mapping):
+        for key, value in record_labels.items():
+            if value is None:
+                continue
+            labels[str(key)] = str(value)
+
+
+def _merge_phase_label(labels: dict[str, str], record: logging.LogRecord) -> None:
+    phase = getattr(record, "lb_phase", None)
+    if phase is not None:
+        labels["phase"] = str(phase)
+
+
+def _merge_static_labels(
+    labels: dict[str, str], static_labels: Mapping[str, str]
+) -> None:
+    for key, value in static_labels.items():
+        if value is None:
+            continue
+        labels[str(key)] = str(value)
+
+
+def _apply_label_overrides(labels: dict[str, str], record: logging.LogRecord) -> None:
+    overrides = {
+        "component": getattr(record, "lb_component", None),
+        "host": getattr(record, "lb_host", None),
+        "run_id": getattr(record, "lb_run_id", None),
+        "workload": getattr(record, "lb_workload", None),
+        "package": getattr(record, "lb_package", None),
+        "plugin": getattr(record, "lb_plugin", None),
+        "scenario": getattr(record, "lb_scenario", None),
+        "repetition": getattr(record, "lb_repetition", None),
+    }
+    for key, value in overrides.items():
+        if value is not None:
+            labels[key] = str(value)

@@ -166,38 +166,51 @@ class LokiPushHandler(logging.Handler):
         req = request.Request(self._endpoint, data=data, headers=headers, method="POST")
 
         for attempt in range(self._max_retries + 1):
-            try:
-                with request.urlopen(  # nosec B310
-                    req, timeout=self._timeout_seconds
-                ) as resp:
-                    if 200 <= resp.status < 300:
-                        return
-            except error.HTTPError as exc:
-                if 400 <= exc.code < 500:
-                    _logger.debug(
-                        "Loki push rejected (HTTP %d), dropping %d entries",
-                        exc.code,
-                        len(entries),
-                    )
-                    return
-                _logger.debug(
-                    "Loki push failed (HTTP %d), attempt %d/%d",
-                    exc.code,
-                    attempt + 1,
-                    self._max_retries + 1,
-                )
-            except Exception as exc:
-                _logger.debug(
-                    "Loki push error: %s, attempt %d/%d",
-                    exc,
-                    attempt + 1,
-                    self._max_retries + 1,
-                )
-            if attempt < self._max_retries and self._backoff_base > 0:
-                delay = self._backoff_base * (self._backoff_factor ** attempt)
-                time.sleep(delay)
+            if self._try_push(req, entries, attempt):
+                return
+            self._sleep_backoff(attempt)
         _logger.debug(
             "Loki push failed after %d attempts, dropping %d entries",
             self._max_retries + 1,
             len(entries),
         )
+
+    def _try_push(
+        self,
+        req: request.Request,
+        entries: list[LokiLogEntry],
+        attempt: int,
+    ) -> bool:
+        try:
+            with request.urlopen(  # nosec B310
+                req, timeout=self._timeout_seconds
+            ) as resp:
+                if 200 <= resp.status < 300:
+                    return True
+        except error.HTTPError as exc:
+            if 400 <= exc.code < 500:
+                _logger.debug(
+                    "Loki push rejected (HTTP %d), dropping %d entries",
+                    exc.code,
+                    len(entries),
+                )
+                return True
+            _logger.debug(
+                "Loki push failed (HTTP %d), attempt %d/%d",
+                exc.code,
+                attempt + 1,
+                self._max_retries + 1,
+            )
+        except Exception as exc:
+            _logger.debug(
+                "Loki push error: %s, attempt %d/%d",
+                exc,
+                attempt + 1,
+                self._max_retries + 1,
+            )
+        return False
+
+    def _sleep_backoff(self, attempt: int) -> None:
+        if attempt < self._max_retries and self._backoff_base > 0:
+            delay = self._backoff_base * (self._backoff_factor ** attempt)
+            time.sleep(delay)

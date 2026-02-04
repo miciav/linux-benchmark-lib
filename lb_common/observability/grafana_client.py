@@ -163,7 +163,9 @@ class GrafanaClient:
     ) -> str:
         """Create a Grafana service account and return its token."""
         if not self.basic_auth:
-            raise ValueError("Basic auth credentials are required to create a token.")
+            raise ValueError(
+                "Basic auth credentials are required to create a token."
+            )
         status, data = self._request(
             "POST",
             "/api/serviceaccounts",
@@ -191,7 +193,9 @@ class GrafanaClient:
     ) -> str:
         """Create a Grafana API key and return the token."""
         if not self.basic_auth:
-            raise ValueError("Basic auth credentials are required to create an API key.")
+            raise ValueError(
+                "Basic auth credentials are required to create an API key."
+            )
         payload: dict[str, Any] = {"name": name, "role": role}
         if seconds_to_live:
             payload["secondsToLive"] = seconds_to_live
@@ -224,69 +228,23 @@ class GrafanaClient:
     ) -> tuple[int, dict[str, Any] | None]:
         expected = expected_statuses or {200}
         url = f"{self.base_url.rstrip('/')}{path}"
-        headers = {"Accept": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        elif self.basic_auth:
-            user, password = self.basic_auth
-            token = base64.b64encode(f"{user}:{password}".encode("utf-8")).decode(
-                "ascii"
-            )
-            headers["Authorization"] = f"Basic {token}"
-        if self.org_id:
-            headers["X-Grafana-Org-Id"] = str(self.org_id)
-        data = None
-        if payload is not None:
-            data = json.dumps(payload).encode("utf-8")
-            headers["Content-Type"] = "application/json"
+        headers = self._build_headers()
+        data = self._encode_payload(payload, headers)
 
         for attempt in range(self.max_retries + 1):
-            try:
-                req = request.Request(url, data=data, headers=headers, method=method)
-                with request.urlopen(  # nosec B310
-                    req, timeout=self.timeout_seconds
-                ) as resp:
-                    status = resp.status
-                    body = resp.read().decode("utf-8") if resp is not None else ""
-                parsed = self._parse_json(body)
-                if status in expected:
-                    return status, parsed
-                if 500 <= status and attempt < self.max_retries:
-                    self._sleep_backoff(attempt)
-                    continue
-                raise RuntimeError(f"Grafana API error {status}: {body}")
-            except error.HTTPError as exc:
-                status = exc.code
-                body = exc.read().decode("utf-8") if exc.fp else ""
-                parsed = self._parse_json(body)
-                if status in expected:
-                    return status, parsed
-                if status >= 500 and attempt < self.max_retries:
-                    self._sleep_backoff(attempt)
-                    continue
-                raise RuntimeError(f"Grafana API error {status}: {body}") from exc
-            except error.URLError as exc:
-                if attempt < self.max_retries:
-                    self._sleep_backoff(attempt)
-                    continue
-                raise RuntimeError(f"Grafana API request failed: {exc}") from exc
+            result = self._attempt_request(
+                url, method, headers, data, expected, attempt
+            )
+            if result is not None:
+                return result
         raise RuntimeError("Grafana API request failed after retries.")
 
     def _lookup_service_account_id(self, name: str) -> int | None:
-        query = parse.quote(name, safe="")
-        _, data = self._request(
-            "GET",
-            f"/api/serviceaccounts/search?query={query}",
-            expected_statuses={200},
-        )
-        if not isinstance(data, dict):
-            return None
-        accounts = data.get("serviceAccounts") or data.get("serviceaccounts") or []
+        accounts = self._fetch_service_accounts(name)
         for account in accounts:
-            if isinstance(account, dict) and account.get("name") == name:
-                account_id = account.get("id")
-                if account_id is not None:
-                    return int(account_id)
+            account_id = _account_id_for_name(account, name)
+            if account_id is not None:
+                return account_id
         return None
 
     def _create_service_account_token(self, service_id: int, name: str) -> str | None:
@@ -329,3 +287,96 @@ class GrafanaClient:
         delay = self.backoff_base * (self.backoff_factor ** attempt)
         if delay > 0:
             time.sleep(delay)
+
+    def _attempt_request(
+        self,
+        url: str,
+        method: str,
+        headers: Mapping[str, str],
+        data: bytes | None,
+        expected: set[int],
+        attempt: int,
+    ) -> tuple[int, dict[str, Any] | None] | None:
+        try:
+            status, body = self._perform_request(url, method, headers, data)
+        except error.HTTPError as exc:
+            status, body = self._read_http_error(exc)
+        except error.URLError as exc:
+            if self._maybe_retry(attempt):
+                return None
+            raise RuntimeError(f"Grafana API request failed: {exc}") from exc
+        parsed = self._parse_json(body)
+        if status in expected:
+            return status, parsed
+        if status >= 500 and self._maybe_retry(attempt):
+            return None
+        raise RuntimeError(f"Grafana API error {status}: {body}")
+
+    def _build_headers(self) -> dict[str, str]:
+        headers = {"Accept": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        elif self.basic_auth:
+            user, password = self.basic_auth
+            token = base64.b64encode(f"{user}:{password}".encode("utf-8")).decode(
+                "ascii"
+            )
+            headers["Authorization"] = f"Basic {token}"
+        if self.org_id:
+            headers["X-Grafana-Org-Id"] = str(self.org_id)
+        return headers
+
+    def _encode_payload(
+        self, payload: Mapping[str, Any] | None, headers: dict[str, str]
+    ) -> bytes | None:
+        if payload is None:
+            return None
+        headers["Content-Type"] = "application/json"
+        return json.dumps(payload).encode("utf-8")
+
+    def _perform_request(
+        self,
+        url: str,
+        method: str,
+        headers: Mapping[str, str],
+        data: bytes | None,
+    ) -> tuple[int, str]:
+        req = request.Request(url, data=data, headers=headers, method=method)
+        with request.urlopen(  # nosec B310
+            req, timeout=self.timeout_seconds
+        ) as resp:
+            status = resp.status
+            body = resp.read().decode("utf-8") if resp is not None else ""
+        return status, body
+
+    def _read_http_error(self, exc: error.HTTPError) -> tuple[int, str]:
+        status = exc.code
+        body = exc.read().decode("utf-8") if exc.fp else ""
+        return status, body
+
+    def _maybe_retry(self, attempt: int) -> bool:
+        if attempt >= self.max_retries:
+            return False
+        self._sleep_backoff(attempt)
+        return True
+
+    def _fetch_service_accounts(self, name: str) -> list[dict[str, Any]]:
+        query = parse.quote(name, safe="")
+        _, data = self._request(
+            "GET",
+            f"/api/serviceaccounts/search?query={query}",
+            expected_statuses={200},
+        )
+        if not isinstance(data, dict):
+            return []
+        accounts = data.get("serviceAccounts") or data.get("serviceaccounts") or []
+        return [account for account in accounts if isinstance(account, dict)]
+
+
+def _account_id_for_name(account: dict[str, Any], name: str) -> int | None:
+    if account.get("name") != name:
+        return None
+    account_id = account.get("id")
+    if account_id is None:
+        return None
+    return int(account_id)
