@@ -191,10 +191,10 @@ class TestCustomRateStrategy:
         assert strategy.description() == "Custom: 6 rates [1..100]"
 
 
-# --- DfaasConfig integration tests ---
+# --- PevaFaas DfaasConfig integration tests ---
 
 
-class TestDfaasConfigRateStrategy:
+class TestPevaFaasConfigRateStrategy:
     def test_default_strategy_is_linear(self) -> None:
         config = DfaasConfig()
         assert isinstance(config.rate_strategy, LinearRateStrategy)

@@ -27,20 +27,20 @@ from lb_controller.api import (
     _extract_lb_event,
 )
 from lb_plugins.api import PluginAssetConfig
-from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
-from lb_plugins.plugins.peva_faas.services.plan_builder import (
+from lb_plugins.plugins.dfaas.generator import DfaasGenerator
+from lb_plugins.plugins.dfaas.services.plan_builder import (
     config_id,
     generate_configurations,
 )
-from lb_plugins.plugins.peva_faas.config import (
+from lb_plugins.plugins.dfaas.config import (
     DfaasCombinationConfig,
     DfaasConfig,
     DfaasCooldownConfig,
     DfaasFunctionConfig,
     DfaasRatesConfig,
 )
-from lb_plugins.plugins.peva_faas.plugin import DfaasPlugin
-from lb_plugins.plugins.peva_faas.queries import (
+from lb_plugins.plugins.dfaas.plugin import DfaasPlugin
+from lb_plugins.plugins.dfaas.queries import (
     PrometheusQueryRunner,
     filter_queries,
     load_queries,
@@ -298,6 +298,82 @@ def _write_inventory(inventory_path: Path, host: dict[str, str]) -> None:
     )
 
 
+def _ensure_dfaas_k6_key_on_target(
+    vm_name: str,
+    user: str,
+    key_path: Path,
+) -> str:
+    """Copy the SSH key to the target so DFaaS can reach the k6 host."""
+    key_path = Path(key_path)
+    temp_dest = "/tmp/dfaas_k6_key"
+    subprocess.run(
+        ["multipass", "transfer", str(key_path), f"{vm_name}:{temp_dest}"],
+        check=True,
+    )
+
+    root_dest = "/root/.ssh/dfaas_k6_key"
+    subprocess.run(
+        [
+            "multipass",
+            "exec",
+            vm_name,
+            "--",
+            "sudo",
+            "mkdir",
+            "-p",
+            str(Path(root_dest).parent),
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "multipass",
+            "exec",
+            vm_name,
+            "--",
+            "sudo",
+            "mv",
+            temp_dest,
+            root_dest,
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "multipass",
+            "exec",
+            vm_name,
+            "--",
+            "sudo",
+            "chmod",
+            "600",
+            root_dest,
+        ],
+        check=True,
+    )
+
+    if user != "root":
+        user_dest = f"/home/{user}/.ssh/dfaas_k6_key"
+        subprocess.run(
+            ["multipass", "exec", vm_name, "--", "mkdir", "-p", str(Path(user_dest).parent)],
+            check=True,
+        )
+        subprocess.run(
+            ["multipass", "exec", vm_name, "--", "sudo", "cp", root_dest, user_dest],
+            check=True,
+        )
+        subprocess.run(
+            ["multipass", "exec", vm_name, "--", "sudo", "chown", f"{user}:{user}", user_dest],
+            check=True,
+        )
+        subprocess.run(
+            ["multipass", "exec", vm_name, "--", "sudo", "chmod", "600", user_dest],
+            check=True,
+        )
+        return user_dest
+    return root_dest
+
+
 
 def _get_existing_dfaas_vms() -> list[dict[str, Any]] | None:
     """Check if dfaas-target and dfaas-generator VMs exist and are running."""
@@ -401,6 +477,11 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
     ansible_dir = tmp_path / "ansible_dfaas"
     staged_key = stage_private_key(Path(target_vm["key_path"]),
                                    ansible_dir / "keys")
+    _ensure_dfaas_k6_key_on_target(
+        target_vm["name"],
+        target_vm["user"],
+        staged_key,
+    )
     target_host = {
         "ip": target_vm["ip"],
         "user": target_vm["user"],
@@ -419,8 +500,8 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
     _write_inventory(target_inventory, target_host)
     _write_inventory(k6_inventory, k6_host)
 
-    setup_target = Path("lb_plugins/plugins/peva_faas/ansible/setup_target.yml")
-    setup_k6 = Path("lb_plugins/plugins/peva_faas/ansible/setup_k6.yml")
+    setup_target = Path("lb_plugins/plugins/dfaas/ansible/setup_target.yml")
+    setup_k6 = Path("lb_plugins/plugins/dfaas/ansible/setup_k6.yml")
 
     try:
         _run_playbook(
@@ -494,7 +575,7 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
                 _wait_for_prometheus_metric(prometheus_url, "node_cpu_seconds_total")
                 _wait_for_prometheus_metric(prometheus_url, "node_memory_MemTotal_bytes")
                 _wait_for_prometheus_metric(prometheus_url, "container_cpu_usage_seconds_total")
-                queries = load_queries(Path("lb_plugins/plugins/peva_faas/queries.yml"))
+                queries = load_queries(Path("lb_plugins/plugins/dfaas/queries.yml"))
                 active_queries = filter_queries(queries, scaphandre_enabled=False)
                 queries_by_name = {query.name: query for query in active_queries}
                 time_span = "30s"
@@ -602,6 +683,11 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
     ansible_dir = tmp_path / "ansible_dfaas_stream"
     staged_key = stage_private_key(Path(target_vm["key_path"]),
                                    ansible_dir / "keys")
+    _ensure_dfaas_k6_key_on_target(
+        target_vm["name"],
+        target_vm["user"],
+        staged_key,
+    )
     target_host = {
         "ip": target_vm["ip"],
         "user": target_vm["user"],
@@ -619,8 +705,8 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
     _write_inventory(target_inventory, target_host)
     _write_inventory(k6_inventory, k6_host)
 
-    setup_target = Path("lb_plugins/plugins/peva_faas/ansible/setup_target.yml")
-    setup_k6 = Path("lb_plugins/plugins/peva_faas/ansible/setup_k6.yml")
+    setup_target = Path("lb_plugins/plugins/dfaas/ansible/setup_target.yml")
+    setup_k6 = Path("lb_plugins/plugins/dfaas/ansible/setup_k6.yml")
 
     try:
         _run_playbook(
@@ -825,7 +911,40 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
         if run_done.is_set():
             summary = run_summary.get("summary")
             if summary and getattr(summary, "success", False) is False:
-                _skip_or_fail("DFaaS run failed before k6 log stream started.")
+                phase_lines: list[str] = []
+                phases = getattr(summary, "phases", None)
+                if isinstance(phases, dict):
+                    for name, result in phases.items():
+                        rc = getattr(result, "rc", None)
+                        status = getattr(result, "status", None)
+                        phase_lines.append(f"{name}: rc={rc} status={status}")
+
+                event_log_path = (
+                    f"/tmp/benchmark_results/dfaas_streaming_e2e/"
+                    f"{target_vm['name']}/lb_events.stream.log"
+                )
+                event_log_tail = "event log not available"
+                if _remote_file_exists(target_vm["name"], event_log_path):
+                    try:
+                        content = _remote_read_file(target_vm["name"], event_log_path)
+                        tail_lines = content.splitlines()[-40:]
+                        event_log_tail = "\n".join(tail_lines)
+                    except FileNotFoundError:
+                        event_log_tail = "event log missing after check"
+
+                details = "\n".join(
+                    [
+                        "Run summary indicates failure before k6 log stream started.",
+                        f"run_id={getattr(summary, 'run_id', 'unknown')}",
+                        "phases:",
+                        *phase_lines,
+                        "event_log_tail:",
+                        event_log_tail,
+                    ]
+                )
+                _skip_or_fail(
+                    "DFaaS run failed before k6 log stream started.\n" + details
+                )
 
         messages = [
             str(ev.get("message", ""))
@@ -863,7 +982,7 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
             k6_vm["name"], k6_workspace_root, "summary.json"
         )
         k6_scripts = _remote_find_files(
-            k6_vm["name"], k6_workspace_root, "config-*.js"
+            k6_vm["name"], k6_workspace_root, "script.js"
         )
 
         status_summary = "status file not checked"
@@ -1094,9 +1213,11 @@ def _verify_k6_workspace_artifacts(
         all_summaries = _remote_find_files(vm_name, workspace_root, "summary.json")
         missing_config = None
         for config_id_value in config_ids:
-            script_paths = _remote_find_files(
-                vm_name, workspace_root, f"config-{config_id_value}.js"
-            )
+            script_paths = [
+                p
+                for p in _remote_find_files(vm_name, workspace_root, "script.js")
+                if f"/{config_id_value}/" in p
+            ]
             summary_paths = [
                 p for p in all_summaries if f"/{config_id_value}/" in p
             ]
@@ -1310,8 +1431,8 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
     _write_inventory(k6_inventory, k6_host)
 
     # Setup target and k6 generator from the controller
-    setup_target = Path("lb_plugins/plugins/peva_faas/ansible/setup_target.yml")
-    setup_k6 = Path("lb_plugins/plugins/peva_faas/ansible/setup_k6.yml")
+    setup_target = Path("lb_plugins/plugins/dfaas/ansible/setup_target.yml")
+    setup_k6 = Path("lb_plugins/plugins/dfaas/ansible/setup_k6.yml")
 
     # Ensure benchmark library is deployed for CLI run (skip controller setup later).
     if not _deploy_code_to_vm(target_vm["name"], ansible_dir, staged_key, lb_workdir):

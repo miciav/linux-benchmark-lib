@@ -100,6 +100,7 @@
   "warmup_seconds": 2,
   "workloads": {
     "stress_ng": {
+      "collectors_enabled": true,
       "enabled": true,
       "intensity": "user_defined",
       "options": {

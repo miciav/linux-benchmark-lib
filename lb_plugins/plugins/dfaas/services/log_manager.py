@@ -74,22 +74,24 @@ class DfaasLogManager:
         self._attach_k6_loki_handler(run_id)
 
     def emit_log(self, message: str, *, level: str = "INFO") -> None:
-        self._emit_event(message, level)
+        if not self._emit_event(message, level):
+            self._log_to_logger(self.logger, message, level)
 
     def emit_k6_log(self, message: str, *, level: str = "INFO") -> None:
-        self._emit_event(message, level)
+        if not self._emit_event(message, level):
+            self._log_to_logger(self.k6_logger, message, level)
 
-    def _emit_event(self, message: str, level: str) -> None:
+    def _emit_event(self, message: str, level: str) -> bool:
         if not self.exec_ctx.event_logging_enabled:
-            return
+            return False
         root_logger = logging.getLogger()
         if any(
             isinstance(handler, LBEventLogHandler)
             for handler in root_logger.handlers
         ):
-            return
+            return False
         if self._event_run_id is None:
-            return
+            return False
         event = RunEvent(
             run_id=self._event_run_id,
             host=self.exec_ctx.host,
@@ -103,6 +105,12 @@ class DfaasLogManager:
             level=level,
         )
         self.event_emitter.emit(event)
+        return True
+
+    @staticmethod
+    def _log_to_logger(logger: logging.Logger, message: str, level: str) -> None:
+        level_no = logging._nameToLevel.get(level.upper(), logging.INFO)
+        logger.log(level_no, "%s", message)
 
     def _attach_loki_handler(self, run_id: str) -> None:
         if self._loki_handler:

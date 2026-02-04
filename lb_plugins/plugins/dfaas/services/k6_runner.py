@@ -86,6 +86,7 @@ class K6Runner:
         self.log_stream_enabled = log_stream_enabled
         self._log_callback = log_callback
         self._log_to_logger = log_to_logger
+        self._stream_started = False
 
     def _get_connection(self) -> Connection:
         """Create a Fabric connection to the k6 host."""
@@ -211,6 +212,9 @@ class K6Runner:
         log_path = f"{workspace}/k6.log"
 
         try:
+            if self.log_stream_enabled and not self._stream_started:
+                self._log("k6[stream] log stream started")
+                self._stream_started = True
             conn.run(f"mkdir -p {workspace}", hide=True, in_stream=False)
 
             with tempfile.NamedTemporaryFile("w", delete=False) as f:
