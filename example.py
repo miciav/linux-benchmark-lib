@@ -29,7 +29,14 @@ def create_custom_config() -> BenchmarkConfig:
     """Create a small local config with one enabled workload."""
     stress_cfg = StressNGConfig(cpu_workers=2, cpu_method="matrixprod", timeout=20)
     dd_cfg = DDConfig(bs="4M", oflag="direct")
-    fio_cfg = FIOConfig(runtime=20, rw="randrw", bs="4k", iodepth=16, numjobs=1, size="256M")
+    fio_cfg = FIOConfig(
+        runtime=20,
+        rw="randrw",
+        bs="4k",
+        iodepth=16,
+        numjobs=1,
+        size="256M",
+    )
 
     return BenchmarkConfig(
         repetitions=1,
@@ -43,9 +50,21 @@ def create_custom_config() -> BenchmarkConfig:
             "fio": fio_cfg,
         },
         workloads={
-            "stress_ng": WorkloadConfig(plugin="stress_ng", enabled=True, options=stress_cfg.model_dump()),
-            "dd": WorkloadConfig(plugin="dd", enabled=False, options=dd_cfg.model_dump()),
-            "fio": WorkloadConfig(plugin="fio", enabled=False, options=fio_cfg.model_dump()),
+            "stress_ng": WorkloadConfig(
+                plugin="stress_ng",
+                enabled=True,
+                options=stress_cfg.model_dump(),
+            ),
+            "dd": WorkloadConfig(
+                plugin="dd",
+                enabled=False,
+                options=dd_cfg.model_dump(),
+            ),
+            "fio": WorkloadConfig(
+                plugin="fio",
+                enabled=False,
+                options=fio_cfg.model_dump(),
+            ),
         },
         collectors=MetricCollectorConfig(
             psutil_interval=1.0,
@@ -59,7 +78,9 @@ def create_custom_config() -> BenchmarkConfig:
     )
 
 
-def run_single_benchmark(config: BenchmarkConfig, test_type: str, registry: PluginRegistry) -> None:
+def run_single_benchmark(
+    config: BenchmarkConfig, test_type: str, registry: PluginRegistry
+) -> None:
     """Run one workload with the local runner and print status."""
     print(f"\n{'='*60}")
     print(f"Running {test_type} benchmark")
@@ -67,7 +88,12 @@ def run_single_benchmark(config: BenchmarkConfig, test_type: str, registry: Plug
 
     runner = LocalRunner(config, registry=registry)
     system_info = runner.collect_system_info()
-    print("System Info:", system_info["platform"], "Python", system_info["python"]["version"])
+    print(
+        "System Info:",
+        system_info["platform"],
+        "Python",
+        system_info["python"]["version"],
+    )
 
     try:
         runner.run_benchmark(test_type)
