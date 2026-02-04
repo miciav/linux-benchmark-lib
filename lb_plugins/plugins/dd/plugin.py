@@ -196,7 +196,7 @@ class DDPlugin(SimpleWorkloadPlugin):
     GENERATOR_CLS = DDGenerator
     REQUIRED_APT_PACKAGES = ["coreutils"]
     REQUIRED_LOCAL_TOOLS = ["dd"]
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[DDConfig]:
         if level == WorkloadIntensity.LOW:

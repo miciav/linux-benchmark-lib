@@ -1,20 +1,16 @@
 """Pytest configuration for lb_gui tests."""
 
-# Check if PySide6 is available at collection time
-try:
-    import PySide6  # noqa: F401
+from pathlib import Path
 
-    HAS_PYSIDE6 = True
-except ImportError:
-    HAS_PYSIDE6 = False
+from tests.helpers.optional_imports import module_available
 
-# Skip collection of test files if PySide6 is not available
-if not HAS_PYSIDE6:
+HAS_PYSIDE6 = module_available("PySide6")
+HAS_LB_GUI = module_available("lb_gui.viewmodels")
+
+# Skip collection of test files if GUI deps or submodule are missing.
+if not HAS_PYSIDE6 or not HAS_LB_GUI:
     collect_ignore = [
-        "test_run_worker.py",
-        "test_run_setup_vm.py",
-        "test_dashboard_vm.py",
-        "test_results_vm.py",
-        "test_analytics_vm.py",
-        "test_config_plugins_doctor_vm.py",
+        path.name
+        for path in Path(__file__).parent.glob("test_*.py")
+        if path.name != "test_dependencies.py"
     ]

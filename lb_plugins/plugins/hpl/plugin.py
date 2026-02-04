@@ -373,7 +373,7 @@ class HPLPlugin(SimpleWorkloadPlugin):
         "tar",
     ]
     REQUIRED_LOCAL_TOOLS = ["mpirun", "make"]
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[HPLConfig]:
         cpu_count = multiprocessing.cpu_count()

@@ -17,7 +17,7 @@ def test_config_path_load_with_overrides(tmp_path: Path) -> None:
                 "  timeout_buffer: 5",
                 "plugins:",
                 "  peva_faas:",
-                "    k6_host: \"10.0.0.50\"",
+                "    k3s_host: \"10.0.0.50\"",
                 "    functions:",
                 "      - name: \"figlet\"",
                 "        method: \"POST\"",
@@ -39,7 +39,7 @@ def test_config_path_load_with_overrides(tmp_path: Path) -> None:
     config = DfaasConfig(config_path=config_path, rate_strategy={"type": "linear", "max_rate": 50})
 
     assert config.timeout_buffer == 5
-    assert config.k6_host == "10.0.0.50"
+    assert config.k3s_host == "10.0.0.50"
     assert config.rate_strategy.min_rate == 0
     assert config.rate_strategy.max_rate == 50
 

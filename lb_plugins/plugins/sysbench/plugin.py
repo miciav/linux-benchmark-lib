@@ -126,7 +126,7 @@ class SysbenchPlugin(SimpleWorkloadPlugin):
     CONFIG_CLS = SysbenchConfig
     REQUIRED_APT_PACKAGES = ["sysbench"]
     REQUIRED_LOCAL_TOOLS = ["sysbench"]
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
     def create_generator(self, config: SysbenchConfig | dict) -> SysbenchGenerator:
         if isinstance(config, dict):

@@ -179,6 +179,10 @@ class WorkloadConfig(BaseModel):
 
     plugin: str = Field(description="Name of the plugin to use")
     enabled: bool = Field(default=True, description="Whether this workload is enabled")
+    collectors_enabled: bool = Field(
+        default=True,
+        description="Enable metric collectors for this workload",
+    )
     intensity: str = Field(default="user_defined", description="Pre-defined intensity level (low, medium, high, user_defined)")
     options: Dict[str, Any] = Field(default_factory=dict, description="Plugin-specific options for the workload")
 

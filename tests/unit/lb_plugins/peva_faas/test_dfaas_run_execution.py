@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -23,6 +24,7 @@ def _make_context(function_names: list[str]) -> DfaasRunContext:
         base_idle=MagicMock(),
         target_name="node-1",
         run_id="run-1",
+        output_dir=Path("/tmp"),
     )
 
 

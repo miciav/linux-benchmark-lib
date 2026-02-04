@@ -52,6 +52,8 @@ class RepetitionExecutor:
         generator: Any,
         repetition: int,
         total_repetitions: int,
+        *,
+        collectors_enabled: bool = True,
     ) -> Dict[str, Any]:
         """
         Run a single test with the specified generator.
@@ -77,6 +79,7 @@ class RepetitionExecutor:
             repetition=repetition,
             total_repetitions=total_repetitions,
             current_run_id=self.context.run_id,
+            collectors_enabled=collectors_enabled,
         )
         duration = resolve_duration(self.context.config, generator, logger)
 
@@ -183,6 +186,7 @@ class RepetitionExecutor:
         total_repetitions: int,
         *,
         plugin: WorkloadPlugin | None = None,
+        collectors_enabled: bool = True,
     ) -> RepetitionOutcome:
         """Execute a repetition and return a normalized outcome summary."""
         try:
@@ -191,6 +195,7 @@ class RepetitionExecutor:
                 generator=generator,
                 repetition=repetition,
                 total_repetitions=total_repetitions,
+                collectors_enabled=collectors_enabled,
             )
             self._cleanup_generator(generator, test_name, repetition)
             self._process_results(test_name, [result], plugin=plugin)

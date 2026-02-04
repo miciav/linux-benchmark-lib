@@ -637,7 +637,7 @@ class StreamPlugin(SimpleWorkloadPlugin):
     GENERATOR_CLS = StreamGenerator
     REQUIRED_APT_PACKAGES = ["libgomp1", "gcc", "make", "numactl"]
     REQUIRED_LOCAL_TOOLS = ["gcc", "numactl"]
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     TEARDOWN_PLAYBOOK = Path(__file__).parent / "ansible" / "teardown.yml"
     PRESET_COMPILERS = ["gcc", "icc"]
 

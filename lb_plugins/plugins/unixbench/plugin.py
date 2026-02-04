@@ -93,7 +93,7 @@ class UnixBenchPlugin(SimpleWorkloadPlugin):
         "wget",
     ]
     REQUIRED_LOCAL_TOOLS = ["make", "gcc", "wget"]
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
     def create_generator(self, config: UnixBenchConfig | dict) -> UnixBenchGenerator:
         if isinstance(config, dict):
