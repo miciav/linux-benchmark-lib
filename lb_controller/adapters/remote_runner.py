@@ -55,7 +55,11 @@ class ControllerRunner:
         """Start the controller thread."""
         if self._thread and self._thread.is_alive():
             return
-        self._thread = threading.Thread(target=self._run, name="lb-controller-runner", daemon=True)
+        self._thread = threading.Thread(
+            target=self._run,
+            name="lb-controller-runner",
+            daemon=True,
+        )
         self._thread.start()
 
     def wait(self, timeout: float | None = None) -> Any:
@@ -83,28 +87,36 @@ class ControllerRunner:
     def _run(self) -> None:
         try:
             self._result = self._run_callable()
-            if not self._machine.is_terminal():
-                final_state = (
-                    ControllerState.ABORTED
-                    if self._stop_token and self._stop_token.should_stop()
-                    else ControllerState.FINISHED
-                )
-                self._machine.transition(final_state)
+            self._finalize_success()
         except BaseException as exc:  # pragma: no cover - worker safety
-            self._exception = exc
-            # If stop was requested, mark as aborted; otherwise failed.
-            final_state = (
-                ControllerState.ABORTED
-                if self._stop_token and self._stop_token.should_stop()
-                else ControllerState.FAILED
-            )
-            try:
-                if not self._machine.is_terminal():
-                    self._machine.transition(final_state, reason=str(exc))
-            except Exception:
-                try:
-                    self._machine.transition(ControllerState.FAILED, reason=str(exc))
-                except Exception:
-                    pass
+            self._handle_failure(exc)
         finally:
             self._done.set()
+
+    def _finalize_success(self) -> None:
+        if self._machine.is_terminal():
+            return
+        final_state = self._final_state_on_success()
+        self._machine.transition(final_state)
+
+    def _handle_failure(self, exc: BaseException) -> None:
+        self._exception = exc
+        final_state = self._final_state_on_failure()
+        try:
+            if not self._machine.is_terminal():
+                self._machine.transition(final_state, reason=str(exc))
+        except Exception:
+            try:
+                self._machine.transition(ControllerState.FAILED, reason=str(exc))
+            except Exception:
+                pass
+
+    def _final_state_on_success(self) -> ControllerState:
+        if self._stop_token and self._stop_token.should_stop():
+            return ControllerState.ABORTED
+        return ControllerState.FINISHED
+
+    def _final_state_on_failure(self) -> ControllerState:
+        if self._stop_token and self._stop_token.should_stop():
+            return ControllerState.ABORTED
+        return ControllerState.FAILED

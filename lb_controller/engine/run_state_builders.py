@@ -8,7 +8,11 @@ from typing import Any, Iterable
 
 from lb_controller.models.types import InventorySpec
 from lb_controller.services.journal import RunJournal
-from lb_controller.services.paths import generate_run_id, prepare_per_host_dirs, prepare_run_dirs
+from lb_controller.services.paths import (
+    generate_run_id,
+    prepare_per_host_dirs,
+    prepare_run_dirs,
+)
 from lb_runner.api import BenchmarkConfig
 
 
@@ -62,6 +66,7 @@ class ExtravarsBuilder:
         target_reps: int,
         collector_packages: Iterable[str],
     ) -> dict[str, Any]:
+        remote_exec = self.config.remote_execution
         remote_output_root = f"/tmp/benchmark_results/{run_id}"
         return {
             "run_id": run_id,
@@ -69,11 +74,11 @@ class ExtravarsBuilder:
             "remote_output_root": remote_output_root,
             "report_root": str(report_root),
             "data_export_root": str(data_export_root),
-            "lb_workdir": self.config.remote_execution.lb_workdir,
+            "lb_workdir": remote_exec.lb_workdir,
             "per_host_output": {k: str(v) for k, v in per_host_output.items()},
             "benchmark_config": self.config.model_dump(mode="json"),
-            "use_container_fallback": self.config.remote_execution.use_container_fallback,
-            "lb_upgrade_pip": self.config.remote_execution.upgrade_pip,
+            "use_container_fallback": remote_exec.use_container_fallback,
+            "lb_upgrade_pip": remote_exec.upgrade_pip,
             "collector_apt_packages": sorted(collector_packages),
             "workload_runner_install_deps": False,
             "repetitions_total": target_reps,

@@ -152,7 +152,8 @@ def _update_task_status(task, entry: Dict) -> None:
     entry_error_context = entry.get("error_context")
     if gen_error or (gen_rc not in (None, 0)):
         task.status = RunStatus.FAILED
-        task.current_action = task.error = _format_error_message(gen_error, gen_rc, gen_result)
+        error_message = _format_error_message(gen_error, gen_rc, gen_result)
+        task.current_action = task.error = error_message
         task.error_type = entry_error_type
         task.error_context = entry_error_context
         return
@@ -166,7 +167,9 @@ def _update_task_status(task, entry: Dict) -> None:
         task.status = RunStatus.COMPLETED
 
 
-def _format_error_message(gen_error: Optional[str], gen_rc: Optional[int], gen_result: Dict) -> str:
+def _format_error_message(
+    gen_error: Optional[str], gen_rc: Optional[int], gen_result: Dict
+) -> str:
     err_parts = []
     if gen_error:
         err_parts.append(str(gen_error))

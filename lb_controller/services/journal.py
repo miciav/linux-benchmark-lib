@@ -57,36 +57,8 @@ class RunJournal:
     ) -> "RunJournal":
         """Factory to create a new journal based on configuration."""
         journal = cls(run_id=run_id)
-        cfg_dump = _config_dump(config)
-        journal.metadata = {
-            "created_at": datetime.now().isoformat(),
-            "config_summary": str(config),  # Simple representation
-            "repetitions": getattr(config, "repetitions", None),
-            "system_info": {},  # host -> summary string/path mapping
-            "config_dump": cfg_dump,
-            "config_hash": _config_hash(cfg_dump),
-        }
-
-        # Pre-populate tasks based on config
-        # We iterate test_types order to keep logical sequence
-        hosts = (
-            config.remote_hosts
-            if getattr(config, "remote_hosts", None)
-            else [SimpleNamespace(name="localhost")]
-        )
-        for test_name in test_types:
-            if test_name not in config.workloads:
-                continue
-
-            for host in hosts:
-                for rep in range(1, config.repetitions + 1):
-                    task = TaskState(
-                        host=host.name,
-                        workload=test_name,
-                        repetition=rep,
-                        status=RunStatus.PENDING,
-                    )
-                    journal.add_task(task)
+        journal.metadata = _build_metadata(config)
+        _populate_tasks(journal, config, test_types)
         return journal
 
     def add_task(self, task: TaskState) -> None:
@@ -148,7 +120,8 @@ class RunJournal:
             if allow_skipped:
                 return task.status != RunStatus.COMPLETED
             return task.status not in (RunStatus.COMPLETED, RunStatus.SKIPPED)
-        # If task not found, it's technically new, so run it (though this shouldn't happen if initialized correctly)
+        # If task not found, it's technically new, so run it (this shouldn't
+        # happen if initialized correctly).
         return True
 
     @staticmethod
@@ -181,28 +154,10 @@ class RunJournal:
             data = json.load(f)
 
         metadata = data.get("metadata", {}) or {}
-        cfg_dump = metadata.get("config_dump")
-        cfg_hash = metadata.get("config_hash")
-
-        if config is not None:
-            expected_reps = metadata.get("repetitions")
-            if expected_reps and getattr(config, "repetitions", None) != expected_reps:
-                raise ValueError(
-                    "Config does not match journal repetitions; aborting resume."
-                )
-            if cfg_hash and cfg_dump:
-                current_dump = _config_dump(config)
-                current_hash = _config_hash(current_dump)
-                if current_hash != cfg_hash:
-                    raise ValueError(
-                        "Config hash mismatch for resume; supply matching config or rely on journal config_dump."
-                    )
+        _validate_config(metadata, config)
         tasks_data = data.pop("tasks", [])
         journal = cls(**data)
-        journal.tasks = {}
-        for t in tasks_data:
-            task = TaskState(**t)
-            journal.tasks[task.key] = task
+        journal.tasks = _load_tasks(tasks_data)
         if not getattr(journal, "metadata", None):
             journal.metadata = metadata
         return journal
@@ -221,7 +176,7 @@ class RunJournal:
 
 
 class LogSink:
-    """Persist events and mirror them to the run journal and optional stdout/log file."""
+    """Persist events and mirror them to the run journal and optional log file."""
 
     def __init__(
         self, journal: RunJournal, journal_path: Path, log_file: Path | None = None
@@ -276,21 +231,7 @@ class LogSink:
         """Append a single-line representation to the optional log file."""
         if not self._log_handle:
             return
-        ts = datetime.fromtimestamp(
-            event.timestamp or datetime.now().timestamp()
-        ).isoformat()
-        line = (
-            f"[{ts}] {event.host} {event.workload} rep "
-            f"{event.repetition}/{event.total_repetitions} status={event.status}"
-        )
-        if event.type and event.type != "status":
-            line += f" type={event.type}"
-        if event.level and event.level != "INFO":
-            line += f" level={event.level}"
-        if event.message:
-            line += f" msg={event.message}"
-        if event.error_type:
-            line += f" err_type={event.error_type}"
+        line = _build_log_line(event)
         try:
             self._log_handle.write(line + "\n")
             self._log_handle.flush()
@@ -318,3 +259,101 @@ def _config_hash(cfg_dump: Dict[str, Any]) -> str:
     except Exception:
         payload = str(cfg_dump).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def _build_metadata(config: Any) -> Dict[str, Any]:
+    cfg_dump = _config_dump(config)
+    return {
+        "created_at": datetime.now().isoformat(),
+        "config_summary": str(config),
+        "repetitions": getattr(config, "repetitions", None),
+        "system_info": {},
+        "config_dump": cfg_dump,
+        "config_hash": _config_hash(cfg_dump),
+    }
+
+
+def _resolve_hosts(config: Any) -> List[Any]:
+    return (
+        config.remote_hosts
+        if getattr(config, "remote_hosts", None)
+        else [SimpleNamespace(name="localhost")]
+    )
+
+
+def _populate_tasks(
+    journal: RunJournal, config: Any, test_types: List[str]
+) -> None:
+    hosts = _resolve_hosts(config)
+    for task in _iter_task_specs(config, test_types, hosts):
+        journal.add_task(task)
+
+
+def _iter_task_specs(
+    config: Any, test_types: List[str], hosts: List[Any]
+) -> Iterable[TaskState]:
+    reps = range(1, config.repetitions + 1)
+    return (
+        TaskState(
+            host=host.name,
+            workload=test_name,
+            repetition=rep,
+            status=RunStatus.PENDING,
+        )
+        for test_name in _valid_test_names(config, test_types)
+        for host in hosts
+        for rep in reps
+    )
+
+
+def _valid_test_names(config: Any, test_types: List[str]) -> Iterable[str]:
+    return (name for name in test_types if name in config.workloads)
+
+
+def _validate_config(metadata: Dict[str, Any], config: Any | None) -> None:
+    if config is None:
+        return
+    expected_reps = metadata.get("repetitions")
+    if expected_reps and getattr(config, "repetitions", None) != expected_reps:
+        raise ValueError(
+            "Config does not match journal repetitions; aborting resume."
+        )
+    cfg_dump = metadata.get("config_dump")
+    cfg_hash = metadata.get("config_hash")
+    if cfg_hash and cfg_dump:
+        current_dump = _config_dump(config)
+        current_hash = _config_hash(current_dump)
+        if current_hash != cfg_hash:
+            raise ValueError(
+                "Config hash mismatch for resume; supply matching config or rely on "
+                "journal config_dump."
+            )
+
+
+def _load_tasks(tasks_data: Iterable[Dict[str, Any]]) -> Dict[str, TaskState]:
+    tasks: Dict[str, TaskState] = {}
+    for task_data in tasks_data:
+        task = TaskState(**task_data)
+        tasks[task.key] = task
+    return tasks
+
+
+def _build_log_line(event: RunEvent) -> str:
+    ts = datetime.fromtimestamp(
+        event.timestamp or datetime.now().timestamp()
+    ).isoformat()
+    parts = [
+        (
+            f"[{ts}] {event.host} {event.workload} rep "
+            f"{event.repetition}/{event.total_repetitions} status={event.status}"
+        )
+    ]
+    if event.type and event.type != "status":
+        parts.append(f" type={event.type}")
+    if event.level and event.level != "INFO":
+        parts.append(f" level={event.level}")
+    if event.message:
+        parts.append(f" msg={event.message}")
+    if event.error_type:
+        parts.append(f" err_type={event.error_type}")
+    return "".join(parts)

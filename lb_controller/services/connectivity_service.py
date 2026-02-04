@@ -110,36 +110,8 @@ class ConnectivityService:
             HostConnectivityResult with connectivity status.
         """
         start_time = time.time()
-
-        # Build SSH command with options for non-interactive check
-        ssh_cmd = [
-            "ssh",
-            "-o", "BatchMode=yes",
-            "-o", f"ConnectTimeout={timeout}",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "LogLevel=ERROR",
-        ]
-
-        # Add port if non-default
-        port = getattr(host, "port", None) or 22
-        if port != 22:
-            ssh_cmd.extend(["-p", str(port)])
-
-        # Add SSH key if specified
-        ssh_key = getattr(host, "ssh_key", None) or getattr(host, "key_file", None)
-        if not ssh_key:
-            vars_map = getattr(host, "vars", None) or {}
-            if isinstance(vars_map, dict):
-                ssh_key = vars_map.get("ansible_ssh_private_key_file")
-        if ssh_key:
-            ssh_cmd.extend(["-i", str(ssh_key)])
-
-        # Add user@address and the test command
-        user = getattr(host, "user", None) or "root"
         address = host.address
-        ssh_cmd.append(f"{user}@{address}")
-        ssh_cmd.append("echo ok")
+        ssh_cmd = _build_ssh_command(host, timeout, address)
 
         try:
             result = subprocess.run(
@@ -148,48 +120,101 @@ class ConnectivityService:
                 text=True,
                 timeout=timeout + 5,  # Give a bit more time than SSH timeout
             )
-
-            elapsed_ms = (time.time() - start_time) * 1000
-
-            if result.returncode == 0 and "ok" in result.stdout:
-                return HostConnectivityResult(
-                    name=host.name,
-                    address=address,
-                    reachable=True,
-                    latency_ms=round(elapsed_ms, 2),
-                )
-            else:
-                error_msg = result.stderr.strip() or f"SSH exit code: {result.returncode}"
-                return HostConnectivityResult(
-                    name=host.name,
-                    address=address,
-                    reachable=False,
-                    latency_ms=round(elapsed_ms, 2),
-                    error_message=error_msg,
-                )
-
         except subprocess.TimeoutExpired:
-            elapsed_ms = (time.time() - start_time) * 1000
-            return HostConnectivityResult(
-                name=host.name,
-                address=address,
-                reachable=False,
-                latency_ms=round(elapsed_ms, 2),
-                error_message=f"Connection timed out after {timeout}s",
-            )
+            return _timeout_result(host, address, start_time, timeout)
         except FileNotFoundError:
-            return HostConnectivityResult(
-                name=host.name,
-                address=address,
-                reachable=False,
-                error_message="SSH client not found in PATH",
+            return _error_result(
+                host, address, "SSH client not found in PATH"
             )
         except Exception as exc:
-            elapsed_ms = (time.time() - start_time) * 1000
-            return HostConnectivityResult(
-                name=host.name,
-                address=address,
-                reachable=False,
-                latency_ms=round(elapsed_ms, 2),
-                error_message=str(exc),
-            )
+            return _error_result(host, address, str(exc), start_time)
+
+        elapsed_ms = _elapsed_ms(start_time)
+        if result.returncode == 0 and "ok" in result.stdout:
+            return _success_result(host, address, elapsed_ms)
+        error_msg = result.stderr.strip() or f"SSH exit code: {result.returncode}"
+        return _error_result(host, address, error_msg, start_time)
+
+
+def _build_ssh_command(
+    host: RemoteHostConfig, timeout: int, address: str
+) -> list[str]:
+    ssh_cmd = [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        f"ConnectTimeout={timeout}",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "LogLevel=ERROR",
+    ]
+    port = getattr(host, "port", None) or 22
+    if port != 22:
+        ssh_cmd.extend(["-p", str(port)])
+    ssh_key = _resolve_ssh_key(host)
+    if ssh_key:
+        ssh_cmd.extend(["-i", str(ssh_key)])
+    user = getattr(host, "user", None) or "root"
+    ssh_cmd.append(f"{user}@{address}")
+    ssh_cmd.append("echo ok")
+    return ssh_cmd
+
+
+def _resolve_ssh_key(host: RemoteHostConfig) -> str | None:
+    ssh_key = getattr(host, "ssh_key", None) or getattr(host, "key_file", None)
+    if ssh_key:
+        return str(ssh_key)
+    vars_map = getattr(host, "vars", None) or {}
+    if isinstance(vars_map, dict):
+        return vars_map.get("ansible_ssh_private_key_file")
+    return None
+
+
+def _elapsed_ms(start_time: float) -> float:
+    return (time.time() - start_time) * 1000
+
+
+def _success_result(
+    host: RemoteHostConfig, address: str, elapsed_ms: float
+) -> HostConnectivityResult:
+    return HostConnectivityResult(
+        name=host.name,
+        address=address,
+        reachable=True,
+        latency_ms=round(elapsed_ms, 2),
+    )
+
+
+def _timeout_result(
+    host: RemoteHostConfig,
+    address: str,
+    start_time: float,
+    timeout: int,
+) -> HostConnectivityResult:
+    return HostConnectivityResult(
+        name=host.name,
+        address=address,
+        reachable=False,
+        latency_ms=round(_elapsed_ms(start_time), 2),
+        error_message=f"Connection timed out after {timeout}s",
+    )
+
+
+def _error_result(
+    host: RemoteHostConfig,
+    address: str,
+    error_message: str,
+    start_time: float | None = None,
+) -> HostConnectivityResult:
+    latency_ms = round(_elapsed_ms(start_time), 2) if start_time else None
+    return HostConnectivityResult(
+        name=host.name,
+        address=address,
+        reachable=False,
+        latency_ms=latency_ms,
+        error_message=error_message,
+    )

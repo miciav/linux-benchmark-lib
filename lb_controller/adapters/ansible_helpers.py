@@ -210,20 +210,13 @@ class ProcessOutputStreamer:
         selector.register(proc.stdout, selectors.EVENT_READ)
         try:
             while True:
-                if should_stop():
+                if self._should_terminate(should_stop, terminate):
                     stop_requested = True
-                    terminate()
                     break
                 if proc.poll() is not None:
                     break
-                events = selector.select(timeout=0.1)
-                if not events:
-                    continue
-                for key, _mask in events:
-                    line = key.fileobj.readline()
-                    if not line:
-                        break
-                    self.emit_line(line)
+                if self._drain_ready_lines(selector):
+                    break
         finally:
             selector.close()
         return stop_requested
@@ -234,6 +227,25 @@ class ProcessOutputStreamer:
         else:
             sys.stdout.write(line)
             sys.stdout.flush()
+
+    def _should_terminate(
+        self, should_stop: Callable[[], bool], terminate: Callable[[], None]
+    ) -> bool:
+        if not should_stop():
+            return False
+        terminate()
+        return True
+
+    def _drain_ready_lines(self, selector: selectors.BaseSelector) -> bool:
+        events = selector.select(timeout=0.1)
+        if not events:
+            return False
+        for key, _mask in events:
+            line = key.fileobj.readline()
+            if not line:
+                return True
+            self.emit_line(line)
+        return False
 
 
 class SubprocessRunner:

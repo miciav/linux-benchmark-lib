@@ -8,10 +8,17 @@ from typing import Any, Callable, Dict, List, Optional
 
 from lb_controller.models.state import ControllerState
 from lb_controller.services.journal import RunStatus
-from lb_controller.services.journal_sync import backfill_timings_from_results, update_all_reps
+from lb_controller.services.journal_sync import (
+    backfill_timings_from_results,
+    update_all_reps,
+)
 from lb_controller.engine.lifecycle import RunPhase
 from lb_controller.engine.run_state import RunFlags, RunState
-from lb_controller.models.types import ExecutionResult, InventorySpec, RunExecutionSummary
+from lb_controller.models.types import (
+    ExecutionResult,
+    InventorySpec,
+    RunExecutionSummary,
+)
 from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import RemoteHostConfig
 from lb_controller.services.services import ControllerServices
@@ -29,6 +36,7 @@ def _stop_requested(services: ControllerServices, session: RunSession) -> bool:
         return True
     return False
 
+
 def _interrupt_executor(services: ControllerServices) -> None:
     if hasattr(services.executor, "interrupt"):
         try:
@@ -36,12 +44,14 @@ def _interrupt_executor(services: ControllerServices) -> None:
         except Exception:
             pass
 
+
 def _refresh_journal(services: ControllerServices) -> None:
     if services.journal_refresh:
         try:
             services.journal_refresh()
         except Exception as exc:
             logger.debug("Journal refresh callback failed: %s", exc)
+
 
 def build_summary(
     services: ControllerServices,
@@ -167,7 +177,9 @@ def run_workload_setup(
     if not res.success:
         ui_log(f"Setup failed for {test_name} (rc={res.rc}, status={res.status})")
         flags.all_tests_success = False
-        run_teardown_playbook(services, plugin_assets, plugin_name, inventory, extravars)
+        run_teardown_playbook(
+            services, plugin_assets, plugin_name, inventory, extravars
+        )
         pending_reps.clear()
 
 
@@ -202,7 +214,14 @@ def run_workload_execution(
     finally:
         try:
             handle_collect_phase(
-                services, session, test_name, pending_hosts, state, phases, flags, ui_log
+                services,
+                session,
+                test_name,
+                pending_hosts,
+                state,
+                phases,
+                flags,
+                ui_log,
             )
         except Exception as exc:
             ui_log(f"Collect failed for {test_name}: {exc}")
@@ -211,7 +230,13 @@ def run_workload_execution(
             services, session, state.inventory, state.extravars, flags, ui_log
         )
         return
-    run_teardown_playbook(services, plugin_assets, plugin_name, state.inventory, state.extravars)
+    run_teardown_playbook(
+        services,
+        plugin_assets,
+        plugin_name,
+        state.inventory,
+        state.extravars,
+    )
 
 
 def execute_run_playbook(
@@ -226,25 +251,16 @@ def execute_run_playbook(
     ui_log: Callable[[str], None],
 ) -> None:
     """Run the workload execution playbook and update journal status."""
-    ui_log(f"Run: {test_name} on {len(pending_hosts)} host(s)")
-    if services.output_formatter:
-        services.output_formatter.set_phase(f"Run: {test_name}")
-    if not services.use_progress_stream:
-        update_all_reps(
-            services.config.repetitions,
-            state.active_journal,
-            state.journal_file,
-            pending_hosts,
-            test_name,
-            RunStatus.RUNNING,
-            action="Running workload...",
-            refresh=services.journal_refresh,
-        )
-
-    loop_extravars = state.extravars.copy()
-    loop_extravars["tests"] = [test_name]
-    loop_extravars["pending_repetitions"] = pending_reps
-
+    _announce_run_phase(services, test_name, pending_hosts, ui_log)
+    _update_reps_for_run(
+        services,
+        state,
+        pending_hosts,
+        test_name,
+        RunStatus.RUNNING,
+        action="Running workload...",
+    )
+    loop_extravars = _build_run_extravars(state, test_name, pending_reps)
     res_run = services.executor.run_playbook(
         services.config.remote_execution.run_playbook,
         inventory=state.inventory,
@@ -253,18 +269,15 @@ def execute_run_playbook(
     phases[f"run_{test_name}"] = res_run
     status = RunStatus.COMPLETED if res_run.success else RunStatus.FAILED
 
-    if not services.use_progress_stream:
-        update_all_reps(
-            services.config.repetitions,
-            state.active_journal,
-            state.journal_file,
-            pending_hosts,
-            test_name,
-            status,
-            action="Completed" if res_run.success else "Failed",
-            error=None if res_run.success else "ansible-playbook failed",
-            refresh=services.journal_refresh,
-        )
+    _update_reps_for_run(
+        services,
+        state,
+        pending_hosts,
+        test_name,
+        status,
+        action="Completed" if res_run.success else "Failed",
+        error=None if res_run.success else "ansible-playbook failed",
+    )
 
     if not res_run.success:
         ui_log(f"Run failed for {test_name}")
@@ -287,57 +300,129 @@ def handle_collect_phase(
     res_run = phases.get(f"run_{test_name}")
     status = RunStatus.COMPLETED if res_run and res_run.success else RunStatus.FAILED
     if services.config.remote_execution.run_collect:
-        ui_log(f"Collect: {test_name}")
-        if services.output_formatter:
-            services.output_formatter.set_phase(f"Collect: {test_name}")
-        if not services.use_progress_stream:
-            update_all_reps(
-                services.config.repetitions,
-                state.active_journal,
-                state.journal_file,
-                pending_hosts,
-                test_name,
-                status,
-                action="Collecting results",
-                refresh=services.journal_refresh,
-            )
-        res_col = services.executor.run_playbook(
-            services.config.remote_execution.collect_playbook,
-            inventory=state.inventory,
-            extravars=state.extravars,
-        )
-        phases[f"collect_{test_name}"] = res_col
-        backfill_timings_from_results(
-            state.active_journal,
-            state.journal_file,
+        _run_collect_playbook(
+            services,
+            state,
             pending_hosts,
             test_name,
-            state.per_host_output,
-            refresh=services.journal_refresh,
+            status,
+            phases,
+            ui_log,
         )
     else:
-        backfill_timings_from_results(
-            state.active_journal,
-            state.journal_file,
-            pending_hosts,
-            test_name,
-            state.per_host_output,
-            refresh=services.journal_refresh,
+        _skip_collect_phase(
+            services, state, pending_hosts, test_name, status, phases
         )
-        phases[f"collect_{test_name}"] = ExecutionResult(
-            rc=0, status="skipped", stats={}
-        )
-        if not services.use_progress_stream:
-            update_all_reps(
-                services.config.repetitions,
-                state.active_journal,
-                state.journal_file,
-                pending_hosts,
-                test_name,
-                status,
-                action="Done",
-                refresh=services.journal_refresh,
-            )
+
+
+def _announce_run_phase(
+    services: ControllerServices,
+    test_name: str,
+    pending_hosts: List[RemoteHostConfig],
+    ui_log: Callable[[str], None],
+) -> None:
+    ui_log(f"Run: {test_name} on {len(pending_hosts)} host(s)")
+    if services.output_formatter:
+        services.output_formatter.set_phase(f"Run: {test_name}")
+
+
+def _update_reps_for_run(
+    services: ControllerServices,
+    state: RunState,
+    pending_hosts: List[RemoteHostConfig],
+    test_name: str,
+    status: RunStatus,
+    *,
+    action: str,
+    error: str | None = None,
+) -> None:
+    if services.use_progress_stream:
+        return
+    update_all_reps(
+        services.config.repetitions,
+        state.active_journal,
+        state.journal_file,
+        pending_hosts,
+        test_name,
+        status,
+        action=action,
+        error=error,
+        refresh=services.journal_refresh,
+    )
+
+
+def _build_run_extravars(
+    state: RunState,
+    test_name: str,
+    pending_reps: Dict[str, List[int]],
+) -> Dict[str, Any]:
+    loop_extravars = state.extravars.copy()
+    loop_extravars["tests"] = [test_name]
+    loop_extravars["pending_repetitions"] = pending_reps
+    return loop_extravars
+
+
+def _run_collect_playbook(
+    services: ControllerServices,
+    state: RunState,
+    pending_hosts: List[RemoteHostConfig],
+    test_name: str,
+    status: RunStatus,
+    phases: Dict[str, ExecutionResult],
+    ui_log: Callable[[str], None],
+) -> None:
+    ui_log(f"Collect: {test_name}")
+    if services.output_formatter:
+        services.output_formatter.set_phase(f"Collect: {test_name}")
+    _update_reps_for_run(
+        services,
+        state,
+        pending_hosts,
+        test_name,
+        status,
+        action="Collecting results",
+    )
+    res_col = services.executor.run_playbook(
+        services.config.remote_execution.collect_playbook,
+        inventory=state.inventory,
+        extravars=state.extravars,
+    )
+    phases[f"collect_{test_name}"] = res_col
+    backfill_timings_from_results(
+        state.active_journal,
+        state.journal_file,
+        pending_hosts,
+        test_name,
+        state.per_host_output,
+        refresh=services.journal_refresh,
+    )
+
+
+def _skip_collect_phase(
+    services: ControllerServices,
+    state: RunState,
+    pending_hosts: List[RemoteHostConfig],
+    test_name: str,
+    status: RunStatus,
+    phases: Dict[str, ExecutionResult],
+) -> None:
+    backfill_timings_from_results(
+        state.active_journal,
+        state.journal_file,
+        pending_hosts,
+        test_name,
+        state.per_host_output,
+        refresh=services.journal_refresh,
+    )
+    phases[f"collect_{test_name}"] = ExecutionResult(rc=0, status="skipped", stats={})
+    _update_reps_for_run(
+        services,
+        state,
+        pending_hosts,
+        test_name,
+        status,
+        action="Done",
+    )
 
 
 def run_teardown_playbook(
@@ -372,47 +457,20 @@ def run_global_teardown(
     ui_log: Callable[[str], None],
 ) -> None:
     """Execute global teardown playbook if enabled."""
-    # Always transition to RUNNING_GLOBAL_TEARDOWN to maintain valid state flow.
-    # This allows FINISHED to be reached via RUNNING_WORKLOADS -> RUNNING_GLOBAL_TEARDOWN -> FINISHED.
-    if session.state_machine.state == ControllerState.RUNNING_WORKLOADS:
-        session.transition(ControllerState.RUNNING_GLOBAL_TEARDOWN)
+    _ensure_global_teardown_state(session)
     if not services.config.remote_execution.run_teardown:
         return
     stopping_now = _stop_requested(services, session)
-    if stopping_now and session.state_machine.state not in {
-        ControllerState.STOPPING_TEARDOWN,
-        ControllerState.STOPPING_INTERRUPT_TEARDOWN,
-    }:
-        session.transition(
-            ControllerState.STOPPING_TEARDOWN, reason="teardown after stop"
-        )
-    elif not stopping_now and session.state_machine.state not in {
-        ControllerState.STOPPING_TEARDOWN,
-        ControllerState.STOPPING_INTERRUPT_TEARDOWN,
-    }:
-        session.transition(ControllerState.RUNNING_GLOBAL_TEARDOWN)
+    _transition_teardown_state(session, stopping_now)
     services.lifecycle.start_phase(RunPhase.GLOBAL_TEARDOWN)
-    if flags.stop_protocol_attempted and not flags.stop_successful:
-        ui_log("Stop protocol failed/timed out; proceeding with best-effort teardown.")
-        phases["stop_protocol"] = ExecutionResult(rc=1, status="failed", stats={})
-
-    ui_log("Phase: Global Teardown")
-    if services.output_formatter:
-        services.output_formatter.set_phase("Global Teardown")
-    teardown_logger.info("Executing global teardown playbook")
+    _maybe_record_stop_protocol_failure(flags, phases, ui_log)
+    _announce_teardown_phase(services, ui_log)
 
     if not services.config.remote_execution.teardown_playbook:
         ui_log("No teardown playbook configured.")
         return
 
-    if _stop_requested(services, session):
-        services.lifecycle.arm_stop()
-        services.lifecycle.mark_interrupting_teardown()
-        session.transition(
-            ControllerState.STOPPING_INTERRUPT_TEARDOWN,
-            reason="stop during teardown",
-        )
-        _interrupt_executor(services)
+    _maybe_interrupt_teardown(services, session)
     phases["teardown_global"] = services.executor.run_playbook(
         services.config.remote_execution.teardown_playbook,
         inventory=state.inventory,
@@ -444,3 +502,61 @@ def run_for_hosts(
         tags=tags,
         limit_hosts=limit_hosts,
     )
+
+
+def _ensure_global_teardown_state(session: RunSession) -> None:
+    # Always transition to RUNNING_GLOBAL_TEARDOWN to maintain valid state flow.
+    # This allows FINISHED to be reached via RUNNING_WORKLOADS ->
+    # RUNNING_GLOBAL_TEARDOWN -> FINISHED.
+    if session.state_machine.state == ControllerState.RUNNING_WORKLOADS:
+        session.transition(ControllerState.RUNNING_GLOBAL_TEARDOWN)
+
+
+def _transition_teardown_state(session: RunSession, stopping_now: bool) -> None:
+    stop_states = {
+        ControllerState.STOPPING_TEARDOWN,
+        ControllerState.STOPPING_INTERRUPT_TEARDOWN,
+    }
+    if session.state_machine.state in stop_states:
+        return
+    if stopping_now:
+        session.transition(
+            ControllerState.STOPPING_TEARDOWN,
+            reason="teardown after stop",
+        )
+        return
+    session.transition(ControllerState.RUNNING_GLOBAL_TEARDOWN)
+
+
+def _maybe_record_stop_protocol_failure(
+    flags: RunFlags,
+    phases: Dict[str, ExecutionResult],
+    ui_log: Callable[[str], None],
+) -> None:
+    if not flags.stop_protocol_attempted or flags.stop_successful:
+        return
+    ui_log("Stop protocol failed/timed out; proceeding with best-effort teardown.")
+    phases["stop_protocol"] = ExecutionResult(rc=1, status="failed", stats={})
+
+
+def _announce_teardown_phase(
+    services: ControllerServices, ui_log: Callable[[str], None]
+) -> None:
+    ui_log("Phase: Global Teardown")
+    if services.output_formatter:
+        services.output_formatter.set_phase("Global Teardown")
+    teardown_logger.info("Executing global teardown playbook")
+
+
+def _maybe_interrupt_teardown(
+    services: ControllerServices, session: RunSession
+) -> None:
+    if not _stop_requested(services, session):
+        return
+    services.lifecycle.arm_stop()
+    services.lifecycle.mark_interrupting_teardown()
+    session.transition(
+        ControllerState.STOPPING_INTERRUPT_TEARDOWN,
+        reason="stop during teardown",
+    )
+    _interrupt_executor(services)

@@ -59,11 +59,9 @@ def pending_exists(
     allow_skipped: bool = False,
 ) -> bool:
     """Return True if any repetition remains to run."""
-    for host in hosts:
-        for test_name in tests:
-            for rep in range(1, repetitions + 1):
-                if journal.should_run(
-                    host.name, test_name, rep, allow_skipped=allow_skipped
-                ):
-                    return True
-    return False
+    return any(
+        journal.should_run(host.name, test_name, rep, allow_skipped=allow_skipped)
+        for host in hosts
+        for test_name in tests
+        for rep in range(1, repetitions + 1)
+    )

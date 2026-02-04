@@ -42,7 +42,10 @@ class RunLifecycle:
     def finish(self) -> None:
         self.phase = RunPhase.FINISHED
         if self.stop_stage not in (StopStage.FAILED, StopStage.STOPPED):
-            self.stop_stage = StopStage.STOPPED if self.stop_stage != StopStage.IDLE else StopStage.IDLE
+            if self.stop_stage != StopStage.IDLE:
+                self.stop_stage = StopStage.STOPPED
+            else:
+                self.stop_stage = StopStage.IDLE
 
     def arm_stop(self) -> None:
         if self.stop_stage == StopStage.IDLE:
