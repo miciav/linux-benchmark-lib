@@ -1,0 +1,52 @@
+{
+  "remote_hosts": [
+    {
+      "name": "peva-faas-runner",
+      "address": "192.168.2.2",
+      "user": "ubuntu",
+      "become": true,
+      "vars": {
+        "ansible_ssh_private_key_file": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/temp_keys/peva_faas_multipass_key",
+        "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
+        "ansible_python_interpreter": "/usr/bin/python3"
+      }
+    }
+  ],
+  "remote_execution": {
+    "enabled": true
+  },
+  "plugin_settings": {
+    "peva_faas": {
+      "k3s_host": "192.168.2.3",
+      "k3s_user": "ubuntu",
+      "k3s_ssh_key": "/Users/micheleciavotta/Downloads/linux-benchmark-lib/temp_keys/peva_faas_multipass_key",
+      "k3s_port": 22,
+      "gateway_url": "http://{host.address}:31112",
+      "prometheus_url": "http://{host.address}:30411",
+      "functions": [
+        {
+          "name": "env",
+          "method": "GET",
+          "body": "",
+          "headers": {
+            "Authorization": "Basic CHANGE_ME"
+          }
+        }
+      ],
+      "loki": {
+        "enabled": true,
+        "endpoint": "http://192.168.2.1:3100"
+      }
+    }
+  },
+  "workloads": {
+    "peva_faas": {
+      "plugin": "peva_faas",
+      "collectors_enabled": false
+    }
+  },
+  "loki": {
+    "enabled": true,
+    "endpoint": "http://192.168.2.1:3100"
+  }
+}
