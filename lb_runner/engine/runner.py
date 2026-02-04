@@ -229,6 +229,7 @@ class LocalRunner:
                 repetition=repetition,
                 total_repetitions=total_reps,
                 plugin=plugin,
+                collectors_enabled=workload_cfg.collectors_enabled,
             )
             if outcome.status == "stopped":
                 logger.info("Benchmark interrupted.")

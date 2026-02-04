@@ -96,9 +96,10 @@ class MetricManager:
         repetition: int,
         total_repetitions: int,
         current_run_id: str | None,
+        collectors_enabled: bool = True,
     ) -> "MetricSession":
         """Create a MetricSession for a repetition lifecycle."""
-        collectors = self.create_collectors(config)
+        collectors = [] if not collectors_enabled else self.create_collectors(config)
         log_handler = self.attach_event_logger(
             test_name=test_name,
             repetition=repetition,
