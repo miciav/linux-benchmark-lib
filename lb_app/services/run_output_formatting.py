@@ -31,28 +31,65 @@ def format_progress_event(
     data: dict[str, Any],
 ) -> tuple[str, str, str | None]:
     """Render parsed LB_EVENT payloads into concise progress messages."""
-    host = str(data.get("host") or "")
-    workload = str(data.get("workload") or "?")
+    evt_type = data.get("type", "status")
+    if evt_type == "log":
+        return _format_log_event(data)
+    return _format_status_event(data)
+
+
+def _format_log_event(data: dict[str, Any]) -> tuple[str, str, str | None]:
+    host_label = _event_host_label(data)
+    workload = _event_workload(data)
+    level = data.get("level", "INFO")
+    msg = data.get("message", "")
+    phase = _run_phase(workload)
+    return phase, f"[{level}] {msg}", host_label
+
+
+def _format_status_event(data: dict[str, Any]) -> tuple[str, str, str | None]:
+    host_label = _event_host_label(data)
+    workload = _event_workload(data)
+    rep, total = _event_repetition(data)
+    status = (data.get("status") or "").lower()
+    message = _format_status_message(rep, total, status, data)
+    phase = _run_phase(workload)
+    if _is_terminal_status(status):
+        return phase, message, host_label
+    return phase, f"{rep}/{total} {status}", host_label
+
+
+def _event_host_label(data: dict[str, Any]) -> str | None:
+    host = data.get("host")
+    return str(host) if host else None
+
+
+def _event_workload(data: dict[str, Any]) -> str:
+    return str(data.get("workload") or "?")
+
+
+def _event_repetition(data: dict[str, Any]) -> tuple[Any, Any]:
     rep = data.get("repetition", "?")
     total = data.get("total_repetitions") or data.get("total") or "?"
-    status = (data.get("status") or "").lower()
-    evt_type = data.get("type", "status")
+    return rep, total
 
-    if evt_type == "log":
-        level = data.get("level", "INFO")
-        msg = data.get("message", "")
-        phase = f"run {workload}"
-        return phase, f"[{level}] {msg}", host or None
 
+def _format_status_message(
+    rep: Any, total: Any, status: str, data: dict[str, Any]
+) -> str:
     message = f"{rep}/{total} {status}"
     if data.get("message"):
         message = f"{message} ({data['message']})"
     if data.get("error_type"):
         message = f"{message} [{data['error_type']}]"
-    phase = f"run {workload}"
-    if status in {"running", "done", "failed"}:
-        return phase, message, host or None
-    return phase, f"{rep}/{total} {status}", host or None
+    return message
+
+
+def _run_phase(workload: str) -> str:
+    return f"run {workload}"
+
+
+def _is_terminal_status(status: str) -> bool:
+    return status in {"running", "done", "failed"}
 
 
 def format_progress_line(

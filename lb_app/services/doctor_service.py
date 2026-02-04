@@ -90,30 +90,36 @@ class DoctorService:
     def check_local_tools(self) -> DoctorReport:
         """Check local workload tools required by installed plugins."""
         registry = create_registry()
-        items: List[Tuple[str, bool, bool]] = []
+        items = self._common_tool_items()
+        items.extend(self._plugin_tool_items(registry))
+        return self._local_tools_report(items)
 
-        # Common system tools that are always good to have
+    def _common_tool_items(self) -> List[Tuple[str, bool, bool]]:
         common_tools = ["sar", "vmstat", "iostat", "mpstat", "pidstat"]
-        for tool in common_tools:
-            items.append(
-                (f"{tool} (system)", self._check_command(tool), False)
-            )
+        return [
+            (f"{tool} (system)", self._check_command(tool), False)
+            for tool in common_tools
+        ]
 
-        # Plugin-specific tools
+    def _plugin_tool_items(self, registry) -> List[Tuple[str, bool, bool]]:
+        items: List[Tuple[str, bool, bool]] = []
         for plugin in registry.available(load_entrypoints=True).values():
-            # Support both Legacy and new Interface via duck typing or method presence
-            if hasattr(plugin, "get_required_local_tools"):
-                required_tools = plugin.get_required_local_tools()
-                for tool in required_tools:
-                    label = f"{tool} ({plugin.name})"
-                    items.append((label, self._check_command(tool), True))
+            if not hasattr(plugin, "get_required_local_tools"):
+                continue
+            required_tools = plugin.get_required_local_tools()
+            for tool in required_tools:
+                label = f"{tool} ({plugin.name})"
+                items.append((label, self._check_command(tool), True))
+        return items
 
-        messages = []
+    def _local_tools_report(
+        self, items: List[Tuple[str, bool, bool]]
+    ) -> DoctorReport:
+        messages: List[str] = []
         if not items:
             messages.append("No plugins with local tool requirements found.")
             return DoctorReport(groups=[], info_messages=messages, total_failures=0)
 
-        # Sort by label
         items.sort(key=lambda x: x[0])
         group = self._build_check_group("Local Workload Tools", items)
         return DoctorReport(
@@ -145,13 +151,7 @@ class DoctorService:
         Returns:
             DoctorReport with connectivity results for each host.
         """
-        # Load config if not provided
-        if config is None:
-            cfg, _, _ = self.config_service.load_for_read(None)
-        else:
-            cfg = config
-
-        # Check if remote hosts are configured
+        cfg = self._resolve_config(config)
         if not cfg.remote_hosts:
             return DoctorReport(
                 groups=[],
@@ -159,11 +159,29 @@ class DoctorService:
                 total_failures=0,
             )
 
-        # Check connectivity using the controller service
-        connectivity_service = ConnectivityService(timeout_seconds=timeout_seconds)
-        report = connectivity_service.check_hosts(cfg.remote_hosts, timeout_seconds)
+        report = self._check_connectivity(cfg.remote_hosts, timeout_seconds)
+        items = self._connectivity_items(report)
+        group = self._build_check_group("Remote Host Connectivity", items)
+        info_messages = self._connectivity_messages(report, timeout_seconds)
 
-        # Convert to DoctorReport format
+        return DoctorReport(
+            groups=[group],
+            info_messages=info_messages,
+            total_failures=group.failures,
+        )
+
+    def _resolve_config(self, config: Optional[BenchmarkConfig]) -> BenchmarkConfig:
+        if config is not None:
+            return config
+        cfg, _, _ = self.config_service.load_for_read(None)
+        return cfg
+
+    def _check_connectivity(self, hosts, timeout_seconds: int):
+        connectivity_service = ConnectivityService(timeout_seconds=timeout_seconds)
+        return connectivity_service.check_hosts(hosts, timeout_seconds)
+
+    @staticmethod
+    def _connectivity_items(report) -> List[Tuple[str, bool, bool]]:
         items: List[Tuple[str, bool, bool]] = []
         for result in report.results:
             label = f"{result.name} ({result.address})"
@@ -172,24 +190,20 @@ class DoctorService:
             elif not result.reachable and result.error_message:
                 label += f" - {result.error_message}"
             items.append((label, result.reachable, True))
+        return items
 
-        group = self._build_check_group("Remote Host Connectivity", items)
-
-        info_messages = [
+    @staticmethod
+    def _connectivity_messages(report, timeout_seconds: int) -> List[str]:
+        messages = [
             f"Checked {report.total_count} host(s) with {timeout_seconds}s timeout"
         ]
         if report.all_reachable:
-            info_messages.append("All hosts are reachable.")
+            messages.append("All hosts are reachable.")
         else:
-            info_messages.append(
+            messages.append(
                 f"Unreachable hosts: {', '.join(report.unreachable_hosts)}"
             )
-
-        return DoctorReport(
-            groups=[group],
-            info_messages=info_messages,
-            total_failures=group.failures,
-        )
+        return messages
 
     def check_all(self) -> DoctorReport:
         """Run all checks."""

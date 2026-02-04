@@ -5,7 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
-from lb_controller.api import BenchmarkConfig, BenchmarkController, PlatformConfig, StopToken
+from lb_controller.api import (
+    BenchmarkConfig,
+    BenchmarkController,
+    PlatformConfig,
+    StopToken,
+)
 from lb_plugins.api import PluginRegistry
 
 from lb_app.ui_interfaces import UIAdapter

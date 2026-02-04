@@ -11,6 +11,83 @@ from lb_app.ui_interfaces import DashboardHandle, UIAdapter
 
 logger = logging.getLogger(__name__)
 
+
+def _write_log_files(
+    log_file: IO[str], ui_stream_log_file: IO[str] | None, message: str
+) -> None:
+    try:
+        log_file.write(message + "\n")
+        log_file.flush()
+        if ui_stream_log_file:
+            ui_stream_log_file.write(message + "\n")
+            ui_stream_log_file.flush()
+    except Exception:
+        pass
+
+
+def _emit_ui_message(
+    message: str,
+    *,
+    level: str,
+    ui_adapter: UIAdapter | None,
+    dashboard: DashboardHandle | None,
+    dashboard_message: str | None = None,
+    dashboard_warning: bool = False,
+    ttl: float = 10.0,
+) -> None:
+    if _emit_via_ui(ui_adapter, level, message):
+        return
+    if _emit_via_dashboard(
+        dashboard,
+        message,
+        dashboard_message=dashboard_message,
+        dashboard_warning=dashboard_warning,
+        ttl=ttl,
+    ):
+        return
+    print(message)
+
+
+def _emit_via_ui(
+    ui_adapter: UIAdapter | None, level: str, message: str
+) -> bool:
+    if not ui_adapter:
+        return False
+    try:
+        if level == "warning":
+            ui_adapter.show_warning(message)
+        else:
+            ui_adapter.show_info(message)
+    except Exception:
+        return True
+    return True
+
+
+def _emit_via_dashboard(
+    dashboard: DashboardHandle | None,
+    message: str,
+    *,
+    dashboard_message: str | None,
+    dashboard_warning: bool,
+    ttl: float,
+) -> bool:
+    if not dashboard:
+        return False
+    msg = dashboard_message or message
+    try:
+        if dashboard_warning and hasattr(dashboard, "set_warning"):
+            dashboard.set_warning(message, ttl=ttl)
+        else:
+            dashboard.add_log(msg)
+    except Exception:
+        pass
+    try:
+        dashboard.refresh()
+    except Exception:
+        pass
+    return True
+
+
 def controller_stop_hint(message: str) -> tuple[str, str]:
     """Return colored dashboard text and plain log text for stop notices."""
     tag_plain = "[Controller]"
@@ -39,21 +116,14 @@ def announce_stop_factory(
             pass
         display_msg, log_msg = hint_factory(msg)
         logger.info("%s", log_msg)
-        if ui_adapter:
-            ui_adapter.show_warning(log_msg)
-        elif session.dashboard:
-            session.dashboard.add_log(display_msg)
-            session.dashboard.refresh()
-        else:
-            print(log_msg)
-        try:
-            session.log_file.write(log_msg + "\n")
-            session.log_file.flush()
-            if session.ui_stream_log_file:
-                session.ui_stream_log_file.write(log_msg + "\n")
-                session.ui_stream_log_file.flush()
-        except Exception:
-            pass
+        _emit_ui_message(
+            log_msg,
+            level="warning",
+            ui_adapter=ui_adapter,
+            dashboard=session.dashboard,
+            dashboard_message=display_msg,
+        )
+        _write_log_files(session.log_file, session.ui_stream_log_file, log_msg)
 
     return _announce_stop
 
@@ -66,20 +136,13 @@ def log_completion(
     """Log run completion to sinks."""
     msg = f"Run {session.effective_run_id} completed in {elapsed:.1f}s"
     logger.info("%s", msg)
-    try:
-        session.log_file.write(msg + "\n")
-        session.log_file.flush()
-        if session.ui_stream_log_file:
-            session.ui_stream_log_file.write(msg + "\n")
-            session.ui_stream_log_file.flush()
-    except Exception:
-        pass
-    if ui_adapter:
-        ui_adapter.show_info(msg)
-    elif session.dashboard:
-        session.dashboard.add_log(msg)
-    else:
-        print(msg)
+    _write_log_files(session.log_file, session.ui_stream_log_file, msg)
+    _emit_ui_message(
+        msg,
+        level="info",
+        ui_adapter=ui_adapter,
+        dashboard=session.dashboard,
+    )
 
 
 def on_controller_state_change(
@@ -93,32 +156,34 @@ def on_controller_state_change(
     if reason:
         line = f"{line} ({reason})"
     logger.info("%s", line)
+    _write_log_files(session.log_file, session.ui_stream_log_file, line)
+    _update_journal_state(session, new_state)
+    if not _update_dashboard_state(session, new_state):
+        _emit_via_ui(ui_adapter, "info", line)
+
+
+def _update_journal_state(session: _RemoteSession, new_state: ControllerState) -> None:
+    if not session.journal:
+        return
     try:
-        session.log_file.write(line + "\n")
-        session.log_file.flush()
-        if session.ui_stream_log_file:
-            session.ui_stream_log_file.write(line + "\n")
-            session.ui_stream_log_file.flush()
+        session.journal.metadata["controller_state"] = new_state.value
+        session.journal.save(session.journal_path)
     except Exception:
         pass
-    if session.journal:
-        try:
-            session.journal.metadata["controller_state"] = new_state.value
-            session.journal.save(session.journal_path)
-        except Exception:
-            pass
-    if session.dashboard:
-        try:
-            if hasattr(session.dashboard, "set_controller_state"):
-                session.dashboard.set_controller_state(new_state.value)
-            session.dashboard.refresh()
-        except Exception:
-            pass
-    elif ui_adapter:
-        try:
-            ui_adapter.show_info(line)
-        except Exception:
-            pass
+
+
+def _update_dashboard_state(
+    session: _RemoteSession, new_state: ControllerState
+) -> bool:
+    if not session.dashboard:
+        return False
+    try:
+        if hasattr(session.dashboard, "set_controller_state"):
+            session.dashboard.set_controller_state(new_state.value)
+        session.dashboard.refresh()
+    except Exception:
+        pass
+    return True
 
 
 def emit_warning(
@@ -131,29 +196,13 @@ def emit_warning(
     ttl: float = 10.0,
 ) -> None:
     """Send a warning to UI, dashboard, and logs in a consistent way."""
-    if ui_adapter:
-        try:
-            ui_adapter.show_warning(message)
-        except Exception:
-            pass
     logger.warning("%s", message)
-    if dashboard:
-        try:
-            if hasattr(dashboard, "set_warning"):
-                dashboard.set_warning(message, ttl=ttl)
-        except Exception:
-            pass
-        try:
-            dashboard.refresh()
-        except Exception:
-            pass
-    else:
-        print(message)
-    try:
-        log_file.write(message + "\n")
-        log_file.flush()
-        if ui_stream_log_file:
-            ui_stream_log_file.write(message + "\n")
-            ui_stream_log_file.flush()
-    except Exception:
-        pass
+    _emit_ui_message(
+        message,
+        level="warning",
+        ui_adapter=ui_adapter,
+        dashboard=dashboard,
+        dashboard_warning=True,
+        ttl=ttl,
+    )
+    _write_log_files(log_file, ui_stream_log_file, message)

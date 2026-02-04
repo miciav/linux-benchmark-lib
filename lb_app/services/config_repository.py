@@ -86,7 +86,9 @@ class ConfigRepository:
             return PlatformConfig.load(self.platform_target)
         return None
 
-    def write_platform_config(self, cfg: PlatformConfig, path: Path | None = None) -> Path:
+    def write_platform_config(
+        self, cfg: PlatformConfig, path: Path | None = None
+    ) -> Path:
         target = path or self.platform_target
         self.ensure_home()
         cfg.save(target)

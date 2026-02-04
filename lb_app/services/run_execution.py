@@ -20,7 +20,13 @@ from lb_app.services.run_pipeline import (
     parse_progress_line,
     pipeline_output_callback,
 )
-from lb_app.services.run_types import RunContext, RunResult, _EventDedupe, _EventPipeline, _RemoteSession
+from lb_app.services.run_types import (
+    RunContext,
+    RunResult,
+    _EventDedupe,
+    _EventPipeline,
+    _RemoteSession,
+)
 from lb_app.services.session_manager import SessionManager
 from lb_app.ui_interfaces import UIAdapter
 from lb_common.api import JsonlLogFormatter, attach_jsonl_handler, attach_loki_handler
@@ -177,6 +183,7 @@ class RunExecutionCoordinator:
         )
         timing_handler: Callable[[str], None] | None = None
         if emit_timing and formatter and output_callback is not formatter.process:
+
             def _timing_sink(message: str) -> None:
                 output_cb(message, end="\n")
 

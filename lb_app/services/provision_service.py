@@ -78,9 +78,8 @@ class ProvisionService:
             or (platform_cfg.grafana.url if platform_cfg.grafana else None)
             or "http://localhost:3000"
         )
-        resolved_api_key = (
-            grafana_api_key
-            or (platform_cfg.grafana.api_key if platform_cfg.grafana else None)
+        resolved_api_key = grafana_api_key or (
+            platform_cfg.grafana.api_key if platform_cfg.grafana else None
         )
         resolved_org_id = grafana_org_id or (
             platform_cfg.grafana.org_id if platform_cfg.grafana else 1
@@ -154,37 +153,14 @@ class ProvisionService:
 
         if not configure_assets:
             return None
-        if not resolved_api_key:
-            if not grafana_admin_user:
-                grafana_admin_user = "admin"
-            if not grafana_admin_password:
-                grafana_admin_password = "admin"
-
-        platform_cfg, _, _ = self._config_service.load_platform_config()
+        grafana_admin_user, grafana_admin_password = self._resolve_admin_credentials(
+            resolved_api_key, grafana_admin_user, grafana_admin_password
+        )
         registry = create_registry()
-        enabled_map = {
-            name: platform_cfg.is_plugin_enabled(name)
-            for name in registry.available(load_entrypoints=True)
-        }
-        warnings: list[str] = []
-        assets: GrafanaAssets = GrafanaAssets()
-        try:
-            run_cfg, _, _ = self._config_service.load_for_read(config_path)
-            assets = collect_grafana_assets(
-                registry,
-                plugin_settings=run_cfg.plugin_settings,
-                enabled_plugins=enabled_map,
-                remote_hosts=run_cfg.remote_hosts,
-            )
-        except Exception as exc:
-            if config_path:
-                raise
-            warning = (
-                "Skipping plugin Grafana assets because the default config "
-                f"could not be loaded: {exc}. Provide --config to configure plugins."
-            )
-            self._logger.warning(warning)
-            warnings.append(warning)
+        enabled_map = self._enabled_plugin_map(registry)
+        assets, warnings = self._collect_grafana_assets(
+            registry, enabled_map, config_path
+        )
 
         summary = configure_grafana(
             grafana_url=resolved_grafana,
@@ -197,6 +173,50 @@ class ProvisionService:
             assets=assets,
         )
         return ProvisionConfigSummary.from_grafana(summary, warnings=tuple(warnings))
+
+    def _enabled_plugin_map(self, registry) -> dict[str, bool]:
+        platform_cfg, _, _ = self._config_service.load_platform_config()
+        return {
+            name: platform_cfg.is_plugin_enabled(name)
+            for name in registry.available(load_entrypoints=True)
+        }
+
+    @staticmethod
+    def _resolve_admin_credentials(
+        resolved_api_key: str | None,
+        grafana_admin_user: str | None,
+        grafana_admin_password: str | None,
+    ) -> tuple[str | None, str | None]:
+        if resolved_api_key:
+            return grafana_admin_user, grafana_admin_password
+        return grafana_admin_user or "admin", grafana_admin_password or "admin"
+
+    def _collect_grafana_assets(
+        self,
+        registry,
+        enabled_map: dict[str, bool],
+        config_path: Path | None,
+    ) -> tuple[GrafanaAssets, list[str]]:
+        warnings: list[str] = []
+        try:
+            run_cfg, _, _ = self._config_service.load_for_read(config_path)
+            assets = collect_grafana_assets(
+                registry,
+                plugin_settings=run_cfg.plugin_settings,
+                enabled_plugins=enabled_map,
+                remote_hosts=run_cfg.remote_hosts,
+            )
+            return assets, warnings
+        except Exception as exc:
+            if config_path:
+                raise
+            warning = (
+                "Skipping plugin Grafana assets because the default config "
+                f"could not be loaded: {exc}. Provide --config to configure plugins."
+            )
+            self._logger.warning(warning)
+            warnings.append(warning)
+            return GrafanaAssets(), warnings
 
     def remove_loki_grafana(self, *, remove_data: bool = False) -> None:
         remove_loki_grafana(remove_data=remove_data)

@@ -111,17 +111,12 @@ def format_memory_summary(data: dict[str, Any]) -> str:
 
 
 def format_disk_summary(data: dict[str, Any]) -> str | None:
-    disks = data.get("disks", []) if isinstance(data, dict) else []
-    if not isinstance(disks, list) or not disks:
+    primary = _primary_disk(data)
+    if not primary:
         return None
-    first = disks[0]
-    if not isinstance(first, dict):
-        return None
-    name = first.get("name") or "disk"
-    size = first.get("size_bytes") or first.get("size") or ""
-    rota = first.get("rotational")
-    kind = "SSD" if rota is False else "HDD" if rota is True else "disk"
-    size_str = to_gib(size) if size else ""
+    name = primary.get("name") or "disk"
+    size_str = _disk_size_str(primary)
+    kind = _disk_kind(primary.get("rotational"))
     disk_summary = f"{name} {kind} {size_str}".strip()
     return f"Disk: {disk_summary}" if disk_summary else None
 
@@ -142,17 +137,54 @@ def log_system_info(
     """Emit system info summaries to available sinks."""
     for host, summary in summaries.items():
         line = f"{host}: {summary}"
-        if dashboard:
-            dashboard.add_log(f"[system] System info: {line}")
-            dashboard.mark_event("system_info")
-            dashboard.refresh()
-        elif ui_adapter:
-            ui_adapter.show_info(f"[system] {line}")
-        else:
-            print(f"[system] {line}")
-        if log_file:
-            try:
-                log_file.write(f"[system] System info: {line}\n")
-                log_file.flush()
-            except Exception:
-                pass
+        _emit_system_info_line(dashboard, ui_adapter, line)
+        _write_system_info_log(log_file, line)
+
+
+def _primary_disk(data: dict[str, Any]) -> dict[str, Any] | None:
+    disks = data.get("disks", []) if isinstance(data, dict) else []
+    if not isinstance(disks, list) or not disks:
+        return None
+    first = disks[0]
+    if not isinstance(first, dict):
+        return None
+    return first
+
+
+def _disk_kind(rotational: Any) -> str:
+    if rotational is False:
+        return "SSD"
+    if rotational is True:
+        return "HDD"
+    return "disk"
+
+
+def _disk_size_str(disk: dict[str, Any]) -> str:
+    size = disk.get("size_bytes") or disk.get("size") or ""
+    return to_gib(size) if size else ""
+
+
+def _emit_system_info_line(
+    dashboard: DashboardHandle | None,
+    ui_adapter: UIAdapter | None,
+    line: str,
+) -> None:
+    if dashboard:
+        dashboard.add_log(f"[system] System info: {line}")
+        dashboard.mark_event("system_info")
+        dashboard.refresh()
+        return
+    if ui_adapter:
+        ui_adapter.show_info(f"[system] {line}")
+        return
+    print(f"[system] {line}")
+
+
+def _write_system_info_log(log_file: IO[str] | None, line: str) -> None:
+    if not log_file:
+        return
+    try:
+        log_file.write(f"[system] System info: {line}\n")
+        log_file.flush()
+    except Exception:
+        pass

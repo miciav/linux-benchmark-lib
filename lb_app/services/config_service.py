@@ -40,7 +40,9 @@ class ConfigService:
         """
         resolved, stale = self.resolve_config_path(config_path)
         if resolved is None:
-            raise FileNotFoundError("No config file found to edit. Run `lb config init` first.")
+            raise FileNotFoundError(
+                "No config file found to edit. Run `lb config init` first."
+            )
 
         editor = os.environ.get("EDITOR")
         if not editor:
@@ -53,10 +55,13 @@ class ConfigService:
 
         return resolved
 
-    def resolve_config_path(self, config_path: Optional[Path]) -> Tuple[Optional[Path], Optional[Path]]:
+    def resolve_config_path(
+        self, config_path: Optional[Path]
+    ) -> Tuple[Optional[Path], Optional[Path]]:
         """
         Return (resolved_config, stale_pointer_target).
-        Respects explicit path, environment variable LB_CONFIG_PATH, stored pointer, or local benchmark_config.json.
+        Respects explicit path, environment variable LB_CONFIG_PATH, stored
+        pointer, or local benchmark_config.json.
         """
         return self._repo.resolve_config_path(config_path)
 
@@ -120,7 +125,9 @@ class ConfigService:
         self._repo.write_platform_config(cfg, target)
         return cfg, target
 
-    def load_for_read(self, config_path: Optional[Path]) -> Tuple[BenchmarkConfig, Optional[Path], Optional[Path]]:
+    def load_for_read(
+        self, config_path: Optional[Path]
+    ) -> Tuple[BenchmarkConfig, Optional[Path], Optional[Path]]:
         """Load a config for read-only scenarios."""
         resolved, stale = self.resolve_config_path(config_path)
         if resolved is None:
@@ -141,7 +148,8 @@ class ConfigService:
         allow_create: bool = True,
     ) -> Tuple[BenchmarkConfig, Path, Optional[Path], bool]:
         """
-        Load a config for mutation and return (config, target_path, stale_pointer, created_new).
+        Load a config for mutation and return (config, target_path,
+        stale_pointer, created_new).
         """
         resolved, stale = self.resolve_config_path(config_path)
         target = resolved or self._repo.default_target
@@ -170,7 +178,8 @@ class ConfigService:
         registry = create_registry()
         if name not in registry.available():
             raise ValueError(
-                f"Plugin '{name}' is not installed. Use `lb plugin list` to see available plugins."
+                f"Plugin '{name}' is not installed. "
+                "Use `lb plugin list` to see available plugins."
             )
 
         if name not in cfg.plugin_settings:
@@ -218,7 +227,9 @@ class ConfigService:
     ) -> Tuple[BenchmarkConfig, Path, Optional[Path]]:
         """Add or replace a remote host definition and persist the config."""
         cfg, target, stale, _ = self.load_for_write(config, allow_create=True)
-        cfg.remote_hosts = [existing for existing in cfg.remote_hosts if existing.name != host.name]
+        cfg.remote_hosts = [
+            existing for existing in cfg.remote_hosts if existing.name != host.name
+        ]
         cfg.remote_hosts.append(host)
         cfg.remote_execution.enabled = enable_remote
         self._repo.write_benchmark_config(cfg, target)

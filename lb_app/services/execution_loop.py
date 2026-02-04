@@ -183,22 +183,26 @@ class RunExecutionLoop:
             ui_stream_log_file=session.ui_stream_log_file,
             ttl=10.0,
         )
-        if signals.warning_timer and signals.warning_timer.is_alive():
-            signals.warning_timer.cancel()
-
-        def _clear_warning() -> None:
-            signals.state_machine.reset_arm()
-            if session.dashboard and hasattr(session.dashboard, "clear_warning"):
-                try:
-                    session.dashboard.clear_warning()
-                    session.dashboard.refresh()
-                except Exception:
-                    pass
-
-        timer = threading.Timer(10.0, _clear_warning)
+        self._cancel_warning_timer(signals)
+        timer = threading.Timer(10.0, self._clear_warning, args=(session, signals))
         timer.daemon = True
         timer.start()
         signals.warning_timer = timer
+
+    @staticmethod
+    def _cancel_warning_timer(signals: _SignalContext) -> None:
+        if signals.warning_timer and signals.warning_timer.is_alive():
+            signals.warning_timer.cancel()
+
+    @staticmethod
+    def _clear_warning(session: _RemoteSession, signals: _SignalContext) -> None:
+        signals.state_machine.reset_arm()
+        if session.dashboard and hasattr(session.dashboard, "clear_warning"):
+            try:
+                session.dashboard.clear_warning()
+                session.dashboard.refresh()
+            except Exception:
+                pass
 
     def _handle_run_completion(
         self,
@@ -283,14 +287,14 @@ class RunExecutionLoop:
         """Ensure timers are cancelled after the run."""
         if signals.warning_timer and signals.warning_timer.is_alive():
             signals.warning_timer.cancel()
-    
+
     @staticmethod
     def _fail_running_tasks(journal: Any, reason: str = "stopped") -> None:
-         """Mark any RUNNING tasks as FAILED with the given reason."""
-         # Note: RunJournal type imported but here treating as Any to avoid strict circular import if not careful,
-         # but we can import RunJournal if needed.
-         for task in journal.tasks.values():
-             if task.status == RunStatus.RUNNING:
-                 task.status = RunStatus.FAILED
-                 task.current_action = reason
-                 task.error = reason
+        """Mark any RUNNING tasks as FAILED with the given reason."""
+        # Note: RunJournal type imported but here treating as Any to avoid strict
+        # circular import if not careful, but we can import RunJournal if needed.
+        for task in journal.tasks.values():
+            if task.status == RunStatus.RUNNING:
+                task.status = RunStatus.FAILED
+                task.current_action = reason
+                task.error = reason

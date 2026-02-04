@@ -47,13 +47,17 @@ class UIAdapter(Protocol):
     def show_success(self, message: str) -> None:
         """Render a success message."""
 
-    def show_panel(self, message: str, title: str | None = None, border_style: str | None = None) -> None:
+    def show_panel(
+        self, message: str, title: str | None = None, border_style: str | None = None
+    ) -> None:
         """Render a block/panel container."""
 
     def show_rule(self, title: str) -> None:
         """Render a horizontal rule with a title."""
 
-    def show_table(self, title: str, columns: Sequence[str], rows: list[Sequence[str]]) -> None:
+    def show_table(
+        self, title: str, columns: Sequence[str], rows: list[Sequence[str]]
+    ) -> None:
         """Render a simple table."""
 
     def status(self, message: str) -> AbstractContextManager[None]:
@@ -70,7 +74,9 @@ class UIAdapter(Protocol):
     ) -> DashboardHandle:
         """Create a run dashboard."""
 
-    def prompt_multipass_scenario(self, options: list[str], default_level: str) -> tuple[str, str] | None:
+    def prompt_multipass_scenario(
+        self, options: list[str], default_level: str
+    ) -> tuple[str, str] | None:
         """Prompt user for multipass scenario selection."""
 
 

@@ -15,31 +15,18 @@ def target_repetitions(journal: RunJournal) -> int:
     return max(reps) if reps else 0
 
 
-def summarize_progress(tasks: Dict[int, TaskState], target_reps: int) -> tuple[str, str]:
+def summarize_progress(
+    tasks: Dict[int, TaskState], target_reps: int
+) -> tuple[str, str]:
     total = target_reps or len(tasks)
     completed = sum(
         1
         for task in tasks.values()
         if task.status in (RunStatus.COMPLETED, RunStatus.SKIPPED, RunStatus.FAILED)
     )
-    running = any(task.status == RunStatus.RUNNING for task in tasks.values())
-    failed = any(task.status == RunStatus.FAILED for task in tasks.values())
-    skipped = tasks and all(task.status == RunStatus.SKIPPED for task in tasks.values())
-
-    if failed:
-        status = "failed"
-    elif running:
-        status = "running"
-    elif skipped:
-        status = "skipped"
-    elif total and completed >= total:
-        status = "done"
-    elif completed > 0:
-        status = "partial"
-    else:
-        status = "pending"
-
-    progress = f"{completed}/{total}" if total else "0/0"
+    flags = _progress_flags(tasks)
+    status = _status_from_flags(flags, completed, total)
+    progress = _progress_label(completed, total)
     return status, progress
 
 
@@ -84,3 +71,29 @@ def plan_rows(plan: Iterable[dict]) -> list[list[str]]:
         ]
         for item in plan
     ]
+
+
+def _progress_flags(tasks: Dict[int, TaskState]) -> dict[str, bool]:
+    return {
+        "running": any(task.status == RunStatus.RUNNING for task in tasks.values()),
+        "failed": any(task.status == RunStatus.FAILED for task in tasks.values()),
+        "skipped": bool(tasks)
+        and all(task.status == RunStatus.SKIPPED for task in tasks.values()),
+    }
+
+
+def _status_from_flags(
+    flags: dict[str, bool], completed: int, total: int
+) -> str:
+    conditions = (
+        (flags["failed"], "failed"),
+        (flags["running"], "running"),
+        (flags["skipped"], "skipped"),
+        (total and completed >= total, "done"),
+        (completed > 0, "partial"),
+    )
+    return next((label for cond, label in conditions if cond), "pending")
+
+
+def _progress_label(completed: int, total: int) -> str:
+    return f"{completed}/{total}" if total else "0/0"
