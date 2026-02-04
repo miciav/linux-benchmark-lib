@@ -208,13 +208,18 @@ def run_git_commands(repo_root: Path, new_version: str, release_notes: str, dry_
     )
     print(f"  Created tag: {tag}")
 
-    # Push with tags
+    # Push commit and tag separately (--follow-tags can fail on non-tracking branches)
     subprocess.run(
-        ["git", "push", "origin", "HEAD", "--follow-tags"],
+        ["git", "push", "origin", "HEAD"],
         cwd=repo_root,
         check=True,
     )
-    print("  Pushed to origin with tags")
+    subprocess.run(
+        ["git", "push", "origin", tag],
+        cwd=repo_root,
+        check=True,
+    )
+    print(f"  Pushed to origin with tag {tag}")
 
     # Create GitHub release with release notes
     with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
