@@ -68,7 +68,7 @@ class StressNGPlugin(SimpleWorkloadPlugin):
     GENERATOR_CLS = StressNGGenerator
     REQUIRED_APT_PACKAGES = ["stress-ng"]
     REQUIRED_LOCAL_TOOLS = ["stress-ng"]
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     TEARDOWN_PLAYBOOK = Path(__file__).parent / "ansible" / "teardown.yml"
     
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[StressNGConfig]:

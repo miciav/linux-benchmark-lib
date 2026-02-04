@@ -1,8 +1,0 @@
-- name: Install fio dependencies
-  hosts: all
-  become: true
-  tasks:
-    - name: Install fio package
-      package:
-        name: fio
-        state: present

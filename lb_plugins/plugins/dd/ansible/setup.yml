@@ -1,8 +1,0 @@
-- name: Install dd dependencies
-  hosts: all
-  become: true
-  tasks:
-    - name: Install coreutils package
-      package:
-        name: coreutils
-        state: present

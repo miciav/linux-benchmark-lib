@@ -205,7 +205,7 @@ def test_controller_merges_plugin_extravars_into_setup(tmp_path: Path) -> None:
     setup_calls = [
         call
         for call in executor.calls
-        if str(call["playbook"]).endswith("/phoronix_test_suite/ansible/setup.yml")
+        if str(call["playbook"]).endswith("/phoronix_test_suite/ansible/setup_plugin.yml")
     ]
     assert setup_calls, "Expected PTS setup playbook call"
     assert setup_calls[0]["extravars"]["pts_profile"] == "build-linux-kernel"

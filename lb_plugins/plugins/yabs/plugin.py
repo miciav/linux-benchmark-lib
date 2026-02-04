@@ -239,7 +239,7 @@ class YabsPlugin(SimpleWorkloadPlugin):
     GENERATOR_CLS = YabsGenerator
     REQUIRED_APT_PACKAGES = ["curl", "wget", "fio", "iperf3", "bc", "tar"]
     REQUIRED_LOCAL_TOOLS = ["bash", "curl", "wget"]
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[YabsConfig]:
         # Intensities map to which portions we run; Geekbench remains skipped by default.

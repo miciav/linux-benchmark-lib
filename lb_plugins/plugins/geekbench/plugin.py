@@ -677,7 +677,7 @@ class GeekbenchPlugin(SimpleWorkloadPlugin):
     GENERATOR_CLS = GeekbenchGenerator
     REQUIRED_APT_PACKAGES = ["curl", "wget", "tar", "ca-certificates", "sysstat"]
     REQUIRED_LOCAL_TOOLS = ["curl", "wget", "tar"]
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[GeekbenchConfig]:
         if level == WorkloadIntensity.LOW:

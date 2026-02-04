@@ -717,7 +717,7 @@ def get_plugins() -> List[WorkloadPlugin]:
     """
     config_path = Path(__file__).with_name("pts_workloads.yaml")
     defaults, specs = _load_manifest(config_path)
-    ansible_setup_path = Path(__file__).parent / "ansible" / "setup.yml"
+    ansible_setup_path = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     ansible_teardown_path = Path(__file__).parent / "ansible" / "teardown.yml"
     plugins: List[WorkloadPlugin] = []
     for spec in specs:

@@ -241,7 +241,7 @@ class FIOPlugin(SimpleWorkloadPlugin):
     GENERATOR_CLS = FIOGenerator
     REQUIRED_APT_PACKAGES = ["fio"]
     REQUIRED_LOCAL_TOOLS = ["fio"]
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[FIOConfig]:
         if level == WorkloadIntensity.LOW:
