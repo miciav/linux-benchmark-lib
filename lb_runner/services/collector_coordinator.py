@@ -24,7 +24,7 @@ class CollectorCoordinator:
         for collector in collectors:
             try:
                 collector.start()
-            except Exception:
+            except Exception as exc:
                 error = MetricCollectionError(
                     "Collector start failed",
                     context={"collector": getattr(collector, "name", "unknown")},
