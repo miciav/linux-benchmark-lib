@@ -1,0 +1,40 @@
+---
+- name: Optional cleanup for k6 workspace
+  hosts: all
+  become: true
+  vars:
+    k6_workspace_root: >-
+      {{
+        (ansible_user == 'root')
+        | ternary('/root/.peva_faas-k6', '/home/' ~ ansible_user ~ '/.peva_faas-k6')
+      }}
+    target_name: ""
+    run_id: ""
+    config_id: ""
+    k6_cleanup: false
+  tasks:
+    - name: Build cleanup path
+      ansible.builtin.set_fact:
+        cleanup_path: >-
+          {{
+            k6_workspace_root
+            + '/'
+            + target_name
+            + (run_id | length > 0 | ternary('/' + run_id, ''))
+            + (config_id | length > 0 | ternary('/' + config_id, ''))
+          }}
+      when: k6_cleanup
+
+    - name: Guard against unsafe cleanup
+      ansible.builtin.assert:
+        that:
+          - k6_cleanup
+          - target_name | length > 0
+        fail_msg: "Cleanup requires target_name and k6_cleanup=true."
+      when: k6_cleanup
+
+    - name: Remove workspace path
+      ansible.builtin.file:
+        path: "{{ cleanup_path }}"
+        state: absent
+      when: k6_cleanup

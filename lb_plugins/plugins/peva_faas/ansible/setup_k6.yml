@@ -1,0 +1,18 @@
+---
+# Standalone playbook to install k6 load testing tool.
+# Can be run independently or used as reference.
+# For orchestrated setup, use setup_plugin.yml instead.
+
+- name: Install k6 and prepare workspace
+  hosts: all
+  become: true
+  gather_facts: true
+  vars_files:
+    - vars/k6.yml
+  tasks:
+    - name: Install k6
+      ansible.builtin.import_tasks: tasks/install_k6.yml
+    - name: Install faas-cli
+      ansible.builtin.shell: "curl -sSL https://cli.openfaas.com | sh"
+      args:
+        creates: "/usr/local/bin/faas-cli"

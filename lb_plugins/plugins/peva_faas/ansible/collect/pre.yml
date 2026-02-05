@@ -1,0 +1,68 @@
+- name: Derive DFaaS k6 settings from benchmark config
+  ansible.builtin.set_fact:
+    peva_faas_k6_host: >-
+      {{
+        (
+          (benchmark_config.plugin_settings | default({})).peva_faas | default({})
+        )
+        .k6_host | default('')
+      }}
+    peva_faas_k6_user: >-
+      {{
+        (
+          (benchmark_config.plugin_settings | default({})).peva_faas | default({})
+        )
+        .k6_user | default('ubuntu')
+      }}
+    peva_faas_k6_ssh_key: >-
+      {{
+        (
+          (benchmark_config.plugin_settings | default({})).peva_faas | default({})
+        )
+        .k6_ssh_key | default('')
+      }}
+    peva_faas_k6_port: >-
+      {{
+        (
+          (benchmark_config.plugin_settings | default({})).peva_faas | default({})
+        )
+        .k6_port | default(22)
+      }}
+    peva_faas_k6_workspace_root: >-
+      {{
+        (
+          (benchmark_config.plugin_settings | default({})).peva_faas | default({})
+        )
+        .k6_workspace_root | default('/home/ubuntu/.peva_faas-k6')
+      }}
+    peva_faas_k6_ssh_key_path: >-
+      {{
+        (
+          (peva_faas_k6_ssh_key | default('') | length > 0)
+        )
+        | ternary(
+            peva_faas_k6_ssh_key | regex_replace('^~', lookup('env', 'HOME')),
+            ''
+          )
+      }}
+  delegate_to: localhost
+  run_once: true
+
+- name: Register DFaaS k6 host
+  ansible.builtin.add_host:
+    name: "peva_faas_k6"
+    ansible_host: "{{ peva_faas_k6_host }}"
+    ansible_user: "{{ peva_faas_k6_user }}"
+    ansible_port: "{{ peva_faas_k6_port }}"
+    ansible_ssh_private_key_file: >-
+      {{
+        (peva_faas_k6_ssh_key_path | length > 0)
+        | ternary(peva_faas_k6_ssh_key_path, omit)
+      }}
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    k6_workspace_root: "{{ peva_faas_k6_workspace_root }}"
+  delegate_to: localhost
+  run_once: true
+  when:
+    - peva_faas_k6_host is defined
+    - peva_faas_k6_host | length > 0

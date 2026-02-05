@@ -1,0 +1,32 @@
+---
+# Centralized target setup variables for DFaaS plugin.
+# Used by: setup_plugin.yml, setup_target.yml
+# Required by: tasks/setup_k3s_tasks.yml
+
+# K3s configuration
+k3s_version: ""
+k3s_install_exec: "--write-kubeconfig-mode 644"
+
+# OpenFaaS configuration
+openfaas_namespace: "openfaas"
+openfaas_fn_namespace: "openfaas-fn"
+openfaas_gateway_node_port: 31112
+openfaas_admin_user: "admin"
+openfaas_gateway_url: ""
+openfaas_functions: []
+
+# Prometheus configuration
+prometheus_namespace: "openfaas"
+prometheus_node_port: 30411
+prometheus_url: ""
+prometheus_manifests_dir: "/tmp/peva_faas-prometheus"
+
+# Scaphandre (power monitoring) configuration
+scaphandre_enabled: false
+scaphandre_repo_url: ""
+scaphandre_repo_name: "scaphandre"
+scaphandre_chart: ""
+scaphandre_release: "scaphandre"
+
+# Benchmark library workdir
+lb_workdir: "{{ (ansible_user == 'root') | ternary('/root', '/home/' ~ ansible_user) }}/.lb"
