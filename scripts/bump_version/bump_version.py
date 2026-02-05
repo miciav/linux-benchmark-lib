@@ -179,6 +179,7 @@ def run_git_commands(
 
     if dry_run:
         print(f"\n[DRY-RUN] Would update pyproject.toml to version {new_version}")
+        print("[DRY-RUN] Would update uv.lock")
         print(f'[DRY-RUN] Would commit: "Bump version to {new_version}"')
         print(f"[DRY-RUN] Would create tag: {tag}")
         print("[DRY-RUN] Would push to origin with tags")
@@ -193,9 +194,17 @@ def run_git_commands(
     update_pyproject(repo_root, new_version)
     print(f"  Updated pyproject.toml to version {new_version}")
 
+    # Update uv.lock
+    subprocess.run(
+        ["uv", "lock"],
+        cwd=repo_root,
+        check=True,
+    )
+    print("  Updated uv.lock")
+
     # Git commit
     subprocess.run(
-        ["git", "add", "pyproject.toml"],
+        ["git", "add", "pyproject.toml", "uv.lock"],
         cwd=repo_root,
         check=True,
     )
