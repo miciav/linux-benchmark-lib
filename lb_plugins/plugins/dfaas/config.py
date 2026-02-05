@@ -57,6 +57,37 @@ def _deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, An
     return merged
 
 
+def _normalize_validator_values(values: Any, model_cls: type[BaseModel]) -> Any:
+    if isinstance(values, model_cls):
+        return values
+    if values is None:
+        return {}
+    if not isinstance(values, dict):
+        return values
+    return values
+
+
+def _set_env_bool(values: dict[str, Any], key: str, env_var: str) -> None:
+    if values.get(key) is None:
+        env_value = parse_bool_env(os.environ.get(env_var))
+        if env_value is not None:
+            values[key] = env_value
+
+
+def _set_env_str(values: dict[str, Any], key: str, env_var: str) -> None:
+    if not values.get(key):
+        env_value = os.environ.get(env_var)
+        if env_value:
+            values[key] = env_value
+
+
+def _set_env_int(values: dict[str, Any], key: str, env_var: str) -> None:
+    if values.get(key) is None:
+        env_value = parse_int_env(os.environ.get(env_var))
+        if env_value is not None:
+            values[key] = env_value
+
+
 def _load_config_data(config_path: Path) -> dict[str, Any]:
     """Load and merge config from YAML file."""
     if not config_path.exists():
@@ -201,24 +232,13 @@ class DfaasLokiConfig(BaseModel):
 
         Priority: config file > environment variables > defaults.
         """
-        if isinstance(values, cls):
-            return values
-        if values is None:
-            values = {}
+        values = _normalize_validator_values(values, cls)
         if not isinstance(values, dict):
             return values
 
         # Only apply env vars as fallbacks when config doesn't specify a value
-        if values.get("enabled") is None:
-            env_enabled = parse_bool_env(os.environ.get("LB_LOKI_ENABLED"))
-            if env_enabled is not None:
-                values["enabled"] = env_enabled
-
-        if not values.get("endpoint"):
-            env_endpoint = os.environ.get("LB_LOKI_ENDPOINT")
-            if env_endpoint:
-                values["endpoint"] = env_endpoint
-
+        _set_env_bool(values, "enabled", "LB_LOKI_ENABLED")
+        _set_env_str(values, "endpoint", "LB_LOKI_ENDPOINT")
         return values
 
 
@@ -239,34 +259,15 @@ class GrafanaConfig(BaseModel):
 
         Priority: config file > environment variables > defaults.
         """
-        if isinstance(values, cls):
-            return values
-        if values is None:
-            values = {}
+        values = _normalize_validator_values(values, cls)
         if not isinstance(values, dict):
             return values
 
         # Only apply env vars as fallbacks when config doesn't specify a value
-        if values.get("enabled") is None:
-            env_enabled = parse_bool_env(os.environ.get("LB_GRAFANA_ENABLED"))
-            if env_enabled is not None:
-                values["enabled"] = env_enabled
-
-        if not values.get("url"):
-            env_url = os.environ.get("LB_GRAFANA_URL")
-            if env_url:
-                values["url"] = env_url
-
-        if values.get("api_key") is None:
-            env_api_key = os.environ.get("LB_GRAFANA_API_KEY")
-            if env_api_key:
-                values["api_key"] = env_api_key
-
-        if values.get("org_id") is None:
-            env_org = parse_int_env(os.environ.get("LB_GRAFANA_ORG_ID"))
-            if env_org is not None:
-                values["org_id"] = env_org
-
+        _set_env_bool(values, "enabled", "LB_GRAFANA_ENABLED")
+        _set_env_str(values, "url", "LB_GRAFANA_URL")
+        _set_env_str(values, "api_key", "LB_GRAFANA_API_KEY")
+        _set_env_int(values, "org_id", "LB_GRAFANA_ORG_ID")
         return values
 
 
@@ -303,7 +304,9 @@ class DfaasConfig(BasePluginConfig):
     )
     k6_tags: dict[str, str] = Field(
         default_factory=dict,
-        description="Additional k6 tags merged with run_id/component/workload/repetition",
+        description=(
+            "Additional k6 tags merged with run_id/component/workload/repetition"
+        ),
     )
     openfaas_port: int = Field(
         default=31112, ge=1, le=65535, description="OpenFaaS gateway NodePort"
@@ -335,7 +338,9 @@ class DfaasConfig(BasePluginConfig):
     )
     rates: DfaasRatesConfig | None = Field(
         default=None,
-        description="DEPRECATED: Use rate_strategy instead. Kept for backward compatibility.",
+        description=(
+            "DEPRECATED: Use rate_strategy instead. Kept for backward compatibility."
+        ),
     )
     combinations: DfaasCombinationConfig = Field(
         default_factory=DfaasCombinationConfig,

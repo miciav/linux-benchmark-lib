@@ -107,21 +107,31 @@ class DfaasRunPlanner:
     def _resolve_output_dir(self) -> Path:
         if self._config.output_dir:
             return Path(self._config.output_dir).expanduser()
-        cfg_path = Path("benchmark_config.generated.json")
-        if cfg_path.exists():
-            try:
-                data = json.loads(cfg_path.read_text())
-                output_root = Path(data.get("output_dir", "."))
-                workloads = data.get("workloads", {})
-                workload_name = "dfaas"
-                for name, entry in workloads.items():
-                    if isinstance(entry, dict) and entry.get("plugin") == "dfaas":
-                        workload_name = name
-                        break
-                return output_root / workload_name
-            except (json.JSONDecodeError, OSError, TypeError, KeyError) as exc:
-                logger.debug("Could not parse config file %s: %s", cfg_path, exc)
+        output_dir = self._load_output_dir_from_generated()
+        if output_dir:
+            return output_dir
         return Path.cwd() / "benchmark_results" / "dfaas"
+
+    def _load_output_dir_from_generated(self) -> Path | None:
+        cfg_path = Path("benchmark_config.generated.json")
+        if not cfg_path.exists():
+            return None
+        try:
+            data = json.loads(cfg_path.read_text())
+            output_root = Path(data.get("output_dir", "."))
+            workloads = data.get("workloads", {})
+            workload_name = self._find_workload_name(workloads)
+            return output_root / workload_name
+        except (json.JSONDecodeError, OSError, TypeError, KeyError) as exc:
+            logger.debug("Could not parse config file %s: %s", cfg_path, exc)
+            return None
+
+    @staticmethod
+    def _find_workload_name(workloads: dict[str, Any]) -> str:
+        for name, entry in workloads.items():
+            if isinstance(entry, dict) and entry.get("plugin") == "dfaas":
+                return name
+        return "dfaas"
 
     def _load_index(
         self, output_dir: Path
@@ -206,10 +216,7 @@ class DfaasConfigExecutor:
     ) -> None:
         key = config_key(config_pairs)
         cfg_id = config_id(config_pairs)
-        pairs_label = ", ".join(
-            f"{name}={rate}"
-            for name, rate in sorted(config_pairs, key=lambda pair: pair[0])
-        )
+        pairs_label = self._format_pairs_label(config_pairs)
 
         skip_reason = self._check_skip_reason(ctx, config_pairs, key)
         if skip_reason:
@@ -232,77 +239,24 @@ class DfaasConfigExecutor:
         )
         ctx.script_entries.append({"config_id": cfg_id, "script": script})
 
-        overload_counter = 0
-        try:
-            for iteration in range(1, total_iterations + 1):
-                overloaded = self._execute_iteration(
-                    ctx,
-                    config_pairs,
-                    script,
-                    metric_ids,
-                    cfg_id,
-                    pairs_label,
-                    idx,
-                    total_configs,
-                    iteration,
-                    total_iterations,
-                )
-                if overloaded:
-                    overload_counter += 1
+        overload_counter = self._run_config_iterations(
+            ctx,
+            config_pairs,
+            script,
+            metric_ids,
+            cfg_id,
+            pairs_label,
+            idx,
+            total_configs,
+            total_iterations,
+        )
+        if overload_counter is None:
+            return
 
-            if overload_counter > self._config.iterations / 2:
-                ctx.overloaded_configs.append(list(config_pairs))
+        if overload_counter > self._config.iterations / 2:
+            ctx.overloaded_configs.append(list(config_pairs))
 
-            ctx.index_rows.append(
-                {
-                    "functions": list(key[0]),
-                    "rates": list(key[1]),
-                    "results_file": "results.csv",
-                }
-            )
-        except CooldownTimeoutError as exc:
-            logger.warning(
-                "Config %s skipped: cooldown timeout after %ds (max: %ds)",
-                cfg_id,
-                exc.waited_seconds,
-                exc.max_seconds,
-            )
-            self._annotations.annotate_error(
-                ctx.run_id,
-                cfg_id,
-                f"Cooldown timeout after {exc.waited_seconds}s (max {exc.max_seconds}s)",
-            )
-            ctx.skipped_rows.append(
-                self._result_builder.build_skipped_row(
-                    ctx.function_names, config_pairs
-                )
-            )
-        except K6ExecutionError as exc:
-            logger.error("Config %s failed: k6 execution error: %s", cfg_id, exc)
-            if exc.stderr:
-                logger.debug("k6 stderr: %s", exc.stderr)
-            self._annotations.annotate_error(
-                ctx.run_id,
-                cfg_id,
-                f"k6 execution error: {exc}",
-            )
-            ctx.skipped_rows.append(
-                self._result_builder.build_skipped_row(
-                    ctx.function_names, config_pairs
-                )
-            )
-        except (OSError, json.JSONDecodeError, RuntimeError) as exc:
-            logger.error("Config %s failed: %s: %s", cfg_id, type(exc).__name__, exc)
-            self._annotations.annotate_error(
-                ctx.run_id,
-                cfg_id,
-                f"{type(exc).__name__}: {exc}",
-            )
-            ctx.skipped_rows.append(
-                self._result_builder.build_skipped_row(
-                    ctx.function_names, config_pairs
-                )
-            )
+        self._append_index_row(ctx, key)
 
     @staticmethod
     def _check_skip_reason(
@@ -336,9 +290,7 @@ class DfaasConfigExecutor:
             logger.info("%s", message)
             self._log_manager.emit_log(message)
         ctx.skipped_rows.append(
-            self._result_builder.build_skipped_row(
-                ctx.function_names, config_pairs
-            )
+            self._result_builder.build_skipped_row(ctx.function_names, config_pairs)
         )
 
     def _execute_iteration(
@@ -354,69 +306,23 @@ class DfaasConfigExecutor:
         iteration: int,
         total_iterations: int,
     ) -> bool:
-        message = (
-            "DFaaS config "
-            f"{idx}/{total_configs} iter {iteration}/{total_iterations} "
-            f"({cfg_id}): {pairs_label}"
+        message = self._build_iteration_message(
+            cfg_id, pairs_label, idx, total_configs, iteration, total_iterations
         )
-        logger.info("%s", message)
-        self._log_manager.emit_log(message)
+        self._emit_iteration_message(message)
 
-        logger.info("DFaaS cooldown start (%s)", cfg_id)
-        cooldown_result = ctx.cooldown_manager.wait_for_idle(
-            ctx.base_idle, getattr(ctx, "function_names", [])
+        idle_snapshot, rest_seconds = self._perform_cooldown(ctx, cfg_id)
+        k6_result, start_time, end_time = self._run_k6_iteration(
+            ctx, cfg_id, script, metric_ids
         )
-        idle_snapshot = cooldown_result.snapshot
-        rest_seconds = cooldown_result.waited_seconds
-        logger.info("DFaaS cooldown complete (%s) waited=%ds", cfg_id, rest_seconds)
 
-        start_time = time.time()
-        logger.info("DFaaS k6 execute start (%s)", cfg_id)
-        k6_result = self._k6_runner.execute(
-            cfg_id,
-            script,
-            ctx.target_name,
-            ctx.run_id,
-            metric_ids,
-            outputs=self._outputs_provider(),
-            tags=self._tags_provider(ctx.run_id),
-        )
-        logger.info(
-            "DFaaS k6 execute done (%s) duration=%.1fs",
-            cfg_id,
-            k6_result.duration_seconds,
-        )
         summary_data = k6_result.summary
-        end_time = time.time()
-
-        try:
-            summary_metrics = self._k6_runner.parse_summary(summary_data, metric_ids)
-        except ValueError as exc:
-            metrics_dict = summary_data.get("metrics", {}) if summary_data else {}
-            sample_metric = None
-            for mid in metric_ids.values():
-                key = f"success_rate_{mid}"
-                if key in metrics_dict:
-                    sample_metric = {key: metrics_dict[key]}
-                    break
-            logger.error(
-                "Summary parsing failed. metric_ids=%s, summary_keys=%s, sample_metric=%s",
-                metric_ids,
-                list(metrics_dict.keys()),
-                sample_metric,
-            )
-            raise K6ExecutionError(
-                cfg_id,
-                f"missing k6 summary metrics: {exc}",
-            ) from exc
+        summary_metrics = self._parse_summary_or_raise(
+            summary_data, metric_ids, cfg_id
+        )
         replicas = self._replicas_provider(getattr(ctx, "function_names", []))
         config_fn_names = [name for name, _ in config_pairs]
-        metrics = self._metrics_collector.collect_all_metrics(
-            config_fn_names,
-            start_time,
-            end_time,
-            self._duration_seconds,
-        )
+        metrics = self._collect_metrics(config_fn_names, start_time, end_time)
 
         row, overloaded = self._result_builder.build_result_row(
             getattr(ctx, "function_names", []),
@@ -433,6 +339,121 @@ class DfaasConfigExecutor:
                 ctx.run_id, cfg_id, pairs_label, iteration
             )
 
+        self._append_iteration_entries(
+            ctx, cfg_id, iteration, summary_data, metrics, row
+        )
+        return overloaded
+
+    @staticmethod
+    def _build_iteration_message(
+        cfg_id: str,
+        pairs_label: str,
+        idx: int,
+        total_configs: int,
+        iteration: int,
+        total_iterations: int,
+    ) -> str:
+        return (
+            "DFaaS config "
+            f"{idx}/{total_configs} iter {iteration}/{total_iterations} "
+            f"({cfg_id}): {pairs_label}"
+        )
+
+    def _emit_iteration_message(self, message: str) -> None:
+        logger.info("%s", message)
+        self._log_manager.emit_log(message)
+
+    def _perform_cooldown(
+        self, ctx: DfaasRunContext, cfg_id: str
+    ) -> tuple[MetricsSnapshot, int]:
+        logger.info("DFaaS cooldown start (%s)", cfg_id)
+        cooldown_result = ctx.cooldown_manager.wait_for_idle(
+            ctx.base_idle, getattr(ctx, "function_names", [])
+        )
+        idle_snapshot = cooldown_result.snapshot
+        rest_seconds = cooldown_result.waited_seconds
+        logger.info("DFaaS cooldown complete (%s) waited=%ds", cfg_id, rest_seconds)
+        return idle_snapshot, rest_seconds
+
+    def _run_k6_iteration(
+        self,
+        ctx: DfaasRunContext,
+        cfg_id: str,
+        script: str,
+        metric_ids: dict[str, str],
+    ) -> tuple[Any, float, float]:
+        start_time = time.time()
+        logger.info("DFaaS k6 execute start (%s)", cfg_id)
+        k6_result = self._k6_runner.execute(
+            cfg_id,
+            script,
+            ctx.target_name,
+            ctx.run_id,
+            metric_ids,
+            outputs=self._outputs_provider(),
+            tags=self._tags_provider(ctx.run_id),
+        )
+        logger.info(
+            "DFaaS k6 execute done (%s) duration=%.1fs",
+            cfg_id,
+            k6_result.duration_seconds,
+        )
+        end_time = time.time()
+        return k6_result, start_time, end_time
+
+    def _parse_summary_or_raise(
+        self,
+        summary_data: dict[str, Any],
+        metric_ids: dict[str, str],
+        cfg_id: str,
+    ) -> dict[str, dict[str, float]]:
+        try:
+            return self._k6_runner.parse_summary(summary_data, metric_ids)
+        except ValueError as exc:
+            self._log_summary_parse_failure(summary_data, metric_ids)
+            raise K6ExecutionError(
+                cfg_id,
+                f"missing k6 summary metrics: {exc}",
+            ) from exc
+
+    @staticmethod
+    def _log_summary_parse_failure(
+        summary_data: dict[str, Any] | None,
+        metric_ids: dict[str, str],
+    ) -> None:
+        metrics_dict = summary_data.get("metrics", {}) if summary_data else {}
+        sample_metric = None
+        for mid in metric_ids.values():
+            key = f"success_rate_{mid}"
+            if key in metrics_dict:
+                sample_metric = {key: metrics_dict[key]}
+                break
+        logger.error(
+            "Summary parsing failed. metric_ids=%s, summary_keys=%s, sample_metric=%s",
+            metric_ids,
+            list(metrics_dict.keys()),
+            sample_metric,
+        )
+
+    def _collect_metrics(
+        self, config_fn_names: list[str], start_time: float, end_time: float
+    ) -> dict[str, Any]:
+        return self._metrics_collector.collect_all_metrics(
+            config_fn_names,
+            start_time,
+            end_time,
+            self._duration_seconds,
+        )
+
+    @staticmethod
+    def _append_iteration_entries(
+        ctx: DfaasRunContext,
+        cfg_id: str,
+        iteration: int,
+        summary_data: dict[str, Any],
+        metrics: dict[str, Any],
+        row: dict[str, Any],
+    ) -> None:
         ctx.results_rows.append(row)
         ctx.metrics_entries.append(
             {
@@ -449,7 +470,123 @@ class DfaasConfigExecutor:
             }
         )
 
-        return overloaded
+    def _run_config_iterations(
+        self,
+        ctx: DfaasRunContext,
+        config_pairs: list[tuple[str, int]],
+        script: str,
+        metric_ids: dict[str, str],
+        cfg_id: str,
+        pairs_label: str,
+        idx: int,
+        total_configs: int,
+        total_iterations: int,
+    ) -> int | None:
+        overload_counter = 0
+        try:
+            for iteration in range(1, total_iterations + 1):
+                overloaded = self._execute_iteration(
+                    ctx,
+                    config_pairs,
+                    script,
+                    metric_ids,
+                    cfg_id,
+                    pairs_label,
+                    idx,
+                    total_configs,
+                    iteration,
+                    total_iterations,
+                )
+                if overloaded:
+                    overload_counter += 1
+        except CooldownTimeoutError as exc:
+            self._handle_cooldown_timeout(ctx, config_pairs, cfg_id, exc)
+            return None
+        except K6ExecutionError as exc:
+            self._handle_k6_error(ctx, config_pairs, cfg_id, exc)
+            return None
+        except (OSError, json.JSONDecodeError, RuntimeError) as exc:
+            self._handle_execution_error(ctx, config_pairs, cfg_id, exc)
+            return None
+        return overload_counter
+
+    @staticmethod
+    def _format_pairs_label(config_pairs: list[tuple[str, int]]) -> str:
+        return ", ".join(
+            f"{name}={rate}"
+            for name, rate in sorted(config_pairs, key=lambda pair: pair[0])
+        )
+
+    def _append_index_row(
+        self,
+        ctx: DfaasRunContext,
+        key: tuple[tuple[str, ...], tuple[int, ...]],
+    ) -> None:
+        ctx.index_rows.append(
+            {
+                "functions": list(key[0]),
+                "rates": list(key[1]),
+                "results_file": "results.csv",
+            }
+        )
+
+    def _append_skipped_row(
+        self, ctx: DfaasRunContext, config_pairs: list[tuple[str, int]]
+    ) -> None:
+        ctx.skipped_rows.append(
+            self._result_builder.build_skipped_row(ctx.function_names, config_pairs)
+        )
+
+    def _handle_cooldown_timeout(
+        self,
+        ctx: DfaasRunContext,
+        config_pairs: list[tuple[str, int]],
+        cfg_id: str,
+        exc: CooldownTimeoutError,
+    ) -> None:
+        logger.warning(
+            "Config %s skipped: cooldown timeout after %ds (max: %ds)",
+            cfg_id,
+            exc.waited_seconds,
+            exc.max_seconds,
+        )
+        message = (
+            f"Cooldown timeout after {exc.waited_seconds}s (max {exc.max_seconds}s)"
+        )
+        self._annotations.annotate_error(ctx.run_id, cfg_id, message)
+        self._append_skipped_row(ctx, config_pairs)
+
+    def _handle_k6_error(
+        self,
+        ctx: DfaasRunContext,
+        config_pairs: list[tuple[str, int]],
+        cfg_id: str,
+        exc: K6ExecutionError,
+    ) -> None:
+        logger.error("Config %s failed: k6 execution error: %s", cfg_id, exc)
+        if exc.stderr:
+            logger.debug("k6 stderr: %s", exc.stderr)
+        self._annotations.annotate_error(
+            ctx.run_id,
+            cfg_id,
+            f"k6 execution error: {exc}",
+        )
+        self._append_skipped_row(ctx, config_pairs)
+
+    def _handle_execution_error(
+        self,
+        ctx: DfaasRunContext,
+        config_pairs: list[tuple[str, int]],
+        cfg_id: str,
+        exc: Exception,
+    ) -> None:
+        logger.error("Config %s failed: %s: %s", cfg_id, type(exc).__name__, exc)
+        self._annotations.annotate_error(
+            ctx.run_id,
+            cfg_id,
+            f"{type(exc).__name__}: {exc}",
+        )
+        self._append_skipped_row(ctx, config_pairs)
 
 
 class DfaasResultWriter:

@@ -72,7 +72,9 @@ class DfaasAnnotationService:
             tags=tags,
         )
 
-    def annotate_config_change(self, run_id: str, cfg_id: str, pairs_label: str) -> None:
+    def annotate_config_change(
+        self, run_id: str, cfg_id: str, pairs_label: str
+    ) -> None:
         tags = self._base_tags(run_id) + [f"config_id:{cfg_id}", "event:config"]
         self._queue_annotation(
             text=f"Config {cfg_id}: {pairs_label}",

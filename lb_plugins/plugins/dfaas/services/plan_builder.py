@@ -53,21 +53,43 @@ def generate_configurations(
     max_functions: int,
     rates_by_function: dict[str, list[int]] | None = None,
 ) -> list[list[tuple[str, int]]]:
-    from itertools import product
-
     configs: list[list[tuple[str, int]]] = []
     combos = generate_function_combinations(functions, min_functions, max_functions)
     for combo in combos:
-        rate_sets: list[list[tuple[str, int]]] = []
-        for fn in combo:
-            fn_rates = rates_by_function.get(fn, rates) if rates_by_function else rates
-            rate_sets.append([(fn, rate) for rate in fn_rates])
-        for selection in product(*rate_sets):
-            configs.append(list(selection))
+        configs.extend(
+            _configurations_for_combo(combo, rates, rates_by_function=rates_by_function)
+        )
     return configs
 
 
-def config_key(config: Iterable[tuple[str, int]]) -> tuple[tuple[str, ...], tuple[int, ...]]:
+def _configurations_for_combo(
+    combo: tuple[str, ...],
+    rates: list[int],
+    *,
+    rates_by_function: dict[str, list[int]] | None,
+) -> list[list[tuple[str, int]]]:
+    from itertools import product
+
+    rate_sets = [
+        [(fn, rate) for rate in _rates_for_function(fn, rates, rates_by_function)]
+        for fn in combo
+    ]
+    return [list(selection) for selection in product(*rate_sets)]
+
+
+def _rates_for_function(
+    fn: str,
+    rates: list[int],
+    rates_by_function: dict[str, list[int]] | None,
+) -> list[int]:
+    if not rates_by_function:
+        return rates
+    return rates_by_function.get(fn, rates)
+
+
+def config_key(
+    config: Iterable[tuple[str, int]],
+) -> tuple[tuple[str, ...], tuple[int, ...]]:
     sorted_config = sorted(config, key=lambda pair: pair[0])
     names = tuple(fn for fn, _ in sorted_config)
     rates = tuple(rate for _, rate in sorted_config)

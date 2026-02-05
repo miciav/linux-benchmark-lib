@@ -65,7 +65,8 @@ class DfaasPlugin(SimpleWorkloadPlugin):
             rep = entry.get("repetition")
             config_id = entry["config_id"]
             iteration = entry["iteration"]
-            summary_path = summary_dir / f"summary-{config_id}-iter{iteration}-rep{rep}.json"
+            summary_name = f"summary-{config_id}-iter{iteration}-rep{rep}.json"
+            summary_path = summary_dir / summary_name
             summary_path.write_text(json.dumps(entry["summary"], indent=2))
             paths.append(summary_path)
 
@@ -73,7 +74,8 @@ class DfaasPlugin(SimpleWorkloadPlugin):
             rep = entry.get("repetition")
             config_id = entry["config_id"]
             iteration = entry["iteration"]
-            metrics_path = metrics_dir / f"metrics-{config_id}-iter{iteration}-rep{rep}.csv"
+            metrics_name = f"metrics-{config_id}-iter{iteration}-rep{rep}.csv"
+            metrics_path = metrics_dir / metrics_name
             _write_csv(metrics_path, _metrics_header(functions), [entry["row"]])
             paths.append(metrics_path)
 

@@ -28,28 +28,32 @@ class QueryDefinition:
 
 
 def load_queries(path: Path) -> list[QueryDefinition]:
+    items = _load_query_items(path)
+    return [_parse_query_entry(entry) for entry in items]
+
+
+def _load_query_items(path: Path) -> list[Any]:
     data = yaml.safe_load(path.read_text()) or {}
     items = data.get("queries", [])
     if not isinstance(items, list):
         raise ValueError("queries.yml must contain a 'queries' list.")
-    definitions: list[QueryDefinition] = []
-    for entry in items:
-        if not isinstance(entry, dict):
-            raise ValueError("Each query entry must be a mapping.")
-        name = entry.get("name")
-        query = entry.get("query")
-        if not name or not query:
-            raise ValueError("Query entries require 'name' and 'query'.")
-        definitions.append(
-            QueryDefinition(
-                name=name,
-                query=query,
-                range=bool(entry.get("range", True)),
-                step=str(entry.get("step", "10s")),
-                enabled_if=entry.get("enabled_if"),
-            )
-        )
-    return definitions
+    return items
+
+
+def _parse_query_entry(entry: Any) -> QueryDefinition:
+    if not isinstance(entry, dict):
+        raise ValueError("Each query entry must be a mapping.")
+    name = entry.get("name")
+    query = entry.get("query")
+    if not name or not query:
+        raise ValueError("Query entries require 'name' and 'query'.")
+    return QueryDefinition(
+        name=name,
+        query=query,
+        range=bool(entry.get("range", True)),
+        step=str(entry.get("step", "10s")),
+        enabled_if=entry.get("enabled_if"),
+    )
 
 
 def filter_queries(
