@@ -147,16 +147,24 @@ def get_builtin_plugin_root() -> Path:
 
 
 def plugin_metadata(registry: PluginRegistry) -> Dict[str, Dict[str, Any]]:
-    """Return serializable metadata for available plugins (paths, descriptions, presets)."""
+    """Return serializable metadata for available plugins."""
     data: Dict[str, Dict[str, Any]] = {}
     for name, plugin in registry.available(load_entrypoints=True).items():
         meta: Dict[str, Any] = {
             "name": name,
             "description": getattr(plugin, "description", ""),
-            "ansible_setup_path": getattr(plugin, "get_ansible_setup_path", lambda: None)(),
-            "ansible_teardown_path": getattr(plugin, "get_ansible_teardown_path", lambda: None)(),
-            "ansible_setup_extravars": getattr(plugin, "get_ansible_setup_extravars", lambda: {})(),
-            "ansible_teardown_extravars": getattr(plugin, "get_ansible_teardown_extravars", lambda: {})(),
+            "ansible_setup_path": _call_plugin_method(
+                plugin, "get_ansible_setup_path", None
+            ),
+            "ansible_teardown_path": _call_plugin_method(
+                plugin, "get_ansible_teardown_path", None
+            ),
+            "ansible_setup_extravars": _call_plugin_method(
+                plugin, "get_ansible_setup_extravars", {}
+            ),
+            "ansible_teardown_extravars": _call_plugin_method(
+                plugin, "get_ansible_teardown_extravars", {}
+            ),
         }
         data[name] = meta
     return data
@@ -169,40 +177,7 @@ def apply_plugin_assets(
     """Populate config.plugin_assets from resolved plugins."""
     assets: Dict[str, PluginAssetConfig] = {}
     for name, plugin in registry.available(load_entrypoints=True).items():
-        setup_path = None
-        teardown_path = None
-        setup_extravars: Dict[str, Any] = {}
-        teardown_extravars: Dict[str, Any] = {}
-        collect_pre_path = None
-        collect_post_path = None
-        collect_pre_extravars: Dict[str, Any] = {}
-        collect_post_extravars: Dict[str, Any] = {}
-        if hasattr(plugin, "get_ansible_setup_path"):
-            setup_path = plugin.get_ansible_setup_path()
-        if hasattr(plugin, "get_ansible_teardown_path"):
-            teardown_path = plugin.get_ansible_teardown_path()
-        if hasattr(plugin, "get_ansible_setup_extravars"):
-            setup_extravars = plugin.get_ansible_setup_extravars() or {}
-        if hasattr(plugin, "get_ansible_teardown_extravars"):
-            teardown_extravars = plugin.get_ansible_teardown_extravars() or {}
-        if hasattr(plugin, "get_ansible_collect_pre_path"):
-            collect_pre_path = plugin.get_ansible_collect_pre_path()
-        if hasattr(plugin, "get_ansible_collect_post_path"):
-            collect_post_path = plugin.get_ansible_collect_post_path()
-        if hasattr(plugin, "get_ansible_collect_pre_extravars"):
-            collect_pre_extravars = plugin.get_ansible_collect_pre_extravars() or {}
-        if hasattr(plugin, "get_ansible_collect_post_extravars"):
-            collect_post_extravars = plugin.get_ansible_collect_post_extravars() or {}
-        assets[name] = PluginAssetConfig(
-            setup_playbook=setup_path,
-            teardown_playbook=teardown_path,
-            setup_extravars=setup_extravars,
-            teardown_extravars=teardown_extravars,
-            collect_pre_playbook=collect_pre_path,
-            collect_post_playbook=collect_post_path,
-            collect_pre_extravars=collect_pre_extravars,
-            collect_post_extravars=collect_post_extravars,
-        )
+        assets[name] = _build_plugin_assets(plugin)
     config.plugin_assets = assets
 
 
@@ -217,25 +192,75 @@ def collect_grafana_assets(
     datasources: list[GrafanaDatasourceAsset] = []
     dashboards: list[GrafanaDashboardAsset] = []
     for name, plugin in registry.available(load_entrypoints=True).items():
-        if enabled_plugins is not None and not enabled_plugins.get(name, True):
-            continue
-        assets = plugin.get_grafana_assets()
-        if not assets:
-            continue
-        config = settings.get(name)
-        if config is None:
-            try:
-                config = plugin.config_cls()
-            except Exception:
-                config = None
-        resolved = resolve_grafana_assets(
-            assets,
-            config,
-            hosts=remote_hosts,
+        resolved = _resolve_grafana_for_plugin(
+            name,
+            plugin,
+            settings,
+            enabled_plugins,
+            remote_hosts,
         )
-        datasources.extend(resolved.datasources)
-        dashboards.extend(resolved.dashboards)
+        if resolved:
+            datasources.extend(resolved.datasources)
+            dashboards.extend(resolved.dashboards)
     return GrafanaAssets(datasources=tuple(datasources), dashboards=tuple(dashboards))
+
+
+def _call_plugin_method(plugin: Any, name: str, default: Any) -> Any:
+    func = getattr(plugin, name, None)
+    if not callable(func):
+        return default
+    value = func()
+    return default if value is None else value
+
+
+def _build_plugin_assets(plugin: Any) -> PluginAssetConfig:
+    setup_path = _call_plugin_method(plugin, "get_ansible_setup_path", None)
+    teardown_path = _call_plugin_method(plugin, "get_ansible_teardown_path", None)
+    setup_extravars = _call_plugin_method(plugin, "get_ansible_setup_extravars", {})
+    teardown_extravars = _call_plugin_method(
+        plugin, "get_ansible_teardown_extravars", {}
+    )
+    collect_pre_path = _call_plugin_method(plugin, "get_ansible_collect_pre_path", None)
+    collect_post_path = _call_plugin_method(
+        plugin, "get_ansible_collect_post_path", None
+    )
+    collect_pre_extravars = _call_plugin_method(
+        plugin, "get_ansible_collect_pre_extravars", {}
+    )
+    collect_post_extravars = _call_plugin_method(
+        plugin, "get_ansible_collect_post_extravars", {}
+    )
+    return PluginAssetConfig(
+        setup_playbook=setup_path,
+        teardown_playbook=teardown_path,
+        setup_extravars=setup_extravars,
+        teardown_extravars=teardown_extravars,
+        collect_pre_playbook=collect_pre_path,
+        collect_post_playbook=collect_post_path,
+        collect_pre_extravars=collect_pre_extravars,
+        collect_post_extravars=collect_post_extravars,
+    )
+
+
+def _resolve_grafana_for_plugin(
+    name: str,
+    plugin: WorkloadPlugin,
+    settings: Dict[str, Any],
+    enabled_plugins: Dict[str, bool] | None,
+    remote_hosts: list[Any] | None,
+) -> GrafanaAssets | None:
+    if enabled_plugins is not None and not enabled_plugins.get(name, True):
+        return None
+    assets = plugin.get_grafana_assets()
+    if not assets:
+        return None
+    config = settings.get(name)
+    if config is None:
+        try:
+            config = plugin.config_cls()
+        except Exception:
+            config = None
+    return resolve_grafana_assets(assets, config, hosts=remote_hosts)
 
 
 __all__ = [

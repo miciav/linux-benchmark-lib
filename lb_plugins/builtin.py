@@ -16,31 +16,41 @@ def builtin_plugins() -> List[Any]:
     Scans `plugins/` for `PLUGIN`, `PLUGINS`, or `get_plugins` exports.
     """
     plugins: List[Any] = []
-
     plugins_path = Path(__file__).resolve().parent / "plugins"
     if not plugins_path.exists():
         return plugins
 
-    for item in plugins_path.iterdir():
-        if item.is_dir() and (item / "plugin.py").exists():
-            module_name = f"{_PLUGIN_PACKAGE}.{item.name}.plugin"
-            try:
-                mod = importlib.import_module(module_name)
-                if hasattr(mod, "get_plugins") and callable(getattr(mod, "get_plugins")):
-                    discovered = mod.get_plugins()
-                    if isinstance(discovered, list):
-                        plugins.extend(discovered)
-                    else:
-                        plugins.append(discovered)
-                elif hasattr(mod, "PLUGINS"):
-                    discovered = getattr(mod, "PLUGINS")
-                    if isinstance(discovered, list):
-                        plugins.extend(discovered)
-                    else:
-                        plugins.append(discovered)
-                elif hasattr(mod, "PLUGIN"):
-                    plugins.append(mod.PLUGIN)
-            except ImportError as exc:
-                logger.debug("Skipping plugin %s: %s", module_name, exc)
+    for module_name in _iter_plugin_modules(plugins_path):
+        try:
+            mod = importlib.import_module(module_name)
+        except ImportError as exc:
+            logger.debug("Skipping plugin %s: %s", module_name, exc)
+            continue
+        plugins.extend(_extract_plugins(mod))
 
     return plugins
+
+
+def _iter_plugin_modules(plugins_path: Path) -> List[str]:
+    modules: List[str] = []
+    for item in plugins_path.iterdir():
+        if item.is_dir() and (item / "plugin.py").exists():
+            modules.append(f"{_PLUGIN_PACKAGE}.{item.name}.plugin")
+    return modules
+
+
+def _extract_plugins(module: Any) -> List[Any]:
+    getter = getattr(module, "get_plugins", None)
+    if callable(getter):
+        return _normalize_plugins(getter())
+    if hasattr(module, "PLUGINS"):
+        return _normalize_plugins(getattr(module, "PLUGINS"))
+    if hasattr(module, "PLUGIN"):
+        return [module.PLUGIN]
+    return []
+
+
+def _normalize_plugins(discovered: Any) -> List[Any]:
+    if isinstance(discovered, list):
+        return discovered
+    return [discovered]

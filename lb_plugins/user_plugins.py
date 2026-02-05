@@ -79,76 +79,115 @@ def candidate_entrypoints(path: Path) -> Iterable[Path]:
 def resolve_entry_point_from_toml(root: Path, toml_path: Path) -> Optional[Path]:
     """Parse pyproject.toml to guess the package location."""
     try:
-        with open(toml_path, "rb") as f:
-            data = tomllib.load(f)
-
-        project = data.get("project", {})
-        entry_target = _resolve_project_entrypoint(root, project)
-        if entry_target:
-            return entry_target
-        name = project.get("name") if isinstance(project, dict) else None
-        if isinstance(name, str) and name:
-            target = _resolve_package_root(root, name)
+        data = _load_toml_data(toml_path)
+        for target in _iter_entrypoint_targets(root, data):
             if target:
                 return target
-
-        tool = data.get("tool", {})
-        poetry = tool.get("poetry") if isinstance(tool, dict) else None
-        target = _resolve_poetry_entrypoint(root, poetry)
-        if target:
-            return target
-
     except Exception as exc:
         logger.warning("Failed to parse %s: %s", toml_path, exc)
     return None
+
+
+def _load_toml_data(toml_path: Path) -> dict[str, Any]:
+    with open(toml_path, "rb") as f:
+        return tomllib.load(f)
+
+
+def _iter_entrypoint_targets(root: Path, data: dict[str, Any]) -> Iterable[Path]:
+    project = data.get("project", {})
+    yield _resolve_project_entrypoint(root, project)
+    yield _resolve_project_name(root, project)
+
+    tool = data.get("tool", {})
+    poetry = tool.get("poetry") if isinstance(tool, dict) else None
+    yield _resolve_poetry_entrypoint(root, poetry)
 
 
 def _resolve_project_entrypoint(root: Path, project: Any) -> Optional[Path]:
     if not isinstance(project, dict):
         return None
     entry_points = project.get("entry-points") or project.get("entry_points")
-    if not isinstance(entry_points, dict):
-        return None
-    workload_group = entry_points.get("linux_benchmark.workloads")
-    if not isinstance(workload_group, dict):
-        return None
-    for value in workload_group.values():
-        if isinstance(value, str):
-            target = _resolve_entrypoint_module(root, value)
-            if target:
-                return target
+    return _resolve_entrypoint_mapping(root, entry_points)
+
+
+def _resolve_project_name(root: Path, project: Any) -> Optional[Path]:
+    name = project.get("name") if isinstance(project, dict) else None
+    if isinstance(name, str) and name:
+        return _resolve_package_root(root, name)
     return None
 
 
 def _resolve_poetry_entrypoint(root: Path, poetry: Any) -> Optional[Path]:
     if not isinstance(poetry, dict):
         return None
+    target = _resolve_poetry_plugins(root, poetry)
+    if target:
+        return target
+    target = _resolve_poetry_packages(root, poetry)
+    if target:
+        return target
+    return _resolve_poetry_name(root, poetry)
+
+
+def _resolve_poetry_plugins(root: Path, poetry: dict[str, Any]) -> Optional[Path]:
     plugins = poetry.get("plugins")
     if isinstance(plugins, dict):
-        workload_group = plugins.get("linux_benchmark.workloads")
-        if isinstance(workload_group, dict):
-            for value in workload_group.values():
-                if isinstance(value, str):
-                    target = _resolve_entrypoint_module(root, value)
-                    if target:
-                        return target
-    packages = poetry.get("packages")
-    if isinstance(packages, list):
-        for entry in packages:
-            if not isinstance(entry, dict):
-                continue
-            include = entry.get("include")
-            if not isinstance(include, str) or not include:
-                continue
-            base = entry.get("from")
-            base_path = root / base if isinstance(base, str) and base else root
-            target = _resolve_package_path(base_path / include)
-            if target:
-                return target
+        return _resolve_entrypoint_mapping(
+            root, plugins.get("linux_benchmark.workloads")
+        )
+    return None
 
+
+def _resolve_poetry_packages(root: Path, poetry: dict[str, Any]) -> Optional[Path]:
+    packages = poetry.get("packages")
+    if not isinstance(packages, list):
+        return None
+    for entry in packages:
+        target = _resolve_poetry_package_entry(root, entry)
+        if target:
+            return target
+    return None
+
+
+def _resolve_poetry_package_entry(
+    root: Path, entry: Any
+) -> Optional[Path]:
+    if not isinstance(entry, dict):
+        return None
+    include = entry.get("include")
+    if not isinstance(include, str) or not include:
+        return None
+    base = entry.get("from")
+    base_path = root / base if isinstance(base, str) and base else root
+    return _resolve_package_path(base_path / include)
+
+
+def _resolve_poetry_name(root: Path, poetry: dict[str, Any]) -> Optional[Path]:
     name = poetry.get("name")
     if isinstance(name, str) and name:
         return _resolve_package_root(root, name)
+    return None
+
+
+def _resolve_entrypoint_mapping(
+    root: Path, entry_points: Any
+) -> Optional[Path]:
+    if not isinstance(entry_points, dict):
+        return None
+    workload_group = entry_points.get("linux_benchmark.workloads")
+    if not isinstance(workload_group, dict):
+        return None
+    return _resolve_entrypoint_values(root, workload_group.values())
+
+
+def _resolve_entrypoint_values(
+    root: Path, values: Iterable[Any]
+) -> Optional[Path]:
+    for value in values:
+        if isinstance(value, str):
+            target = _resolve_entrypoint_module(root, value)
+            if target:
+                return target
     return None
 
 
@@ -177,17 +216,24 @@ def _resolve_entrypoint_module(root: Path, entry_point: str) -> Optional[Path]:
         return None
     rel_path = Path(*module_path.split("."))
     for base in (root / "src", root):
-        candidate = base / rel_path
-        module_file = candidate.with_suffix(".py")
-        if module_file.exists():
-            return module_file
-        if candidate.is_dir():
-            plugin_file = candidate / "plugin.py"
-            if plugin_file.exists():
-                return plugin_file
-            init_path = candidate / "__init__.py"
-            if init_path.exists():
-                return init_path
+        target = _resolve_entrypoint_in_base(base, rel_path)
+        if target:
+            return target
+    return None
+
+
+def _resolve_entrypoint_in_base(base: Path, rel_path: Path) -> Optional[Path]:
+    candidate = base / rel_path
+    module_file = candidate.with_suffix(".py")
+    if module_file.exists():
+        return module_file
+    if candidate.is_dir():
+        plugin_file = candidate / "plugin.py"
+        if plugin_file.exists():
+            return plugin_file
+        init_path = candidate / "__init__.py"
+        if init_path.exists():
+            return init_path
     return None
 
 
@@ -198,24 +244,13 @@ def load_plugin_from_path(
 ) -> None:
     try:
         name = module_name or path.stem
-        is_package = path.name == "__init__.py"
-        if "." in name:
-            _ensure_parent_packages(name, path)
-        spec = importlib.util.spec_from_file_location(
-            name,
-            path,
-            submodule_search_locations=[str(path.parent)] if is_package else None,
-        )
-        if spec and spec.loader:
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[name] = module
-            try:
-                spec.loader.exec_module(module)
-            except Exception as exc:
-                logger.error("Error executing module %s: %s", path, exc)
-                return
-
-            register_from_module(module, register, source=str(path))
+        spec = _build_spec(name, path)
+        if not spec or not spec.loader:
+            return
+        module = _load_module_from_spec(spec, name, path)
+        if not module:
+            return
+        register_from_module(module, register, source=str(path))
     except Exception as exc:
         logger.warning("Failed to load user plugin %s: %s", path, exc)
 
@@ -227,32 +262,72 @@ def register_from_module(
 ) -> None:
     """Register PLUGIN / PLUGINS / get_plugins() exports from a python module."""
     try:
-        if hasattr(module, "get_plugins") and callable(getattr(module, "get_plugins")):
-            discovered = module.get_plugins()
-            candidates = discovered if isinstance(discovered, list) else [discovered]
-        elif hasattr(module, "PLUGINS"):
-            discovered = getattr(module, "PLUGINS")
-            candidates = discovered if isinstance(discovered, list) else [discovered]
-        elif hasattr(module, "PLUGIN"):
-            candidates = [getattr(module, "PLUGIN")]
-        else:
-            logger.debug(
-                "Skipping %s: no PLUGIN/PLUGINS/get_plugins exports found", source
-            )
+        candidates = _extract_module_candidates(module, source)
+        if not candidates:
             return
-
-        registered = 0
-        for plugin in candidates:
-            if plugin is None:
-                continue
-            register(plugin)
-            registered += 1
+        registered = _register_candidates(candidates, register)
         if registered:
             logger.info("Loaded %s plugin(s) from %s", registered, source)
         else:
             logger.debug("Skipping %s: exported plugin list was empty", source)
     except Exception as exc:
         logger.warning("Failed to register plugins from %s: %s", source, exc)
+
+
+def _build_spec(name: str, path: Path) -> importlib.machinery.ModuleSpec | None:
+    is_package = path.name == "__init__.py"
+    if "." in name:
+        _ensure_parent_packages(name, path)
+    return importlib.util.spec_from_file_location(
+        name,
+        path,
+        submodule_search_locations=[str(path.parent)] if is_package else None,
+    )
+
+
+def _load_module_from_spec(
+    spec: importlib.machinery.ModuleSpec, name: str, path: Path
+) -> Any | None:
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+    except Exception as exc:
+        logger.error("Error executing module %s: %s", path, exc)
+        return None
+    return module
+
+
+def _extract_module_candidates(module: Any, source: str) -> list[Any]:
+    getter = getattr(module, "get_plugins", None)
+    if callable(getter):
+        return _normalize_plugins(getter())
+    if hasattr(module, "PLUGINS"):
+        return _normalize_plugins(getattr(module, "PLUGINS"))
+    if hasattr(module, "PLUGIN"):
+        return [getattr(module, "PLUGIN")]
+    logger.debug(
+        "Skipping %s: no PLUGIN/PLUGINS/get_plugins exports found", source
+    )
+    return []
+
+
+def _normalize_plugins(discovered: Any) -> list[Any]:
+    if isinstance(discovered, list):
+        return discovered
+    return [discovered]
+
+
+def _register_candidates(
+    candidates: Iterable[Any], register: Callable[[Any], None]
+) -> int:
+    registered = 0
+    for plugin in candidates:
+        if plugin is None:
+            continue
+        register(plugin)
+        registered += 1
+    return registered
 
 
 def _module_name_for_target(root: Path, target: Path) -> str:

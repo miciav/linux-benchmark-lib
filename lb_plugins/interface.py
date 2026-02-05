@@ -2,12 +2,13 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
-import yaml # Added yaml import
 
 import pandas as pd
-from pydantic import BaseModel, Field # Added Pydantic imports
+from pydantic import BaseModel, Field
+import yaml
 
 from lb_plugins.observability import GrafanaAssets
+
 
 class WorkloadIntensity(str, Enum):
     LOW = "low"
@@ -18,18 +19,23 @@ class WorkloadIntensity(str, Enum):
 
 class BasePluginConfig(BaseModel):
     """Base model for common plugin configuration fields."""
-    max_retries: int = Field(default=0, ge=0, description="Maximum number of retries for the workload")
-    timeout_buffer: int = Field(default=10, description="Safety buffer in seconds added to expected runtime")
-    tags: List[str] = Field(default_factory=list, description="Tags associated with the workload")
+    max_retries: int = Field(
+        default=0, ge=0, description="Maximum number of retries for the workload"
+    )
+    timeout_buffer: int = Field(
+        default=10,
+        description="Safety buffer in seconds added to expected runtime",
+    )
+    tags: List[str] = Field(
+        default_factory=list, description="Tags associated with the workload"
+    )
 
-    model_config = {
-        "extra": "ignore" # Ignore extra fields in YAML not defined in the model
-    }
+    model_config = {"extra": "ignore"}
+
 
 class WorkloadPlugin(ABC):
-    """
-    Abstract base class for all workload plugins.
-    
+    """Abstract base class for all workload plugins.
+
     A plugin encapsulates the logic for:
     1. Configuration (schema)
     2. Execution (Generator creation)
@@ -51,7 +57,7 @@ class WorkloadPlugin(ABC):
 
     @property
     @abstractmethod
-    def config_cls(self) -> Type[BasePluginConfig]: # Changed return type hint
+    def config_cls(self) -> Type[BasePluginConfig]:
         """
         The Pydantic model used for configuration.
         The app config service uses this to deserialize raw JSON.
@@ -59,15 +65,15 @@ class WorkloadPlugin(ABC):
         pass
 
     @abstractmethod
-    def create_generator(self, config: BasePluginConfig) -> Any: # Changed type hint
+    def create_generator(self, config: BasePluginConfig) -> Any:
         """
         Create a new instance of the workload generator.
-        
+
         Args:
             config: An instance of self.config_cls
         """
         pass
-    
+
     def load_config_from_file(self, config_file_path: Path) -> BasePluginConfig:
         """
         Loads and validates plugin configuration from a YAML file.
@@ -81,17 +87,19 @@ class WorkloadPlugin(ABC):
             config_file_path: The path to the YAML configuration file.
 
         Returns:
-            An instance of `self.config_cls` with the loaded and validated configuration.
+            An instance of `self.config_cls` with the loaded and validated
+            configuration.
 
         Raises:
             FileNotFoundError: If the config_file_path does not exist.
             yaml.YAMLError: If the file content is not valid YAML.
-            ValidationError: If the merged configuration does not conform to `self.config_cls` schema.
+            ValidationError: If the merged configuration does not conform to
+                `self.config_cls` schema.
         """
         if not config_file_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_file_path}")
 
-        with open(config_file_path, 'r') as f:
+        with open(config_file_path, "r") as f:
             full_data = yaml.safe_load(f) or {}
 
         # Extract common and plugin-specific data
@@ -104,8 +112,10 @@ class WorkloadPlugin(ABC):
         # Validate and instantiate the config class using Pydantic
         # Pydantic will handle default values for missing fields
         return self.config_cls(**merged_data)
-    
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[BasePluginConfig]: # Changed type hint
+
+    def get_preset_config(
+        self, level: WorkloadIntensity
+    ) -> Optional[BasePluginConfig]:
         """
         Return a configuration object for the specified intensity level.
         If USER_DEFINED or not implemented, return None.
@@ -189,20 +199,9 @@ class WorkloadPlugin(ABC):
         Default implementation flattens generator_result and metadata into a single CSV.
         Plugins with richer report formats can override to write multiple CSVs.
         """
-        rows: list[dict[str, Any]] = []
-        for entry in results:
-            row = {
-                "run_id": run_id,
-                "workload": test_name,
-                "repetition": entry.get("repetition"),
-                "duration_seconds": entry.get("duration_seconds"),
-                "success": entry.get("success"),
-            }
-            gen_result = entry.get("generator_result") or {}
-            if isinstance(gen_result, dict):
-                for key, value in gen_result.items():
-                    row[f"generator_{key}"] = value
-            rows.append(row)
+        rows = [
+            self._build_export_row(entry, run_id, test_name) for entry in results
+        ]
 
         if not rows:
             return []
@@ -212,6 +211,25 @@ class WorkloadPlugin(ABC):
         csv_path = output_dir / f"{test_name}_plugin.csv"
         df.to_csv(csv_path, index=False)
         return [csv_path]
+
+    @staticmethod
+    def _build_export_row(
+        entry: Dict[str, Any],
+        run_id: str,
+        test_name: str,
+    ) -> dict[str, Any]:
+        row = {
+            "run_id": run_id,
+            "workload": test_name,
+            "repetition": entry.get("repetition"),
+            "duration_seconds": entry.get("duration_seconds"),
+            "success": entry.get("success"),
+        }
+        gen_result = entry.get("generator_result") or {}
+        if isinstance(gen_result, dict):
+            for key, value in gen_result.items():
+                row[f"generator_{key}"] = value
+        return row
 
 
 class SimpleWorkloadPlugin(WorkloadPlugin):

@@ -66,6 +66,8 @@ def load_entrypoint_plugin(entry_point: Any, register: Callable[[Any], None]) ->
     load_entrypoint(entry_point, register, label="plugin entry point")
 
 
-def load_user_plugins(register: Callable[[Any], None], root: Path | None = None) -> None:
+def load_user_plugins(
+    register: Callable[[Any], None], root: Path | None = None
+) -> None:
     """Load plugins from the user plugin directory."""
     load_plugins_from_dir(root or resolve_user_plugin_dir(), register)

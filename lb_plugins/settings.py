@@ -54,26 +54,7 @@ def hydrate_plugin_settings(
     resolved = _resolve_registry(registry)
 
     for name, settings_data in list(config.plugin_settings.items()):
-        try:
-            plugin = resolved.get(name)
-        except KeyError:
-            logger.warning(
-                "Plugin '%s' not found while hydrating plugin_settings; keeping raw value.",
-                name,
-            )
-            continue
-        config_cls = getattr(plugin, "config_cls", None)
-        if not (config_cls and isclass(config_cls) and issubclass(config_cls, BaseModel)):
-            logger.warning(
-                "Plugin '%s' missing Pydantic config_cls; keeping settings as dict.",
-                name,
-            )
-            continue
-        if isinstance(settings_data, dict):
-            try:
-                config.plugin_settings[name] = config_cls.model_validate(settings_data)
-            except ValidationError as exc:
-                logger.error("Validation error for plugin '%s' config: %s", name, exc)
+        _hydrate_plugin_setting(config, resolved, name, settings_data)
 
 
 def populate_default_plugin_settings(
@@ -90,20 +71,8 @@ def populate_default_plugin_settings(
     for name, plugin in available.items():
         if name in config.plugin_settings:
             continue
-        config_cls = getattr(plugin, "config_cls", None)
-        if config_cls and isclass(config_cls) and issubclass(config_cls, BaseModel):
-            try:
-                config.plugin_settings[name] = config_cls()
-                created.add(name)
-            except (ValidationError, TypeError) as exc:
-                logger.debug("Skipping default config for plugin '%s': %s", name, exc)
-            continue
-        if allow_dataclasses and config_cls and isclass(config_cls) and is_dataclass(config_cls):
-            try:
-                config.plugin_settings[name] = config_cls()
-                created.add(name)
-            except TypeError as exc:
-                logger.debug("Skipping default config for plugin '%s': %s", name, exc)
+        if _try_create_default_setting(config, name, plugin, allow_dataclasses):
+            created.add(name)
 
     return created
 
@@ -118,25 +87,15 @@ def ensure_workloads_from_plugin_settings(
     if not config.plugin_settings:
         return
 
-    def _settings_to_options(settings: Any) -> Any:
-        if isinstance(settings, BaseModel):
-            if dump_mode:
-                return settings.model_dump(mode=dump_mode)
-            return settings.model_dump()
-        if convert_dataclasses and is_dataclass(settings):
-            return asdict(settings)
-        return settings
-
     for name, settings in config.plugin_settings.items():
-        if name not in config.workloads:
-            config.workloads[name] = workload_factory(
-                plugin=name,
-                options=_settings_to_options(settings),
-            )
-        else:
-            cfg = config.workloads[name]
-            if not getattr(cfg, "options", None):
-                cfg.options = _settings_to_options(settings)
+        _ensure_workload(
+            config,
+            workload_factory=workload_factory,
+            name=name,
+            settings=settings,
+            dump_mode=dump_mode,
+            convert_dataclasses=convert_dataclasses,
+        )
 
 
 def apply_plugin_settings_defaults(
@@ -161,3 +120,97 @@ def apply_plugin_settings_defaults(
         dump_mode=dump_mode,
         convert_dataclasses=convert_dataclasses,
     )
+
+
+def _hydrate_plugin_setting(
+    config: SupportsPluginSettings,
+    registry: PluginRegistry,
+    name: str,
+    settings_data: Any,
+) -> None:
+    try:
+        plugin = registry.get(name)
+    except KeyError:
+        logger.warning(
+            "Plugin '%s' not found while hydrating plugin_settings; keeping raw value.",
+            name,
+        )
+        return
+
+    config_cls = getattr(plugin, "config_cls", None)
+    if not _is_pydantic_config(config_cls):
+        logger.warning(
+            "Plugin '%s' missing Pydantic config_cls; keeping settings as dict.",
+            name,
+        )
+        return
+
+    if isinstance(settings_data, dict):
+        try:
+            config.plugin_settings[name] = config_cls.model_validate(settings_data)
+        except ValidationError as exc:
+            logger.error("Validation error for plugin '%s' config: %s", name, exc)
+
+
+def _is_pydantic_config(config_cls: Any) -> bool:
+    return bool(
+        config_cls and isclass(config_cls) and issubclass(config_cls, BaseModel)
+    )
+
+
+def _is_dataclass_config(config_cls: Any) -> bool:
+    return bool(config_cls and isclass(config_cls) and is_dataclass(config_cls))
+
+
+def _try_create_default_setting(
+    config: SupportsPluginSettings,
+    name: str,
+    plugin: Any,
+    allow_dataclasses: bool,
+) -> bool:
+    config_cls = getattr(plugin, "config_cls", None)
+    if _is_pydantic_config(config_cls):
+        return _instantiate_setting(config, name, config_cls)
+    if allow_dataclasses and _is_dataclass_config(config_cls):
+        return _instantiate_setting(config, name, config_cls)
+    return False
+
+
+def _instantiate_setting(
+    config: SupportsPluginSettings, name: str, config_cls: Any
+) -> bool:
+    try:
+        config.plugin_settings[name] = config_cls()
+        return True
+    except (ValidationError, TypeError) as exc:
+        logger.debug("Skipping default config for plugin '%s': %s", name, exc)
+        return False
+
+
+def _ensure_workload(
+    config: SupportsPluginSettings & SupportsWorkloads,
+    workload_factory: WorkloadFactory,
+    name: str,
+    settings: Any,
+    dump_mode: str | None,
+    convert_dataclasses: bool,
+) -> None:
+    options = _settings_to_options(settings, dump_mode, convert_dataclasses)
+    if name not in config.workloads:
+        config.workloads[name] = workload_factory(plugin=name, options=options)
+        return
+    cfg = config.workloads[name]
+    if not getattr(cfg, "options", None):
+        cfg.options = options
+
+
+def _settings_to_options(
+    settings: Any, dump_mode: str | None, convert_dataclasses: bool
+) -> Any:
+    if isinstance(settings, BaseModel):
+        if dump_mode:
+            return settings.model_dump(mode=dump_mode)
+        return settings.model_dump()
+    if convert_dataclasses and is_dataclass(settings):
+        return asdict(settings)
+    return settings

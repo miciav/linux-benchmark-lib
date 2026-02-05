@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class BaseGenerator(ABC):
     """Abstract base class for all workload generators."""
-    
+
     def __init__(self, name: str):
         """
         Initialize the base generator.
@@ -32,7 +32,7 @@ class BaseGenerator(ABC):
         self._thread: Optional[threading.Thread] = None
         self._result: Optional[Any] = None
         self._error: WorkloadError | None = None
-    
+
     @abstractmethod
     def _run_command(self) -> None:
         """
@@ -69,7 +69,7 @@ class BaseGenerator(ABC):
         repetition without affecting shared setup/provisioning.
         """
         return None
-    
+
     @abstractmethod
     def _stop_workload(self) -> None:
         """
@@ -93,6 +93,7 @@ class BaseGenerator(ABC):
             )
 
         self._is_running = True
+
         def _wrapper() -> None:
             try:
                 self._run_command()
@@ -119,27 +120,35 @@ class BaseGenerator(ABC):
     def stop(self) -> None:
         """Stop the workload generation."""
         if self._is_running:
-            # Signal the workload to stop only if it thinks it's running
-            self._stop_workload()
-            self._is_running = False
+            self._stop_if_running()
         else:
             logger.debug(f"{self.name} generator was already stopped or finished")
 
-        # Always ensure the thread is joined to avoid zombies
-        if self._thread and self._thread.is_alive():
-            try:
-                self._thread.join(timeout=5.0)
-                if self._thread.is_alive():
-                    logger.warning(f"{self.name} thread did not terminate gracefully")
-            except Exception as e:
-                logger.error(f"Error joining thread for {self.name}: {e}")
-            
+        self._join_thread()
         logger.info(f"{self.name} generator stopped")
+
+    def _stop_if_running(self) -> None:
+        # Signal the workload to stop only if it thinks it's running
+        self._stop_workload()
+        self._is_running = False
+
+    def _join_thread(self) -> None:
+        # Always ensure the thread is joined to avoid zombies
+        if not self._thread or not self._thread.is_alive():
+            return
+        try:
+            self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                logger.warning(
+                    f"{self.name} thread did not terminate gracefully"
+                )
+        except Exception as exc:
+            logger.error(f"Error joining thread for {self.name}: {exc}")
 
     def check_prerequisites(self) -> bool:
         """
         Check if the generator's prerequisites are met.
-        
+
         Delegates to the protected _validate_environment method.
         """
         return self._validate_environment()
