@@ -10,7 +10,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 from pydantic import Field, model_validator
 
@@ -33,20 +33,34 @@ class HPLConfig(BasePluginConfig):
 
     # Execution parameters
     mpi_ranks: int = Field(default=1, gt=0, description="Number of MPI ranks")
-    mpi_launcher: str = Field(default="fork", description="'fork' for local, 'ssh' for distributed MPI")
+    mpi_launcher: str = Field(
+        default="fork",
+        description="'fork' for local, 'ssh' for distributed MPI",
+    )
 
     # Paths (optional override)
-    workspace_dir: Optional[str] = Field(default=None, description="Custom workspace directory for HPL files")
+    workspace_dir: Optional[str] = Field(
+        default=None,
+        description="Custom workspace directory for HPL files",
+    )
     debug: bool = Field(default=False, description="Enable debug logging")
-    expected_runtime_seconds: int = Field(default=3600, gt=0, description="Expected runtime of HPL in seconds (used for timeout hints)")
+    expected_runtime_seconds: int = Field(
+        default=3600,
+        gt=0,
+        description="Expected runtime of HPL in seconds (used for timeout hints)",
+    )
 
     @model_validator(mode="after")
     def validate_mpi_ranks(self) -> "HPLConfig":
         if self.mpi_ranks != (self.p * self.q):
             logger.warning(
                 "HPLConfig: mpi_ranks (%d) does not match process grid p*q (%d*%d=%d). "
-                "Ensure this is intentional. Adjusting mpi_ranks to match p*q for consistency if not set by user.",
-                self.mpi_ranks, self.p, self.q, self.p * self.q
+                "Ensure this is intentional. Adjusting mpi_ranks to match p*q for "
+                "consistency if not set by user.",
+                self.mpi_ranks,
+                self.p,
+                self.q,
+                self.p * self.q,
             )
         return self
 
@@ -56,8 +70,7 @@ class HPLGenerator(CommandGenerator):
 
     def __init__(self, config: HPLConfig, name: str = "HPLGenerator") -> None:
         super().__init__(name, config)
-        # self.expected_runtime_seconds now comes directly from config.expected_runtime_seconds
-        # No need for env var parsing here.
+        # expected_runtime_seconds comes directly from config; no env parsing.
 
         # Determine workspace
         if self.config.workspace_dir:
@@ -69,7 +82,9 @@ class HPLGenerator(CommandGenerator):
         self.xhpl_path = (
             self.workspace / f"hpl-{HPL_VERSION}" / "bin" / "Linux" / "xhpl"
         )
-        self.system_xhpl_path = Path("/opt") / f"hpl-{HPL_VERSION}" / "bin" / "Linux" / "xhpl"
+        self.system_xhpl_path = (
+            Path("/opt") / f"hpl-{HPL_VERSION}" / "bin" / "Linux" / "xhpl"
+        )
         self.working_dir = self.xhpl_path.parent
         self._prepared = False
 
@@ -101,9 +116,10 @@ class HPLGenerator(CommandGenerator):
             self.working_dir = self.xhpl_path.parent
             return True
 
-        # If neither binary exists, fail fast: remote/multipass setup must install the deb.
-        self._result = {"error": "xhpl missing; ensure remote setup installed the HPL .deb"}
-        logger.error("xhpl missing; ensure remote setup installed the HPL .deb")
+        # If neither binary exists, fail fast; remote setup must install the deb.
+        missing_msg = "xhpl missing; ensure remote setup installed the HPL .deb"
+        self._result = {"error": missing_msg}
+        logger.error(missing_msg)
         return False
 
     def prepare(self) -> None:
@@ -227,33 +243,56 @@ HPL.out      output file name (if any)
     ) -> None:
         # Surface common failure modes even when HPL exits 0
         if stdout:
-            if "Memory allocation failed" in stdout:
-                msg = (
-                    "HPL reported memory allocation failure; adjust N/P/Q or provide more RAM. "
-                    f"N={self.config.n}, P={self.config.p}, Q={self.config.q}"
-                )
-                self._result["error"] = msg
-                logger.error(msg)
-            else:
-                skipped = re.search(
-                    r"([0-9]+)\s+tests skipped", stdout, flags=re.IGNORECASE
-                )
-                if skipped:
-                    try:
-                        if int(skipped.group(1)) > 0:
-                            msg = (
-                                "HPL skipped tests due to illegal input; adjust N/P/Q or install deps."
-                            )
-                            self._result["error"] = msg
-                            logger.error(msg)
-                    except Exception:
-                        pass
+            if not self._check_memory_failure(stdout):
+                self._check_skipped_tests(stdout)
+            self._check_hpl_error(stdout)
+        self._check_returncode_error(returncode)
 
-            if "HPL ERROR" in stdout and "error" not in self._result:
-                self._result["error"] = "HPL reported an internal error"
+    def _set_error(
+        self, message: str, *, log: bool = True, force: bool = False
+    ) -> None:
+        if force or "error" not in self._result:
+            self._result["error"] = message
+            if log:
+                logger.error(message)
 
-        if returncode not in (None, 0) and "error" not in self._result:
-            self._result["error"] = f"HPL exited with return code {returncode}"
+    def _check_memory_failure(self, stdout: str) -> bool:
+        if "Memory allocation failed" not in stdout:
+            return False
+        message = (
+            "HPL reported memory allocation failure; adjust N/P/Q or provide more RAM. "
+            f"N={self.config.n}, P={self.config.p}, Q={self.config.q}"
+        )
+        self._set_error(message, force=True)
+        return True
+
+    @staticmethod
+    def _parse_skipped_tests(stdout: str) -> int | None:
+        match = re.search(r"([0-9]+)\s+tests skipped", stdout, flags=re.IGNORECASE)
+        if not match:
+            return None
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return None
+
+    def _check_skipped_tests(self, stdout: str) -> None:
+        skipped = self._parse_skipped_tests(stdout)
+        if skipped and skipped > 0:
+            message = (
+                "HPL skipped tests due to illegal input; adjust N/P/Q or install deps."
+            )
+            self._set_error(message)
+
+    def _check_hpl_error(self, stdout: str) -> None:
+        if "HPL ERROR" in stdout:
+            self._set_error("HPL reported an internal error", log=False)
+
+    def _check_returncode_error(self, returncode: int | None) -> None:
+        if returncode not in (None, 0):
+            self._set_error(
+                f"HPL exited with return code {returncode}", log=False
+            )
 
     def _log_failure(
         self, returncode: int, stdout: str, stderr: str, cmd: list[str]
@@ -270,50 +309,7 @@ HPL.out      output file name (if any)
 
     def _parse_output(self, output: str) -> dict[str, Any]:
         """Parse summary metrics from HPL stdout."""
-        metrics: dict[str, Any] = {}
-
-        # Typical summary line:
-        # WR00C2R4        N    NB     P     Q        Time       Gflops
-        wr_pattern = re.compile(
-            r"^(W[A-Z0-9]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d\.Ee\+\-]+)\s+([\d\.Ee\+\-]+)"
-        )
-        residual_pattern = re.compile(
-            r"\|\|Ax-b\|\|.*=\s*([\d\.Ee\+\-]+)", flags=re.IGNORECASE
-        )
-
-        last_wr: tuple[str, int, int, int, int, float, float] | None = None
-
-        for raw in output.splitlines():
-            line = raw.strip()
-            if not line:
-                continue
-            match = wr_pattern.match(line)
-            if match:
-                try:
-                    last_wr = (
-                        match.group(1),
-                        int(match.group(2)),
-                        int(match.group(3)),
-                        int(match.group(4)),
-                        int(match.group(5)),
-                        float(match.group(6)),
-                        float(match.group(7)),
-                    )
-                except Exception:
-                    continue
-                continue
-
-            res_match = residual_pattern.search(line)
-            if res_match and "residual" not in metrics:
-                try:
-                    metrics["residual"] = float(res_match.group(1))
-                except ValueError:
-                    pass
-                continue
-
-            if line.upper().startswith(("PASSED", "FAILED")):
-                metrics["residual_passed"] = line.upper().startswith("PASSED")
-
+        metrics, last_wr = self._parse_output_lines(output)
         if last_wr:
             tag, n, nb, p, q, time_s, gflops = last_wr
             metrics.update(
@@ -329,16 +325,106 @@ HPL.out      output file name (if any)
             )
 
         if "gflops" not in metrics:
-            fallbacks = re.findall(
-                r"([0-9]+(?:\.[0-9]+)?)\s*Gflops", output, flags=re.IGNORECASE
-            )
-            if fallbacks:
-                try:
-                    metrics["gflops"] = float(fallbacks[-1])
-                except ValueError:
-                    pass
+            gflops = self._fallback_gflops(output)
+            if gflops is not None:
+                metrics["gflops"] = gflops
 
         return metrics
+
+    def _parse_output_lines(
+        self, output: str
+    ) -> tuple[dict[str, Any], tuple[str, int, int, int, int, float, float] | None]:
+        metrics: dict[str, Any] = {}
+        last_wr: tuple[str, int, int, int, int, float, float] | None = None
+
+        # Typical summary line:
+        # WR00C2R4        N    NB     P     Q        Time       Gflops
+        wr_pattern = re.compile(
+            r"^(W[A-Z0-9]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+"
+            r"([\d\.Ee\+\-]+)\s+([\d\.Ee\+\-]+)"
+        )
+        residual_pattern = re.compile(
+            r"\|\|Ax-b\|\|.*=\s*([\d\.Ee\+\-]+)", flags=re.IGNORECASE
+        )
+
+        for raw in output.splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            parsed_wr = self._parse_wr_line(line, wr_pattern)
+            if parsed_wr:
+                last_wr = parsed_wr
+                continue
+            self._update_metrics_from_line(line, residual_pattern, metrics)
+
+        return metrics, last_wr
+
+    def _update_metrics_from_line(
+        self,
+        line: str,
+        residual_pattern: re.Pattern[str],
+        metrics: dict[str, Any],
+    ) -> None:
+        residual = self._parse_residual(line, residual_pattern)
+        if residual is not None and "residual" not in metrics:
+            metrics["residual"] = residual
+
+        residual_passed = self._parse_residual_passed(line)
+        if residual_passed is not None:
+            metrics["residual_passed"] = residual_passed
+
+    @staticmethod
+    def _parse_wr_line(
+        line: str, pattern: re.Pattern[str]
+    ) -> tuple[str, int, int, int, int, float, float] | None:
+        match = pattern.match(line)
+        if not match:
+            return None
+        try:
+            return (
+                match.group(1),
+                int(match.group(2)),
+                int(match.group(3)),
+                int(match.group(4)),
+                int(match.group(5)),
+                float(match.group(6)),
+                float(match.group(7)),
+            )
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _parse_residual(
+        line: str, pattern: re.Pattern[str]
+    ) -> float | None:
+        match = pattern.search(line)
+        if not match:
+            return None
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _parse_residual_passed(line: str) -> bool | None:
+        upper = line.upper()
+        if upper.startswith("PASSED"):
+            return True
+        if upper.startswith("FAILED"):
+            return False
+        return None
+
+    @staticmethod
+    def _fallback_gflops(output: str) -> float | None:
+        fallbacks = re.findall(
+            r"([0-9]+(?:\.[0-9]+)?)\s*Gflops", output, flags=re.IGNORECASE
+        )
+        if not fallbacks:
+            return None
+        try:
+            return float(fallbacks[-1])
+        except ValueError:
+            return None
 
     def _stop_workload(self) -> None:
         proc = self._process
@@ -375,41 +461,44 @@ class HPLPlugin(SimpleWorkloadPlugin):
     REQUIRED_LOCAL_TOOLS = ["mpirun", "make"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
+    @staticmethod
+    def _grid_for_ranks(ranks: int) -> tuple[int, int]:
+        """Choose a near-square process grid for better load balance."""
+        if ranks <= 1:
+            return (1, 1)
+        q = math.isqrt(ranks)
+        while ranks % q != 0 and q > 1:
+            q -= 1
+        p = ranks // q
+        return (p, q)
+
+    @classmethod
+    def _preset_for_ranks(
+        cls, *, n: int, nb: int, ranks: int
+    ) -> HPLConfig:
+        p, q = cls._grid_for_ranks(ranks)
+        return HPLConfig(n=n, nb=nb, p=p, q=q, mpi_ranks=ranks)
+
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[HPLConfig]:
         cpu_count = multiprocessing.cpu_count()
 
-        def _grid_for_ranks(ranks: int) -> tuple[int, int]:
-            """Choose a near-square process grid for better load balance."""
-            if ranks <= 1:
-                return (1, 1)
-            q = math.isqrt(ranks)
-            while ranks % q != 0 and q > 1:
-                q -= 1
-            p = ranks // q
-            return (p, q)
-
         if level == WorkloadIntensity.LOW:
             return HPLConfig(n=5000, nb=128, p=1, q=1, mpi_ranks=1)
-        elif level == WorkloadIntensity.MEDIUM:
-            # Use half CPUs
+        if level == WorkloadIntensity.MEDIUM:
             ranks = max(1, cpu_count // 2)
-            p, q = _grid_for_ranks(ranks)
-            return HPLConfig(n=20000, nb=256, p=p, q=q, mpi_ranks=ranks)
-        elif level == WorkloadIntensity.HIGH:
-            # Use all CPUs
-            ranks = cpu_count
-            # Increase problem size and block to drive multi-minute runs on typical hosts
-            p, q = _grid_for_ranks(ranks)
-            return HPLConfig(n=45000, nb=384, p=p, q=q, mpi_ranks=ranks)
+            return self._preset_for_ranks(n=20000, nb=256, ranks=ranks)
+        if level == WorkloadIntensity.HIGH:
+            ranks = max(1, cpu_count)
+            return self._preset_for_ranks(n=45000, nb=384, ranks=ranks)
         return None
 
     def export_results_to_csv(
         self,
-        results: List[dict[str, Any]],
+        results: list[dict[str, Any]],
         output_dir: Path,
         run_id: str,
         test_name: str,
-    ) -> List[Path]:
+    ) -> list[Path]:
         """Export HPL summary metrics (per repetition) to a CSV file."""
         import pandas as pd
 
@@ -434,8 +523,8 @@ class HPLPlugin(SimpleWorkloadPlugin):
                     "residual": gen_result.get("residual"),
                     "residual_passed": gen_result.get("residual_passed"),
                     "result_line": gen_result.get("result_line"),
-                    "max_retries": gen_result.get("max_retries"), # Add inherited field
-                    "tags": gen_result.get("tags"), # Add inherited field
+                    "max_retries": gen_result.get("max_retries"),
+                    "tags": gen_result.get("tags"),
                 }
             )
 

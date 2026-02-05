@@ -41,7 +41,9 @@ class StreamConfig(BasePluginConfig):
     stream_array_size: int = Field(
         default=DEFAULT_STREAM_ARRAY_SIZE,
         gt=0,
-        description="STREAM_ARRAY_SIZE (compile-time); number of elements per array",
+        description=(
+            "STREAM_ARRAY_SIZE (compile-time); number of elements per array"
+        ),
     )
     ntimes: int = Field(
         default=DEFAULT_NTIMES,
@@ -50,7 +52,9 @@ class StreamConfig(BasePluginConfig):
     )
     recompile: bool = Field(
         default=False,
-        description="Force recompiling the stream binary into the workspace before running",
+        description=(
+            "Force recompiling the stream binary into the workspace before running"
+        ),
     )
 
     threads: int = Field(
@@ -69,7 +73,9 @@ class StreamConfig(BasePluginConfig):
 
     workspace_dir: Optional[str] = Field(
         default=None,
-        description="Custom workspace directory for tuned binaries and temporary artifacts",
+        description=(
+            "Custom workspace directory for tuned binaries and temporary artifacts"
+        ),
     )
     expected_runtime_seconds: int = Field(
         default=60,
@@ -78,7 +84,9 @@ class StreamConfig(BasePluginConfig):
     )
     compilers: List[str] = Field(
         default_factory=lambda: ["gcc"],
-        description="Compilers to run (e.g., ['gcc'], ['icc'], ['gcc', 'icc'])",
+        description=(
+            "Compilers to run (e.g., ['gcc'], ['icc'], ['gcc', 'icc'])"
+        ),
     )
     allow_missing_compilers: bool = Field(
         default=False,
@@ -87,13 +95,19 @@ class StreamConfig(BasePluginConfig):
 
     @model_validator(mode="after")
     def normalize_compilers(self) -> "StreamConfig":
-        compilers = [str(item).strip().lower() for item in self.compilers if str(item).strip()]
+        compilers = [
+            str(item).strip().lower()
+            for item in self.compilers
+            if str(item).strip()
+        ]
         unique: list[str] = []
         for compiler in compilers:
             if compiler not in unique:
                 unique.append(compiler)
         if not unique:
-            raise ValueError("StreamConfig.compilers must include at least one compiler")
+            raise ValueError(
+                "StreamConfig.compilers must include at least one compiler"
+            )
         self.compilers = unique
         return self
 
@@ -133,26 +147,38 @@ class StreamGenerator(CommandGenerator):
         if not base.exists():
             return None
 
-        roots: list[Path] = []
+        roots = self._oneapi_roots(base)
+        return self._find_oneapi_compiler(roots, preferred)
+
+    @staticmethod
+    def _oneapi_roots(base: Path) -> list[Path]:
         latest = base / "latest"
         if latest.exists():
-            roots.append(latest)
-        else:
-            versions = sorted(
-                (path for path in base.iterdir() if path.is_dir()),
-                key=lambda path: path.name,
-            )
-            if versions:
-                roots.append(versions[-1])
+            return [latest]
+        versions = sorted(
+            (path for path in base.iterdir() if path.is_dir()),
+            key=lambda path: path.name,
+        )
+        return [versions[-1]] if versions else []
 
+    @staticmethod
+    def _find_oneapi_compiler(roots: list[Path], preferred: list[str]) -> str | None:
+        for candidate in StreamGenerator._iter_oneapi_candidates(roots, preferred):
+            if candidate.exists() and os.access(candidate, os.X_OK):
+                return str(candidate)
+        return None
+
+    @staticmethod
+    def _iter_oneapi_candidates(
+        roots: list[Path], preferred: list[str]
+    ) -> list[Path]:
+        candidates: list[Path] = []
         for root in roots:
             for bin_dir in ("linux/bin/intel64", "linux/bin"):
                 bin_root = root / bin_dir
                 for name in preferred:
-                    candidate = bin_root / name
-                    if candidate.exists() and os.access(candidate, os.X_OK):
-                        return str(candidate)
-        return None
+                    candidates.append(bin_root / name)
+        return candidates
 
     def _resolve_compiler_binary(self, compiler: str) -> str | None:
         if compiler == "gcc":
@@ -222,42 +248,58 @@ class StreamGenerator(CommandGenerator):
         return env
 
     def _validate_environment(self) -> bool:
-        compilers = list(self._compiler_plan)
+        compilers = self._resolve_compiler_plan()
         if not compilers:
-            logger.error("No compilers configured for STREAM")
             return False
-
-        multi = len(compilers) > 1
-        needs_compile = self._needs_recompile() or multi or any(c != "gcc" for c in compilers)
-
-        if needs_compile:
-            missing: list[str] = []
-            for compiler in compilers:
-                if self._resolve_compiler_binary(compiler) is None:
-                    missing.append(compiler)
-            if missing:
-                if self.config.allow_missing_compilers:
-                    logger.warning("Skipping missing STREAM compilers: %s", ", ".join(missing))
-                    compilers = [c for c in compilers if c not in missing]
-                    if not compilers:
-                        logger.error("No available compilers remain for STREAM")
-                        return False
-                    self._compiler_plan = compilers
-                else:
-                    logger.error("Missing STREAM compilers: %s", ", ".join(missing))
-                    return False
+        self._compiler_plan = compilers
 
         if self.config.use_numactl and not shutil.which("numactl"):
             logger.error("numactl not found in PATH")
             return False
 
+        return self._prepare_workspace()
+
+    def _resolve_compiler_plan(self) -> list[str] | None:
+        compilers = list(self._compiler_plan)
+        if not compilers:
+            logger.error("No compilers configured for STREAM")
+            return None
+        if not self._needs_compile_for_compilers(compilers):
+            return compilers
+
+        missing = self._missing_compilers(compilers)
+        if not missing:
+            return compilers
+        if self.config.allow_missing_compilers:
+            logger.warning(
+                "Skipping missing STREAM compilers: %s", ", ".join(missing)
+            )
+            available = [c for c in compilers if c not in missing]
+            if not available:
+                logger.error("No available compilers remain for STREAM")
+                return None
+            return available
+        logger.error("Missing STREAM compilers: %s", ", ".join(missing))
+        return None
+
+    def _needs_compile_for_compilers(self, compilers: list[str]) -> bool:
+        multi = len(compilers) > 1
+        return self._needs_recompile() or multi or any(c != "gcc" for c in compilers)
+
+    def _missing_compilers(self, compilers: list[str]) -> list[str]:
+        missing: list[str] = []
+        for compiler in compilers:
+            if self._resolve_compiler_binary(compiler) is None:
+                missing.append(compiler)
+        return missing
+
+    def _prepare_workspace(self) -> bool:
         try:
             self.workspace_bin_dir.mkdir(parents=True, exist_ok=True)
             self.workspace_src_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             logger.error("Cannot prepare workspace %s: %s", self.workspace, exc)
             return False
-
         return True
 
     def _upstream_stream_c(self) -> Path:
@@ -266,7 +308,9 @@ class StreamGenerator(CommandGenerator):
             raise FileNotFoundError(f"Missing vendored stream.c at {upstream}")
         return upstream
 
-    def _compile_binary_for_compiler(self, compiler_bin: str, output_path: Path) -> Path:
+    def _compile_binary_for_compiler(
+        self, compiler_bin: str, output_path: Path
+    ) -> Path:
         """Compile a tuned stream binary into the workspace."""
         src = self._upstream_stream_c()
         dst_src = self.workspace_src_dir / "stream.c"
@@ -281,7 +325,8 @@ class StreamGenerator(CommandGenerator):
             f"-DNTIMES={self.config.ntimes}",
         ]
 
-        # For extremely large static arrays on amd64, relocations can fail without -mcmodel=large.
+        # For extremely large static arrays on amd64, relocations can fail
+        # without -mcmodel=large.
         bytes_needed = 3 * self.config.stream_array_size * 8
         if bytes_needed >= 2_000_000_000:
             cflags.append("-mcmodel=large")
@@ -306,36 +351,54 @@ class StreamGenerator(CommandGenerator):
     def _ensure_binary_for_compiler(
         self, compiler: str, compiler_bin: str | None, *, multi: bool
     ) -> Path | None:
-        needs_compile = self._needs_recompile() or multi or compiler != "gcc"
-        if needs_compile:
-            if compiler_bin is None:
-                self._result = {"error": f"Compiler '{compiler}' not available"}
-                logger.error("Compiler '%s' not available", compiler)
-                return None
-            try:
-                output_path = self._compiled_binary_path(compiler, multi=multi)
-                self.stream_path = self._compile_binary_for_compiler(
-                    compiler_bin, output_path
-                )
-                self.working_dir = self.stream_path.parent
-                return self.stream_path
-            except Exception as exc:
-                self._result = {"error": str(exc), "returncode": -2}
-                logger.error("Failed to compile STREAM (%s): %s", compiler, exc)
-                return None
+        if self._should_compile(compiler, multi=multi):
+            return self._compile_for_compiler(compiler, compiler_bin, multi=multi)
+        return self._select_existing_binary()
 
+    def _should_compile(self, compiler: str, *, multi: bool) -> bool:
+        return self._needs_recompile() or multi or compiler != "gcc"
+
+    def _compile_for_compiler(
+        self,
+        compiler: str,
+        compiler_bin: str | None,
+        *,
+        multi: bool,
+    ) -> Path | None:
+        if compiler_bin is None:
+            self._result = {"error": f"Compiler '{compiler}' not available"}
+            logger.error("Compiler '%s' not available", compiler)
+            return None
+        try:
+            output_path = self._compiled_binary_path(compiler, multi=multi)
+            self.stream_path = self._compile_binary_for_compiler(
+                compiler_bin, output_path
+            )
+            self.working_dir = self.stream_path.parent
+            return self.stream_path
+        except Exception as exc:
+            self._result = {"error": str(exc), "returncode": -2}
+            logger.error("Failed to compile STREAM (%s): %s", compiler, exc)
+            return None
+
+    def _select_existing_binary(self) -> Path | None:
         # Prefer a tuned/workspace binary if it exists.
         if self.stream_path.exists() and os.access(self.stream_path, os.X_OK):
             return self.stream_path
 
         # Fall back to system-installed binary (e.g., from stream-benchmark .deb).
-        if self.system_stream_path.exists() and os.access(self.system_stream_path, os.X_OK):
+        if self.system_stream_path.exists() and os.access(
+            self.system_stream_path, os.X_OK
+        ):
             self.stream_path = self.system_stream_path
             self.working_dir = self.system_stream_path.parent
             return self.stream_path
 
         self._result = {
-            "error": "stream binary missing; install stream-benchmark .deb or enable recompilation with gcc present",
+            "error": (
+                "stream binary missing; install stream-benchmark .deb or enable "
+                "recompilation with gcc present"
+            ),
             "returncode": -1,
         }
         logger.error(self._result["error"])
@@ -440,89 +503,112 @@ class StreamGenerator(CommandGenerator):
         compiler_results: list[dict[str, Any]] = []
         failures: list[dict[str, Any]] = []
         for compiler in compilers:
-            compiler_bin = self._resolve_compiler_binary(compiler)
-            stream_path = self._ensure_binary_for_compiler(
-                compiler, compiler_bin, multi=multi
-            )
-            if stream_path is None:
-                failure = {
-                    "compiler": compiler,
-                    "compiler_bin": compiler_bin,
-                    "returncode": -2,
-                    "error": f"Failed to prepare STREAM binary for {compiler}",
-                }
-                compiler_results.append(failure)
-                failures.append(failure)
+            result, failed = self._run_for_compiler(compiler, multi=multi)
+            compiler_results.append(result)
+            if failed:
+                failures.append(result)
                 if not self.config.allow_missing_compilers:
                     break
-                continue
 
-            cmd = self._build_command_for_binary(stream_path)
-            self._log_command(cmd)
+        self._result = self._build_overall_result(
+            compiler_results, failures, multi=multi
+        )
 
-            try:
-                self._active_timeout = self._timeout_seconds()
-                env = self._launcher_env_for_compiler(compiler_bin)
-                self._process = subprocess.Popen(cmd, **self._popen_kwargs(env))
-                stdout, stderr = self._consume_process_output(self._process)
-                returncode = self._process.returncode
-            except subprocess.TimeoutExpired:
-                timeout = self._timeout_seconds()
-                logger.error(
-                    "%s timed out after %s seconds. Terminating process.",
-                    self.name,
-                    timeout,
-                )
-                stdout = ""
-                stderr = ""
-                returncode = -1
-            except Exception as exc:
-                logger.error("Error running %s: %s", self.name, exc)
-                stdout = ""
-                stderr = str(exc)
-                returncode = -2
-            finally:
-                self._process = None
-                self._active_timeout = None
+    def _run_for_compiler(
+        self, compiler: str, *, multi: bool
+    ) -> tuple[dict[str, Any], bool]:
+        compiler_bin = self._resolve_compiler_binary(compiler)
+        stream_path = self._ensure_binary_for_compiler(
+            compiler, compiler_bin, multi=multi
+        )
+        if stream_path is None:
+            failure = {
+                "compiler": compiler,
+                "compiler_bin": compiler_bin,
+                "returncode": -2,
+                "error": f"Failed to prepare STREAM binary for {compiler}",
+            }
+            return failure, True
 
-            result = self._build_compiler_result(
-                compiler=compiler,
-                compiler_bin=compiler_bin,
-                cmd=cmd,
-                stdout=stdout,
-                stderr=stderr,
-                returncode=returncode,
+        cmd = self._build_command_for_binary(stream_path)
+        self._log_command(cmd)
+        stdout, stderr, returncode = self._execute_stream_command(cmd, compiler_bin)
+        result = self._build_compiler_result(
+            compiler=compiler,
+            compiler_bin=compiler_bin,
+            cmd=cmd,
+            stdout=stdout,
+            stderr=stderr,
+            returncode=returncode,
+        )
+        failed = returncode not in (None, 0)
+        if failed:
+            self._log_failure(returncode, stdout, stderr, cmd)
+            if "error" not in result:
+                result["error"] = f"STREAM exited with return code {returncode}"
+        else:
+            self._emit_table_event(compiler, stdout)
+        return result, failed
+
+    def _execute_stream_command(
+        self, cmd: list[str], compiler_bin: str | None
+    ) -> tuple[str, str, int | None]:
+        try:
+            self._active_timeout = self._timeout_seconds()
+            env = self._launcher_env_for_compiler(compiler_bin)
+            self._process = subprocess.Popen(cmd, **self._popen_kwargs(env))
+            stdout, stderr = self._consume_process_output(self._process)
+            return stdout, stderr, self._process.returncode
+        except subprocess.TimeoutExpired:
+            timeout = self._timeout_seconds()
+            logger.error(
+                "%s timed out after %s seconds. Terminating process.",
+                self.name,
+                timeout,
             )
-            if returncode not in (None, 0):
-                self._log_failure(returncode, stdout, stderr, cmd)
-                if "error" not in result:
-                    result["error"] = f"STREAM exited with return code {returncode}"
-                failures.append(result)
-            else:
-                self._emit_table_event(compiler, stdout)
-            compiler_results.append(result)
+            return "", "", -1
+        except Exception as exc:
+            logger.error("Error running %s: %s", self.name, exc)
+            return "", str(exc), -2
+        finally:
+            self._process = None
+            self._active_timeout = None
 
+    def _build_overall_result(
+        self,
+        compiler_results: list[dict[str, Any]],
+        failures: list[dict[str, Any]],
+        *,
+        multi: bool,
+    ) -> dict[str, Any]:
         overall_rc = 0 if not failures else failures[0].get("returncode") or 1
-        self._result = {
+        result = {
             "returncode": overall_rc,
-            "command": "stream (multi)" if multi else compiler_results[0].get("command"),
+            "command": "stream (multi)"
+            if multi
+            else compiler_results[0].get("command"),
             "stream_version": STREAM_VERSION,
             "upstream_commit": UPSTREAM_COMMIT,
             "stream_array_size": self.config.stream_array_size,
             "ntimes": self.config.ntimes,
             "threads": self.config.threads,
             "compiler_results": compiler_results,
-            "compiler": compiler_results[0].get("compiler") if compiler_results else None,
-            "compiler_bin": compiler_results[0].get("compiler_bin") if compiler_results else None,
+            "compiler": compiler_results[0].get("compiler")
+            if compiler_results
+            else None,
+            "compiler_bin": compiler_results[0].get("compiler_bin")
+            if compiler_results
+            else None,
         }
         if failures:
-            self._result["error"] = "STREAM failed for one or more compilers"
+            result["error"] = "STREAM failed for one or more compilers"
             self._set_error(
                 WorkloadError(
                     "STREAM failed for one or more compilers",
                     context={"compilers": [f["compiler"] for f in failures]},
                 )
             )
+        return result
 
     def _parse_output(self, output: str) -> dict[str, Any]:
         metrics: dict[str, Any] = {}
@@ -530,57 +616,72 @@ class StreamGenerator(CommandGenerator):
         # Example table lines:
         # Copy:       12345.6     0.0012     0.0011     0.0013
         row = re.compile(
-            r"^(Copy|Scale|Add|Triad):\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s*$"
+            r"^(Copy|Scale|Add|Triad):\s+([0-9.]+)\s+([0-9.]+)\s+"
+            r"([0-9.]+)\s+([0-9.]+)\s*$"
         )
         for raw in output.splitlines():
             line = raw.strip()
-            match = row.match(line)
-            if match:
-                name = match.group(1).lower()
-                try:
-                    metrics[f"{name}_best_rate_mb_s"] = float(match.group(2))
-                    metrics[f"{name}_avg_time_s"] = float(match.group(3))
-                    metrics[f"{name}_min_time_s"] = float(match.group(4))
-                    metrics[f"{name}_max_time_s"] = float(match.group(5))
-                except ValueError:
-                    continue
-
-            if "Solution Validates" in line:
-                metrics["validated"] = True
-            if line.startswith("Failed Validation"):
-                metrics["validated"] = False
+            self._parse_metrics_line(line, row, metrics)
+            self._parse_validation_line(line, metrics)
 
         return metrics
 
+    @staticmethod
+    def _parse_metrics_line(
+        line: str, row: re.Pattern[str], metrics: dict[str, Any]
+    ) -> None:
+        match = row.match(line)
+        if not match:
+            return
+        name = match.group(1).lower()
+        try:
+            metrics[f"{name}_best_rate_mb_s"] = float(match.group(2))
+            metrics[f"{name}_avg_time_s"] = float(match.group(3))
+            metrics[f"{name}_min_time_s"] = float(match.group(4))
+            metrics[f"{name}_max_time_s"] = float(match.group(5))
+        except ValueError:
+            return
+
+    @staticmethod
+    def _parse_validation_line(line: str, metrics: dict[str, Any]) -> None:
+        if "Solution Validates" in line:
+            metrics["validated"] = True
+            return
+        if line.startswith("Failed Validation"):
+            metrics["validated"] = False
+
     def _extract_result_table(self, output: str) -> str | None:
         lines = output.splitlines()
-        header_idx = None
+        header_idx = self._find_table_header(lines)
+        if header_idx is None:
+            return None
+        start_idx = self._table_start_index(lines, header_idx)
+        end_idx = self._table_end_index(lines, header_idx)
+        table_lines = lines[start_idx : end_idx + 1]
+        return "\n".join(table_lines) if table_lines else None
+
+    @staticmethod
+    def _find_table_header(lines: list[str]) -> int | None:
         header_re = re.compile(
             r"^Function\s+Best Rate MB/s\s+Avg time\s+Min time\s+Max time\s*$"
         )
         for idx, raw in enumerate(lines):
             if header_re.match(raw.strip()):
-                header_idx = idx
-                break
-        if header_idx is None:
-            return None
+                return idx
+        return None
 
-        start_idx = header_idx
+    @staticmethod
+    def _table_start_index(lines: list[str], header_idx: int) -> int:
         if header_idx > 0 and lines[header_idx - 1].strip().startswith("---"):
-            start_idx = header_idx - 1
+            return header_idx - 1
+        return header_idx
 
-        end_idx = None
+    @staticmethod
+    def _table_end_index(lines: list[str], header_idx: int) -> int:
         for idx in range(header_idx + 1, len(lines)):
             if lines[idx].strip().startswith("---"):
-                end_idx = idx
-                break
-        if end_idx is None:
-            end_idx = min(header_idx + 5, len(lines) - 1)
-
-        table_lines = lines[start_idx : end_idx + 1]
-        if not table_lines:
-            return None
-        return "\n".join(table_lines)
+                return idx
+        return min(header_idx + 5, len(lines) - 1)
 
     def _emit_table_event(self, compiler: str, output: str) -> None:
         table = self._extract_result_table(output)
@@ -645,27 +746,43 @@ class StreamPlugin(SimpleWorkloadPlugin):
         import multiprocessing
 
         cpu_count = multiprocessing.cpu_count()
-        preset_kwargs = {
+        preset_kwargs = self._preset_kwargs()
+        presets = {
+            WorkloadIntensity.LOW: self._preset_low,
+            WorkloadIntensity.MEDIUM: self._preset_medium,
+            WorkloadIntensity.HIGH: self._preset_high,
+        }
+        builder = presets.get(level)
+        if not builder:
+            return None
+        return builder(cpu_count, preset_kwargs)
+
+    def _preset_kwargs(self) -> dict[str, Any]:
+        return {
             "compilers": list(self.PRESET_COMPILERS),
             "allow_missing_compilers": True,
         }
 
-        if level == WorkloadIntensity.LOW:
-            return StreamConfig(threads=1, **preset_kwargs)
-        if level == WorkloadIntensity.MEDIUM:
-            return StreamConfig(
-                threads=cpu_count,
-                stream_array_size=DEFAULT_STREAM_ARRAY_SIZE,
-                **preset_kwargs,
-            )
-        if level == WorkloadIntensity.HIGH:
-            return StreamConfig(
-                threads=cpu_count,
-                stream_array_size=20_000_000,
-                ntimes=20,
-                **preset_kwargs,
-            )
-        return None
+    @staticmethod
+    def _preset_low(cpu_count: int, preset_kwargs: dict[str, Any]) -> StreamConfig:
+        return StreamConfig(threads=1, **preset_kwargs)
+
+    @staticmethod
+    def _preset_medium(cpu_count: int, preset_kwargs: dict[str, Any]) -> StreamConfig:
+        return StreamConfig(
+            threads=cpu_count,
+            stream_array_size=DEFAULT_STREAM_ARRAY_SIZE,
+            **preset_kwargs,
+        )
+
+    @staticmethod
+    def _preset_high(cpu_count: int, preset_kwargs: dict[str, Any]) -> StreamConfig:
+        return StreamConfig(
+            threads=cpu_count,
+            stream_array_size=20_000_000,
+            ntimes=20,
+            **preset_kwargs,
+        )
 
     def get_ansible_setup_extravars(self) -> dict[str, Any]:
         return {"stream_install_intel_compiler": True}
@@ -684,79 +801,7 @@ class StreamPlugin(SimpleWorkloadPlugin):
 
         rows: list[dict[str, Any]] = []
         for entry in results:
-            gen_result = entry.get("generator_result") or {}
-            compiler_results = gen_result.get("compiler_results") or []
-
-            def _time_ms(value: Any) -> float | None:
-                try:
-                    return None if value is None else float(value) * 1000.0
-                except (TypeError, ValueError):
-                    return None
-
-            def _build_row(result: dict[str, Any]) -> dict[str, Any]:
-                copy_avg = result.get("copy_avg_time_s")
-                copy_min = result.get("copy_min_time_s")
-                copy_max = result.get("copy_max_time_s")
-                scale_avg = result.get("scale_avg_time_s")
-                scale_min = result.get("scale_min_time_s")
-                scale_max = result.get("scale_max_time_s")
-                add_avg = result.get("add_avg_time_s")
-                add_min = result.get("add_min_time_s")
-                add_max = result.get("add_max_time_s")
-                triad_avg = result.get("triad_avg_time_s")
-                triad_min = result.get("triad_min_time_s")
-                triad_max = result.get("triad_max_time_s")
-
-                return {
-                    "run_id": run_id,
-                    "workload": test_name,
-                    "repetition": entry.get("repetition"),
-                    "duration_seconds": entry.get("duration_seconds"),
-                    "success": entry.get("success"),
-                    "compiler": result.get("compiler"),
-                    "compiler_bin": result.get("compiler_bin"),
-                    "returncode": result.get("returncode"),
-                    "stream_array_size": result.get("stream_array_size"),
-                    "ntimes": result.get("ntimes"),
-                    "threads": result.get("threads"),
-                    "validated": result.get("validated"),
-                    "copy_best_rate_mb_s": result.get("copy_best_rate_mb_s"),
-                    "copy_avg_time_s": copy_avg,
-                    "copy_min_time_s": copy_min,
-                    "copy_max_time_s": copy_max,
-                    "copy_avg_time_ms": _time_ms(copy_avg),
-                    "copy_min_time_ms": _time_ms(copy_min),
-                    "copy_max_time_ms": _time_ms(copy_max),
-                    "scale_best_rate_mb_s": result.get("scale_best_rate_mb_s"),
-                    "scale_avg_time_s": scale_avg,
-                    "scale_min_time_s": scale_min,
-                    "scale_max_time_s": scale_max,
-                    "scale_avg_time_ms": _time_ms(scale_avg),
-                    "scale_min_time_ms": _time_ms(scale_min),
-                    "scale_max_time_ms": _time_ms(scale_max),
-                    "add_best_rate_mb_s": result.get("add_best_rate_mb_s"),
-                    "add_avg_time_s": add_avg,
-                    "add_min_time_s": add_min,
-                    "add_max_time_s": add_max,
-                    "add_avg_time_ms": _time_ms(add_avg),
-                    "add_min_time_ms": _time_ms(add_min),
-                    "add_max_time_ms": _time_ms(add_max),
-                    "triad_best_rate_mb_s": result.get("triad_best_rate_mb_s"),
-                    "triad_avg_time_s": triad_avg,
-                    "triad_min_time_s": triad_min,
-                    "triad_max_time_s": triad_max,
-                    "triad_avg_time_ms": _time_ms(triad_avg),
-                    "triad_min_time_ms": _time_ms(triad_min),
-                    "triad_max_time_ms": _time_ms(triad_max),
-                    "max_retries": result.get("max_retries"),
-                    "tags": result.get("tags"),
-                }
-
-            if compiler_results:
-                for result in compiler_results:
-                    rows.append(_build_row(result))
-            else:
-                rows.append(_build_row(gen_result))
+            rows.extend(self._rows_for_entry(entry, run_id, test_name))
 
         if not rows:
             return []
@@ -765,6 +810,77 @@ class StreamPlugin(SimpleWorkloadPlugin):
         csv_path = output_dir / f"{test_name}_plugin.csv"
         pd.DataFrame(rows).to_csv(csv_path, index=False)
         return [csv_path]
+
+    def _rows_for_entry(
+        self, entry: dict[str, Any], run_id: str, test_name: str
+    ) -> list[dict[str, Any]]:
+        gen_result = entry.get("generator_result") or {}
+        compiler_results = gen_result.get("compiler_results") or []
+        if compiler_results:
+            return [
+                self._build_csv_row(entry, result, run_id, test_name)
+                for result in compiler_results
+            ]
+        return [self._build_csv_row(entry, gen_result, run_id, test_name)]
+
+    @staticmethod
+    def _time_ms(value: Any) -> float | None:
+        try:
+            return None if value is None else float(value) * 1000.0
+        except (TypeError, ValueError):
+            return None
+
+    def _build_csv_row(
+        self,
+        entry: dict[str, Any],
+        result: dict[str, Any],
+        run_id: str,
+        test_name: str,
+    ) -> dict[str, Any]:
+        return {
+            "run_id": run_id,
+            "workload": test_name,
+            "repetition": entry.get("repetition"),
+            "duration_seconds": entry.get("duration_seconds"),
+            "success": entry.get("success"),
+            "compiler": result.get("compiler"),
+            "compiler_bin": result.get("compiler_bin"),
+            "returncode": result.get("returncode"),
+            "stream_array_size": result.get("stream_array_size"),
+            "ntimes": result.get("ntimes"),
+            "threads": result.get("threads"),
+            "validated": result.get("validated"),
+            "copy_best_rate_mb_s": result.get("copy_best_rate_mb_s"),
+            "copy_avg_time_s": result.get("copy_avg_time_s"),
+            "copy_min_time_s": result.get("copy_min_time_s"),
+            "copy_max_time_s": result.get("copy_max_time_s"),
+            "copy_avg_time_ms": self._time_ms(result.get("copy_avg_time_s")),
+            "copy_min_time_ms": self._time_ms(result.get("copy_min_time_s")),
+            "copy_max_time_ms": self._time_ms(result.get("copy_max_time_s")),
+            "scale_best_rate_mb_s": result.get("scale_best_rate_mb_s"),
+            "scale_avg_time_s": result.get("scale_avg_time_s"),
+            "scale_min_time_s": result.get("scale_min_time_s"),
+            "scale_max_time_s": result.get("scale_max_time_s"),
+            "scale_avg_time_ms": self._time_ms(result.get("scale_avg_time_s")),
+            "scale_min_time_ms": self._time_ms(result.get("scale_min_time_s")),
+            "scale_max_time_ms": self._time_ms(result.get("scale_max_time_s")),
+            "add_best_rate_mb_s": result.get("add_best_rate_mb_s"),
+            "add_avg_time_s": result.get("add_avg_time_s"),
+            "add_min_time_s": result.get("add_min_time_s"),
+            "add_max_time_s": result.get("add_max_time_s"),
+            "add_avg_time_ms": self._time_ms(result.get("add_avg_time_s")),
+            "add_min_time_ms": self._time_ms(result.get("add_min_time_s")),
+            "add_max_time_ms": self._time_ms(result.get("add_max_time_s")),
+            "triad_best_rate_mb_s": result.get("triad_best_rate_mb_s"),
+            "triad_avg_time_s": result.get("triad_avg_time_s"),
+            "triad_min_time_s": result.get("triad_min_time_s"),
+            "triad_max_time_s": result.get("triad_max_time_s"),
+            "triad_avg_time_ms": self._time_ms(result.get("triad_avg_time_s")),
+            "triad_min_time_ms": self._time_ms(result.get("triad_min_time_s")),
+            "triad_max_time_ms": self._time_ms(result.get("triad_max_time_s")),
+            "max_retries": result.get("max_retries"),
+            "tags": result.get("tags"),
+        }
 
 
 PLUGIN = StreamPlugin()

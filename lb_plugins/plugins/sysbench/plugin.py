@@ -38,8 +38,12 @@ class SysbenchConfig(BasePluginConfig):
         gt=0,
         description="Number of events; when None runs for `time` seconds.",
     )
-    rate: int | None = Field(default=None, ge=0, description="Optional rate limit (req/s).")
-    cpu_max_prime: int = Field(default=20000, gt=0, description="Max prime for cpu test.")
+    rate: int | None = Field(
+        default=None, ge=0, description="Optional rate limit (req/s)."
+    )
+    cpu_max_prime: int = Field(
+        default=20000, gt=0, description="Max prime for cpu test."
+    )
     extra_args: list[str] = Field(default_factory=list)
     debug: bool = Field(default=False)
 
@@ -67,19 +71,35 @@ class _SysbenchResultParser:
         stdout = result.get("stdout") or ""
         if not isinstance(stdout, str):
             return result
-        events_match = re.search(r"events per second:\\s*([0-9.]+)", stdout, re.I)
-        if events_match:
-            try:
-                result["events_per_second"] = float(events_match.group(1))
-            except ValueError:
-                pass
-        total_match = re.search(r"total time:\\s*([0-9.]+)s", stdout, re.I)
-        if total_match:
-            try:
-                result["total_time_seconds"] = float(total_match.group(1))
-            except ValueError:
-                pass
+        self._update_metric(
+            result,
+            stdout,
+            key="events_per_second",
+            pattern=r"events per second:\\s*([0-9.]+)",
+        )
+        self._update_metric(
+            result,
+            stdout,
+            key="total_time_seconds",
+            pattern=r"total time:\\s*([0-9.]+)s",
+        )
         return result
+
+    @staticmethod
+    def _update_metric(
+        result: dict[str, Any],
+        stdout: str,
+        *,
+        key: str,
+        pattern: str,
+    ) -> None:
+        match = re.search(pattern, stdout, re.I)
+        if not match:
+            return
+        try:
+            result[key] = float(match.group(1))
+        except ValueError:
+            return
 
 
 class SysbenchGenerator(StdoutCommandGenerator):
@@ -107,6 +127,10 @@ class SysbenchGenerator(StdoutCommandGenerator):
         if shutil.which("sysbench") is None:
             logger.error("sysbench binary not found in PATH.")
             return False
+        return self._check_sysbench_version()
+
+    @staticmethod
+    def _check_sysbench_version() -> bool:
         try:
             result = subprocess.run(
                 ["sysbench", "--version"], capture_output=True, text=True
@@ -115,7 +139,6 @@ class SysbenchGenerator(StdoutCommandGenerator):
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Failed to validate sysbench availability: %s", exc)
             return False
-
 
 
 class SysbenchPlugin(SimpleWorkloadPlugin):

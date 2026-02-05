@@ -20,7 +20,7 @@ import tarfile
 import tempfile
 import time
 from urllib.parse import urlparse
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from pydantic import Field
 
@@ -250,62 +250,68 @@ def _coerce_number(value: Any) -> Optional[float]:
     return None
 
 
+def _iter_key_values(node: Any) -> Iterable[tuple[Any, Any]]:
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, dict):
+            for key, value in current.items():
+                yield key, value
+                stack.append(value)
+        elif isinstance(current, list):
+            stack.extend(current)
+
+
 def _find_first_value(node: Any, keys: set[str]) -> Any:
-    if isinstance(node, dict):
-        for k, v in node.items():
-            nk = _normalize_key(str(k))
-            if nk in keys:
-                return v
-            found = _find_first_value(v, keys)
-            if found is not None:
-                return found
-    elif isinstance(node, list):
-        for item in node:
-            found = _find_first_value(item, keys)
-            if found is not None:
-                return found
+    for key, value in _iter_key_values(node):
+        nk = _normalize_key(str(key))
+        if nk in keys:
+            return value
     return None
 
 
 def _find_first_score(node: Any, keys: set[str]) -> Optional[float]:
-    if isinstance(node, dict):
-        for k, v in node.items():
-            nk = _normalize_key(str(k))
-            if nk in keys:
-                num = _coerce_number(v)
-                if num is not None:
-                    return num
-            found = _find_first_score(v, keys)
-            if found is not None:
-                return found
-    elif isinstance(node, list):
-        for item in node:
-            found = _find_first_score(item, keys)
-            if found is not None:
-                return found
+    for key, value in _iter_key_values(node):
+        nk = _normalize_key(str(key))
+        if nk in keys:
+            num = _coerce_number(value)
+            if num is not None:
+                return num
     return None
 
 
 def _collect_subtests(node: Any) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    if isinstance(node, list):
-        if all(isinstance(i, dict) for i in node):
-            for item in node:
-                name = (
-                    item.get("name")
-                    or item.get("benchmark_name")
-                    or item.get("workload")
-                )
-                score = item.get("score") or item.get("result") or item.get("value")
-                num = _coerce_number(score)
-                if name and num is not None:
-                    rows.append({"subtest": str(name), "score": num})
-        for item in node:
-            rows.extend(_collect_subtests(item))
-    elif isinstance(node, dict):
-        for v in node.values():
-            rows.extend(_collect_subtests(v))
+    for current in _iter_nodes(node):
+        if isinstance(current, list) and all(isinstance(i, dict) for i in current):
+            rows.extend(_collect_subtest_rows(current))
     return rows
+
+
+def _iter_nodes(node: Any) -> Iterable[Any]:
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        yield current
+        if isinstance(current, dict):
+            stack.extend(current.values())
+        elif isinstance(current, list):
+            stack.extend(current)
+
+
+def _collect_subtest_rows(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in items:
+        name = _subtest_name(item)
+        score = item.get("score") or item.get("result") or item.get("value")
+        num = _coerce_number(score)
+        if name and num is not None:
+            rows.append({"subtest": str(name), "score": num})
+    return rows
+
+
+def _subtest_name(item: dict[str, Any]) -> Any:
+    return item.get("name") or item.get("benchmark_name") or item.get("workload")
 
 
 def _resolve_json_path(gen_result: dict[str, Any], output_dir: Path) -> Optional[Path]:
@@ -322,6 +328,25 @@ def _resolve_json_path(gen_result: dict[str, Any], output_dir: Path) -> Optional
         output_dir.glob("*geekbench*.json")
     )
     return candidates[0] if candidates else None
+
+
+_SINGLE_SCORE_KEYS = {
+    "single_core_score",
+    "single_core",
+    "single_score",
+    "single",
+    "cpu_single_core_score",
+    "singlecore_score",
+}
+_MULTI_SCORE_KEYS = {
+    "multi_core_score",
+    "multi_core",
+    "multi_score",
+    "multi",
+    "cpu_multi_core_score",
+    "multicore_score",
+}
+_VERSION_KEYS = {"geekbench_version", "version"}
 
 
 class GeekbenchResultParser:
@@ -356,68 +381,92 @@ def _collect_geekbench_rows(
     summary_rows: list[dict[str, Any]] = []
     subtest_rows: list[dict[str, Any]] = []
 
-    single_keys = {
-        "single_core_score",
-        "single_core",
-        "single_score",
-        "single",
-        "cpu_single_core_score",
-        "singlecore_score",
-    }
-    multi_keys = {
-        "multi_core_score",
-        "multi_core",
-        "multi_score",
-        "multi",
-        "cpu_multi_core_score",
-        "multicore_score",
-    }
-    version_keys = {"geekbench_version", "version"}
-
     for entry in results:
         rep = entry.get("repetition")
         gen_result = entry.get("generator_result") or {}
-        json_path = _resolve_json_path(gen_result, output_dir)
-        payload = _load_geekbench_payload(json_path) if json_path else None
-
-        single_score = _find_first_score(payload, single_keys) if payload else None
-        multi_score = _find_first_score(payload, multi_keys) if payload else None
-        gb_version_raw = _find_first_value(payload, version_keys) if payload else None
-        gb_version = (
-            str(gb_version_raw)
-            if gb_version_raw is not None and gb_version_raw != ""
-            else None
-        )
-
+        payload = _load_entry_payload(gen_result, output_dir)
         summary_rows.append(
+            _build_summary_row(
+                entry,
+                gen_result,
+                run_id,
+                test_name,
+                rep,
+                payload,
+                default_version,
+            )
+        )
+        if payload:
+            subtest_rows.extend(
+                _build_subtest_rows(payload, run_id, test_name, rep)
+            )
+
+    return summary_rows, subtest_rows
+
+
+def _load_entry_payload(
+    gen_result: dict[str, Any],
+    output_dir: Path,
+) -> dict[str, Any] | None:
+    json_path = _resolve_json_path(gen_result, output_dir)
+    return _load_geekbench_payload(json_path) if json_path else None
+
+
+def _build_summary_row(
+    entry: Dict[str, Any],
+    gen_result: dict[str, Any],
+    run_id: str,
+    test_name: str,
+    rep: Any,
+    payload: dict[str, Any] | None,
+    default_version: str,
+) -> dict[str, Any]:
+    single_score = _find_first_score(payload, _SINGLE_SCORE_KEYS) if payload else None
+    multi_score = _find_first_score(payload, _MULTI_SCORE_KEYS) if payload else None
+    gb_version = _resolve_geekbench_version(payload, gen_result, default_version)
+
+    return {
+        "run_id": run_id,
+        "workload": test_name,
+        "repetition": rep,
+        "returncode": gen_result.get("returncode"),
+        "success": entry.get("success"),
+        "duration_seconds": entry.get("duration_seconds"),
+        "single_core_score": single_score,
+        "multi_core_score": multi_score,
+        "geekbench_version": gb_version,
+        "export_json_supported": gen_result.get("export_json_supported", True),
+    }
+
+
+def _resolve_geekbench_version(
+    payload: dict[str, Any] | None,
+    gen_result: dict[str, Any],
+    default_version: str,
+) -> str:
+    gb_version_raw = _find_first_value(payload, _VERSION_KEYS) if payload else None
+    if gb_version_raw is not None and gb_version_raw != "":
+        return str(gb_version_raw)
+    return str(gen_result.get("version") or default_version)
+
+
+def _build_subtest_rows(
+    payload: dict[str, Any],
+    run_id: str,
+    test_name: str,
+    rep: Any,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for row in _collect_subtests(payload):
+        rows.append(
             {
                 "run_id": run_id,
                 "workload": test_name,
                 "repetition": rep,
-                "returncode": gen_result.get("returncode"),
-                "success": entry.get("success"),
-                "duration_seconds": entry.get("duration_seconds"),
-                "single_core_score": single_score,
-                "multi_core_score": multi_score,
-                "geekbench_version": gb_version
-                or gen_result.get("version")
-                or default_version,
-                "export_json_supported": gen_result.get("export_json_supported", True),
+                **row,
             }
         )
-
-        if payload:
-            for row in _collect_subtests(payload):
-                subtest_rows.append(
-                    {
-                        "run_id": run_id,
-                        "workload": test_name,
-                        "repetition": rep,
-                        **row,
-                    }
-                )
-
-    return summary_rows, subtest_rows
+    return rows
 
 
 class _GeekbenchCommandBuilder:
@@ -541,6 +590,11 @@ class GeekbenchGenerator(CommandGenerator):
             self._is_running = False
             return
 
+        archive_path, extract_dir = self._execute_with_handling()
+        self._cleanup_execution(archive_path, extract_dir)
+        self._is_running = False
+
+    def _execute_with_handling(self) -> tuple[Path | None, Path | None]:
         archive_path: Path | None = None
         extract_dir: Path | None = None
         try:
@@ -550,15 +604,30 @@ class GeekbenchGenerator(CommandGenerator):
             logger.error("Geekbench execution error: %s", exc)
             self._result = {"error": str(exc)}
             self._download_error = str(exc)
-        finally:
-            if not self.config.skip_cleanup and extract_dir:
-                try:
-                    shutil.rmtree(extract_dir, ignore_errors=True)
-                except Exception:  # pragma: no cover - best effort
-                    pass
-            if not self.config.skip_cleanup and archive_path:
-                archive_path.unlink(missing_ok=True)
-            self._is_running = False
+        return archive_path, extract_dir
+
+    def _cleanup_execution(
+        self, archive_path: Path | None, extract_dir: Path | None
+    ) -> None:
+        if self.config.skip_cleanup:
+            return
+        self._safe_rmtree(extract_dir)
+        self._safe_unlink(archive_path)
+
+    @staticmethod
+    def _safe_rmtree(path: Path | None) -> None:
+        if not path:
+            return
+        try:
+            shutil.rmtree(path, ignore_errors=True)
+        except Exception:  # pragma: no cover - best effort
+            pass
+
+    @staticmethod
+    def _safe_unlink(path: Path | None) -> None:
+        if not path:
+            return
+        path.unlink(missing_ok=True)
 
     def _prepare_execution_context(self) -> tuple[Path, Path]:
         executable, archive_path, extract_dir = self._prepare_geekbench()

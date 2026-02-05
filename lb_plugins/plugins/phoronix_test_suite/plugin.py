@@ -33,6 +33,7 @@ def _derive_plugin_name(profile: str) -> str:
     safe = "".join(ch for ch in safe if ch.isalnum() or ch == "_").strip("_")
     return f"pts_{safe}" if safe else "pts_unknown"
 
+
 def _ensure_trailing_sep(path_value: str) -> str:
     stripped = path_value.strip()
     if not stripped:
@@ -161,13 +162,10 @@ class _PtsManifestParser:
             item.get("apt_packages") or [],
             f"workload {profile}: apt_packages must be a list of strings",
         )
-        expected_runtime_seconds = item.get("expected_runtime_seconds")
-        if expected_runtime_seconds is not None and not isinstance(
-            expected_runtime_seconds, int
-        ):
-            raise ValueError(
-                f"workload {profile}: expected_runtime_seconds must be int"
-            )
+        expected_runtime_seconds = self._parse_expected_runtime_seconds(
+            item.get("expected_runtime_seconds"),
+            profile,
+        )
         return PtsWorkloadSpec(
             profile=profile,
             plugin_name=plugin_name,
@@ -177,6 +175,18 @@ class _PtsManifestParser:
             apt_packages=apt_packages,
             expected_runtime_seconds=expected_runtime_seconds,
         )
+
+    @staticmethod
+    def _parse_expected_runtime_seconds(
+        value: Any, profile: str
+    ) -> Optional[int]:
+        if value is None:
+            return None
+        if not isinstance(value, int):
+            raise ValueError(
+                f"workload {profile}: expected_runtime_seconds must be int"
+            )
+        return value
 
     @staticmethod
     def _require_string_list(value: Any, error: str) -> List[str]:
@@ -373,60 +383,82 @@ class PhoronixGenerator(CommandGenerator):
         )
 
     def _is_profile_installed(self, env: Dict[str, str]) -> bool:
+        return self._profile_in_user_path(env) or self._profile_in_cli(env)
+
+    def _profile_in_user_path(self, env: Dict[str, str]) -> bool:
         pts_user_path = env.get("PTS_USER_PATH_OVERRIDE", "")
-        if pts_user_path:
-            base = Path(pts_user_path)
-            candidates = [
-                base / "test-profiles" / "pts" / self.profile / "test-definition.xml",
-                base / "test-profiles" / self.profile / "test-definition.xml",
-                base / "test-suites" / "pts" / self.profile / "suite-definition.xml",
-                base / "test-suites" / self.profile / "suite-definition.xml",
-            ]
-            if any(path.exists() for path in candidates):
-                return True
+        if not pts_user_path:
+            return False
+        base = Path(pts_user_path)
+        candidates = [
+            base / "test-profiles" / "pts" / self.profile / "test-definition.xml",
+            base / "test-profiles" / self.profile / "test-definition.xml",
+            base / "test-suites" / "pts" / self.profile / "suite-definition.xml",
+            base / "test-suites" / self.profile / "suite-definition.xml",
+        ]
+        return any(path.exists() for path in candidates)
+
+    def _profile_in_cli(self, env: Dict[str, str]) -> bool:
         profile = self.profile.strip().lower()
+        if not profile:
+            return False
         for subcommand in ("list-installed-tests", "list-installed-suites"):
-            try:
-                res = subprocess.run(
-                    [self.binary, subcommand],
-                    env=env,
-                    text=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    check=False,
-                )
-            except Exception:
-                continue
-            if res.returncode != 0:
-                continue
-            for line in (res.stdout or "").splitlines():
-                if profile and profile in line.lower():
-                    return True
+            output = self._run_pts_list(subcommand, env)
+            if output and self._profile_in_output(output, profile):
+                return True
         return False
 
-    def _check_system_packages(self, env: Dict[str, str]) -> None:
-        if not self.system_packages:
-            return
-        if shutil.which("dpkg-query") is None:
-            return
-        missing: list[str] = []
-        for pkg in sorted(set(self.system_packages)):
+    def _run_pts_list(self, subcommand: str, env: Dict[str, str]) -> str | None:
+        try:
             res = subprocess.run(
-                ["dpkg-query", "-W", "-f=${Status}", pkg],
+                [self.binary, subcommand],
                 env=env,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 check=False,
             )
-            if res.returncode != 0 or "install ok installed" not in (res.stdout or ""):
-                missing.append(pkg)
+        except Exception:
+            return None
+        if res.returncode != 0:
+            return None
+        return res.stdout or ""
+
+    @staticmethod
+    def _profile_in_output(output: str, profile: str) -> bool:
+        return any(profile in line.lower() for line in output.splitlines())
+
+    def _check_system_packages(self, env: Dict[str, str]) -> None:
+        missing = self._missing_system_packages(env)
         if missing:
             raise RuntimeError(
                 "Missing system packages for PTS profile "
                 f"'{self.profile}': {', '.join(missing)}. "
                 "Run the plugin setup phase before executing workloads."
             )
+
+    def _missing_system_packages(self, env: Dict[str, str]) -> list[str]:
+        if not self.system_packages:
+            return []
+        if shutil.which("dpkg-query") is None:
+            return []
+        missing: list[str] = []
+        for pkg in sorted(set(self.system_packages)):
+            if not self._is_package_installed(pkg, env):
+                missing.append(pkg)
+        return missing
+
+    @staticmethod
+    def _is_package_installed(pkg: str, env: Dict[str, str]) -> bool:
+        res = subprocess.run(
+            ["dpkg-query", "-W", "-f=${Status}", pkg],
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        return res.returncode == 0 and "install ok installed" in (res.stdout or "")
 
     def prepare(self) -> None:
         """
@@ -515,27 +547,47 @@ class PhoronixGenerator(CommandGenerator):
         )
         assert self._process.stdout is not None
         assert self._process.stdin is not None
+        deadline = self._build_deadline(start)
+        output_lines = self._collect_process_output(cmd, deadline)
+        rc = self._process.wait()
+        return rc, "".join(output_lines)
+
+    def _build_deadline(self, start: float) -> float | None:
+        if self.config.timeout_seconds:
+            return start + self.config.timeout_seconds
+        return None
+
+    def _collect_process_output(
+        self,
+        cmd: List[str],
+        deadline: float | None,
+    ) -> List[str]:
         output_lines: List[str] = []
-        deadline = (
-            start + self.config.timeout_seconds
-            if self.config.timeout_seconds
-            else None
-        )
         menu_responses = 0
         while True:
-            if deadline and time.time() > deadline:
-                raise subprocess.TimeoutExpired(cmd, self.config.timeout_seconds)
+            self._raise_on_timeout(cmd, deadline)
             line = self._process.stdout.readline()
             if not line and self._process.poll() is not None:
                 break
             if line:
-                print(line, end="", flush=True)
-                output_lines.append(line)
-                if _looks_like_menu_prompt(line) and menu_responses < 3:
-                    self._respond_to_menu_prompt(menu_responses)
-                    menu_responses += 1
-        rc = self._process.wait()
-        return rc, "".join(output_lines)
+                self._emit_pts_output(line, output_lines)
+                menu_responses = self._maybe_handle_menu_prompt(line, menu_responses)
+        return output_lines
+
+    def _raise_on_timeout(self, cmd: List[str], deadline: float | None) -> None:
+        if deadline and time.time() > deadline:
+            raise subprocess.TimeoutExpired(cmd, self.config.timeout_seconds)
+
+    @staticmethod
+    def _emit_pts_output(line: str, output_lines: List[str]) -> None:
+        print(line, end="", flush=True)
+        output_lines.append(line)
+
+    def _maybe_handle_menu_prompt(self, line: str, responses: int) -> int:
+        if _looks_like_menu_prompt(line) and responses < 3:
+            self._respond_to_menu_prompt(responses)
+            return responses + 1
+        return responses
 
     def _respond_to_menu_prompt(self, attempts: int) -> None:
         if not self._process or not self._process.stdin or attempts >= 3:
@@ -550,23 +602,38 @@ class PhoronixGenerator(CommandGenerator):
         proc = self._process
         if not proc or proc.poll() is not None:
             return
+        if not self._terminate_process(proc):
+            return
+        self._wait_for_process(proc)
+
+    @staticmethod
+    def _terminate_process(proc: subprocess.Popen[str]) -> bool:
         try:
             os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            return True
         except Exception:
             try:
                 proc.terminate()
+                return True
             except Exception:
-                return
+                return False
+
+    @staticmethod
+    def _wait_for_process(proc: subprocess.Popen[str]) -> None:
         try:
             proc.wait(timeout=10)
         except Exception:
-            try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except Exception:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
+            _force_kill_process(proc)
+
+
+def _force_kill_process(proc: subprocess.Popen[str]) -> None:
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
 
 
 class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
@@ -646,43 +713,8 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
         run_id: str,
         test_name: str,
     ) -> List[Path]:
-        for entry in results:
-            gen_result = entry.get("generator_result") or {}
-            rep = entry.get("repetition")
-            if not isinstance(rep, int) or rep <= 0:
-                continue
-            src = gen_result.get("pts_result_dir")
-            if not isinstance(src, str) or not src:
-                continue
-            src_path = Path(src)
-            if not src_path.exists() or not src_path.is_dir():
-                continue
-            dest = output_dir / "pts_results" / f"rep{rep}" / src_path.name
-            try:
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copytree(src_path, dest, dirs_exist_ok=True)
-            except Exception as exc:  # pragma: no cover - best effort artifact copy
-                logger.debug(
-                    "Failed to copy PTS results from %s to %s: %s",
-                    src_path,
-                    dest,
-                    exc,
-                )
-
-        rows: list[dict[str, Any]] = []
-        for entry in results:
-            gen_result = entry.get("generator_result") or {}
-            rows.append(
-                {
-                    "run_id": run_id,
-                    "workload": test_name,
-                    "repetition": entry.get("repetition"),
-                    "success": entry.get("success"),
-                    "duration_seconds": entry.get("duration_seconds"),
-                    "profile": gen_result.get("profile"),
-                    "returncode": gen_result.get("returncode"),
-                }
-            )
+        self._copy_result_artifacts(results, output_dir)
+        rows = self._build_summary_rows(results, run_id, test_name)
         if not rows:
             return []
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -701,6 +733,62 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
             ],
         )
         return [csv_path]
+
+    def _copy_result_artifacts(
+        self, results: List[Dict[str, Any]], output_dir: Path
+    ) -> None:
+        for entry in results:
+            src_path = self._result_dir_for_entry(entry)
+            if not src_path:
+                continue
+            rep = entry.get("repetition")
+            dest = output_dir / "pts_results" / f"rep{rep}" / src_path.name
+            try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(src_path, dest, dirs_exist_ok=True)
+            except Exception as exc:  # pragma: no cover - best effort artifact copy
+                logger.debug(
+                    "Failed to copy PTS results from %s to %s: %s",
+                    src_path,
+                    dest,
+                    exc,
+                )
+
+    @staticmethod
+    def _result_dir_for_entry(entry: Dict[str, Any]) -> Optional[Path]:
+        gen_result = entry.get("generator_result") or {}
+        rep = entry.get("repetition")
+        if not isinstance(rep, int) or rep <= 0:
+            return None
+        src = gen_result.get("pts_result_dir")
+        if not isinstance(src, str) or not src:
+            return None
+        src_path = Path(src)
+        if not src_path.exists() or not src_path.is_dir():
+            return None
+        return src_path
+
+    @staticmethod
+    def _build_summary_rows(
+        results: List[Dict[str, Any]],
+        run_id: str,
+        test_name: str,
+    ) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for entry in results:
+            gen_result = entry.get("generator_result") or {}
+            rows.append(
+                {
+                    "run_id": run_id,
+                    "workload": test_name,
+                    "repetition": entry.get("repetition"),
+                    "success": entry.get("success"),
+                    "duration_seconds": entry.get("duration_seconds"),
+                    "profile": gen_result.get("profile"),
+                    "returncode": gen_result.get("returncode"),
+                }
+            )
+        return rows
 
 
 def _load_manifest(path: Path) -> tuple[PtsDefaults, List[PtsWorkloadSpec]]:

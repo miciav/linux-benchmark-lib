@@ -19,6 +19,7 @@ from ...interface import WorkloadIntensity, SimpleWorkloadPlugin, BasePluginConf
 
 logger = logging.getLogger(__name__)
 
+
 def _default_fio_directory() -> str:
     return tempfile.gettempdir()
 
@@ -26,29 +27,47 @@ def _default_fio_directory() -> str:
 class FIOConfig(BasePluginConfig):
     """Configuration for fio I/O testing."""
 
-    job_file: Optional[Path] = Field(default=None, description="Path to a custom FIO job file")
-    runtime: int = Field(default=60, gt=0, description="Duration of the test in seconds")
-    rw: str = Field(default="randrw", description="Read/write pattern (e.g., randrw, read, write)")
-    bs: str = Field(default="4k", description="Block size for I/O operations (e.g., 4k, 1M)")
-    iodepth: int = Field(default=16, gt=0, description="Number of I/O units to keep in flight")
-    numjobs: int = Field(default=1, gt=0, description="Number of jobs to run concurrently")
-    size: str = Field(default="1G", description="Total size of the I/O for each job")
+    job_file: Optional[Path] = Field(
+        default=None, description="Path to a custom FIO job file"
+    )
+    runtime: int = Field(
+        default=60, gt=0, description="Duration of the test in seconds"
+    )
+    rw: str = Field(
+        default="randrw",
+        description="Read/write pattern (e.g., randrw, read, write)",
+    )
+    bs: str = Field(
+        default="4k",
+        description="Block size for I/O operations (e.g., 4k, 1M)",
+    )
+    iodepth: int = Field(
+        default=16, gt=0, description="Number of I/O units to keep in flight"
+    )
+    numjobs: int = Field(
+        default=1, gt=0, description="Number of jobs to run concurrently"
+    )
+    size: str = Field(
+        default="1G", description="Total size of the I/O for each job"
+    )
     directory: str = Field(
         default_factory=_default_fio_directory,
         description="Directory to store test files",
     )
     name: str = Field(default="benchmark", description="Name of the FIO job")
-    output_format: str = Field(default="json", description="Output format (e.g., json, normal)")
+    output_format: str = Field(
+        default="json", description="Output format (e.g., json, normal)"
+    )
     debug: bool = Field(default=False, description="Enable debug logging for fio")
 
 
 class FIOGenerator(CommandGenerator):
     """Workload generator using fio."""
-    
+
     def __init__(self, config: FIOConfig, name: str = "FIOGenerator"):
         """
         Initialize the fio generator.
-        
+
         Args:
             config: Configuration for fio
             name: Name of the generator
@@ -75,48 +94,52 @@ class FIOGenerator(CommandGenerator):
         handler._lb_fio_debug = True  # type: ignore[attr-defined]
         logger.addHandler(handler)
         logger.debug("FIO debug logging enabled")
-    
+
     def _build_command(self) -> List[str]:
         """
         Build the fio command from configuration.
-        
+
         Returns:
             List of command arguments
         """
         cmd = ["fio"]
-        
-        # If a job file is provided, use it
         if self.config.job_file:
-            logger.debug("Using job file for fio: %s", self.config.job_file)
-            cmd.append(str(self.config.job_file))
-        else:
-            # Build command line arguments
-            cmd.extend([
-                f"--name={self.config.name}",
-                f"--rw={self.config.rw}",
-                f"--bs={self.config.bs}",
-                f"--runtime={self.config.runtime}",
-                f"--iodepth={self.config.iodepth}",
-                f"--numjobs={self.config.numjobs}",
-                f"--size={self.config.size}",
-                f"--directory={self.config.directory}",
-                "--time_based",
-                "--group_reporting",
-                f"--output-format={self.config.output_format}"
-            ])
+            return self._build_jobfile_command(cmd)
 
-        logger.debug("Built fio command with config: %s", self.config.model_dump_json()) # Using model_dump_json for Pydantic config
-        
+        cmd.extend(self._build_inline_args())
+        logger.debug(
+            "Built fio command with config: %s", self.config.model_dump_json()
+        )
         return cmd
+
+    def _build_jobfile_command(self, cmd: List[str]) -> List[str]:
+        logger.debug("Using job file for fio: %s", self.config.job_file)
+        cmd.append(str(self.config.job_file))
+        return cmd
+
+    def _build_inline_args(self) -> List[str]:
+        return [
+            f"--name={self.config.name}",
+            f"--rw={self.config.rw}",
+            f"--bs={self.config.bs}",
+            f"--runtime={self.config.runtime}",
+            f"--iodepth={self.config.iodepth}",
+            f"--numjobs={self.config.numjobs}",
+            f"--size={self.config.size}",
+            f"--directory={self.config.directory}",
+            "--time_based",
+            "--group_reporting",
+            f"--output-format={self.config.output_format}",
+        ]
 
     def _log_command(self, cmd: list[str]) -> None:
         logger.info("Running command: %s", " ".join(cmd))
         logger.debug("Working directory: %s", self.config.directory)
-    
+
     def _validate_environment(self) -> bool:
         """
         Validate that fio is available.
-        
+
         Returns:
             True if fio is available, False otherwise
         """
@@ -133,14 +156,14 @@ class FIOGenerator(CommandGenerator):
 
     def _timeout_seconds(self) -> Optional[int]:
         return self.config.runtime + self.config.timeout_buffer
-    
+
     def _parse_json_output(self, output: str) -> dict:
         """
         Parse fio JSON output.
-        
+
         Args:
             output: Raw JSON output from fio
-            
+
         Returns:
             Parsed results dictionary
         """
@@ -148,22 +171,7 @@ class FIOGenerator(CommandGenerator):
             logger.error("fio produced no output to parse")
             return {}
 
-        decoder = json.JSONDecoder()
-        parsed_data: Optional[dict[str, Any]] = None
-
-        # fio may prepend warnings or termination notices before the JSON payload.
-        for idx, char in enumerate(output):
-            if char not in "{[":
-                continue
-            try:
-                candidate, _ = decoder.raw_decode(output[idx:])
-                if isinstance(candidate, dict):
-                    parsed_data = candidate
-                    logger.debug("Found fio JSON payload at offset %d", idx)
-                    break
-            except json.JSONDecodeError:
-                continue
-
+        parsed_data = self._find_json_payload(output)
         if not parsed_data:
             snippet = output[:200].replace("\n", "\\n")
             logger.error(
@@ -186,6 +194,21 @@ class FIOGenerator(CommandGenerator):
             "write_lat_ms": job.get("write", {}).get("lat_ns", {}).get("mean", 0)
             / 1e6,
         }
+
+    def _find_json_payload(self, output: str) -> Optional[dict[str, Any]]:
+        decoder = json.JSONDecoder()
+        # fio may prepend warnings or termination notices before the JSON payload.
+        for idx, char in enumerate(output):
+            if char not in "{[":
+                continue
+            try:
+                candidate, _ = decoder.raw_decode(output[idx:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict):
+                logger.debug("Found fio JSON payload at offset %d", idx)
+                return candidate
+        return None
 
     def _build_result(
         self, cmd: list[str], stdout: str, stderr: str, returncode: int | None
@@ -242,7 +265,7 @@ class FIOPlugin(SimpleWorkloadPlugin):
     REQUIRED_APT_PACKAGES = ["fio"]
     REQUIRED_LOCAL_TOOLS = ["fio"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
-    
+
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[FIOConfig]:
         if level == WorkloadIntensity.LOW:
             return FIOConfig(
@@ -295,8 +318,8 @@ class FIOPlugin(SimpleWorkloadPlugin):
                     "write_iops": parsed.get("write_iops"),
                     "write_bw_mb": parsed.get("write_bw_mb"),
                     "write_lat_ms": parsed.get("write_lat_ms"),
-                    "max_retries": gen_result.get("max_retries"), # Add inherited field
-                    "tags": gen_result.get("tags"), # Add inherited field
+                    "max_retries": gen_result.get("max_retries"),
+                    "tags": gen_result.get("tags"),
                 }
             )
 
