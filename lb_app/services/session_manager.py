@@ -7,13 +7,7 @@ from typing import IO, Any, Callable, Optional
 
 from lb_controller.api import ControllerStateMachine, LogSink, RunJournal, StopToken
 from lb_app.ui_interfaces import DashboardHandle, NoOpDashboardHandle, UIAdapter
-from lb_app.services.run_journal import (
-    build_journal_from_results,
-    find_latest_journal,
-    generate_run_id,
-    initialize_new_journal,
-    load_resume_journal,
-)
+from lb_app.services.run_journal import initialize_new_journal, load_resume_journal
 from lb_app.services.run_types import (
     RunContext,
     _RemoteSession,

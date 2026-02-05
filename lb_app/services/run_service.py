@@ -209,15 +209,13 @@ class RunService:
             emit_timing=emit_timing,
         )
 
-    @staticmethod
     def _attach_controller_jsonl(
-        context: RunContext, session: _RemoteSession
+        self, context: RunContext, session: _RemoteSession
     ) -> Handler:
         return self._execution_coordinator._attach_controller_jsonl(context, session)
 
-    @staticmethod
     def _attach_controller_loki(
-        context: RunContext, session: _RemoteSession
+        self, context: RunContext, session: _RemoteSession
     ) -> Handler | None:
         return self._execution_coordinator._attach_controller_loki(context, session)
 

@@ -127,7 +127,7 @@ def run_global_setup(
         ui_log("Global setup failed. Aborting run.")
         session.transition(ControllerState.FAILED, reason="global setup failed")
         _refresh_journal(services)
-        return _build_summary(services, session, phases, flags, success_override=False)
+        return build_summary(services, session, phases, flags, success_override=False)
     return None
 
 

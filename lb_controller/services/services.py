@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from lb_controller.engine.lifecycle import RunLifecycle
 from lb_controller.models.types import RemoteExecutor

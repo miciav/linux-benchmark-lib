@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import platform
-from typing import Callable
+from typing import Any, Callable
 
 from lb_controller.api import BenchmarkController, RunEvent, StopToken
 

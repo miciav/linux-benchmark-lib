@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import logging
 import queue
 import threading
 import time
-from typing import TYPE_CHECKING, Callable, Any
+from typing import TYPE_CHECKING, Any
 
 from lb_controller.api import (
     BenchmarkController,
     ControllerRunner,
-    ControllerStateMachine,
     DoubleCtrlCStateMachine,
     RunExecutionSummary,
     SigintDoublePressHandler,

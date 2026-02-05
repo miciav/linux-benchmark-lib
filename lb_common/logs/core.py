@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Mapping, Any
+from typing import Mapping, Any
 
 import structlog
 

@@ -8,7 +8,6 @@ import os
 import platform
 import subprocess
 import time
-from typing import Optional
 
 from lb_ui.notifications.base import NotificationProvider, NotificationContext
 

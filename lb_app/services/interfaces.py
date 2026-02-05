@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Protocol, IO
+from typing import TYPE_CHECKING, Callable, Protocol
 
 if TYPE_CHECKING:
     from logging import Handler
