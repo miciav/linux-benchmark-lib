@@ -6,7 +6,11 @@ import threading
 import time
 from pathlib import Path
 
-from lb_controller.api import AnsibleRunnerExecutor, BenchmarkController, ControllerOptions
+from lb_controller.api import (
+    AnsibleRunnerExecutor,
+    BenchmarkController,
+    ControllerOptions,
+)
 from lb_runner.api import (
     BenchmarkConfig,
     RemoteExecutionConfig,
@@ -87,6 +91,7 @@ def run_controller(stop_at: str | None) -> dict[str, bool]:
     controller.plugin_registry = _StubRegistry()
 
     if stop_at:
+
         def arm_stop() -> None:
             delay = 0.1 if stop_at == "setup" else 1.5 if stop_at == "run" else 4.0
             time.sleep(delay)

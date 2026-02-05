@@ -10,7 +10,7 @@ from typing import Optional
 @dataclass(frozen=True)
 class NotificationContext:
     """Context data for a notification event."""
-    
+
     title: str
     message: str
     success: bool

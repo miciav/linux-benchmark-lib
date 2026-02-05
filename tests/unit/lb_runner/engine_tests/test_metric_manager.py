@@ -67,9 +67,7 @@ class TestMetricManagerCollectors:
         metric_manager._coordinator.create_collectors.assert_called_once_with(config)
         assert result == collectors
 
-    def test_start_collectors_delegates_to_coordinator(
-        self, metric_manager
-    ) -> None:
+    def test_start_collectors_delegates_to_coordinator(self, metric_manager) -> None:
         """start_collectors should delegate to the coordinator."""
         collectors = [MagicMock(), MagicMock()]
         metric_manager._coordinator.start = MagicMock()
@@ -79,9 +77,7 @@ class TestMetricManagerCollectors:
         metric_manager._coordinator.start.assert_called_once()
         assert metric_manager._coordinator.start.call_args[0][0] == collectors
 
-    def test_stop_collectors_delegates_to_coordinator(
-        self, metric_manager
-    ) -> None:
+    def test_stop_collectors_delegates_to_coordinator(self, metric_manager) -> None:
         """stop_collectors should delegate to the coordinator."""
         collectors = [MagicMock(), MagicMock()]
         metric_manager._coordinator.stop = MagicMock()

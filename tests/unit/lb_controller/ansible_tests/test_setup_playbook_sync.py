@@ -19,8 +19,7 @@ def test_setup_playbook_sync_includes_lb_common() -> None:
         (
             task
             for task in tasks
-            if task.get("name")
-            == "Build benchmark library archive locally"
+            if task.get("name") == "Build benchmark library archive locally"
         ),
         None,
     )

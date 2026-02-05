@@ -7,10 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lb_app.services.doctor_service import DoctorService
-from lb_controller.services.connectivity_service import (
-    ConnectivityReport,
-    HostConnectivityResult,
-)
+from lb_controller.api import ConnectivityReport, HostConnectivityResult
 from lb_runner.api import BenchmarkConfig, RemoteHostConfig
 
 

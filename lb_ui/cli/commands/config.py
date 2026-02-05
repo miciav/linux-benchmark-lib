@@ -5,7 +5,12 @@ from typing import Optional
 
 import typer
 
-from lb_app.api import BenchmarkConfig, PluginRegistry, RemoteHostConfig, create_registry
+from lb_app.api import (
+    BenchmarkConfig,
+    PluginRegistry,
+    RemoteHostConfig,
+    create_registry,
+)
 from lb_ui.wiring.dependencies import UIContext
 from lb_ui.tui.system.models import TableModel
 from lb_ui.flows.config_wizard import run_config_wizard
@@ -15,7 +20,9 @@ from lb_ui.flows.selection import select_workloads_interactively
 
 def create_config_app(ctx: UIContext) -> typer.Typer:
     """Build the config Typer app, wired to the given context."""
-    app = typer.Typer(help="Manage benchmark configuration files.", no_args_is_help=True)
+    app = typer.Typer(
+        help="Manage benchmark configuration files.", no_args_is_help=True
+    )
 
     def _load_config(config_path: Optional[Path]) -> BenchmarkConfig:
         """Load a BenchmarkConfig from disk or fall back to defaults."""
@@ -35,7 +42,10 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             None,
             "--config",
             "-c",
-            help="Config file to edit; uses saved default or local benchmark_config.json when omitted.",
+            help=(
+                "Config file to edit; uses saved default or local "
+                "benchmark_config.json when omitted."
+            ),
         )
     ) -> None:
         """Open a config file in $EDITOR."""
@@ -96,8 +106,12 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
 
     @app.command("set-repetitions")
     def config_set_repetitions(
-        repetitions: int = typer.Argument(..., help="Number of repetitions to store in the config."),
-        config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file to update."),
+        repetitions: int = typer.Argument(
+            ..., help="Number of repetitions to store in the config."
+        ),
+        config: Optional[Path] = typer.Option(
+            None, "--config", "-c", help="Config file to update."
+        ),
         set_default: bool = typer.Option(
             False,
             "--set-default/--no-set-default",
@@ -110,7 +124,9 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             ctx.ui.present.error("Repetitions must be at least 1.")
             raise typer.Exit(1)
 
-        cfg, target, stale, _ = ctx.config_service.load_for_write(config, allow_create=True)
+        cfg, target, stale, _ = ctx.config_service.load_for_write(
+            config, allow_create=True
+        )
         cfg.repetitions = repetitions
         cfg.save(target)
 
@@ -123,7 +139,9 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
 
     @app.command("set-default")
     def config_set_default(
-        path: Path = typer.Argument(..., help="Path to an existing BenchmarkConfig JSON file."),
+        path: Path = typer.Argument(
+            ..., help="Path to an existing BenchmarkConfig JSON file."
+        ),
     ) -> None:
         """Remember a config path as the CLI default."""
         target = Path(path).expanduser()
@@ -158,13 +176,17 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         cfg = _load_config(config)
         rows = [[name, wl.plugin] for name, wl in sorted(cfg.workloads.items())]
         ctx.ui.tables.show(
-            TableModel(title="Configured Workloads", columns=["Name", "Plugin"], rows=rows)
+            TableModel(
+                title="Configured Workloads", columns=["Name", "Plugin"], rows=rows
+            )
         )
 
     @app.command("enable-workload")
     def config_enable_workload(
         name: str = typer.Argument(..., help="Workload name to enable."),
-        config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file to update."),
+        config: Optional[Path] = typer.Option(
+            None, "--config", "-c", help="Config file to update."
+        ),
         set_default: bool = typer.Option(
             False,
             "--set-default/--no-set-default",
@@ -173,7 +195,9 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
     ) -> None:
         """Add a workload to the configuration (creates it if missing)."""
         try:
-            cfg, target, stale = ctx.config_service.add_workload(name, config, set_default)
+            cfg, target, stale = ctx.config_service.add_workload(
+                name, config, set_default
+            )
             if stale:
                 ctx.ui.present.warning(f"Saved default config not found: {stale}")
             ctx.ui.present.success(f"Workload '{name}' added in {target}")
@@ -184,7 +208,9 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
     @app.command("disable-workload")
     def config_disable_workload(
         name: str = typer.Argument(..., help="Workload name to disable."),
-        config: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file to update."),
+        config: Optional[Path] = typer.Option(
+            None, "--config", "-c", help="Config file to update."
+        ),
         set_default: bool = typer.Option(
             False,
             "--set-default/--no-set-default",
@@ -230,7 +256,10 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         """Interactively toggle workloads using arrows + space."""
         cfg = _load_config(config)
         if not cfg.workloads:
-            ctx.ui.present.warning("No workloads configured yet. Add workloads with `lb config enable-workload NAME`.")
+            ctx.ui.present.warning(
+                "No workloads configured yet. Add workloads with "
+                "`lb config enable-workload NAME`."
+            )
             return
 
         registry = create_registry()
@@ -246,9 +275,7 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         cfg = _load_config(config)
         if not cfg.remote_hosts:
             ctx.ui.present.warning("No remote hosts configured.")
-            ctx.ui.present.info(
-                "Add hosts with `lb config add-host NAME --address IP`"
-            )
+            ctx.ui.present.info("Add hosts with `lb config add-host NAME --address IP`")
             return
 
         rows = [

@@ -29,4 +29,5 @@ per-file-ignores =
     tests/unit/lb_controller/*:I251
     tests/unit/common/test_lb_events_callback.py:I251
     tests/unit/common/test_plugin_installer.py:I251
-    tests/e2e/test_plugin_git_install_e2e.py:I251
+    tests/e2e/test_plugin_git_install_e2e.py:I251,E501
+    tests/e2e/*:E501

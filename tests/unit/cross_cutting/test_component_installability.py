@@ -10,7 +10,6 @@ import pytest
 pytestmark = pytest.mark.unit_controller
 
 
-
 def _import_without(additional_path: str, module_name: str) -> None:
     """
     Import ``module_name`` while verifying that no modules are pulled
@@ -39,7 +38,7 @@ def test_controller_is_importable_even_without_extra_optional_packages():
     """
     The controller component should import cleanly without requiring optional extras.
     """
-    import lb_controller.api as api  # noqa: F401
+    from lb_controller import api  # noqa: F401
     import lb_controller  # noqa: F401
 
     assert hasattr(api, "BenchmarkController")

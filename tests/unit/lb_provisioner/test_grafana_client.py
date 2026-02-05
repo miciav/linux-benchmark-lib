@@ -141,7 +141,10 @@ def test_create_service_account_token_reuses_existing_account(
         (
             "POST",
             "/api/serviceaccounts",
-            (400, {"messageId": "serviceaccounts.ErrAlreadyExists", "message": "exists"}),
+            (
+                400,
+                {"messageId": "serviceaccounts.ErrAlreadyExists", "message": "exists"},
+            ),
         ),
         (
             "GET",

@@ -112,9 +112,7 @@ class DoctorService:
                 items.append((label, self._check_command(tool), True))
         return items
 
-    def _local_tools_report(
-        self, items: List[Tuple[str, bool, bool]]
-    ) -> DoctorReport:
+    def _local_tools_report(self, items: List[Tuple[str, bool, bool]]) -> DoctorReport:
         messages: List[str] = []
         if not items:
             messages.append("No plugins with local tool requirements found.")
@@ -200,9 +198,7 @@ class DoctorService:
         if report.all_reachable:
             messages.append("All hosts are reachable.")
         else:
-            messages.append(
-                f"Unreachable hosts: {', '.join(report.unreachable_hosts)}"
-            )
+            messages.append(f"Unreachable hosts: {', '.join(report.unreachable_hosts)}")
         return messages
 
     def check_all(self) -> DoctorReport:

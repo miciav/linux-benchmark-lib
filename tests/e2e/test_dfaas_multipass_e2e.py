@@ -51,7 +51,9 @@ from lb_runner.api import (
     RemoteHostConfig,
     WorkloadConfig,
 )
-from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401 - fixture import
+from tests.e2e.test_multipass_benchmark import (
+    multipass_vm,
+)  # noqa: F401 - fixture import
 from tests.helpers.multipass import make_test_ansible_env, stage_private_key
 
 logger = logging.getLogger(__name__)
@@ -93,9 +95,7 @@ T = TypeVar("T")
 def _log_diagnostics(context: str, exc: Exception) -> None:
     """Log detailed diagnostics before skip/fail."""
     logger.warning(
-        "E2E test failure in %s:\n" 
-        "  Exception: %s: %s\n" 
-        "  Traceback:\n%s",
+        "E2E test failure in %s:\n" "  Exception: %s: %s\n" "  Traceback:\n%s",
         context,
         type(exc).__name__,
         exc,
@@ -103,7 +103,9 @@ def _log_diagnostics(context: str, exc: Exception) -> None:
     )
 
 
-def _skip_or_fail(message: str, context: str | None = None, exc: Exception | None = None) -> None:
+def _skip_or_fail(
+    message: str, context: str | None = None, exc: Exception | None = None
+) -> None:
     """Skip or fail test with detailed diagnostics."""
     if exc and context:
         _log_diagnostics(context, exc)
@@ -205,7 +207,9 @@ def _start_ssh_tunnel_proc(
         "UserKnownHostsFile=/dev/null",
         f"{user}@{host}",
     ]
-    return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
 
 
 @contextlib.contextmanager
@@ -228,7 +232,9 @@ def ssh_tunnel(
         # Give it a moment to establish connection
         time.sleep(1)
         if proc.poll() is not None:
-             raise RuntimeError(f"SSH tunnel failed to start. Return code: {proc.returncode}")
+            raise RuntimeError(
+                f"SSH tunnel failed to start. Return code: {proc.returncode}"
+            )
         yield local_port
     finally:
         proc.terminate()
@@ -273,9 +279,7 @@ def _login_openfaas(gateway_url: str, password: str) -> None:
         text=True,
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            f"faas-cli login failed:\n{result.stdout}\n{result.stderr}"
-        )
+        raise RuntimeError(f"faas-cli login failed:\n{result.stdout}\n{result.stderr}")
 
 
 def _write_inventory(inventory_path: Path, host: dict[str, str]) -> None:
@@ -354,7 +358,15 @@ def _ensure_dfaas_k6_key_on_target(
     if user != "root":
         user_dest = f"/home/{user}/.ssh/dfaas_k6_key"
         subprocess.run(
-            ["multipass", "exec", vm_name, "--", "mkdir", "-p", str(Path(user_dest).parent)],
+            [
+                "multipass",
+                "exec",
+                vm_name,
+                "--",
+                "mkdir",
+                "-p",
+                str(Path(user_dest).parent),
+            ],
             check=True,
         )
         subprocess.run(
@@ -362,7 +374,16 @@ def _ensure_dfaas_k6_key_on_target(
             check=True,
         )
         subprocess.run(
-            ["multipass", "exec", vm_name, "--", "sudo", "chown", f"{user}:{user}", user_dest],
+            [
+                "multipass",
+                "exec",
+                vm_name,
+                "--",
+                "sudo",
+                "chown",
+                f"{user}:{user}",
+                user_dest,
+            ],
             check=True,
         )
         subprocess.run(
@@ -371,7 +392,6 @@ def _ensure_dfaas_k6_key_on_target(
         )
         return user_dest
     return root_dest
-
 
 
 def _get_existing_dfaas_vms() -> list[dict[str, Any]] | None:
@@ -468,14 +488,15 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
     _ensure_local_prereqs()
     target_vm, k6_vm = multipass_two_vms[0], multipass_two_vms[1]
     k6_workspace_root = _k6_workspace_root(k6_vm["user"])
-    
+
     # Cleanup before run
     _clean_remote_workspace(k6_vm["name"], [k6_workspace_root])
-    _clean_remote_workspace(target_vm["name"], ["/tmp/benchmark_results", "/tmp/dfaas_results"])
+    _clean_remote_workspace(
+        target_vm["name"], ["/tmp/benchmark_results", "/tmp/dfaas_results"]
+    )
 
     ansible_dir = tmp_path / "ansible_dfaas"
-    staged_key = stage_private_key(Path(target_vm["key_path"]),
-                                   ansible_dir / "keys")
+    staged_key = stage_private_key(Path(target_vm["key_path"]), ansible_dir / "keys")
     _ensure_dfaas_k6_key_on_target(
         target_vm["name"],
         target_vm["user"],
@@ -533,7 +554,8 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
             target_vm["name"], ["kubectl", "-n", "openfaas", "get", "deploy", "gateway"]
         )
         _multipass_exec(
-            target_vm["name"], ["kubectl", "-n", "openfaas", "get", "deploy", "prometheus"]
+            target_vm["name"],
+            ["kubectl", "-n", "openfaas", "get", "deploy", "prometheus"],
         )
         _multipass_exec(
             target_vm["name"],
@@ -548,7 +570,9 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
             ],
         )
     except Exception as exc:  # noqa: BLE001
-        _skip_or_fail("k3s/OpenFaaS/Prometheus not healthy", context="verify_k3s_stack", exc=exc)
+        _skip_or_fail(
+            "k3s/OpenFaaS/Prometheus not healthy", context="verify_k3s_stack", exc=exc
+        )
 
     gateway_url = f"http://{target_vm['ip']}:31112"
     prometheus_url = f"http://{target_vm['ip']}:30411"
@@ -557,32 +581,44 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
         _wait_for_http(f"{prometheus_url}/-/ready")
     except Exception as exc:  # noqa: BLE001
         if shutil.which("ssh") is None:
-            _skip_or_fail("Prometheus not reachable from host", context="prometheus_http", exc=exc)
-        
+            _skip_or_fail(
+                "Prometheus not reachable from host", context="prometheus_http", exc=exc
+            )
+
         try:
             with ssh_tunnel(
                 target_vm["ip"],
                 target_vm["user"],
                 str(staged_key),
                 remote_port=30411,
-                remote_host=target_vm["ip"]
+                remote_host=target_vm["ip"],
             ) as local_port:
                 prometheus_url = f"http://127.0.0.1:{local_port}"
                 _wait_for_http(f"{prometheus_url}/-/ready")
 
                 # Perform prometheus checks within tunnel scope
                 _wait_for_prometheus_metric(prometheus_url, "node_cpu_seconds_total")
-                _wait_for_prometheus_metric(prometheus_url, "node_memory_MemTotal_bytes")
-                _wait_for_prometheus_metric(prometheus_url, "container_cpu_usage_seconds_total")
+                _wait_for_prometheus_metric(
+                    prometheus_url, "node_memory_MemTotal_bytes"
+                )
+                _wait_for_prometheus_metric(
+                    prometheus_url, "container_cpu_usage_seconds_total"
+                )
                 queries = load_queries(Path("lb_plugins/plugins/dfaas/queries.yml"))
                 active_queries = filter_queries(queries, scaphandre_enabled=False)
                 queries_by_name = {query.name: query for query in active_queries}
                 time_span = "30s"
-                runner = PrometheusQueryRunner(prometheus_url, retry_seconds=180, sleep_seconds=3)
+                runner = PrometheusQueryRunner(
+                    prometheus_url, retry_seconds=180, sleep_seconds=3
+                )
                 for name in ("cpu_usage_node", "ram_usage_node", "ram_usage_node_pct"):
                     runner.execute(queries_by_name[name], time_span=time_span)
-        except Exception as tunnel_exc: 
-             _skip_or_fail("Prometheus tunnel/metrics failed", context="prometheus_tunnel", exc=tunnel_exc)
+        except Exception as tunnel_exc:
+            _skip_or_fail(
+                "Prometheus tunnel/metrics failed",
+                context="prometheus_tunnel",
+                exc=tunnel_exc,
+            )
 
     # Note: If tunnel was used, prometheus_url is now invalid (local port closed).
     # But generator uses the VM internal IP for prometheus, so that's fine.
@@ -597,7 +633,7 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
 
     config = DfaasConfig(
         gateway_url=gateway_url,
-        prometheus_url=f"http://{target_vm['ip']}:30411", # Use VM IP for generator
+        prometheus_url=f"http://{target_vm['ip']}:30411",  # Use VM IP for generator
         k6_host=k6_vm["ip"],
         k6_user=k6_vm["user"],
         k6_ssh_key=str(staged_key),
@@ -633,13 +669,17 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
         _skip_or_fail("DFaaS generator run failed", context="generator_run", exc=exc)
 
     result = generator.get_result()
-    assert result is not None and result.get("success") is True, "DFaaS generator result success should be true"
-    assert bool(result.get("dfaas_results")), "DFaaS generator result should have dfaas_results"
-    assert bool(result.get("dfaas_summaries")), "DFaaS generator result should have dfaas_summaries"
-    
-    config_ids = _extract_config_ids_from_summaries(
-        result.get("dfaas_summaries", [])
-    )
+    assert (
+        result is not None and result.get("success") is True
+    ), "DFaaS generator result success should be true"
+    assert bool(
+        result.get("dfaas_results")
+    ), "DFaaS generator result should have dfaas_results"
+    assert bool(
+        result.get("dfaas_summaries")
+    ), "DFaaS generator result should have dfaas_summaries"
+
+    config_ids = _extract_config_ids_from_summaries(result.get("dfaas_summaries", []))
     if not config_ids:
         config_ids = [
             str(entry["config_id"])
@@ -655,7 +695,9 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
         run_id="dfaas_e2e",
         test_name="dfaas",
     )
-    assert any(path.name == "results.csv" for path in paths), "results.csv should be exported"
+    assert any(
+        path.name == "results.csv" for path in paths
+    ), "results.csv should be exported"
 
     # Verify artifact structure and content
     _verify_dfaas_artifact_structure(Path(output_dir))
@@ -677,11 +719,12 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
 
     # Cleanup before run
     _clean_remote_workspace(k6_vm["name"], [k6_workspace_root])
-    _clean_remote_workspace(target_vm["name"], ["/tmp/benchmark_results", "/tmp/dfaas_stream_results"])
+    _clean_remote_workspace(
+        target_vm["name"], ["/tmp/benchmark_results", "/tmp/dfaas_stream_results"]
+    )
 
     ansible_dir = tmp_path / "ansible_dfaas_stream"
-    staged_key = stage_private_key(Path(target_vm["key_path"]),
-                                   ansible_dir / "keys")
+    staged_key = stage_private_key(Path(target_vm["key_path"]), ansible_dir / "keys")
     _ensure_dfaas_k6_key_on_target(
         target_vm["name"],
         target_vm["user"],
@@ -715,7 +758,9 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
             ansible_env,
         )
     except Exception as exc:  # noqa: BLE001
-        _skip_or_fail("setup_target playbook failed", context="setup_target_streaming", exc=exc)
+        _skip_or_fail(
+            "setup_target playbook failed", context="setup_target_streaming", exc=exc
+        )
 
     try:
         _run_playbook(
@@ -732,7 +777,11 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
     try:
         password = _get_openfaas_password(target_vm["name"])
     except Exception as exc:  # noqa: BLE001
-        _skip_or_fail("Failed to read OpenFaaS password", context="openfaas_password_streaming", exc=exc)
+        _skip_or_fail(
+            "Failed to read OpenFaaS password",
+            context="openfaas_password_streaming",
+            exc=exc,
+        )
 
     auth_value = base64.b64encode(f"admin:{password}".encode("utf-8")).decode("utf-8")
 
@@ -843,6 +892,7 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
         nonlocal observed_lb_workdir
         if "lb_workdir=" in text and observed_lb_workdir is None:
             import re
+
             match = re.search(r"lb_workdir=([^\s]+)", text)
             if match:
                 observed_lb_workdir = match.group(1)
@@ -946,13 +996,9 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
                 )
 
         messages = [
-            str(ev.get("message", ""))
-            for ev in observed_events
-            if isinstance(ev, dict)
+            str(ev.get("message", "")) for ev in observed_events if isinstance(ev, dict)
         ]
-        saw_stream_disabled = any(
-            "k6 log stream disabled" in msg for msg in messages
-        )
+        saw_stream_disabled = any("k6 log stream disabled" in msg for msg in messages)
         saw_dfaa_config = any(
             "DFaaS config " in msg and "skipped=" not in msg for msg in messages
         )
@@ -980,9 +1026,7 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
         k6_summaries = _remote_find_files(
             k6_vm["name"], k6_workspace_root, "summary.json"
         )
-        k6_scripts = _remote_find_files(
-            k6_vm["name"], k6_workspace_root, "script.js"
-        )
+        k6_scripts = _remote_find_files(k6_vm["name"], k6_workspace_root, "script.js")
 
         status_summary = "status file not checked"
         status_path = None
@@ -993,7 +1037,9 @@ def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> 
         if status_path:
             if _remote_file_exists(target_vm["name"], status_path):
                 try:
-                    status_summary = _remote_read_file(target_vm["name"], status_path).strip()
+                    status_summary = _remote_read_file(
+                        target_vm["name"], status_path
+                    ).strip()
                 except FileNotFoundError:
                     status_summary = "status file missing after check"
             else:
@@ -1105,11 +1151,15 @@ def _remote_find_files(vm_name: str, path: str, pattern: str) -> list[str]:
 
 def _verify_dfaas_artifact_structure(output_dir: Path) -> None:
     """Verify all expected DFaaS artifacts exist."""
-    assert (output_dir / "results.csv").exists(), f"results.csv should exist in {output_dir}"
-    
+    assert (
+        output_dir / "results.csv"
+    ).exists(), f"results.csv should exist in {output_dir}"
+
     summaries = list(output_dir.glob("summaries/summary-*.json"))
-    assert len(summaries) > 0, f"summary files should be found in {output_dir}/summaries"
-    
+    assert (
+        len(summaries) > 0
+    ), f"summary files should be found in {output_dir}/summaries"
+
     k6_scripts = list(output_dir.glob("k6_scripts/*.js"))
     assert len(k6_scripts) > 0, f"k6 scripts should be found in {output_dir}/k6_scripts"
 
@@ -1125,13 +1175,15 @@ def _verify_results_csv_content(results_path: Path) -> None:
     with open(results_path) as f:
         reader = csv.DictReader(f)
         rows = list(reader)
-    
+
     assert len(rows) > 0, "results.csv should have at least one row"
-    
+
     # Check for success_rate columns
     success_cols = [k for k in rows[0].keys() if k.startswith("success_rate_function_")]
-    assert len(success_cols) > 0, f"success_rate columns should be found. Columns: {list(rows[0].keys())}"
-    
+    assert (
+        len(success_cols) > 0
+    ), f"success_rate columns should be found. Columns: {list(rows[0].keys())}"
+
     for row in rows:
         for col in success_cols:
             val = float(row[col])
@@ -1151,7 +1203,9 @@ def _verify_results_csv_text(content: str) -> None:
     assert len(rows) > 0, "results.csv should have at least one row"
 
     success_cols = [k for k in rows[0].keys() if k.startswith("success_rate_function_")]
-    assert len(success_cols) > 0, f"success_rate columns should be found. Columns: {list(rows[0].keys())}"
+    assert (
+        len(success_cols) > 0
+    ), f"success_rate columns should be found. Columns: {list(rows[0].keys())}"
 
     for row in rows:
         for col in success_cols:
@@ -1162,7 +1216,9 @@ def _verify_results_csv_text(content: str) -> None:
 def _verify_peva_faas_results_text(content: str) -> None:
     """Verify peva_faas_results.json has successful entries."""
     data = json.loads(content)
-    assert isinstance(data, list) and data, "peva_faas_results.json should contain entries"
+    assert (
+        isinstance(data, list) and data
+    ), "peva_faas_results.json should contain entries"
     entry = data[0]
     assert entry.get("success") is True, "peva_faas_results.json should report success"
 
@@ -1203,7 +1259,9 @@ def _verify_k6_workspace_artifacts(
     poll_interval_seconds: int = 2,
 ) -> None:
     """Verify k6 workspace has script, summary, and log per config."""
-    assert bool(config_ids), "config IDs should be available for k6 workspace verification"
+    assert bool(
+        config_ids
+    ), "config IDs should be available for k6 workspace verification"
 
     deadline = time.time() + max(0, wait_seconds)
     last_counts: dict[str, tuple[int, int, int]] = {}
@@ -1217,9 +1275,7 @@ def _verify_k6_workspace_artifacts(
                 for p in _remote_find_files(vm_name, workspace_root, "script.js")
                 if f"/{config_id_value}/" in p
             ]
-            summary_paths = [
-                p for p in all_summaries if f"/{config_id_value}/" in p
-            ]
+            summary_paths = [p for p in all_summaries if f"/{config_id_value}/" in p]
             log_paths = [p for p in all_logs if f"/{config_id_value}/" in p]
             last_counts[config_id_value] = (
                 len(script_paths),
@@ -1235,9 +1291,7 @@ def _verify_k6_workspace_artifacts(
             script_count, summary_count, log_count = last_counts.get(
                 missing_config, (0, 0, 0)
             )
-            debug_cmd = (
-                f"sudo find {workspace_root} -path '*{missing_config}*' -type f 2>/dev/null"
-            )
+            debug_cmd = f"sudo find {workspace_root} -path '*{missing_config}*' -type f 2>/dev/null"
             try:
                 debug_output = _multipass_exec(
                     vm_name, ["bash", "-c", debug_cmd]
@@ -1324,9 +1378,11 @@ def _verify_k6_logs_on_generator(
 
     k6_logs = _remote_find_files(vm_name, workspace_root, "k6.log")
     print(f"Found k6 logs on generator: {k6_logs}")
-    
+
     if not k6_logs:
-        print(f"No k6 logs found on generator {vm_name}. Listing {workspace_root} recursively with sudo:")
+        print(
+            f"No k6 logs found on generator {vm_name}. Listing {workspace_root} recursively with sudo:"
+        )
         try:
             ls_cmd = f"sudo ls -laR {workspace_root}; echo 'Hostname:'; hostname"
             ls_result = _multipass_exec(vm_name, ["bash", "-c", ls_cmd])
@@ -1340,10 +1396,12 @@ def _verify_k6_logs_on_generator(
             print(f"Found k6 logs on target: {target_logs}")
             if target_logs:
                 print("WARNING: k6 logs found on TARGET VM, not GENERATOR VM!")
-                return 
+                return
 
-    assert len(k6_logs) > 0, f"k6.log files found on generator in {workspace_root} or logs streamed in CLI output"
-    
+    assert (
+        len(k6_logs) > 0
+    ), f"k6.log files found on generator in {workspace_root} or logs streamed in CLI output"
+
     for log_path in k6_logs:
         content = _multipass_exec(vm_name, ["sudo", "cat", log_path]).stdout
         # k6 logs should show execution started
@@ -1379,10 +1437,22 @@ def _diagnose_lb_installation(vm_name: str, lb_workdir: str) -> None:
     print(f"\nDiagnosing lb installation on {vm_name}:")
 
     checks = [
-        (f"ls -la {lb_workdir}/ 2>/dev/null || echo '{lb_workdir} does not exist'", "lb_workdir directory"),
-        (f"ls -la {lb_workdir}/.venv/bin/ 2>/dev/null | head -20 || echo 'venv not found'", "venv binaries"),
-        (f"cat {lb_workdir}/pyproject.toml 2>/dev/null | head -5 || echo 'pyproject.toml not found'", "pyproject.toml"),
-        (f"{lb_workdir}/.venv/bin/lb --version 2>&1 || echo 'lb command failed'", "lb version"),
+        (
+            f"ls -la {lb_workdir}/ 2>/dev/null || echo '{lb_workdir} does not exist'",
+            "lb_workdir directory",
+        ),
+        (
+            f"ls -la {lb_workdir}/.venv/bin/ 2>/dev/null | head -20 || echo 'venv not found'",
+            "venv binaries",
+        ),
+        (
+            f"cat {lb_workdir}/pyproject.toml 2>/dev/null | head -5 || echo 'pyproject.toml not found'",
+            "pyproject.toml",
+        ),
+        (
+            f"{lb_workdir}/.venv/bin/lb --version 2>&1 || echo 'lb command failed'",
+            "lb version",
+        ),
     ]
 
     for cmd, desc in checks:
@@ -1393,7 +1463,9 @@ def _diagnose_lb_installation(vm_name: str, lb_workdir: str) -> None:
             print(f"  {desc}: FAILED - {e}")
 
 
-def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path: Path) -> None:
+def test_dfaas_multipass_event_stream_file_creation(
+    multipass_two_vms, tmp_path: Path
+) -> None:
     """Verify that lb_events.stream.log is created and contains LB_EVENT lines.
 
     This test specifically checks:
@@ -1405,13 +1477,12 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
     target_vm, k6_vm = multipass_two_vms[0], multipass_two_vms[1]
     k6_workspace_root = _k6_workspace_root(k6_vm["user"])
     lb_workdir = _lb_workdir(target_vm["user"])
-    
+
     # Cleanup before run
     _clean_remote_workspace(target_vm["name"], ["/tmp/benchmark_results"])
 
     ansible_dir = tmp_path / "ansible_dfaas_events"
-    staged_key = stage_private_key(Path(target_vm["key_path"]),
-                                   ansible_dir / "keys")
+    staged_key = stage_private_key(Path(target_vm["key_path"]), ansible_dir / "keys")
     target_host = {
         "ip": target_vm["ip"],
         "user": target_vm["user"],
@@ -1435,7 +1506,9 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
 
     # Ensure benchmark library is deployed for CLI run (skip controller setup later).
     if not _deploy_code_to_vm(target_vm["name"], ansible_dir, staged_key, lb_workdir):
-        _skip_or_fail("Failed to deploy code to VM via Ansible setup", context="cli_deploy_code")
+        _skip_or_fail(
+            "Failed to deploy code to VM via Ansible setup", context="cli_deploy_code"
+        )
 
     setup_extravars = {
         "openfaas_functions": ["env"],
@@ -1457,7 +1530,11 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
     try:
         password = _get_openfaas_password(target_vm["name"])
     except Exception as exc:
-        _skip_or_fail("Failed to get OpenFaaS password", context="openfaas_password_events", exc=exc)
+        _skip_or_fail(
+            "Failed to get OpenFaaS password",
+            context="openfaas_password_events",
+            exc=exc,
+        )
 
     auth_value = base64.b64encode(f"admin:{password}".encode("utf-8")).decode("utf-8")
 
@@ -1516,11 +1593,17 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
         report_dir=tmp_path / "reports",
         data_export_dir=tmp_path / "exports",
         remote_hosts=host_configs,
-        remote_execution=RemoteExecutionConfig(enabled=True, run_setup=True, run_collect=True),
+        remote_execution=RemoteExecutionConfig(
+            enabled=True, run_setup=True, run_collect=True
+        ),
         plugin_settings={"dfaas": dfaas_config},
-        plugin_assets={"dfaas": PluginAssetConfig(setup_playbook=None, teardown_playbook=None)},
+        plugin_assets={
+            "dfaas": PluginAssetConfig(setup_playbook=None, teardown_playbook=None)
+        },
         workloads={"dfaas": workload_cfg},
-        collectors=MetricCollectorConfig(psutil_interval=1.0, cli_commands=[], enable_ebpf=False),
+        collectors=MetricCollectorConfig(
+            psutil_interval=1.0, cli_commands=[], enable_ebpf=False
+        ),
     )
 
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
@@ -1538,6 +1621,7 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
         # Extract run_id from log messages
         if "run-" in text and run_id is None:
             import re
+
             match = re.search(r"run-\d{8}-\d{6}", text)
             if match:
                 run_id = match.group()
@@ -1573,7 +1657,9 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
     if not event_stream_init.wait(timeout=600):
         if run_done.is_set():
             pytest.fail("Run finished before event stream files were initialized.")
-        logger.warning("Did not observe event stream init marker; checking remote path anyway.")
+        logger.warning(
+            "Did not observe event stream init marker; checking remote path anyway."
+        )
 
     event_log_path = (
         f"/tmp/benchmark_results/{expected_run_id}/"
@@ -1590,7 +1676,9 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
             except FileNotFoundError:
                 time.sleep(3)
                 continue
-            event_log_lines = [line for line in content.split("\n") if "LB_EVENT" in line]
+            event_log_lines = [
+                line for line in content.split("\n") if "LB_EVENT" in line
+            ]
             if event_log_lines:
                 break
         time.sleep(3)
@@ -1610,10 +1698,14 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
         logger.error("Run did not complete in time")
 
         # Check for remote files
-        event_log_files = _remote_find_files(target_vm["name"], "/tmp/benchmark_results", "lb_events.stream.log")
+        event_log_files = _remote_find_files(
+            target_vm["name"], "/tmp/benchmark_results", "lb_events.stream.log"
+        )
         logger.info("Event log files found: %s", event_log_files)
 
-        pid_files = _remote_find_files(target_vm["name"], lb_workdir, "lb_localrunner.pid")
+        pid_files = _remote_find_files(
+            target_vm["name"], lb_workdir, "lb_localrunner.pid"
+        )
         logger.info("PID files found: %s", pid_files)
 
         status_files = _remote_find_files(
@@ -1635,10 +1727,14 @@ def test_dfaas_multipass_event_stream_file_creation(multipass_two_vms, tmp_path:
     thread.join(timeout=10)
 
     if run_error:
-        _skip_or_fail(f"DFaaS run failed: {run_error}", context="controller_run", exc=run_error)
+        _skip_or_fail(
+            f"DFaaS run failed: {run_error}", context="controller_run", exc=run_error
+        )
 
     if not event_log_lines:
-        pytest.fail("No LB_EVENT lines observed in remote event stream during active run")
+        pytest.fail(
+            "No LB_EVENT lines observed in remote event stream during active run"
+        )
 
 
 def _deploy_code_to_vm(
@@ -1724,15 +1820,14 @@ def test_dfaas_multipass_localrunner_direct(multipass_two_vms, tmp_path: Path) -
     _ensure_local_prereqs()
     target_vm = multipass_two_vms[0]
     lb_workdir = _lb_workdir(target_vm["user"])
-    
+
     # Cleanup
     _clean_remote_workspace(target_vm["name"], ["/tmp/lb_direct_test"])
 
     ansible_dir = tmp_path / "ansible_direct"
     ansible_dir.mkdir(parents=True, exist_ok=True)
 
-    staged_key = stage_private_key(Path(target_vm["key_path"]),
-                                   ansible_dir / "keys")
+    staged_key = stage_private_key(Path(target_vm["key_path"]), ansible_dir / "keys")
 
     # Check if lb code is deployed, if not deploy it
     result = subprocess.run(
@@ -1828,8 +1923,12 @@ EOFCONFIG
     )
 
     logger.info("LocalRunner exit code: %d", result.returncode)
-    logger.info("LocalRunner stdout:\n%s", result.stdout[:5000] if result.stdout else "(empty)")
-    logger.info("LocalRunner stderr:\n%s", result.stderr[:2000] if result.stderr else "(empty)")
+    logger.info(
+        "LocalRunner stdout:\n%s", result.stdout[:5000] if result.stdout else "(empty)"
+    )
+    logger.info(
+        "LocalRunner stderr:\n%s", result.stderr[:2000] if result.stderr else "(empty)"
+    )
 
     # Check stdout for LB_EVENT lines
     stdout_events = [line for line in result.stdout.split("\n") if "LB_EVENT" in line]
@@ -1840,7 +1939,9 @@ EOFCONFIG
     # Check the stream log file
     try:
         log_content = _remote_read_file(target_vm["name"], stream_log)
-        logger.info("Stream log content (%d bytes):\n%s", len(log_content), log_content[:3000])
+        logger.info(
+            "Stream log content (%d bytes):\n%s", len(log_content), log_content[:3000]
+        )
 
         log_events = [line for line in log_content.split("\n") if "LB_EVENT" in line]
         logger.info("LB_EVENT lines in stream log: %d", len(log_events))
@@ -1857,12 +1958,17 @@ EOFCONFIG
     except FileNotFoundError as e:
         logger.error("Status file not found: %s", e)
 
-    assert result.returncode == 0, f"LocalRunner should exit cleanly (rc=0). stderr={result.stderr}"
-    assert len(stdout_events) > 0 or len(log_events) > 0, \
-        f"LB_EVENT lines should be found in stdout or log. stdout={len(stdout_events)} log={len(log_events)}"
+    assert (
+        result.returncode == 0
+    ), f"LocalRunner should exit cleanly (rc=0). stderr={result.stderr}"
+    assert (
+        len(stdout_events) > 0 or len(log_events) > 0
+    ), f"LB_EVENT lines should be found in stdout or log. stdout={len(stdout_events)} log={len(log_events)}"
 
 
-def test_dfaas_multipass_localrunner_daemonized(multipass_two_vms, tmp_path: Path) -> None:
+def test_dfaas_multipass_localrunner_daemonized(
+    multipass_two_vms, tmp_path: Path
+) -> None:
     """Test LocalRunner in daemonized mode on VM.
 
     This test runs the LocalRunner in daemonized mode to verify that
@@ -1871,15 +1977,14 @@ def test_dfaas_multipass_localrunner_daemonized(multipass_two_vms, tmp_path: Pat
     _ensure_local_prereqs()
     target_vm = multipass_two_vms[0]
     lb_workdir = _lb_workdir(target_vm["user"])
-    
+
     # Cleanup
     _clean_remote_workspace(target_vm["name"], ["/tmp/lb_daemon_test"])
 
     ansible_dir = tmp_path / "ansible_daemon"
     ansible_dir.mkdir(parents=True, exist_ok=True)
 
-    staged_key = stage_private_key(Path(target_vm["key_path"]),
-                                   ansible_dir / "keys")
+    staged_key = stage_private_key(Path(target_vm["key_path"]), ansible_dir / "keys")
 
     # Check if lb code is deployed, if not deploy it
     result = subprocess.run(
@@ -1976,7 +2081,9 @@ EOFCONFIG
     )
 
     logger.info("Parent exit code: %d", result.returncode)
-    assert result.returncode == 0, f"Parent process should exit cleanly (rc=0). stderr={result.stderr}"
+    assert (
+        result.returncode == 0
+    ), f"Parent process should exit cleanly (rc=0). stderr={result.stderr}"
 
     # Wait for PID file
     deadline = time.time() + 10
@@ -1984,7 +2091,9 @@ EOFCONFIG
         if _remote_file_exists(target_vm["name"], pid_file):
             break
         time.sleep(0.5)
-    assert _remote_file_exists(target_vm["name"], pid_file), "PID file should be created by daemon"
+    assert _remote_file_exists(
+        target_vm["name"], pid_file
+    ), "PID file should be created by daemon"
 
     pid = _remote_read_file(target_vm["name"], pid_file).strip()
 
@@ -2016,7 +2125,9 @@ EOFCONFIG
     # Check stream log
     if _remote_file_exists(target_vm["name"], stream_log):
         log_content = _remote_read_file(target_vm["name"], stream_log)
-        logger.info("Stream log content (%d bytes):\n%s", len(log_content), log_content[:5000])
+        logger.info(
+            "Stream log content (%d bytes):\n%s", len(log_content), log_content[:5000]
+        )
 
         log_events = [line for line in log_content.split("\n") if "LB_EVENT" in line]
         logger.info("LB_EVENT lines in stream log: %d", len(log_events))
@@ -2024,7 +2135,9 @@ EOFCONFIG
             logger.info("  %s", ev)
 
         # Should have at least the final done/failed event
-        assert len(log_events) > 0, "LB_EVENT lines should be present in daemon stream log"
+        assert (
+            len(log_events) > 0
+        ), "LB_EVENT lines should be present in daemon stream log"
     else:
         pytest.fail("Stream log file not created by daemon")
 
@@ -2084,7 +2197,9 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
             ansible_env,
         )
     except Exception as exc:  # noqa: BLE001
-        _skip_or_fail("setup_target playbook failed", context="setup_target_cli", exc=exc)
+        _skip_or_fail(
+            "setup_target playbook failed", context="setup_target_cli", exc=exc
+        )
     try:
         _run_playbook(
             setup_k6,
@@ -2098,7 +2213,9 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
     try:
         password = _get_openfaas_password(k3s_vm["name"])
     except Exception as exc:  # noqa: BLE001
-        _skip_or_fail("Failed to read OpenFaaS password", context="openfaas_password_cli", exc=exc)
+        _skip_or_fail(
+            "Failed to read OpenFaaS password", context="openfaas_password_cli", exc=exc
+        )
 
     auth_value = base64.b64encode(f"admin:{password}".encode("utf-8")).decode("utf-8")
 
@@ -2213,7 +2330,10 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
         try:
             opt_lb = _multipass_exec(
                 runner_vm["name"],
-                ["bash", "-c", f"""
+                [
+                    "bash",
+                    "-c",
+                    f"""
                 echo "=== {lb_workdir} directory ==="
                 ls -la {lb_workdir}/ 2>/dev/null || echo "{lb_workdir} not found"
 
@@ -2240,7 +2360,8 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
                 echo ""
                 echo "=== Remote benchmark_results content ==="
                 find /tmp -path '*benchmark_results*' -type f 2>/dev/null | head -30
-                """],
+                """,
+                ],
             )
             print(opt_lb.stdout)
         except Exception as e:
@@ -2269,15 +2390,21 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
     if local_run_dir and peva_faas_output.exists():
         results_path = peva_faas_output / "peva_faas_results.json"
         rep_result_path = peva_faas_output / "rep1" / "result.json"
-        assert results_path.exists(), f"peva_faas_results.json should exist in {peva_faas_output}"
-        assert rep_result_path.exists(), f"rep1/result.json should exist in {peva_faas_output}"
+        assert (
+            results_path.exists()
+        ), f"peva_faas_results.json should exist in {peva_faas_output}"
+        assert (
+            rep_result_path.exists()
+        ), f"rep1/result.json should exist in {peva_faas_output}"
         _verify_peva_faas_results_text(results_path.read_text())
         _verify_peva_faas_result_text(rep_result_path.read_text())
     else:
         # Remote output (expected for remote execution)
         print("Local output not found; checking remote output directory content...")
         try:
-            remote_ls = _multipass_exec(runner_vm["name"], ["ls", "-laR", "/tmp/benchmark_results"])
+            remote_ls = _multipass_exec(
+                runner_vm["name"], ["ls", "-laR", "/tmp/benchmark_results"]
+            )
             print(f"Remote /tmp/benchmark_results content:\n{remote_ls.stdout}")
         except Exception as e:
             print(f"Failed to list remote directory: {e}")
@@ -2299,7 +2426,11 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
         else:
             remote_run_root = _multipass_exec(
                 runner_vm["name"],
-                ["bash", "-c", "ls -td /tmp/benchmark_results/run-* 2>/dev/null | head -1"],
+                [
+                    "bash",
+                    "-c",
+                    "ls -td /tmp/benchmark_results/run-* 2>/dev/null | head -1",
+                ],
             ).stdout.strip()
 
         remote_output_dir = f"{remote_run_root}/{runner_vm['name']}/peva_faas"
@@ -2308,16 +2439,24 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
             remote_output_dir,
             "peva_faas_results.json",
         )
-        assert remote_results, f"peva_faas_results.json should exist in remote output {remote_output_dir}"
-        _verify_peva_faas_results_text(_remote_read_file(runner_vm["name"], remote_results[0]))
+        assert (
+            remote_results
+        ), f"peva_faas_results.json should exist in remote output {remote_output_dir}"
+        _verify_peva_faas_results_text(
+            _remote_read_file(runner_vm["name"], remote_results[0])
+        )
 
         remote_rep_results = _remote_find_files(
             runner_vm["name"],
             f"{remote_output_dir}/rep1",
             "result.json",
         )
-        assert remote_rep_results, f"rep1/result.json should exist in {remote_output_dir}/rep1"
-        _verify_peva_faas_result_text(_remote_read_file(runner_vm["name"], remote_rep_results[0]))
+        assert (
+            remote_rep_results
+        ), f"rep1/result.json should exist in {remote_output_dir}/rep1"
+        _verify_peva_faas_result_text(
+            _remote_read_file(runner_vm["name"], remote_rep_results[0])
+        )
 
     # Debug: Print journal and run log (critical for diagnosing setup failures)
     for path in output_dir.rglob("run_journal.json"):
@@ -2334,7 +2473,9 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
             content = path.read_text()
             # Print last 10000 chars to see setup.yml output
             if len(content) > 10000:
-                print(f"... (truncated, showing last 10000 chars of {len(content)} total) ...")
+                print(
+                    f"... (truncated, showing last 10000 chars of {len(content)} total) ..."
+                )
                 print(content[-10000:])
             else:
                 print(content)
@@ -2342,7 +2483,9 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
             print(f"Failed to read run log: {e}")
 
     if not (local_run_dir and peva_faas_output.exists()):
-        logger.warning("PEVA-faas output directory not found locally - verified remote output")
+        logger.warning(
+            "PEVA-faas output directory not found locally - verified remote output"
+        )
 
     # Debug: Check LocalRunner output and PEVA-faas generator output on runner VM
     print("\n" + "=" * 60)
@@ -2354,7 +2497,10 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
     try:
         opt_lb = _multipass_exec(
             runner_vm["name"],
-            ["bash", "-c", f"""
+            [
+                "bash",
+                "-c",
+                f"""
             echo "=== {lb_workdir} directory ==="
             ls -la {lb_workdir}/ 2>/dev/null || echo "{lb_workdir} not found"
 
@@ -2373,7 +2519,8 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
             echo ""
             echo "=== Event stream log ==="
             cat /tmp/benchmark_results/*/benchmark-test-vm-*/lb_events.stream.log 2>/dev/null || echo "No stream log"
-            """],
+            """,
+            ],
         )
         print(opt_lb.stdout)
     except Exception as e:
@@ -2384,7 +2531,10 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
     try:
         runner_evidence = _multipass_exec(
             runner_vm["name"],
-            ["bash", "-c", """
+            [
+                "bash",
+                "-c",
+                """
             echo "=== Runner logs in /tmp ==="
             ls -la /tmp/lb_localrunner*.log 2>/dev/null || echo "No runner logs found"
 
@@ -2399,7 +2549,8 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
             echo ""
             echo "=== Process history (if available) ==="
             grep -l -E "lb|peva_faas|k6" /var/log/syslog 2>/dev/null | head -5 || echo "No relevant syslog entries"
-            """],
+            """,
+            ],
         )
         print(runner_evidence.stdout)
     except Exception as e:
@@ -2409,7 +2560,11 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
     try:
         peva_faas_find = _multipass_exec(
             runner_vm["name"],
-            ["bash", "-c", f"find /tmp {lb_workdir} /home/ubuntu -name '*peva_faas*' -o -name '*results.csv*' 2>/dev/null | head -20"]
+            [
+                "bash",
+                "-c",
+                f"find /tmp {lb_workdir} /home/ubuntu -name '*peva_faas*' -o -name '*results.csv*' 2>/dev/null | head -20",
+            ],
         )
         print(f"PEVA-faas-related files on runner:\n{peva_faas_find.stdout}")
     except Exception as e:
@@ -2419,7 +2574,11 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
     try:
         runner_logs = _multipass_exec(
             runner_vm["name"],
-            ["bash", "-c", "cat /tmp/lb_localrunner*.log 2>/dev/null || echo 'No LocalRunner logs found'"]
+            [
+                "bash",
+                "-c",
+                "cat /tmp/lb_localrunner*.log 2>/dev/null || echo 'No LocalRunner logs found'",
+            ],
         )
         if "No LocalRunner logs" not in runner_logs.stdout:
             print(f"LocalRunner logs:\n{runner_logs.stdout[-3000:]}")
@@ -2430,10 +2589,14 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
     try:
         results_find = _multipass_exec(
             runner_vm["name"],
-            ["bash", "-c", "find /tmp -path '*benchmark_results*' -name '*.csv' 2>/dev/null"]
+            [
+                "bash",
+                "-c",
+                "find /tmp -path '*benchmark_results*' -name '*.csv' 2>/dev/null",
+            ],
         )
         print(f"CSV files in benchmark_results:\n{results_find.stdout}")
-        for csv_path in results_find.stdout.strip().split('\n'):
+        for csv_path in results_find.stdout.strip().split("\n"):
             if csv_path and "results.csv" in csv_path:
                 try:
                     csv_content = _remote_read_file(runner_vm["name"], csv_path)
@@ -2457,11 +2620,17 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
         try:
             remote_k6_logs = _multipass_exec(
                 runner_vm["name"],
-                ["bash", "-c", f"find {output_dir} -name 'k6.log' -type f 2>/dev/null | head -20"]
+                [
+                    "bash",
+                    "-c",
+                    f"find {output_dir} -name 'k6.log' -type f 2>/dev/null | head -20",
+                ],
             ).stdout.splitlines()
             if remote_k6_logs:
                 for log_path in remote_k6_logs:
-                    content = _multipass_exec(runner_vm["name"], ["sudo", "cat", log_path]).stdout
+                    content = _multipass_exec(
+                        runner_vm["name"], ["sudo", "cat", log_path]
+                    ).stdout
                     assert content.strip(), f"k6.log should be non-empty: {log_path}"
             else:
                 pytest.fail("k6.log files not found in output_dir/k6 on runner")
@@ -2472,7 +2641,9 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
     print(f"Searching for logs on runner {runner_vm['name']}...")
     try:
         find_cmd = f"find /tmp {lb_workdir} -name '*.log' -type f 2>/dev/null"
-        logs = _multipass_exec(runner_vm["name"], ["bash", "-c", find_cmd]).stdout.splitlines()
+        logs = _multipass_exec(
+            runner_vm["name"], ["bash", "-c", find_cmd]
+        ).stdout.splitlines()
         print(f"Found logs on runner: {logs}")
         for log in logs:
             if "lb_localrunner" in log or "run.log" in log:
@@ -2486,5 +2657,6 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
         print(f"Failed to search/read logs on runner: {e}")
 
     # Verify we got some events
-    assert len(lb_event_lines) > 0 or result.returncode == 0, \
-        "CLI should produce LB_EVENT output or succeed"
+    assert (
+        len(lb_event_lines) > 0 or result.returncode == 0
+    ), "CLI should produce LB_EVENT output or succeed"

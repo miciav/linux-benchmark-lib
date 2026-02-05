@@ -7,7 +7,6 @@ from lb_plugins.api import FIOPlugin
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
 
-
 def test_fio_plugin_export_parsed_metrics(tmp_path: Path):
     plugin = FIOPlugin()
     results = [

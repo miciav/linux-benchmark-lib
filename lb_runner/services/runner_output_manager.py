@@ -46,11 +46,11 @@ class RunnerOutputManager:
     def write_system_info(self, collected: SystemInfo) -> None:
         if self._output_root:
             try:
-                write_system_info_artifacts(
-                    collected, self._output_root, self.logger
-                )
+                write_system_info_artifacts(collected, self._output_root, self.logger)
             except Exception:
-                self.logger.debug("Failed to write system info artifacts", exc_info=True)
+                self.logger.debug(
+                    "Failed to write system info artifacts", exc_info=True
+                )
 
     def persist_rep_result(self, rep_dir: Path, result: dict[str, Any]) -> None:
         self.persister.persist_rep_result(rep_dir, result)

@@ -107,7 +107,9 @@ class FlatPickerPanel:
             return None
         return self._filtered[idx]
 
-    def set_items(self, items: Sequence[PickItem], *, keep_filter: bool = False) -> None:
+    def set_items(
+        self, items: Sequence[PickItem], *, keep_filter: bool = False
+    ) -> None:
         """Replace items and re-apply filtering."""
 
         self._items = list(items)

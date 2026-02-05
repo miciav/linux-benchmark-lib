@@ -26,4 +26,6 @@ def test_controller_stop_scenarios(tmp_path: Path, stop_at, expected):
     markers = run_controller(stop_at)
 
     for key, val in expected.items():
-        assert markers.get(key) == val, f"Expected {key}={val} for stop_at={stop_at}, got {markers}"
+        assert (
+            markers.get(key) == val
+        ), f"Expected {key}={val} for stop_at={stop_at}, got {markers}"

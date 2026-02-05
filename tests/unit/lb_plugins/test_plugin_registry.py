@@ -17,7 +17,6 @@ from lb_plugins.api import (
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
 
-
 @dataclass
 class DummyConfig:
     """Simple config for test plugin."""
@@ -45,6 +44,7 @@ class DummyGenerator(BaseGenerator):
 
 def test_registry_creates_generator_from_plugin():
     """Plugin registry should instantiate generators with provided options."""
+
     class DummyPlugin(WorkloadPlugin):
         @property
         def name(self) -> str:
@@ -88,7 +88,9 @@ def test_registry_logs_entrypoint_failures(monkeypatch, caplog):
     caplog.set_level("WARNING")
     registry = PluginRegistry()
     registry.available(load_entrypoints=True)  # trigger loading
-    assert any("Failed to load plugin entry point" in message for message in caplog.messages)
+    assert any(
+        "Failed to load plugin entry point" in message for message in caplog.messages
+    )
 
 
 def test_resolve_user_plugin_dir_env_override(monkeypatch, tmp_path):

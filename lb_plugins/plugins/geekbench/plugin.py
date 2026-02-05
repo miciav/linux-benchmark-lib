@@ -113,8 +113,7 @@ def _build_assets(
     suffix: str,
 ) -> _GeekbenchAssets:
     archive_name = (
-        Path(urlparse(url).path).name
-        or f"Geekbench-{version}-{suffix}.tar.gz"
+        Path(urlparse(url).path).name or f"Geekbench-{version}-{suffix}.tar.gz"
     )
     archive_path = config.workdir / archive_name
     stem = archive_name[:-7] if archive_name.endswith(".tar.gz") else archive_name
@@ -214,9 +213,7 @@ def _extract_archive(archive_path: Path, workdir: Path) -> None:
             for member in tar.getmembers():
                 member_path = workdir / member.name
                 if not _is_safe_path(workdir, member_path):
-                    raise RuntimeError(
-                        f"Unsafe path in archive: {member.name}"
-                    )
+                    raise RuntimeError(f"Unsafe path in archive: {member.name}")
                 tar.extract(member, workdir, filter="data")
     except Exception as exc:
         archive_path.unlink(missing_ok=True)
@@ -397,9 +394,7 @@ def _collect_geekbench_rows(
             )
         )
         if payload:
-            subtest_rows.extend(
-                _build_subtest_rows(payload, run_id, test_name, rep)
-            )
+            subtest_rows.extend(_build_subtest_rows(payload, run_id, test_name, rep))
 
     return summary_rows, subtest_rows
 
@@ -661,9 +656,7 @@ class GeekbenchGenerator(CommandGenerator):
         if not self._use_export_flag:
             return False, None
         first_result = self._result if isinstance(self._result, dict) else {}
-        export_failed = bool(
-            self._export_path and not self._export_path.exists()
-        )
+        export_failed = bool(self._export_path and not self._export_path.exists())
         stderr_value = first_result.get("stderr") or ""
         stderr_lower = stderr_value.lower() if isinstance(stderr_value, str) else ""
         export_flag_error = any(
@@ -714,9 +707,7 @@ class GeekbenchGenerator(CommandGenerator):
         _extract_archive(assets.archive_path, self.config.workdir)
 
         if not assets.executable.exists():
-            raise RuntimeError(
-                f"Geekbench executable not found at {assets.executable}"
-            )
+            raise RuntimeError(f"Geekbench executable not found at {assets.executable}")
 
         assets.executable.chmod(0o755)
         self._download_ready = True

@@ -25,11 +25,13 @@ class NotificationManager:
         self._providers: List[NotificationProvider] = []
         self._queue: queue.Queue[Optional[NotificationContext]] = queue.Queue()
         self._initialize_providers()
-        
+
         # Start worker thread
-        self._worker_thread = threading.Thread(target=self._worker_loop, name="NotifyWorker", daemon=True)
+        self._worker_thread = threading.Thread(
+            target=self._worker_loop, name="NotifyWorker", daemon=True
+        )
         self._worker_thread.start()
-        
+
         # Ensure we try to flush on exit
         atexit.register(self.shutdown)
 
@@ -49,7 +51,7 @@ class NotificationManager:
                 # Sentinel received, shutdown
                 self._queue.task_done()
                 break
-            
+
             self._dispatch(context)
             self._queue.task_done()
 
@@ -60,7 +62,9 @@ class NotificationManager:
                 provider.send(context)
             except Exception as exc:
                 logger.error(
-                    f"Failed to send notification via {provider.__class__.__name__}: {exc}"
+                    "Failed to send notification via %s: %s",
+                    provider.__class__.__name__,
+                    exc,
                 )
 
     def send(
@@ -72,7 +76,7 @@ class NotificationManager:
         duration_s: Optional[float] = None,
     ) -> None:
         """Enqueue a notification for delivery."""
-        
+
         # Enrich context
         if duration_s is not None:
             message += f"\nDuration: {duration_s:.1f}s"
@@ -86,16 +90,16 @@ class NotificationManager:
             app_name=self.app_name,
             icon_path=resolve_icon_path(),
             run_id=run_id,
-            duration_s=duration_s
+            duration_s=duration_s,
         )
-        
+
         self._queue.put(context)
 
     def shutdown(self, timeout: float = 5.0) -> None:
         """Gracefully stop the worker, waiting for pending notifications."""
         if not self._worker_thread.is_alive():
             return
-            
+
         # Send sentinel
         self._queue.put(None)
         self._worker_thread.join(timeout=timeout)

@@ -68,7 +68,7 @@ def resolve_config_input(
 
     # Workload-specific options override global settings
     user_options = workload_cfg.options
-    
+
     # Merge strategy: shallow merge is usually sufficient for config dicts here
     config_input = {**base_settings, **user_options}
 
@@ -77,10 +77,13 @@ def resolve_config_input(
             level = WorkloadIntensity(workload_cfg.intensity)
             preset_config = plugin.get_preset_config(level)
             if preset_config:
-                logger.info("Using preset configuration for intensity '%s'", level.value)
+                logger.info(
+                    "Using preset configuration for intensity '%s'", level.value
+                )
                 return preset_config
             logger.warning(
-                "Plugin '%s' does not support intensity '%s', falling back to user options.",
+                "Plugin '%s' does not support intensity '%s', "
+                "falling back to user options.",
                 plugin.name,
                 level.value,
             )
@@ -113,9 +116,7 @@ class RunPlanner:
     def select_repetitions(
         self, repetition_override: int | None, pending_reps: list[int] | None
     ) -> list[int]:
-        return select_repetitions(
-            self._repetitions, repetition_override, pending_reps
-        )
+        return select_repetitions(self._repetitions, repetition_override, pending_reps)
 
     def resolve_workload(self, name: str) -> WorkloadConfig:
         return resolve_workload(name, self._workloads)

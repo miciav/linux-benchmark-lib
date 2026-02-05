@@ -28,9 +28,7 @@ class ProcessCommandGenerator(CommandGenerator):
             return self._ensure_tool(self.tool_name)
         return True
 
-    def _consume_process_output(
-        self, proc: subprocess.Popen[str]
-    ) -> tuple[str, str]:
+    def _consume_process_output(self, proc: subprocess.Popen[str]) -> tuple[str, str]:
         stdout, stderr = proc.communicate(timeout=self._timeout_seconds())
         return stdout or "", stderr or ""
 

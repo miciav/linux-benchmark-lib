@@ -38,16 +38,12 @@ def normalize_line(line: str) -> str | None:
     return stripped or None
 
 
-def _extract_lb_event_data(
-    line: str, token: str = "LB_EVENT"
-) -> dict[str, Any] | None:
+def _extract_lb_event_data(line: str, token: str = "LB_EVENT") -> dict[str, Any] | None:
     """Extract LB_EVENT JSON payloads from noisy Ansible output."""
     return _extract_tagged_json(line, token)
 
 
-def _extract_lb_task_data(
-    line: str, token: str = "LB_TASK"
-) -> dict[str, Any] | None:
+def _extract_lb_task_data(line: str, token: str = "LB_TASK") -> dict[str, Any] | None:
     """Extract LB_TASK JSON payloads from Ansible callback output."""
     return _extract_tagged_json(line, token)
 

@@ -17,7 +17,9 @@ class DummyPresenter:
         self.warnings.append(msg)
 
 
-def _make_summary(tmp_path, cleanup_allowed: bool, success: bool = True) -> RunExecutionSummary:
+def _make_summary(
+    tmp_path, cleanup_allowed: bool, success: bool = True
+) -> RunExecutionSummary:
     return RunExecutionSummary(
         run_id="test",
         per_host_output={},
@@ -26,7 +28,9 @@ def _make_summary(tmp_path, cleanup_allowed: bool, success: bool = True) -> RunE
         output_root=tmp_path / "out",
         report_root=tmp_path / "rep",
         data_export_root=tmp_path / "data",
-        controller_state=ControllerState.FINISHED if success else ControllerState.FAILED,
+        controller_state=(
+            ControllerState.FINISHED if success else ControllerState.FAILED
+        ),
         cleanup_allowed=cleanup_allowed,
     )
 

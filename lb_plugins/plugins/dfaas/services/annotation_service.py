@@ -52,9 +52,7 @@ class DfaasAnnotationService:
                 self._dashboard_id = resp["dashboard"].get("id")
                 logger.info("Resolved Grafana dashboard ID: %s", self._dashboard_id)
             else:
-                logger.warning(
-                    "Grafana dashboard '%s' not found.", self.dashboard_uid
-                )
+                logger.warning("Grafana dashboard '%s' not found.", self.dashboard_uid)
         except Exception as exc:
             logger.warning("Failed to resolve Grafana dashboard: %s", exc)
 
@@ -94,9 +92,7 @@ class DfaasAnnotationService:
             "event:overload",
         ]
         self._queue_annotation(
-            text=(
-                f"Overload detected ({cfg_id}) iter {iteration}: {pairs_label}"
-            ),
+            text=(f"Overload detected ({cfg_id}) iter {iteration}: {pairs_label}"),
             tags=tags,
         )
 

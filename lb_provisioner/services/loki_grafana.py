@@ -19,10 +19,7 @@ DEFAULT_GRAFANA_TOKEN_NAME = "lb-observability"
 _LOKI_READY_PATH = "/ready"
 _LOKI_PUSH_PATH = "/loki/api/v1/push"
 _PLATFORM_DASHBOARD_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "assets"
-    / "grafana"
-    / "platform-logs.json"
+    Path(__file__).resolve().parents[1] / "assets" / "grafana" / "platform-logs.json"
 )
 _PLATFORM_ASSETS = GrafanaAssets(
     dashboards=(
@@ -152,7 +149,8 @@ def configure_grafana(
         if not grafana_api_key:
             if not grafana_admin_user or not grafana_admin_password:
                 raise ValueError(
-                    "Grafana API key or admin credentials are required to configure assets"
+                    "Grafana API key or admin credentials are required "
+                    "to configure assets"
                 )
             bootstrap = GrafanaClient(
                 base_url=grafana_url,

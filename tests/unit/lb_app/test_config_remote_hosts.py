@@ -45,9 +45,7 @@ def test_add_remote_host_replaces_existing(tmp_path: Path) -> None:
 
     # Create config with one host
     cfg = BenchmarkConfig()
-    cfg.remote_hosts = [
-        RemoteHostConfig(name="node1", address="192.168.1.100")
-    ]
+    cfg.remote_hosts = [RemoteHostConfig(name="node1", address="192.168.1.100")]
     cfg.save(config_path)
 
     # Add host with same name but different address
@@ -70,9 +68,7 @@ def test_add_remote_host_appends_to_existing(tmp_path: Path) -> None:
     config_path = tmp_path / "config.json"
 
     cfg = BenchmarkConfig()
-    cfg.remote_hosts = [
-        RemoteHostConfig(name="node1", address="192.168.1.100")
-    ]
+    cfg.remote_hosts = [RemoteHostConfig(name="node1", address="192.168.1.100")]
     cfg.save(config_path)
 
     new_host = RemoteHostConfig(name="node2", address="192.168.1.101")
@@ -189,4 +185,7 @@ def test_add_host_with_vars(tmp_path: Path) -> None:
     result_cfg, _, _ = service.add_remote_host(host, config_path)
 
     assert "ansible_ssh_private_key_file" in result_cfg.remote_hosts[0].vars
-    assert result_cfg.remote_hosts[0].vars["ansible_ssh_private_key_file"] == "/path/to/key"
+    assert (
+        result_cfg.remote_hosts[0].vars["ansible_ssh_private_key_file"]
+        == "/path/to/key"
+    )

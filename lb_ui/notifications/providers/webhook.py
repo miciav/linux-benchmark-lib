@@ -23,22 +23,22 @@ class WebhookProvider(NotificationProvider):
     def send(self, context: NotificationContext) -> None:
         """Send JSON payload to the configured webhook URL."""
         payload = self._build_payload(context)
-        
+
         try:
             data = json.dumps(payload).encode("utf-8")
             req = urllib.request.Request(
-                self.url, 
-                data=data, 
+                self.url,
+                data=data,
                 headers={
                     "Content-Type": "application/json",
-                    "User-Agent": f"LB-Runner/{context.app_name}"
-                }
+                    "User-Agent": f"LB-Runner/{context.app_name}",
+                },
             )
-            
+
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 if resp.status >= 400:
                     logger.warning(f"Webhook provider returned status {resp.status}")
-                    
+
         except urllib.error.URLError as exc:
             logger.warning(f"Webhook connection failed: {exc.reason}")
         except Exception as exc:
@@ -50,9 +50,9 @@ class WebhookProvider(NotificationProvider):
         duration_text = ""
         if context.duration_s is not None:
             duration_text = f" ({context.duration_s:.1f}s)"
-        
+
         header = f"{status_emoji} {context.title}{duration_text}"
-        
+
         # Simple text formatting
         text = f"*{header}*\n{context.message}"
 
@@ -62,5 +62,5 @@ class WebhookProvider(NotificationProvider):
             "message": context.message,
             "status": "success" if context.success else "failed",
             "run_id": context.run_id,
-            "duration": context.duration_s
+            "duration": context.duration_s,
         }

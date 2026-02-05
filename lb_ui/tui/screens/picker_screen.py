@@ -97,8 +97,7 @@ class PickerSelectionState:
 
     def build_multi_result(self) -> list[PickItem]:
         return [
-            self.build_result(self.items[idx])
-            for idx in sorted(self.selections.keys())
+            self.build_result(self.items[idx]) for idx in sorted(self.selections.keys())
         ]
 
 
@@ -135,9 +134,7 @@ class HierarchyState:
         return True
 
     def _refresh_items(self) -> None:
-        self.items, self.node_by_item_id = _items_for_children(
-            self.current.children
-        )
+        self.items, self.node_by_item_id = _items_for_children(self.current.children)
 
 
 class PickerScreen:
@@ -199,13 +196,15 @@ class PickerScreen:
 
         inner_layout = HSplit(
             [
-                Window(
-                    content=self._path_control,
-                    height=1,
-                    style="class:path",
-                )
-                if self._hierarchy
-                else Window(height=0),
+                (
+                    Window(
+                        content=self._path_control,
+                        height=1,
+                        style="class:path",
+                    )
+                    if self._hierarchy
+                    else Window(height=0)
+                ),
                 self.search,
                 Window(height=1, char="-", style="class:separator"),
                 VSplit(
@@ -313,11 +312,7 @@ class PickerScreen:
                 self._enter_hierarchy()
                 return
             if self._multi_select:
-                result = (
-                    self._selection.build_multi_result()
-                    if self._selection
-                    else []
-                )
+                result = self._selection.build_multi_result() if self._selection else []
                 self._exit(result)
                 return
             current = self._current_item()

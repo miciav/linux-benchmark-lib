@@ -242,9 +242,7 @@ def _build_task_timing_payload(
     }
 
 
-def _collect_string_fields(
-    res: Dict[str, Any], keys: Iterable[str]
-) -> List[str]:
+def _collect_string_fields(res: Dict[str, Any], keys: Iterable[str]) -> List[str]:
     fields: List[str] = []
     for key in keys:
         val = res.get(key)
@@ -253,9 +251,7 @@ def _collect_string_fields(
     return fields
 
 
-def _collect_list_fields(
-    res: Dict[str, Any], keys: Iterable[str]
-) -> List[str]:
+def _collect_list_fields(res: Dict[str, Any], keys: Iterable[str]) -> List[str]:
     fields: List[str] = []
     for key in keys:
         val = res.get(key)

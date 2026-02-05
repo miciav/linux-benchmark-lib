@@ -22,7 +22,12 @@ from lb_plugins.api import (
     set_user_plugin_dir,
 )
 
-pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_generic, pytest.mark.inter_plugins, pytest.mark.slow]
+pytestmark = [
+    pytest.mark.inter_e2e,
+    pytest.mark.inter_generic,
+    pytest.mark.inter_plugins,
+    pytest.mark.slow,
+]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOCAL_SYSBENCH_REPO = REPO_ROOT / "lb_plugins" / "plugins" / "_user" / "sysbench-plugin"
@@ -42,7 +47,9 @@ def _patch_plugin_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     return plugin_dir
 
 
-def test_e2e_install_plugin_from_git_url(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_e2e_install_plugin_from_git_url(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Install a plugin from git and ensure it is discoverable."""
     url = os.environ.get("LB_E2E_GIT_PLUGIN_URL", DEFAULT_E2E_GIT_PLUGIN_URL)
     if url.startswith("file://"):
@@ -66,7 +73,9 @@ def test_e2e_install_plugin_from_git_url(monkeypatch: pytest.MonkeyPatch, tmp_pa
             timeout=20,
         )
         if probe.returncode != 0:
-            pytest.skip(f"Network unavailable for git probe: {probe.stderr.strip() or probe.stdout.strip()}")
+            pytest.skip(
+                f"Network unavailable for git probe: {probe.stderr.strip() or probe.stdout.strip()}"
+            )
     except Exception as exc:
         pytest.skip(f"Network unavailable for git probe: {exc}")
 
@@ -89,7 +98,9 @@ def test_e2e_install_plugin_from_git_url(monkeypatch: pytest.MonkeyPatch, tmp_pa
         new_plugins = set(new_registry.available(load_entrypoints=True).keys())
 
         # The sysbench plugin should be available after install.
-        assert "sysbench" in new_plugins, f"'sysbench' plugin not discoverable after installing from {url}"
+        assert (
+            "sysbench" in new_plugins
+        ), f"'sysbench' plugin not discoverable after installing from {url}"
 
         # If sysbench wasn't already installed in the environment, we expect a new plugin to appear.
         if not baseline_has_sysbench:

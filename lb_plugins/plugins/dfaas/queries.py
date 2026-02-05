@@ -158,9 +158,7 @@ class PrometheusQueryRunner:
         payload = self._retry_until_result(url, params)
         return parse_instant_value(payload)
 
-    def _retry_until_result(
-        self, url: str, params: dict[str, str]
-    ) -> dict[str, Any]:
+    def _retry_until_result(self, url: str, params: dict[str, str]) -> dict[str, Any]:
         start = time.time()
         logged = False
         while True:

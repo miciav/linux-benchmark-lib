@@ -15,7 +15,9 @@ from lb_runner.api import BenchmarkConfig
 pytestmark = [pytest.mark.unit_ui]
 
 
-def test_cli_runs_list_and_analyze(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_runs_list_and_analyze(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     runner = CliRunner()
     # Avoid reading user-level config defaults (non-hermetic).
     import lb_ui.api as cli

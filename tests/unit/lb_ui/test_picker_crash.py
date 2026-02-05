@@ -9,12 +9,14 @@ from lb_ui.tui.system.components.flat_picker_panel import FlatPickerPanel
 
 pytestmark = pytest.mark.unit_ui
 
+
 @dataclass
 class UnhashablePayload:
     data: dict[str, Any]
-    
+
     def __hash__(self):
         raise TypeError("unhashable type: 'UnhashablePayload'")
+
 
 def test_picker_filter_with_unhashable_payload():
     """
@@ -27,7 +29,7 @@ def test_picker_filter_with_unhashable_payload():
         PickItem(id="1", title="Item One", payload=UnhashablePayload({"a": 1})),
         PickItem(id="2", title="Item Two", payload=UnhashablePayload({"b": 2})),
     ]
-    
+
     panel = FlatPickerPanel(
         items, row_renderer=lambda item, is_selected: ("", item.title)
     )

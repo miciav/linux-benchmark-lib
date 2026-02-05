@@ -10,9 +10,7 @@ from lb_plugins.observability import (
     GrafanaDatasourceAsset,
 )
 
-GRAFANA_DASHBOARD_PATH = (
-    Path(__file__).parent / "grafana" / "dfaas-dashboard.json"
-)
+GRAFANA_DASHBOARD_PATH = Path(__file__).parent / "grafana" / "dfaas-dashboard.json"
 GRAFANA_K6_DASHBOARD_PATH = (
     Path(__file__).parent / "grafana" / "dfaas-k6-dashboard.json"
 )

@@ -157,9 +157,7 @@ def run_workload_setup(
     """Execute per-workload setup playbook."""
     setup_pb = plugin_assets.setup_playbook if plugin_assets else None
     if not setup_pb:
-        phases[f"setup_{test_name}"] = ExecutionResult(
-            rc=0, status="skipped", stats={}
-        )
+        phases[f"setup_{test_name}"] = ExecutionResult(rc=0, status="skipped", stats={})
         return
     ui_log(f"Setup: {test_name} ({plugin_name})")
     if services.output_formatter:
@@ -310,9 +308,7 @@ def handle_collect_phase(
             ui_log,
         )
     else:
-        _skip_collect_phase(
-            services, state, pending_hosts, test_name, status, phases
-        )
+        _skip_collect_phase(services, state, pending_hosts, test_name, status, phases)
 
 
 def _announce_run_phase(

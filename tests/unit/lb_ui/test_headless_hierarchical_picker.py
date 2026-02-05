@@ -93,4 +93,3 @@ def test_headless_hierarchical_picker_invalid_path_returns_none():
 
     picked = ui.hierarchical_picker.pick_one(root, title="Pick")
     assert picked is None
-

@@ -19,11 +19,15 @@ class TestParseBoolEnv:
     def test_returns_none_for_none(self) -> None:
         assert parse_bool_env(None) is None
 
-    @pytest.mark.parametrize("value", ["1", "true", "TRUE", "True", "yes", "YES", "on", "ON"])
+    @pytest.mark.parametrize(
+        "value", ["1", "true", "TRUE", "True", "yes", "YES", "on", "ON"]
+    )
     def test_returns_true_for_truthy_values(self, value: str) -> None:
         assert parse_bool_env(value) is True
 
-    @pytest.mark.parametrize("value", ["0", "false", "FALSE", "no", "off", "random", ""])
+    @pytest.mark.parametrize(
+        "value", ["0", "false", "FALSE", "no", "off", "random", ""]
+    )
     def test_returns_false_for_falsy_values(self, value: str) -> None:
         assert parse_bool_env(value) is False
 

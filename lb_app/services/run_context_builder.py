@@ -84,8 +84,7 @@ def _warn_disabled_tests(disabled: list[str], ui_adapter: UIAdapter | None) -> N
     if not disabled or not ui_adapter:
         return
     ui_adapter.show_warning(
-        "Skipping workloads disabled by platform config: "
-        + ", ".join(sorted(disabled))
+        "Skipping workloads disabled by platform config: " + ", ".join(sorted(disabled))
     )
 
 

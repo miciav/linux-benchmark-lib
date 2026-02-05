@@ -83,9 +83,7 @@ class ApplicationClient:
         Returns updated config and provisioner result.
         """
         mode = ProvisioningMode(execution_mode)
-        node_names = self._resolve_resume_node_names(
-            config, resume, mode, node_count
-        )
+        node_names = self._resolve_resume_node_names(config, resume, mode, node_count)
         request = self._build_provision_request(
             config, mode, node_count, node_names, docker_engine
         )
@@ -321,8 +319,10 @@ class ApplicationClient:
 
     @staticmethod
     def _emit_controller_state(run_result: RunResult | None, hooks: UIHooks) -> None:
-        if run_result and run_result.summary and hasattr(
-            run_result.summary, "controller_state"
+        if (
+            run_result
+            and run_result.summary
+            and hasattr(run_result.summary, "controller_state")
         ):
             hooks.on_status(str(run_result.summary.controller_state))
 

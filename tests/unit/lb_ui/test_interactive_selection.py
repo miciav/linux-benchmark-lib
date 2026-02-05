@@ -19,9 +19,7 @@ def test_select_multipass_interactive(monkeypatch):
     mock_stdout.isatty.return_value = True
     monkeypatch.setattr(sys, "stdout", mock_stdout)
 
-    with patch(
-        "lb_app.api.test_service_module.ConfigService"
-    ) as mock_cfg_cls:
+    with patch("lb_app.api.test_service_module.ConfigService") as mock_cfg_cls:
         mock_cfg = mock_cfg_cls.return_value
         mock_cfg.create_default_config.return_value.workloads = {
             "stress_ng": {},
@@ -56,7 +54,7 @@ def test_select_multipass_non_interactive(monkeypatch):
         # Mock UI for non-interactive case too, though logic should bypass prompt
         service.ui = MagicMock()
         service.ui.prompt_multipass_scenario.return_value = None
-        
+
         scenario, level = service.select_multipass(False, default_level="low")
         assert scenario == "stress_ng"
         assert level == "low"
@@ -73,7 +71,10 @@ def test_select_multipass_prompt_none(monkeypatch):
 
     with patch("lb_app.api.test_service_module.ConfigService") as mock_cfg_cls:
         mock_cfg = mock_cfg_cls.return_value
-        mock_cfg.create_default_config.return_value.workloads = {"stress_ng": {}, "fio": {}}
+        mock_cfg.create_default_config.return_value.workloads = {
+            "stress_ng": {},
+            "fio": {},
+        }
 
         service = TestService()
         service.ui = MagicMock()

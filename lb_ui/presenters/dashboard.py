@@ -11,6 +11,8 @@ from lb_app.api import (
     build_dashboard_viewmodel,
     event_status_line as _event_status_line,
 )
+
+
 def event_status_line(
     event_source: str, last_event_ts: float | None, *, now: float | None = None
 ) -> str:

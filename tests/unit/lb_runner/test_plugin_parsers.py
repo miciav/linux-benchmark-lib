@@ -73,7 +73,9 @@ def test_hpl_parses_output_paths(tmp_path):
 
 def test_hpl_parses_stdout_metrics(tmp_path):
     plugin = HPLPlugin()
-    gen = plugin.create_generator(HPLConfig(mpi_launcher="fork", workspace_dir=str(tmp_path)))
+    gen = plugin.create_generator(
+        HPLConfig(mpi_launcher="fork", workspace_dir=str(tmp_path))
+    )
     sample = """
 T/V                N    NB     P     Q               Time                 Gflops
 --------------------------------------------------------------------------------

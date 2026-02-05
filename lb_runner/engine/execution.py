@@ -55,7 +55,9 @@ def resolve_duration(config: Any, generator: Any, logger: logging.Logger) -> int
     return duration
 
 
-def prepare_generator(generator: Any, warmup_seconds: int, logger: logging.Logger) -> None:
+def prepare_generator(
+    generator: Any, warmup_seconds: int, logger: logging.Logger
+) -> None:
     """Prepare the generator and optionally sleep for warmup."""
     try:
         generator.prepare()
@@ -98,9 +100,7 @@ def wait_for_generator(
         elapsed += 1
         if should_log_progress(duration, elapsed, last_progress_log):
             percent = int((min(elapsed, duration) / duration) * 100)
-            logger.info(
-                "Progress for %s rep %s: %s%%", test_name, repetition, percent
-            )
+            logger.info("Progress for %s rep %s: %s%%", test_name, repetition, percent)
             last_progress_log = elapsed
     if generator_running(generator):
         logger.warning(

@@ -58,5 +58,7 @@ def test_cross_package_imports_use_public_api():
             if sub != "api":
                 violations.append(f"{path}: use {pkg}.api instead of {pkg}.{sub}")
     if violations:
-        msg = "Cross-package imports must go through public API modules:\n" + "\n".join(sorted(violations))
+        msg = "Cross-package imports must go through public API modules:\n" + "\n".join(
+            sorted(violations)
+        )
         pytest.fail(msg)

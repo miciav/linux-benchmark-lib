@@ -11,6 +11,7 @@ from typing import Iterable, Set, Tuple
 
 from lb_common.api import configure_logging
 
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build a Graphviz view of how lb_* components import each other."
@@ -50,21 +51,24 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def discover_py_files(module_paths: Iterable[Path], include_tests: bool) -> Iterable[Path]:
+def discover_py_files(
+    module_paths: Iterable[Path], include_tests: bool
+) -> Iterable[Path]:
     for path in module_paths:
         if not path.exists():
             continue
         for candidate in path.rglob("*.py"):
-            if candidate.name.startswith("__") and candidate.parent.name == "__pycache__":
+            if (
+                candidate.name.startswith("__")
+                and candidate.parent.name == "__pycache__"
+            ):
                 continue
             if not include_tests and "tests" in candidate.parts:
                 continue
             yield candidate
 
 
-def extract_edges(
-    paths: Iterable[Path], components: Set[str]
-) -> Set[Tuple[str, str]]:
+def extract_edges(paths: Iterable[Path], components: Set[str]) -> Set[Tuple[str, str]]:
     edges: Set[Tuple[str, str]] = set()
     for path in paths:
         try:
@@ -79,7 +83,9 @@ def extract_edges(
         owner = path.parts[0] if path.parts else None
         if owner not in components:
             # Some files can live in nested dirs (e.g. lb_plugins/plugins). Derive owner by checking prefix.
-            owner = next((comp for comp in components if path.match(f"{comp}/**")), owner)
+            owner = next(
+                (comp for comp in components if path.match(f"{comp}/**")), owner
+            )
         if owner not in components:
             continue
 
@@ -107,7 +113,7 @@ def render_dot(
     dot_lines = [
         "digraph component_dependencies {",
         "  rankdir=LR;",
-        "  node [shape=box, style=filled, fillcolor=\"#f5f5f5\", color=\"#555\"]",
+        '  node [shape=box, style=filled, fillcolor="#f5f5f5", color="#555"]',
     ]
     for comp in components:
         dot_lines.append(f'  "{comp}" [fillcolor="#d0e4ff"];')

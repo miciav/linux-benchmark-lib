@@ -10,13 +10,16 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Literal, Optional, Sequence
+from typing import List, Literal, Optional, Sequence, TYPE_CHECKING
 
 from lb_common.api import RunInfo
 
 logger = logging.getLogger(__name__)
 
 AnalyticsKind = Literal["aggregate"]
+
+if TYPE_CHECKING:
+    from lb_analytics.engine.aggregators.data_handler import DataHandler
 
 
 @dataclass(frozen=True)
@@ -50,7 +53,7 @@ class AnalyticsService:
 
     def _process_workload(
         self,
-        handler: "DataHandler",
+        handler: DataHandler,
         host_root: Path,
         export_root: Path,
         workload: str,
@@ -69,7 +72,7 @@ class AnalyticsService:
         return out_path
 
     def _run_aggregate_for_host(
-        self, handler: "DataHandler", run: RunInfo, host: str, workloads: List[str]
+        self, handler: DataHandler, run: RunInfo, host: str, workloads: List[str]
     ) -> List[Path]:
         host_root = run.output_root / host
         if not host_root.exists():

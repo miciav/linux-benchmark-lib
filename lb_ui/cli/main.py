@@ -1,7 +1,8 @@
 """
 Command-line interface for linux-benchmark-lib.
 
-Exposes quick commands to inspect plugins/hosts and run benchmarks via provisioned environments (remote, Docker, Multipass).
+Exposes quick commands to inspect plugins/hosts and run benchmarks via
+provisioned environments (remote, Docker, Multipass).
 """
 
 from __future__ import annotations
@@ -29,9 +30,15 @@ from lb_ui.wiring.dependencies import load_dev_mode, configure_logging, UIContex
 _CLI_ROOT = Path(__file__).resolve().parent.parent.parent
 ctx_store = UIContext(dev_mode=load_dev_mode(_CLI_ROOT))
 
+
 # Shortcuts for clarity in registration
-def ui_provider(): return ctx_store.ui
-def ui_adapter_provider(): return ctx_store.ui_adapter
+def ui_provider():
+    return ctx_store.ui
+
+
+def ui_adapter_provider():
+    return ctx_store.ui_adapter
+
 
 doctor_app = create_doctor_app(ctx_store)
 runs_app = create_runs_app(ctx_store)
@@ -40,7 +47,13 @@ test_app = create_test_app(ctx_store)
 plugin_app = create_plugin_app(ctx_store)
 provision_app = create_provision_app(ctx_store)
 
-app = typer.Typer(help="Run linux-benchmark workloads on provisioned hosts (remote, Docker, Multipass).", no_args_is_help=True)
+app = typer.Typer(
+    help=(
+        "Run linux-benchmark workloads on provisioned hosts "
+        "(remote, Docker, Multipass)."
+    ),
+    no_args_is_help=True,
+)
 
 
 @app.callback(invoke_without_command=True)
@@ -61,8 +74,8 @@ def entry(
     """Global entry point handling interactive vs headless modes."""
     configure_logging(force=True)
     ctx_store.headless = headless
-    
-    # If a specific config is provided, we might want to tell config_service 
+
+    # If a specific config is provided, we might want to tell config_service
     # but currently ConfigService reads from env or default targets.
     # The commands usually handle the -c flag themselves.
 
@@ -82,6 +95,7 @@ app.add_typer(runs_app, name="runs")
 if bool(os.environ.get("LB_ENABLE_TEST_CLI")) or ctx_store.dev_mode:
     app.add_typer(test_app, name="test")
 else:
+
     @app.command("test")
     def _test_disabled() -> None:
         """Hide test helpers when not installed in dev mode."""
@@ -96,10 +110,6 @@ register_run_command(
     app=app,
     ctx=ctx_store,
 )
-
-
-
-
 
 
 def main() -> None:

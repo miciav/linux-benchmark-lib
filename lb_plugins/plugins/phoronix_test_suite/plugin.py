@@ -177,9 +177,7 @@ class _PtsManifestParser:
         )
 
     @staticmethod
-    def _parse_expected_runtime_seconds(
-        value: Any, profile: str
-    ) -> Optional[int]:
+    def _parse_expected_runtime_seconds(value: Any, profile: str) -> Optional[int]:
         if value is None:
             return None
         if not isinstance(value, int):
@@ -199,9 +197,7 @@ class _PtsManifestParser:
         names = [spec.plugin_name for spec in specs]
         dupes = {name for name in names if names.count(name) > 1}
         if dupes:
-            raise ValueError(
-                f"Duplicate plugin_name(s) in PTS config: {sorted(dupes)}"
-            )
+            raise ValueError(f"Duplicate plugin_name(s) in PTS config: {sorted(dupes)}")
 
 
 class PhoronixConfig(BasePluginConfig):

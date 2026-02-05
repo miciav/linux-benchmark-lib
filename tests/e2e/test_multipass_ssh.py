@@ -70,9 +70,7 @@ def test_multipass_ssh_roundtrip(tmp_path: Path) -> None:
             "echo",
             "hello-from-multipass",
         ]
-        ssh_proc = subprocess.run(
-            ssh_cmd, check=True, capture_output=True, text=True
-        )
+        ssh_proc = subprocess.run(ssh_cmd, check=True, capture_output=True, text=True)
         assert "hello-from-multipass" in ssh_proc.stdout
 
     finally:
@@ -339,8 +337,13 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
         extravars["benchmark_config"] = {
             "workloads": {
                 "stress_ng": {
-                    "plugin": "stress_ng", 
-                    "options": {"vm_workers": 0, "cpu_workers": 1, "timeout": 3, "metrics_brief": True}
+                    "plugin": "stress_ng",
+                    "options": {
+                        "vm_workers": 0,
+                        "cpu_workers": 1,
+                        "timeout": 3,
+                        "metrics_brief": True,
+                    },
                 }
             },
             "plugin_settings": {},

@@ -18,7 +18,9 @@ def test_subprocess_run_uses_new_session(monkeypatch, tmp_path):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr("subprocess.run", fake_run)
-    execu = AnsibleRunnerExecutor(private_data_dir=tmp_path / "ansible", stream_output=False)
+    execu = AnsibleRunnerExecutor(
+        private_data_dir=tmp_path / "ansible", stream_output=False
+    )
     playbook = tmp_path / "play.yml"
     playbook.write_text("- hosts: all\n  tasks: []\n")
     inventory = InventorySpec(
@@ -82,7 +84,11 @@ def test_subprocess_popen_uses_new_session(monkeypatch, tmp_path):
 
     monkeypatch.setattr("selectors.DefaultSelector", lambda: DummySelector())
     monkeypatch.setattr("subprocess.Popen", fake_popen)
-    execu = AnsibleRunnerExecutor(private_data_dir=tmp_path / "ansible", stream_output=True, output_callback=lambda *_: None)
+    execu = AnsibleRunnerExecutor(
+        private_data_dir=tmp_path / "ansible",
+        stream_output=True,
+        output_callback=lambda *_: None,
+    )
     playbook = tmp_path / "play.yml"
     playbook.write_text("- hosts: all\n  tasks: []\n")
     inventory = InventorySpec(

@@ -22,7 +22,9 @@ def test_loki_env_fallbacks_apply_when_missing(monkeypatch: pytest.MonkeyPatch) 
     assert cfg.batch_size == 250
 
 
-def test_loki_env_fallbacks_do_not_override_config(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_loki_env_fallbacks_do_not_override_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("LB_LOKI_ENABLED", "0")
     cfg = LokiConfig(enabled=True)
 

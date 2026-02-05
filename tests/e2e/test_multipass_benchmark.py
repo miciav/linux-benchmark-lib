@@ -4,6 +4,7 @@ import subprocess
 import time
 from pathlib import Path
 from typing import Any
+
 # import multiprocessing # Removed for multiprocessing context fix
 
 import pytest
@@ -16,7 +17,11 @@ from lb_runner.api import (
     RemoteHostConfig,
     WorkloadConfig,
 )
-from lb_controller.api import AnsibleRunnerExecutor, BenchmarkController, ControllerOptions
+from lb_controller.api import (
+    AnsibleRunnerExecutor,
+    BenchmarkController,
+    ControllerOptions,
+)
 from tests.helpers.multipass import (
     ensure_ansible_available,
     ensure_multipass_access,
@@ -58,9 +63,11 @@ STRICT_MULTIPASS_SETUP = os.environ.get("LB_STRICT_MULTIPASS_SETUP", "").lower()
     "yes",
 }
 
+
 def is_multipass_available():
     """Check if multipass is installed and available."""
     return shutil.which("multipass") is not None
+
 
 def _vm_count():
     raw = os.environ.get("LB_MULTIPASS_VM_COUNT", "1")
@@ -75,6 +82,7 @@ def _vm_count():
         )
     return count
 
+
 def _vm_cpus() -> int:
     raw = os.environ.get("LB_MULTIPASS_CPUS", str(DEFAULT_VM_CPUS))
     try:
@@ -85,11 +93,13 @@ def _vm_cpus() -> int:
         pytest.fail(f"LB_MULTIPASS_CPUS must be >= 1, got {cpus}")
     return cpus
 
+
 def _vm_memory() -> str:
     raw = os.environ.get("LB_MULTIPASS_MEMORY", DEFAULT_VM_MEMORY).strip()
     if not raw:
         pytest.fail("LB_MULTIPASS_MEMORY must be a non-empty string")
     return raw
+
 
 def _vm_disk() -> str:
     raw = os.environ.get("LB_MULTIPASS_DISK", DEFAULT_VM_DISK).strip()
@@ -112,16 +122,19 @@ def _handle_missing_artifacts(vm_name: str, missing: list[str]) -> None:
         pytest.fail(message)
     pytest.skip(f"{message} (set LB_STRICT_MULTIPASS_ARTIFACTS=1 to enforce)")
 
+
 def _vm_name(index: int, total: int) -> str:
     if total == 1:
         return VM_NAME_PREFIX
     return f"{VM_NAME_PREFIX}-{index + 1}"
+
 
 def _wait_for_ip(vm_name: str) -> str:
     try:
         return wait_for_multipass_ip(vm_name)
     except RuntimeError as exc:
         pytest.fail(str(exc))
+
 
 def _inject_ssh_key(vm_name: str, pub_key: str) -> None:
     cmd = (
@@ -141,6 +154,7 @@ def _inject_ssh_key(vm_name: str, pub_key: str) -> None:
                 raise
             print(f"SSH injection failed for {vm_name}, retrying ({attempt + 1}/10)...")
             time.sleep(3)
+
 
 def _launch_vm(vm_name: str, pub_key: str) -> dict:
     print(f"Launching multipass VM: {vm_name}...")
@@ -170,6 +184,7 @@ def _run_multipass_cleanup(cmd: list[str], timeout: int = 120) -> None:
     except subprocess.TimeoutExpired:
         print(f"Multipass cleanup timed out: {' '.join(cmd)}")
 
+
 @pytest.fixture(scope="module")
 def multipass_vm():
     """
@@ -189,7 +204,7 @@ def multipass_vm():
             ["ssh-keygen", "-t", "rsa", "-f", str(SSH_KEY_PATH), "-N", ""],
             check=True,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
         )
 
     pub_key = SSH_PUB_KEY_PATH.read_text().strip()
@@ -218,6 +233,7 @@ def multipass_vm():
                 key_path.unlink()
             except FileNotFoundError:
                 pass
+
 
 def test_remote_benchmark_execution(multipass_vm, tmp_path):
     """
@@ -262,9 +278,7 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         "data_export_dir": export_dir,
         "remote_hosts": host_configs,
         "remote_execution": RemoteExecutionConfig(
-            enabled=True,
-            run_setup=True,
-            run_collect=True
+            enabled=True, run_setup=True, run_collect=True
         ),
         "test_duration_seconds": intensity["stress_duration"],
         "warmup_seconds": 0,
@@ -280,22 +294,15 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     workload_defs: dict[str, WorkloadConfig] = {}
 
     if "stress_ng" in workloads:
-        stress_cfg = StressNGConfig(
-            cpu_workers=1,
-            timeout=intensity["stress_timeout"]
-        )
+        stress_cfg = StressNGConfig(cpu_workers=1, timeout=intensity["stress_timeout"])
         plugin_settings["stress_ng"] = stress_cfg
         workload_defs["stress_ng"] = WorkloadConfig(
             plugin="stress_ng",
             options=stress_cfg.model_dump(mode="json"),
         )
-    
+
     if "dd" in workloads:
-        dd_cfg = DDConfig(
-            bs="1M", 
-            count=intensity["dd_count"], 
-            of_path="/tmp/dd_test"
-        )
+        dd_cfg = DDConfig(bs="1M", count=intensity["dd_count"], of_path="/tmp/dd_test")
         plugin_settings["dd"] = dd_cfg
         workload_defs["dd"] = WorkloadConfig(
             plugin="dd",
@@ -328,9 +335,11 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
     config = BenchmarkConfig(**config_args)
 
     # Ensure Ansible finds roles and uses a minimal callback config
-    os.environ.update(make_test_ansible_env(ansible_dir, roles_path=ANSIBLE_ROOT / "roles"))
+    os.environ.update(
+        make_test_ansible_env(ansible_dir, roles_path=ANSIBLE_ROOT / "roles")
+    )
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
-    
+
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)
     controller = BenchmarkController(config, ControllerOptions(executor=executor))
 
@@ -345,7 +354,10 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
             pytest.fail(msg)
         pytest.skip(msg)
     # Phases: setup_global + per-test phases + collect
-    if "setup_global" not in summary.phases or not summary.phases["setup_global"].success:
+    if (
+        "setup_global" not in summary.phases
+        or not summary.phases["setup_global"].success
+    ):
         msg = f"setup_global failed. Phases: {summary.phases}"
         if STRICT_MULTIPASS_SETUP:
             pytest.fail(msg)
@@ -364,14 +376,19 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
         missing: list[str] = []
         host_output_dir = summary.per_host_output[vm["name"]]
         if not host_output_dir.exists():
-            _handle_missing_artifacts(vm["name"], [f"output directory missing: {host_output_dir}"])
+            _handle_missing_artifacts(
+                vm["name"], [f"output directory missing: {host_output_dir}"]
+            )
             continue
 
         files = list(host_output_dir.rglob("*"))
         print(f"Downloaded files for {vm['name']}: {files}")
 
         if not files:
-            _handle_missing_artifacts(vm["name"], [f"No result files collected for {vm['name']} in {host_output_dir}"])
+            _handle_missing_artifacts(
+                vm["name"],
+                [f"No result files collected for {vm['name']} in {host_output_dir}"],
+            )
             continue
 
         run_root_candidates = [
@@ -384,7 +401,9 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
             None,
         )
         if run_root is None:
-            _handle_missing_artifacts(vm["name"], [f"Run root missing (checked {run_root_candidates})"])
+            _handle_missing_artifacts(
+                vm["name"], [f"Run root missing (checked {run_root_candidates})"]
+            )
             continue
 
         system_info_candidates = [

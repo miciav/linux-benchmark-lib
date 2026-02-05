@@ -1,7 +1,12 @@
 from contextlib import AbstractContextManager, contextmanager
 from typing import IO, Any, Sequence
 
-from lb_app.api import DashboardHandle, ProgressHandle, UIAdapter, build_dashboard_viewmodel
+from lb_app.api import (
+    DashboardHandle,
+    ProgressHandle,
+    UIAdapter,
+    build_dashboard_viewmodel,
+)
 from lb_ui.tui.adapters.dashboard_handle import DashboardHandleAdapter
 from lb_ui.tui.core.protocols import UI
 from lb_ui.tui.system.models import PickItem, TableModel
@@ -76,7 +81,7 @@ class TUIAdapter(UIAdapter):
         selection = self.tui.picker.pick_one(items, title="Select Multipass Scenario")
         if not selection:
             return None
-        
+
         # Then prompt for intensity
         levels = ["low", "medium", "high"]
         level_items = [
@@ -93,8 +98,11 @@ class TUIAdapter(UIAdapter):
 
 
 class _NoOpProgressHandle(ProgressHandle):
-    def update(self, completed: int) -> None: pass
-    def finish(self) -> None: pass
+    def update(self, completed: int) -> None:
+        pass
+
+    def finish(self) -> None:
+        pass
 
 
 class _NoOpDashboardHandle(DashboardHandle):

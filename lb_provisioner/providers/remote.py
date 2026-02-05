@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import List
 
-from lb_provisioner.models.types import MAX_NODES, ProvisionedNode, ProvisioningError, ProvisioningRequest
+from lb_provisioner.models.types import (
+    MAX_NODES,
+    ProvisionedNode,
+    ProvisioningError,
+    ProvisioningRequest,
+)
 
 
 class RemoteProvisioner:

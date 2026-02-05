@@ -69,9 +69,7 @@ class TestConfigViewModel:
 
         assert info == {}
 
-    def test_get_basic_info_with_config(
-        self, mock_config_service: MagicMock
-    ) -> None:
+    def test_get_basic_info_with_config(self, mock_config_service: MagicMock) -> None:
         """Test get_basic_info returns config values."""
         from lb_gui.viewmodels.config_vm import ConfigViewModel
 
@@ -135,7 +133,11 @@ class TestPluginsViewModel:
 
         mock_platform = MagicMock()
         mock_platform.is_plugin_enabled.return_value = True
-        config_service.load_platform_config.return_value = (mock_platform, Path("/p"), True)
+        config_service.load_platform_config.return_value = (
+            mock_platform,
+            Path("/p"),
+            True,
+        )
 
         mock_registry = MagicMock()
         mock_registry.available.return_value = {"stress_ng": MagicMock()}
@@ -159,7 +161,11 @@ class TestPluginsViewModel:
 
         mock_platform = MagicMock()
         mock_platform.is_plugin_enabled.return_value = True
-        config_service.load_platform_config.return_value = (mock_platform, Path("/p"), True)
+        config_service.load_platform_config.return_value = (
+            mock_platform,
+            Path("/p"),
+            True,
+        )
 
         mock_registry = MagicMock()
         mock_registry.available.return_value = {"stress_ng": MagicMock()}

@@ -95,7 +95,9 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         journal_path = output_root / "run_journal.json"
         journal = _load_journal(journal_path)
         if journal:
-            created_at = _extract_created_at(journal.metadata if journal.metadata else {})
+            created_at = _extract_created_at(
+                journal.metadata if journal.metadata else {}
+            )
             hosts = {task.host for task in journal.tasks.values()}
             workloads = {task.workload for task in journal.tasks.values()}
         else:
@@ -135,7 +137,9 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         return runs
 
     def _journal_status(run_info: RunInfo) -> Tuple[str, bool, str, Sequence[str]]:
-        journal_path = run_info.journal_path or (run_info.output_root / "run_journal.json")
+        journal_path = run_info.journal_path or (
+            run_info.output_root / "run_journal.json"
+        )
         if journal_path.exists():
             try:
                 journal = RunJournal.load(journal_path)
@@ -143,13 +147,25 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
                 return "unknown", False, f"Journal error: {exc}", run_info.workloads
             if not journal.tasks:
                 return "unknown", False, "Journal has no tasks", run_info.workloads
-            pending = any(task.status != RunStatus.COMPLETED for task in journal.tasks.values())
+            pending = any(
+                task.status != RunStatus.COMPLETED for task in journal.tasks.values()
+            )
             if pending:
-                return "incomplete", False, "Pending or failed repetitions", run_info.workloads
+                return (
+                    "incomplete",
+                    False,
+                    "Pending or failed repetitions",
+                    run_info.workloads,
+                )
             return "completed", True, "All repetitions completed", run_info.workloads
 
         if results_exist_for_run(run_info.output_root):
-            return "unknown", False, "Journal missing; results found", run_info.workloads
+            return (
+                "unknown",
+                False,
+                "Journal missing; results found",
+                run_info.workloads,
+            )
         return "missing", True, "No journal or results found", run_info.workloads
 
     def _select_run_id(output_root: Path) -> tuple[str, Sequence[str]]:
@@ -194,7 +210,9 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         if selection is None:
             raise typer.Exit(1)
         payload = selection.payload
-        workloads = payload.workloads if payload and hasattr(payload, "workloads") else []
+        workloads = (
+            payload.workloads if payload and hasattr(payload, "workloads") else []
+        )
         return selection.id, workloads
 
     def _resolve_run_or_pick(
@@ -242,9 +260,7 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         journal = RunJournal.load(journal_path)
         mode = (journal.metadata or {}).get("execution_mode")
         if not mode:
-            ctx.ui.present.warning(
-                f"Run '{run_id}' has no execution mode metadata."
-            )
+            ctx.ui.present.warning(f"Run '{run_id}' has no execution mode metadata.")
             ctx.ui.present.error(
                 "Specify --docker, --multipass, or --remote to resume."
             )
@@ -257,19 +273,13 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
             ctx.ui.present.warning(
                 f"Run '{run_id}' has no journal; cannot infer node count."
             )
-            ctx.ui.present.error(
-                "Specify --nodes to resume docker or multipass runs."
-            )
+            ctx.ui.present.error("Specify --nodes to resume docker or multipass runs.")
             raise typer.Exit(1)
         journal = RunJournal.load(journal_path)
         count = (journal.metadata or {}).get("node_count")
         if not count:
-            ctx.ui.present.warning(
-                f"Run '{run_id}' has no node count metadata."
-            )
-            ctx.ui.present.error(
-                "Specify --nodes to resume docker or multipass runs."
-            )
+            ctx.ui.present.warning(f"Run '{run_id}' has no node count metadata.")
+            ctx.ui.present.error("Specify --nodes to resume docker or multipass runs.")
             raise typer.Exit(1)
         return int(count)
 
@@ -294,7 +304,10 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         remote: Optional[bool] = typer.Option(
             None,
             "--remote/--no-remote",
-            help="Override remote execution from the config (local mode is not supported).",
+            help=(
+                "Override remote execution from the config (local mode is not "
+                "supported)."
+            ),
         ),
         docker: bool = typer.Option(
             False,
@@ -309,7 +322,10 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         multipass: bool = typer.Option(
             False,
             "--multipass",
-            help="Provision Multipass VMs (Ubuntu 24.04) and run benchmarks on them.",
+            help=(
+                "Provision Multipass VMs (Ubuntu 24.04) and run benchmarks on "
+                "them."
+            ),
         ),
         node_count: Optional[int] = typer.Option(
             None,
@@ -325,7 +341,10 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         stop_file: Optional[Path] = typer.Option(
             None,
             "--stop-file",
-            help="Path to a stop sentinel file; when created, the run will stop gracefully.",
+            help=(
+                "Path to a stop sentinel file; when created, the run will stop "
+                "gracefully."
+            ),
         ),
         intensity: Optional[str] = typer.Option(
             None,
@@ -357,7 +376,9 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         from lb_app.api import MAX_NODES
 
         if not ctx.dev_mode and (docker or multipass):
-            ctx.ui.present.error("--docker and --multipass are available only in dev mode.")
+            ctx.ui.present.error(
+                "--docker and --multipass are available only in dev mode."
+            )
             raise typer.Exit(1)
 
         if docker and multipass:
@@ -366,7 +387,8 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
 
         if remote is False and not docker and not multipass:
             ctx.ui.present.error(
-                "Local execution has been removed; enable --remote, --docker, or --multipass."
+                "Local execution has been removed; enable --remote, --docker, "
+                "or --multipass."
             )
             raise typer.Exit(1)
 
@@ -417,7 +439,9 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         else:
             resolved_node_count = len(cfg.remote_hosts or []) or 1
 
-        plan_tests = list(run_workloads) if run_workloads else list(cfg.workloads.keys())
+        plan_tests = (
+            list(run_workloads) if run_workloads else list(cfg.workloads.keys())
+        )
         if not plan_tests:
             ctx.ui.present.error("No workloads selected to run.")
             raise typer.Exit(1)

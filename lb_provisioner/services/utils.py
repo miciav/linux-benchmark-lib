@@ -3,7 +3,9 @@ from __future__ import annotations
 from lb_provisioner.models.types import ProvisioningResult
 
 
-def cleanup_provisioned_nodes(provisioning_result: ProvisioningResult, result, presenter) -> None:
+def cleanup_provisioned_nodes(
+    provisioning_result: ProvisioningResult, result, presenter
+) -> None:
     """
     Apply cleanup policy using controller authorization.
 
@@ -11,12 +13,22 @@ def cleanup_provisioned_nodes(provisioning_result: ProvisioningResult, result, p
     """
     if not provisioning_result:
         return
-    allow_cleanup = bool(result and getattr(result, "summary", None) and getattr(result.summary, "cleanup_allowed", False))
-    if result and getattr(result, "summary", None) and not getattr(result.summary, "success", True):
+    allow_cleanup = bool(
+        result
+        and getattr(result, "summary", None)
+        and getattr(result.summary, "cleanup_allowed", False)
+    )
+    if (
+        result
+        and getattr(result, "summary", None)
+        and not getattr(result.summary, "success", True)
+    ):
         presenter.warning("Run failed; preserving provisioned nodes for inspection.")
         provisioning_result.keep_nodes = True
     if not allow_cleanup:
-        presenter.warning("Controller did not authorize cleanup; provisioned nodes preserved.")
+        presenter.warning(
+            "Controller did not authorize cleanup; provisioned nodes preserved."
+        )
         provisioning_result.keep_nodes = True
     provisioning_result.destroy_all()
 

@@ -151,8 +151,13 @@ def test_parse_k6_summary_missing_metrics_raises() -> None:
 def test_build_k6_command_includes_outputs_and_tags() -> None:
     """Test that _build_k6_command properly formats outputs and tags."""
     k6_runner = K6Runner(
-        k6_host="host", k6_user="user", k6_ssh_key="key", k6_port=22,
-        k6_workspace_root="/root", gateway_url="http://gw", duration="30s"
+        k6_host="host",
+        k6_user="user",
+        k6_ssh_key="key",
+        k6_port=22,
+        k6_workspace_root="/root",
+        gateway_url="http://gw",
+        duration="30s",
     )
     cmd = k6_runner._build_k6_command(
         script_path="/path/script.js",
@@ -265,13 +270,20 @@ def test_k6_log_event_skips_when_lb_event_handler_present() -> None:
         root_logger.removeHandler(handler)
 
 
-def test_k6_runner_execute_passes_outputs_and_tags(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_k6_runner_execute_passes_outputs_and_tags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """K6Runner.execute() should include outputs and tags in the k6 command."""
     from unittest.mock import MagicMock, patch
 
     k6_runner = K6Runner(
-        k6_host="host", k6_user="user", k6_ssh_key="key", k6_port=22,
-        k6_workspace_root="/root", gateway_url="http://gw", duration="30s"
+        k6_host="host",
+        k6_user="user",
+        k6_ssh_key="key",
+        k6_port=22,
+        k6_workspace_root="/root",
+        gateway_url="http://gw",
+        duration="30s",
     )
 
     # Mock Fabric Connection
@@ -294,7 +306,10 @@ def test_k6_runner_execute_passes_outputs_and_tags(monkeypatch: pytest.MonkeyPat
             with patch("os.unlink"):
                 with patch("pathlib.Path.read_text", return_value='{"metrics": {}}'):
                     k6_runner.execute(
-                        "cfg1", "script", "target", "run1",
+                        "cfg1",
+                        "script",
+                        "target",
+                        "run1",
                         metric_ids={"fn": "fn_id"},
                         outputs=["loki=http://loki"],
                         tags={"custom": "tag"},
@@ -347,8 +362,6 @@ def test_validate_environment_requires_faas_cli_only(
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
 
-    monkeypatch.setattr(
-        "lb_plugins.plugins.dfaas.generator.subprocess.run", fake_run
-    )
+    monkeypatch.setattr("lb_plugins.plugins.dfaas.generator.subprocess.run", fake_run)
 
     assert generator._validate_environment() is True

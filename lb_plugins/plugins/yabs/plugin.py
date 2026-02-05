@@ -44,9 +44,7 @@ class YabsConfig(BasePluginConfig):
         default=False, description="Skip network benchmarks (iperf)"
     )
     skip_geekbench: bool = Field(default=True, description="Skip Geekbench benchmark")
-    skip_cleanup: bool = Field(
-        default=True, description="Skip temporary file cleanup"
-    )
+    skip_cleanup: bool = Field(default=True, description="Skip temporary file cleanup")
     output_dir: Path = Field(
         default_factory=_default_yabs_output_dir,
         description="Directory for YABS log files",

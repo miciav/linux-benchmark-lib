@@ -14,7 +14,9 @@ pytestmark = pytest.mark.unit_ui
 
 
 class _FakeConfigService:
-    def __init__(self, cfg: BenchmarkConfig, platform_cfg: PlatformConfig, resolved: Path):
+    def __init__(
+        self, cfg: BenchmarkConfig, platform_cfg: PlatformConfig, resolved: Path
+    ):
         self._cfg = cfg
         self._platform_cfg = platform_cfg
         self._resolved = resolved

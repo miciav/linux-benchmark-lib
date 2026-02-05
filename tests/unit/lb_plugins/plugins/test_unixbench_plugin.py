@@ -3,7 +3,12 @@ import subprocess
 
 import pytest
 
-from lb_plugins.api import CommandGenerator, UnixBenchConfig, UnixBenchGenerator, UnixBenchPlugin
+from lb_plugins.api import (
+    CommandGenerator,
+    UnixBenchConfig,
+    UnixBenchGenerator,
+    UnixBenchPlugin,
+)
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 

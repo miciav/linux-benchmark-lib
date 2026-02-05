@@ -6,6 +6,7 @@ import pytest
 
 pytestmark = pytest.mark.unit_analytics
 
+
 def test_aggregate_psutil_empty_df_returns_empty():
     df = pd.DataFrame()
     assert aggregate_psutil(df) == {}
@@ -32,7 +33,9 @@ def test_aggregate_psutil_computes_rates_and_percentiles():
             "net_bytes_recv": 4096,
         },
     ]
-    df = pd.DataFrame(data).set_index(pd.to_datetime([row["timestamp"] for row in data]))
+    df = pd.DataFrame(data).set_index(
+        pd.to_datetime([row["timestamp"] for row in data])
+    )
     result = aggregate_psutil(df)
     assert result["cpu_usage_percent_avg"] == 20.0
     assert result["memory_usage_percent_max"] == 9.0

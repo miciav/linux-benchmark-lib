@@ -20,7 +20,7 @@ def make_event(host="node1", status="stopped"):
         workload="stress",
         repetition=1,
         total_repetitions=1,
-        status=status
+        status=status,
     )
 
 
@@ -43,7 +43,7 @@ def test_process_event_ignores_when_idle(coordinator):
 
 def test_process_event_confirms_runner(coordinator):
     coordinator.initiate_stop()
-    
+
     # Confirm node1
     coordinator.process_event(make_event(host="node1", status="stopped"))
     assert "node1" in coordinator.confirmed_runners
@@ -72,7 +72,7 @@ def test_timeout_transitions_to_failed(coordinator):
     coordinator.initiate_stop()
     # Mock time to force timeout
     coordinator.start_time = time.time() - 2.0
-    
+
     coordinator.check_timeout()
     assert coordinator.state == StopState.STOP_FAILED
     assert not coordinator.can_proceed_to_teardown()
@@ -86,7 +86,9 @@ def test_duplicate_events_handled_gracefully(coordinator):
 
 
 def test_run_id_mismatch_is_ignored():
-    coord = StopCoordinator(expected_runners={"node1"}, stop_timeout=1.0, run_id="expected")
+    coord = StopCoordinator(
+        expected_runners={"node1"}, stop_timeout=1.0, run_id="expected"
+    )
     coord.initiate_stop()
     coord.process_event(
         RunEvent(

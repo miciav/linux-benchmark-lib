@@ -87,9 +87,7 @@ class RepetitionExecutor:
         test_end_time: Optional[datetime] = None
 
         try:
-            self._set_log_phase(
-                "setup", workload=test_name, repetition=repetition
-            )
+            self._set_log_phase("setup", workload=test_name, repetition=repetition)
             pre_test_cleanup(logger)
 
             if should_stop(self.context.stop_token):
@@ -120,11 +118,9 @@ class RepetitionExecutor:
                     },
                     cause=exc,
                 ) from exc
-            
+
             # Phase: Running (None)
-            self._set_log_phase(
-                None, workload=test_name, repetition=repetition
-            )
+            self._set_log_phase(None, workload=test_name, repetition=repetition)
             logger.info("Running test for %s seconds", duration)
 
             try:
@@ -147,15 +143,11 @@ class RepetitionExecutor:
                     cause=exc,
                 ) from exc
 
-            self._set_log_phase(
-                "teardown", workload=test_name, repetition=repetition
-            )
+            self._set_log_phase("teardown", workload=test_name, repetition=repetition)
             self._cleanup_after_run(generator, metric_session)
-            
+
             # Phase: Done (None)
-            self._set_log_phase(
-                None, workload=test_name, repetition=repetition
-            )
+            self._set_log_phase(None, workload=test_name, repetition=repetition)
 
         except Exception:
             # Ensure cleanup happens even on error
@@ -289,7 +281,9 @@ class RepetitionExecutor:
         )
         duration_seconds = result.get("duration_seconds", 0) or 0
         if duration_seconds:
-            logger.info("Repetition %s completed in %.2fs", repetition, duration_seconds)
+            logger.info(
+                "Repetition %s completed in %.2fs", repetition, duration_seconds
+            )
 
         metric_session.collect(workload_dir, rep_dir, test_name, repetition, result)
         self.context.output_manager.persist_rep_result(rep_dir, result)
@@ -304,7 +298,9 @@ class RepetitionExecutor:
     ) -> None:
         if not self.context.run_id:
             return
-        output_dir = self.context.output_manager.output_root() or self.context.config.output_dir
+        output_dir = (
+            self.context.output_manager.output_root() or self.context.config.output_dir
+        )
         self.context.log_manager.attach(
             output_dir=output_dir,
             run_id=self.context.run_id,

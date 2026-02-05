@@ -4,6 +4,7 @@ from lb_ui.tui.core.protocols import TablePresenter
 from lb_ui.tui.core import theme
 from lb_ui.tui.system.components.table_layout import build_rich_table
 
+
 class RichTablePresenter(TablePresenter):
     def __init__(self, console: Console):
         self._console = console

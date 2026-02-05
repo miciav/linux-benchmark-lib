@@ -1,11 +1,12 @@
 import subprocess
 
-from .main import app as app, ctx_store as ctx_store, main as main
+from .main import app, ctx_store, main
 
 __all__ = ["app", "main", "ctx_store"]
 
 # Accessors for testing compatibility (monkeypatching)
 # These map back to the global ctx_store in the main module.
+
 
 def __getattr__(name):
     if name == "config_service":

@@ -41,12 +41,8 @@ def test_normalize_loki_endpoint_rejects_non_http() -> None:
 def test_loki_payload_groups_streams() -> None:
     payload = build_loki_payload(
         [
-            LokiLogEntry(
-                labels={"component": "runner"}, timestamp_ns="1", line="a"
-            ),
-            LokiLogEntry(
-                labels={"component": "runner"}, timestamp_ns="2", line="b"
-            ),
+            LokiLogEntry(labels={"component": "runner"}, timestamp_ns="1", line="a"),
+            LokiLogEntry(labels={"component": "runner"}, timestamp_ns="2", line="b"),
             LokiLogEntry(labels={"component": "k6"}, timestamp_ns="3", line="c"),
         ]
     )
@@ -195,7 +191,9 @@ def test_loki_payload_empty_entries() -> None:
     assert payload == {"streams": []}
 
 
-def test_loki_handler_retries_on_transient_error(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_loki_handler_retries_on_transient_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Handler should retry on network error."""
     handler = LokiPushHandler(
         endpoint="http://localhost:3100",
@@ -211,8 +209,10 @@ def test_loki_handler_retries_on_transient_error(monkeypatch: pytest.MonkeyPatch
     class MockResponse:
         def __init__(self, status: int) -> None:
             self.status = status
+
         def __enter__(self) -> "MockResponse":
             return self
+
         def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
             pass
 
@@ -224,15 +224,14 @@ def test_loki_handler_retries_on_transient_error(monkeypatch: pytest.MonkeyPatch
         call_count += 1
         if call_count == 1:
             from urllib.error import HTTPError
+
             raise HTTPError(req.full_url, 503, "Service Unavailable", None, None)  # type: ignore[arg-type]
         return MockResponse(204)
 
     monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
 
     # Force synchronous push for testing
-    entry = LokiLogEntry(
-        labels={"component": "runner"}, timestamp_ns="1", line="test"
-    )
+    entry = LokiLogEntry(labels={"component": "runner"}, timestamp_ns="1", line="test")
     handler._push_entries([entry])
 
     assert call_count == 2

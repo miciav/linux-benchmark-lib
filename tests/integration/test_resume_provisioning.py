@@ -25,9 +25,7 @@ class FakeProvisioner:
         self.request = request
         names = request.node_names or []
         return [
-            ProvisionedNode(
-                host=RemoteHostSpec(name=name, address="127.0.0.1")
-            )
+            ProvisionedNode(host=RemoteHostSpec(name=name, address="127.0.0.1"))
             for name in names
         ]
 

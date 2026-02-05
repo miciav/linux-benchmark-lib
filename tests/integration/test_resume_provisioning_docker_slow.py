@@ -96,7 +96,9 @@ def test_resume_provisioning_real_docker(
         docker_provider.DockerProvisioner, "_run_container", _fast_run_container
     )
     monkeypatch.setattr(
-        docker_provider.DockerProvisioner, "_inject_ssh_key", lambda *args, **kwargs: None
+        docker_provider.DockerProvisioner,
+        "_inject_ssh_key",
+        lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
         docker_provider.DockerProvisioner, "_wait_for_ssh", lambda *args, **kwargs: None
@@ -108,9 +110,7 @@ def test_resume_provisioning_real_docker(
     cfg.repetitions = 3
 
     suffix = str(int(time.time()))
-    expected_names = sorted(
-        [f"lb-resume-a-{suffix}", f"lb-resume-b-{suffix}"]
-    )
+    expected_names = sorted([f"lb-resume-a-{suffix}", f"lb-resume-b-{suffix}"])
     cfg.remote_hosts = [
         RemoteHostConfig(name=name, address=f"10.0.0.{idx + 1}")
         for idx, name in enumerate(expected_names)

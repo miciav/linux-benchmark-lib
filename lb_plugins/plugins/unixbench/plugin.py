@@ -70,9 +70,7 @@ class UnixBenchGenerator(StdoutCommandGenerator):
         return self.config.timeout_buffer + max(120, 60 * self.config.iterations)
 
     def _log_command(self, cmd: list[str]) -> None:
-        logger.info(
-            "Running UnixBench in %s: %s", self.config.workdir, " ".join(cmd)
-        )
+        logger.info("Running UnixBench in %s: %s", self.config.workdir, " ".join(cmd))
 
     def _validate_environment(self) -> bool:
         # Check Run exists in workdir
@@ -81,9 +79,7 @@ class UnixBenchGenerator(StdoutCommandGenerator):
             logger.error("UnixBench Run script not found at %s", run_path)
             return False
         if not os.access(run_path, os.X_OK):
-            logger.error(
-                "UnixBench Run script at %s is not executable", run_path
-            )
+            logger.error("UnixBench Run script at %s is not executable", run_path)
             return False
         return True
 

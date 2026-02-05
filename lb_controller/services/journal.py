@@ -281,9 +281,7 @@ def _resolve_hosts(config: Any) -> List[Any]:
     )
 
 
-def _populate_tasks(
-    journal: RunJournal, config: Any, test_types: List[str]
-) -> None:
+def _populate_tasks(journal: RunJournal, config: Any, test_types: List[str]) -> None:
     hosts = _resolve_hosts(config)
     for task in _iter_task_specs(config, test_types, hosts):
         journal.add_task(task)
@@ -315,9 +313,7 @@ def _validate_config(metadata: Dict[str, Any], config: Any | None) -> None:
         return
     expected_reps = metadata.get("repetitions")
     if expected_reps and getattr(config, "repetitions", None) != expected_reps:
-        raise ValueError(
-            "Config does not match journal repetitions; aborting resume."
-        )
+        raise ValueError("Config does not match journal repetitions; aborting resume.")
     cfg_dump = metadata.get("config_dump")
     cfg_hash = metadata.get("config_hash")
     if cfg_hash and cfg_dump:

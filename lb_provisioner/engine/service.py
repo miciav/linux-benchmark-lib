@@ -38,7 +38,9 @@ class ProvisioningService:
 
     def provision(self, request: ProvisioningRequest) -> ProvisioningResult:
         """Provision resources according to the request."""
-        effective_count = len(request.node_names) if request.node_names else request.count
+        effective_count = (
+            len(request.node_names) if request.node_names else request.count
+        )
         self._enforce_limits(effective_count)
         self._assert_ui_caller()
 
@@ -56,7 +58,8 @@ class ProvisioningService:
     def _enforce_limits(self, requested: int) -> None:
         if requested > MAX_NODES:
             raise ProvisioningError(
-                f"Maximum number of provisioned nodes is {MAX_NODES} (requested {requested})"
+                f"Maximum number of provisioned nodes is {MAX_NODES} "
+                f"(requested {requested})"
             )
 
     def _assert_ui_caller(self) -> None:

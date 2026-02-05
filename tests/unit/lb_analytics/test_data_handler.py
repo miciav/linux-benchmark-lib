@@ -6,7 +6,6 @@ from lb_analytics.api import DataHandler
 pytestmark = pytest.mark.unit_analytics
 
 
-
 def test_data_handler_uses_registered_aggregator():
     called = {}
 

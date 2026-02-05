@@ -52,12 +52,12 @@ def test_dashboard_uses_peva_faas_metrics() -> None:
         assert targets, f"Panel {panel['title']} has no targets"
         for target in targets:
             expr = target.get("expr", "")
-            assert "__name__" not in expr, (
-                f"Panel '{panel['title']}' uses inefficient __name__ matcher: {expr}"
-            )
-            assert "peva_faas_" in expr, (
-                f"Panel '{panel['title']}' should use peva_faas_* metrics: {expr}"
-            )
+            assert (
+                "__name__" not in expr
+            ), f"Panel '{panel['title']}' uses inefficient __name__ matcher: {expr}"
+            assert (
+                "peva_faas_" in expr
+            ), f"Panel '{panel['title']}' should use peva_faas_* metrics: {expr}"
 
 
 def test_dashboard_template_queries_use_peva_faas_metrics() -> None:

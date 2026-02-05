@@ -61,17 +61,26 @@ class DockerProvisioner:
                 port=port,
                 vars={
                     "ansible_ssh_private_key_file": str(key_path),
-                    "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
+                    "ansible_ssh_common_args": (
+                        "-o StrictHostKeyChecking=no "
+                        "-o UserKnownHostsFile=/dev/null"
+                    ),
                     "ansible_python_interpreter": "/usr/bin/python3",
                     "lb_is_container": True,
                 },
             )
+            def _destroy(
+                eng: str = engine,
+                cname: str = name,
+                kp: Path = key_path,
+                pp: Path = pub_path,
+            ) -> None:
+                self._destroy_container(eng, cname, kp, pp)
+
             nodes.append(
                 ProvisionedNode(
                     host=host,
-                    destroy=lambda eng=engine, cname=name, kp=key_path, pp=pub_path: self._destroy_container(
-                        eng, cname, kp, pp
-                    ),
+                    destroy=_destroy,
                 )
             )
         return nodes
@@ -80,14 +89,26 @@ class DockerProvisioner:
         """Generate an RSA keypair for SSH access."""
         try:
             subprocess.run(
-                ["ssh-keygen", "-t", "rsa", "-b", "4096", "-f", str(key_path), "-N", ""],
+                [
+                    "ssh-keygen",
+                    "-t",
+                    "rsa",
+                    "-b",
+                    "4096",
+                    "-f",
+                    str(key_path),
+                    "-N",
+                    "",
+                ],
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
             )
             key_path.chmod(0o600)
         except subprocess.CalledProcessError as exc:  # pragma: no cover - defensive
-            raise ProvisioningError(f"Failed to generate SSH key: {exc.stderr.decode()}") from exc
+            raise ProvisioningError(
+                f"Failed to generate SSH key: {exc.stderr.decode()}"
+            ) from exc
 
     def _find_free_port(self) -> int:
         """Return an available host port."""
@@ -95,14 +116,19 @@ class DockerProvisioner:
             sock.bind(("", 0))
             return sock.getsockname()[1]
 
-    def _run_container(self, engine: str, image: str, name: str, host_port: int) -> None:
+    def _run_container(
+        self, engine: str, image: str, name: str, host_port: int
+    ) -> None:
         """Start a detached container with SSHD running."""
         init_script = (
             "apt-get update -qq && "
-            "DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server sudo python3 && "
+            "DEBIAN_FRONTEND=noninteractive apt-get install -y "
+            "openssh-server sudo python3 && "
             "mkdir -p /var/run/sshd && "
-            "sed -i -E 's@^#?PasswordAuthentication.*@PasswordAuthentication no@' /etc/ssh/sshd_config && "
-            "sed -i -E 's@^#?PermitRootLogin.*@PermitRootLogin prohibit-password@' /etc/ssh/sshd_config && "
+            "sed -i -E 's@^#?PasswordAuthentication.*@PasswordAuthentication no@' "
+            "/etc/ssh/sshd_config && "
+            "sed -i -E 's@^#?PermitRootLogin.*@PermitRootLogin prohibit-password@' "
+            "/etc/ssh/sshd_config && "
             "ssh-keygen -A && "
             "/usr/sbin/sshd -D"
         )
@@ -133,7 +159,7 @@ class DockerProvisioner:
             ) from exc
 
     def _inject_ssh_key(self, engine: str, name: str, pub_path: Path) -> None:
-        """Inject the generated public key into the container's root authorized_keys."""
+        """Inject the generated public key into root authorized_keys."""
         content = pub_path.read_text().strip()
         script = (
             "mkdir -p /root/.ssh && "
@@ -145,7 +171,9 @@ class DockerProvisioner:
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as exc:  # pragma: no cover - defensive
-            raise ProvisioningError(f"Failed to inject SSH key into {name}: {exc.stderr}") from exc
+            raise ProvisioningError(
+                f"Failed to inject SSH key into {name}: {exc.stderr}"
+            ) from exc
 
     def _wait_for_ssh(
         self,
@@ -180,7 +208,8 @@ class DockerProvisioner:
             if not self._container_running(engine, name):
                 logs = self._container_logs(engine, name)
                 raise ProvisioningError(
-                    f"Container {name} exited before SSH became reachable. Logs:\n{logs}"
+                    f"Container {name} exited before SSH became reachable. "
+                    f"Logs:\n{logs}"
                 )
             proc = subprocess.run(cmd, capture_output=True, text=True)
             if proc.returncode == 0:
@@ -188,7 +217,8 @@ class DockerProvisioner:
             time.sleep(delay)
         logs = self._container_logs(engine, name)
         raise ProvisioningError(
-            f"SSH not reachable on 127.0.0.1:{port} after {retries} attempts. Logs:\n{logs}"
+            f"SSH not reachable on 127.0.0.1:{port} after {retries} attempts. "
+            f"Logs:\n{logs}"
         )
 
     @staticmethod
@@ -210,11 +240,15 @@ class DockerProvisioner:
         output = (result.stdout or "") + (result.stderr or "")
         return output.strip() or "<no logs>"
 
-    def _destroy_container(self, engine: str, name: str, key_path: Path, pub_path: Path) -> None:
+    def _destroy_container(
+        self, engine: str, name: str, key_path: Path, pub_path: Path
+    ) -> None:
         """Stop and remove a container and its keys; ignore failures."""
         cmd = [engine, "rm", "-f", name]
         try:
-            subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
         except Exception:
             logger.debug("Best-effort cleanup failed for container %s", name)
         for path in (key_path, pub_path):

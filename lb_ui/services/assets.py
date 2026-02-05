@@ -22,11 +22,12 @@ def get_cache_dir() -> Path:
         path = Path(cache_base) / "lb"
     else:
         path = Path.home() / ".cache" / "lb"
-    
+
     try:
         path.mkdir(parents=True, exist_ok=True)
     except Exception:
         import tempfile
+
         path = Path(tempfile.gettempdir()) / "lb_cache"
         path.mkdir(parents=True, exist_ok=True)
     return path
@@ -52,7 +53,7 @@ def _generate_optimized_icon(source: Path, dest: Path) -> None:
             img = img.convert("RGBA")
 
         # Crop transparent borders
-        alpha = img.getchannel('A')
+        alpha = img.getchannel("A")
         mask = alpha.point(lambda p: 255 if p > 10 else 0)
         bbox = mask.getbbox()
         if bbox:
@@ -63,7 +64,7 @@ def _generate_optimized_icon(source: Path, dest: Path) -> None:
         width, height = img.size
         ratio = target_h / height
         new_size = (int(width * ratio), target_h)
-        
+
         resized = img.resize(new_size, resample=Image.Resampling.LANCZOS)
         resized.save(dest, "PNG")
     except Exception as exc:
@@ -82,7 +83,7 @@ def _cleanup_old_icons(cache_dir: Path, current_hash: str) -> None:
 
 def resolve_icon_path() -> str | None:
     """Resolve and ensure the optimized icon exists in cache.
-    
+
     Returns the absolute path to the optimized icon (or source fallback).
     """
     try:
@@ -95,7 +96,7 @@ def resolve_icon_path() -> str | None:
             if candidate.exists():
                 source_path = candidate
                 break
-        
+
         if not source_path:
             return None
 
@@ -109,13 +110,13 @@ def resolve_icon_path() -> str | None:
 
         # 3. Generate if missing
         _generate_optimized_icon(source_path, cached_icon)
-        
+
         # 4. Cleanup old versions
         _cleanup_old_icons(cache_dir, file_hash)
 
         if cached_icon.exists():
             return str(cached_icon.absolute())
-            
+
         # Fallback to source if generation failed
         return str(source_path.absolute())
 

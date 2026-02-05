@@ -30,7 +30,9 @@ class TestGUIDashboardViewModel:
         mock_journal.run_id = "test-run-123"
         mock_journal.tasks = {}
 
-        with patch("lb_gui.viewmodels.dashboard_vm.build_dashboard_viewmodel") as mock_build:
+        with patch(
+            "lb_gui.viewmodels.dashboard_vm.build_dashboard_viewmodel"
+        ) as mock_build:
             mock_app_vm = MagicMock()
             mock_snapshot = MagicMock()
             mock_snapshot.run_id = "test-run-123"
@@ -46,7 +48,7 @@ class TestGUIDashboardViewModel:
     def test_refresh_snapshot_reads_real_journal(self) -> None:
         """Test refresh_snapshot builds rows from the real journal."""
         from lb_gui.viewmodels.dashboard_vm import GUIDashboardViewModel
-        from lb_controller.services.journal import RunJournal, TaskState
+        from lb_controller.api import RunJournal, TaskState
 
         vm = GUIDashboardViewModel()
         journal = RunJournal(run_id="run-1", tasks={})

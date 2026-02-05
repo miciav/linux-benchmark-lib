@@ -27,7 +27,9 @@ class PerfConfig(BaseModel):
         ],
         description="List of perf events to monitor",
     )
-    interval_ms: int = Field(default=1000, gt=0, description="Sampling interval in milliseconds")
+    interval_ms: int = Field(
+        default=1000, gt=0, description="Sampling interval in milliseconds"
+    )
     pid: Optional[int] = Field(default=None, gt=0, description="Process ID to profile")
     cpu: Optional[int] = Field(default=None, ge=0, description="CPU to profile")
 
@@ -40,7 +42,9 @@ DEFAULT_LB_WORKDIR = (
 class MetricCollectorConfig(BaseModel):
     """Configuration for metric collectors."""
 
-    psutil_interval: float = Field(default=1.0, gt=0, description="Interval for psutil collector in seconds")
+    psutil_interval: float = Field(
+        default=1.0, gt=0, description="Interval for psutil collector in seconds"
+    )
     cli_commands: List[str] = Field(
         default_factory=lambda: [
             "sar -u 1 1",
@@ -51,8 +55,12 @@ class MetricCollectorConfig(BaseModel):
         ],
         description="List of CLI commands to execute for metric collection",
     )
-    perf_config: PerfConfig = Field(default_factory=PerfConfig, description="Configuration for perf profiling")
-    enable_ebpf: bool = Field(default=False, description="Enable eBPF-based metric collection")
+    perf_config: PerfConfig = Field(
+        default_factory=PerfConfig, description="Configuration for perf profiling"
+    )
+    enable_ebpf: bool = Field(
+        default=False, description="Enable eBPF-based metric collection"
+    )
 
 
 class LokiConfig(BaseModel):
@@ -80,9 +88,7 @@ class LokiConfig(BaseModel):
     backoff_base: float = Field(
         default=0.5, ge=0, description="Base backoff delay in seconds"
     )
-    backoff_factor: float = Field(
-        default=2.0, ge=1.0, description="Backoff multiplier"
-    )
+    backoff_factor: float = Field(default=2.0, ge=1.0, description="Backoff multiplier")
 
     @model_validator(mode="before")
     @classmethod
@@ -120,12 +126,16 @@ class RemoteHostConfig(BaseModel):
     address: str = Field(description="IP address or hostname of the remote host")
     port: int = Field(default=22, gt=0, description="SSH port for connection")
     user: str = Field(default="root", description="SSH user for connection")
-    become: bool = Field(default=True, description="Use Ansible become (sudo) for escalated privileges")
+    become: bool = Field(
+        default=True, description="Use Ansible become (sudo) for escalated privileges"
+    )
     become_method: str = Field(default="sudo", description="Ansible become method")
-    vars: Dict[str, Any] = Field(default_factory=dict, description="Additional Ansible variables for this host")
+    vars: Dict[str, Any] = Field(
+        default_factory=dict, description="Additional Ansible variables for this host"
+    )
 
     @model_validator(mode="after")
-    def validate_name_not_empty(self) -> 'RemoteHostConfig':
+    def validate_name_not_empty(self) -> "RemoteHostConfig":
         if not self.name or not self.name.strip():
             raise ValueError("RemoteHostConfig: 'name' must be non-empty")
         return self
@@ -156,20 +166,41 @@ class RemoteExecutionConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     enabled: bool = Field(default=False, description="Enable remote execution")
-    inventory_path: Optional[Path] = Field(default=None, description="Path to a custom Ansible inventory file")
+    inventory_path: Optional[Path] = Field(
+        default=None, description="Path to a custom Ansible inventory file"
+    )
     lb_workdir: str = Field(
         default=DEFAULT_LB_WORKDIR,
         description="Remote workdir for benchmark install (Ansible-templated)",
     )
-    run_setup: bool = Field(default=True, description="Execute setup playbooks before tests")
-    run_collect: bool = Field(default=True, description="Execute collection playbooks after tests")
-    setup_playbook: Optional[Path] = Field(default=None, description="Path to the Ansible setup playbook")
-    run_playbook: Optional[Path] = Field(default=None, description="Path to the Ansible run playbook")
-    collect_playbook: Optional[Path] = Field(default=None, description="Path to the Ansible collect playbook")
-    teardown_playbook: Optional[Path] = Field(default=None, description="Path to the Ansible teardown playbook")
-    run_teardown: bool = Field(default=True, description="Execute teardown playbooks after tests")
-    upgrade_pip: bool = Field(default=False, description="Upgrade pip inside the benchmark virtual environment during setup")
-    use_container_fallback: bool = Field(default=False, description="Use container-based fallback for remote execution")
+    run_setup: bool = Field(
+        default=True, description="Execute setup playbooks before tests"
+    )
+    run_collect: bool = Field(
+        default=True, description="Execute collection playbooks after tests"
+    )
+    setup_playbook: Optional[Path] = Field(
+        default=None, description="Path to the Ansible setup playbook"
+    )
+    run_playbook: Optional[Path] = Field(
+        default=None, description="Path to the Ansible run playbook"
+    )
+    collect_playbook: Optional[Path] = Field(
+        default=None, description="Path to the Ansible collect playbook"
+    )
+    teardown_playbook: Optional[Path] = Field(
+        default=None, description="Path to the Ansible teardown playbook"
+    )
+    run_teardown: bool = Field(
+        default=True, description="Execute teardown playbooks after tests"
+    )
+    upgrade_pip: bool = Field(
+        default=False,
+        description="Upgrade pip inside the benchmark virtual environment during setup",
+    )
+    use_container_fallback: bool = Field(
+        default=False, description="Use container-based fallback for remote execution"
+    )
 
 
 class WorkloadConfig(BaseModel):
@@ -183,8 +214,13 @@ class WorkloadConfig(BaseModel):
         default=True,
         description="Enable metric collectors for this workload",
     )
-    intensity: str = Field(default="user_defined", description="Pre-defined intensity level (low, medium, high, user_defined)")
-    options: Dict[str, Any] = Field(default_factory=dict, description="Plugin-specific options for the workload")
+    intensity: str = Field(
+        default="user_defined",
+        description="Pre-defined intensity level (low, medium, high, user_defined)",
+    )
+    options: Dict[str, Any] = Field(
+        default_factory=dict, description="Plugin-specific options for the workload"
+    )
 
 
 class BenchmarkConfig(BaseModel):
@@ -193,36 +229,68 @@ class BenchmarkConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     # Test execution parameters
-    repetitions: int = Field(default=3, gt=0, description="Number of repetitions for each test")
-    test_duration_seconds: int = Field(default=3600, gt=0, description="Default duration for tests in seconds")
-    metrics_interval_seconds: float = Field(default=1.0, gt=0, description="Interval for metric collection in seconds")
-    warmup_seconds: int = Field(default=5, ge=0, description="Warmup period before metric collection starts")
-    cooldown_seconds: int = Field(default=5, ge=0, description="Cooldown period after test finishes")
+    repetitions: int = Field(
+        default=3, gt=0, description="Number of repetitions for each test"
+    )
+    test_duration_seconds: int = Field(
+        default=3600, gt=0, description="Default duration for tests in seconds"
+    )
+    metrics_interval_seconds: float = Field(
+        default=1.0, gt=0, description="Interval for metric collection in seconds"
+    )
+    warmup_seconds: int = Field(
+        default=5, ge=0, description="Warmup period before metric collection starts"
+    )
+    cooldown_seconds: int = Field(
+        default=5, ge=0, description="Cooldown period after test finishes"
+    )
 
     # Output configuration
-    output_dir: Path = Field(default=Path("./benchmark_results"), description="Root directory for all benchmark output")
-    report_dir: Path = Field(default=Path("./reports"), description="Directory for generated reports")
-    data_export_dir: Path = Field(default=Path("./data_exports"), description="Directory for raw data exports")
+    output_dir: Path = Field(
+        default=Path("./benchmark_results"),
+        description="Root directory for all benchmark output",
+    )
+    report_dir: Path = Field(
+        default=Path("./reports"), description="Directory for generated reports"
+    )
+    data_export_dir: Path = Field(
+        default=Path("./data_exports"), description="Directory for raw data exports"
+    )
 
     # Dynamic Plugin Settings (The new way: Pydantic models for specific plugin configs)
-    plugin_settings: Dict[str, Any] = Field(default_factory=dict, description="Dictionary of plugin-specific Pydantic config models")
+    plugin_settings: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Dictionary of plugin-specific Pydantic config models",
+    )
     plugin_assets: Dict[str, PluginAssetConfig] = Field(
         default_factory=dict,
         description="Resolved plugin Ansible assets/extravars (from runner registry)",
     )
 
     # Metric collector configuration
-    collectors: MetricCollectorConfig = Field(default_factory=MetricCollectorConfig, description="Configuration for metric collectors")
+    collectors: MetricCollectorConfig = Field(
+        default_factory=MetricCollectorConfig,
+        description="Configuration for metric collectors",
+    )
 
     # Workload plugin configuration (name -> WorkloadConfig)
-    workloads: Dict[str, WorkloadConfig] = Field(default_factory=dict, description="Dictionary of workload definitions")
+    workloads: Dict[str, WorkloadConfig] = Field(
+        default_factory=dict, description="Dictionary of workload definitions"
+    )
 
     # Remote execution configuration
-    remote_hosts: List[RemoteHostConfig] = Field(default_factory=list, description="List of remote hosts for benchmarking")
-    remote_execution: RemoteExecutionConfig = Field(default_factory=RemoteExecutionConfig, description="Configuration for remote execution")
+    remote_hosts: List[RemoteHostConfig] = Field(
+        default_factory=list, description="List of remote hosts for benchmarking"
+    )
+    remote_execution: RemoteExecutionConfig = Field(
+        default_factory=RemoteExecutionConfig,
+        description="Configuration for remote execution",
+    )
 
     # System information collection
-    collect_system_info: bool = Field(default=True, description="Collect system information before running benchmarks")
+    collect_system_info: bool = Field(
+        default=True, description="Collect system information before running benchmarks"
+    )
 
     # Loki configuration (optional)
     loki: LokiConfig = Field(
@@ -230,8 +298,12 @@ class BenchmarkConfig(BaseModel):
     )
 
     # InfluxDB configuration (optional)
-    influxdb_enabled: bool = Field(default=False, description="Enable InfluxDB integration")
-    influxdb_url: str = Field(default="http://localhost:8086", description="InfluxDB URL")
+    influxdb_enabled: bool = Field(
+        default=False, description="Enable InfluxDB integration"
+    )
+    influxdb_url: str = Field(
+        default="http://localhost:8086", description="InfluxDB URL"
+    )
     influxdb_token: str = Field(default="", description="InfluxDB API Token")
     influxdb_org: str = Field(default="benchmark", description="InfluxDB Organization")
     influxdb_bucket: str = Field(default="performance", description="InfluxDB Bucket")
@@ -241,11 +313,12 @@ class BenchmarkConfig(BaseModel):
         for path in (self.output_dir, self.report_dir, self.data_export_dir):
             path.mkdir(parents=True, exist_ok=True)
 
-    # Pydantic's model_dump() replaces to_dict() and model_dump_json() replaces to_json()
-    # No need for manual to_json or to_dict methods anymore unless custom serialization logic is complex.
+    # Pydantic's model_dump() replaces to_dict(), and model_dump_json() replaces
+    # to_json(). No need for manual to_json or to_dict methods anymore unless
+    # custom serialization logic is complex.
 
     @model_validator(mode="after")
-    def _validate_remote_hosts_unique(self) -> 'BenchmarkConfig':
+    def _validate_remote_hosts_unique(self) -> "BenchmarkConfig":
         if not self.remote_hosts:
             return self
         names = [h.name.strip() for h in self.remote_hosts]
@@ -271,7 +344,8 @@ class BenchmarkConfig(BaseModel):
     def load(cls, filepath: Path) -> "BenchmarkConfig":
         return cls.model_validate_json(filepath.read_text())
 
-    # Removed _normalize_playbook_paths as its logic is now within RemoteExecutionConfig's model_validator
+    # Removed _normalize_playbook_paths as its logic now lives in
+    # RemoteExecutionConfig's model_validator.
 
 
 class PlatformConfig(BaseModel):

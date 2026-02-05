@@ -22,13 +22,19 @@ def register_run_command(
     def run(
         tests: List[str] = typer.Argument(
             None,
-            help="Workload names to run; defaults to configured workloads in the config.",
+            help=(
+                "Workload names to run; defaults to configured workloads in the "
+                "config."
+            ),
         ),
         config: Optional[Path] = typer.Option(
             None,
             "--config",
             "-c",
-            help="Config file to load; uses saved default or local benchmark_config.json when omitted.",
+            help=(
+                "Config file to load; uses saved default or local "
+                "benchmark_config.json when omitted."
+            ),
         ),
         run_id: Optional[str] = typer.Option(
             None,
@@ -38,7 +44,10 @@ def register_run_command(
         remote: Optional[bool] = typer.Option(
             None,
             "--remote/--no-remote",
-            help="Override remote execution from the config (local mode is not supported).",
+            help=(
+                "Override remote execution from the config (local mode is not "
+                "supported)."
+            ),
         ),
         docker: bool = typer.Option(
             False,
@@ -54,12 +63,17 @@ def register_run_command(
             None,
             "--repetitions",
             "-r",
-            help="Override the number of repetitions for this run (must be >= 1).",
+            help=(
+                "Override the number of repetitions for this run (must be >= 1)."
+            ),
         ),
         multipass: bool = typer.Option(
             False,
             "--multipass",
-            help="Provision Multipass VMs (Ubuntu 24.04) and run benchmarks on them.",
+            help=(
+                "Provision Multipass VMs (Ubuntu 24.04) and run benchmarks on "
+                "them."
+            ),
         ),
         node_count: Optional[int] = typer.Option(
             None,
@@ -70,18 +84,26 @@ def register_run_command(
         debug: bool = typer.Option(
             False,
             "--debug",
-            help="Enable verbose debug logging (sets fio.debug=True when applicable).",
+            help=(
+                "Enable verbose debug logging (sets fio.debug=True when "
+                "applicable)."
+            ),
         ),
         stop_file: Optional[Path] = typer.Option(
             None,
             "--stop-file",
-            help="Path to a stop sentinel file; when created, the run will stop gracefully.",
+            help=(
+                "Path to a stop sentinel file; when created, the run will stop "
+                "gracefully."
+            ),
         ),
         intensity: str = typer.Option(
             None,
             "--intensity",
             "-i",
-            help="Override workload intensity (low, medium, high, user_defined).",
+            help=(
+                "Override workload intensity (low, medium, high, user_defined)."
+            ),
         ),
         setup: bool = typer.Option(
             True,
@@ -101,11 +123,14 @@ def register_run_command(
     ) -> None:
         """Run workloads using Ansible on remote, Docker, or Multipass targets."""
         import time
+
         start_ts = time.time()
         from lb_common.api import configure_logging
 
         if not ctx.dev_mode and (docker or multipass):
-            ctx.ui.present.error("--docker and --multipass are available only in dev mode.")
+            ctx.ui.present.error(
+                "--docker and --multipass are available only in dev mode."
+            )
             raise typer.Exit(1)
 
         if docker and multipass:
@@ -114,7 +139,8 @@ def register_run_command(
 
         if remote is False and not docker and not multipass:
             ctx.ui.present.error(
-                "Local execution has been removed; enable --remote, --docker, or --multipass."
+                "Local execution has been removed; enable --remote, --docker, "
+                "or --multipass."
             )
             raise typer.Exit(1)
 
@@ -185,7 +211,10 @@ def register_run_command(
             selected_tests = tests or list(cfg.workloads.keys())
             if not selected_tests:
                 ctx.ui.present.error("No workloads selected to run.")
-                ctx.ui.present.info("Add workloads first with `lb config enable-workload NAME` or use `lb config select-workloads`.")
+                ctx.ui.present.info(
+                    "Add workloads first with `lb config enable-workload NAME` "
+                    "or use `lb config select-workloads`."
+                )
                 raise typer.Exit(1)
 
             run_request = RunRequest(
@@ -205,7 +234,9 @@ def register_run_command(
                 connectivity_timeout=connectivity_timeout,
             )
 
-            plan = ctx.app_client.get_run_plan(cfg, selected_tests, execution_mode=execution_mode)
+            plan = ctx.app_client.get_run_plan(
+                cfg, selected_tests, execution_mode=execution_mode
+            )
             ctx.ui.tables.show(build_run_plan_table(plan))
 
             class _Hooks:

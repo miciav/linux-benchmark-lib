@@ -317,9 +317,7 @@ class DfaasConfigExecutor:
         )
 
         summary_data = k6_result.summary
-        summary_metrics = self._parse_summary_or_raise(
-            summary_data, metric_ids, cfg_id
-        )
+        summary_metrics = self._parse_summary_or_raise(summary_data, metric_ids, cfg_id)
         replicas = self._replicas_provider(getattr(ctx, "function_names", []))
         config_fn_names = [name for name, _ in config_pairs]
         metrics = self._collect_metrics(config_fn_names, start_time, end_time)

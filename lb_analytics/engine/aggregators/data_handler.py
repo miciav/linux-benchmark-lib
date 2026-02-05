@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class TestResult(TypedDict):
     """Structure of a single test repetition result."""
+
     repetition: int
     metrics: Dict[str, List[Dict[str, Any]]]
     start_time: Optional[str]
@@ -68,9 +69,7 @@ class DataHandler:
         end_time: Optional[pd.Timestamp],
     ) -> pd.DataFrame:
         if start_time and end_time:
-            return df[
-                (df["timestamp"] >= start_time) & (df["timestamp"] <= end_time)
-            ]
+            return df[(df["timestamp"] >= start_time) & (df["timestamp"] <= end_time)]
         return df
 
     def _normalize_collector_df(

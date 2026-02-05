@@ -57,7 +57,7 @@ class DesktopProvider(NotificationProvider):
                 subprocess.Popen(
                     ["canberra-gtk-play", "--id=message-new-instant"],
                     stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
+                    stderr=subprocess.DEVNULL,
                 )
         except Exception:
             pass
@@ -67,14 +67,14 @@ class DesktopProvider(NotificationProvider):
         if notification is None:
             logger.debug("plyer not installed, skipping Linux notification")
             return
-            
+
         try:
             notification.notify(
                 title=context.title,
                 message=context.message,
                 app_name=self.app_name,
                 app_icon=context.icon_path,
-                timeout=10
+                timeout=10,
             )
         except Exception as exc:
             logger.warning(f"Linux notification failed: {exc}")
@@ -85,14 +85,15 @@ class DesktopProvider(NotificationProvider):
         if DesktopNotifier is not None:
             try:
                 notifier = DesktopNotifier(
-                    app_name=self.app_name, 
-                    app_icon=context.icon_path
+                    app_name=self.app_name, app_icon=context.icon_path
                 )
-                asyncio.run(notifier.send(
-                    title=context.title,
-                    message=context.message,
-                    icon=context.icon_path
-                ))
+                asyncio.run(
+                    notifier.send(
+                        title=context.title,
+                        message=context.message,
+                        icon=context.icon_path,
+                    )
+                )
                 # Grace period for asset loading
                 time.sleep(3)
                 return
@@ -106,23 +107,19 @@ class DesktopProvider(NotificationProvider):
     def _send_macos_osascript(self, context: NotificationContext) -> None:
         """Execute AppleScript via osascript."""
         # Basic escaping to prevent syntax errors
-        safe_title = context.title.replace('"', '\"')
-        safe_message = context.message.replace('"', '\"')
-        
+        safe_title = context.title.replace('"', '"')
+        safe_message = context.message.replace('"', '"')
+
         script = (
             f'display notification "{safe_message}" '
             f'with title "{safe_title}" '
             'sound name "Glass"'
         )
-        
+
         if context.icon_path:
             script += f' with icon file (POSIX file "{context.icon_path}")'
-            
+
         try:
-            subprocess.run(
-                ["osascript", "-e", script],
-                capture_output=True,
-                timeout=5
-            )
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
         except Exception as exc:
             logger.warning(f"macOS fallback notification failed: {exc}")

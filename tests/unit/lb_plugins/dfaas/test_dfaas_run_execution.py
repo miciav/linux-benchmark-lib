@@ -48,8 +48,6 @@ def test_config_executor_skip_reason_detects_indexed() -> None:
     key = (("f1",), (10,))
     ctx.existing_index.add(key)
 
-    reason = DfaasConfigExecutor._check_skip_reason(
-        ctx, [("f1", 10)], key
-    )
+    reason = DfaasConfigExecutor._check_skip_reason(ctx, [("f1", 10)], key)
 
     assert reason == "already_indexed"

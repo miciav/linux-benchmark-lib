@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from lb_controller.ansible.callback_plugins.lb_events import _extract_lb_event
+from lb_controller.api import _extract_lb_event
 
 
 def _append_lines(log_path: Path, lines: list[tuple[str, float]]) -> None:

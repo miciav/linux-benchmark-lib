@@ -12,6 +12,7 @@ from lb_app.api import summarize_system_info
 
 pytestmark = [pytest.mark.unit_runner]
 
+
 def test_system_info_to_dict_shape() -> None:
     info = sysinfo.SystemInfo(
         host="node1",
@@ -85,7 +86,9 @@ def test_system_info_to_csv_rows_shape() -> None:
     assert len(rows) == 14
     assert any(row["category"] == "disk" and row["name"] == "sda" for row in rows)
     assert any(row["category"] == "nic" and row["name"] == "eth0" for row in rows)
-    assert any(row["category"] == "pci" and row["name"] == "0000:00:1f.2" for row in rows)
+    assert any(
+        row["category"] == "pci" and row["name"] == "0000:00:1f.2" for row in rows
+    )
     assert any(row["category"] == "smart" and row["name"] == "/dev/sda" for row in rows)
     assert any(row["category"] == "module" and row["name"] == "kmod" for row in rows)
     assert any(row["category"] == "service" and row["name"] == "svc" for row in rows)
@@ -115,20 +118,22 @@ def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
     monkeypatch.setattr(
         collectors,
         "_json_output",
-        lambda *args, **kwargs: {
-            "blockdevices": [
-                {
-                    "name": "sda",
-                    "size": 1073741824,
-                    "rota": False,
-                    "model": "DiskX",
-                    "tran": "nvme",
-                    "serial": "ABC123",
-                }
-            ]
-        }
-        if args and args[0] and args[0][0] == "lsblk"
-        else None,
+        lambda *args, **kwargs: (
+            {
+                "blockdevices": [
+                    {
+                        "name": "sda",
+                        "size": 1073741824,
+                        "rota": False,
+                        "model": "DiskX",
+                        "tran": "nvme",
+                        "serial": "ABC123",
+                    }
+                ]
+            }
+            if args and args[0] and args[0][0] == "lsblk"
+            else None
+        ),
     )
 
     def _fake_run(cmd: list[str], timeout: float = 5.0) -> str:
@@ -170,7 +175,7 @@ def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
     assert "module_a" in data
     assert "service_b" in data
     assert info.fingerprint != ""
-    
+
     csv_data = csv_path.read_text()
     assert "category,name,value" in csv_data.splitlines()[0]
     assert "module_a" in csv_data

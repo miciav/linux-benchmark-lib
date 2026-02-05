@@ -11,7 +11,9 @@ import pytest
 from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
 from lb_plugins.plugins.peva_faas.context import ExecutionContext
 from lb_plugins.plugins.peva_faas.services.k6_runner import K6Runner
-from lb_plugins.plugins.peva_faas.services.annotation_service import DfaasAnnotationService
+from lb_plugins.plugins.peva_faas.services.annotation_service import (
+    DfaasAnnotationService,
+)
 from lb_plugins.plugins.peva_faas.services.plan_builder import (
     DfaasPlanBuilder,
     dominates,
@@ -157,7 +159,9 @@ def test_k6_outputs_returns_configured_outputs(
     assert not any(output.startswith("loki=") for output in outputs)
 
 
-def test_peva_faas_annotations_emit_grafana_tags(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_peva_faas_annotations_emit_grafana_tags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Annotation service should create Grafana annotations for run events."""
     from lb_plugins.plugins.peva_faas.config import DfaasConfig, GrafanaConfig
     from unittest.mock import MagicMock
@@ -258,7 +262,7 @@ def test_k6_runner_execute_passes_outputs_and_tags(
         executed_commands.append(cmd)
         summary_index = cmd.index("--summary-export") + 1
         summary_path = Path(cmd[summary_index])
-        summary_path.write_text("{\"metrics\": {}}")
+        summary_path.write_text('{"metrics": {}}')
         return FakeProcess()
 
     monkeypatch.setattr(

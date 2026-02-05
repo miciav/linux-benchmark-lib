@@ -10,6 +10,7 @@ import json
 @dataclass
 class RunEvent:
     """A structured event emitted during a run."""
+
     run_id: str
     host: str
     workload: str

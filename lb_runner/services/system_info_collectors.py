@@ -142,10 +142,11 @@ def _collect_disks() -> list[DiskInfo]:
             disks.append(
                 DiskInfo(
                     name=str(name),
-                    size_bytes=
+                    size_bytes=(
                         int(size)
                         if isinstance(size, (int, float, str)) and str(size).isdigit()
-                        else None,
+                        else None
+                    ),
                     rotational=bool(rota) if rota is not None else None,
                     model=model,
                     transport=transport,

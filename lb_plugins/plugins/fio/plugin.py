@@ -48,9 +48,7 @@ class FIOConfig(BasePluginConfig):
     numjobs: int = Field(
         default=1, gt=0, description="Number of jobs to run concurrently"
     )
-    size: str = Field(
-        default="1G", description="Total size of the I/O for each job"
-    )
+    size: str = Field(default="1G", description="Total size of the I/O for each job")
     directory: str = Field(
         default_factory=_default_fio_directory,
         description="Directory to store test files",
@@ -293,9 +291,7 @@ class FIOPlugin(SimpleWorkloadPlugin):
         test_name: str,
     ) -> List[Path]:
         """Export parsed fio metrics to a CSV file."""
-        rows = [
-            _build_fio_row(entry, run_id, test_name) for entry in results
-        ]
+        rows = [_build_fio_row(entry, run_id, test_name) for entry in results]
 
         if not rows:
             return []
@@ -342,9 +338,7 @@ def _extract_json_payload(output: str) -> Optional[dict[str, Any]]:
 
 def _log_missing_json_payload(output: str) -> None:
     snippet = output[:200].replace("\\n", "\\\\n")
-    logger.error(
-        "Failed to locate fio JSON payload. Output starts with: %s", snippet
-    )
+    logger.error("Failed to locate fio JSON payload. Output starts with: %s", snippet)
 
 
 def _parse_job_metrics(job: dict[str, Any]) -> dict[str, Any]:

@@ -98,7 +98,7 @@ class RichDashboard(Dashboard):
     def _render_logs(self, snapshot: DashboardSnapshot) -> Panel:
         """Render the rolling log stream."""
         max_visible = getattr(self, "_visible_log_lines", self.max_log_lines)
-        lines = self.log_buffer[-max_visible :]
+        lines = self.log_buffer[-max_visible:]
         table = Table.grid(expand=True)
         table.add_column(ratio=1)
         table.add_column(justify="right", style=theme.LOG_TIMING_STYLE, width=14)
@@ -121,9 +121,7 @@ class RichDashboard(Dashboard):
             self._warning_expires_at = None
             self._warning_message = None
         lines = []
-        lines.append(
-            event_status_line(self.event_source, self.last_event_ts, now=now)
-        )
+        lines.append(event_status_line(self.event_source, self.last_event_ts, now=now))
         lines.append(theme.controller_state_line(self.controller_state))
         if warning:
             lines.append(theme.warning_banner(warning))

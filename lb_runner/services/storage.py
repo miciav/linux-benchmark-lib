@@ -31,10 +31,10 @@ def ensure_run_dirs(config: BenchmarkConfig, run_id: str) -> tuple[Path, Path, P
     output_root = _scope_with_run_id(config.output_dir)
     report_root = _scope_with_run_id(config.report_dir)
     data_export_root = _scope_with_run_id(config.data_export_dir)
-    
+
     # Only create output_root; report/export dirs are created on demand by analytics.
     output_root.mkdir(parents=True, exist_ok=True)
-    
+
     return output_root, data_export_root, report_root
 
 
@@ -72,7 +72,9 @@ def ensure_runner_log(output_dir: Path, logger: logging.Logger) -> bool:
         return False
 
 
-def write_system_info_artifacts(collected: system_info.SystemInfo, output_root: Path, logger: logging.Logger) -> None:
+def write_system_info_artifacts(
+    collected: system_info.SystemInfo, output_root: Path, logger: logging.Logger
+) -> None:
     """Persist system info JSON/CSV artifacts when an output directory is present."""
     json_path = output_root / "system_info.json"
     csv_path = output_root / "system_info.csv"

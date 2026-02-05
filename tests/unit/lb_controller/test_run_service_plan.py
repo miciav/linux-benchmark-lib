@@ -70,9 +70,7 @@ def test_get_run_plan_remote_status_and_details():
 
 
 def test_get_run_plan_missing_plugin_marks_missing():
-    workload = WorkloadConfig(
-        plugin="missing", intensity="user_defined", options={}
-    )
+    workload = WorkloadConfig(plugin="missing", intensity="user_defined", options={})
     cfg = _make_config(workload)
     registry = DummyRegistry({})
 
@@ -85,9 +83,7 @@ def test_get_run_plan_missing_plugin_marks_missing():
 
 
 def test_get_run_plan_config_error_surfaces_message():
-    workload = WorkloadConfig(
-        plugin="broken", intensity="user_defined", options={}
-    )
+    workload = WorkloadConfig(plugin="broken", intensity="user_defined", options={})
     cfg = _make_config(workload)
     registry = DummyRegistry({"broken": BrokenPlugin()})
 

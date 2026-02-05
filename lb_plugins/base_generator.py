@@ -116,9 +116,7 @@ class BaseGenerator(ABC):
         try:
             self._thread.join(timeout=5.0)
             if self._thread.is_alive():
-                logger.warning(
-                    f"{self.name} thread did not terminate gracefully"
-                )
+                logger.warning(f"{self.name} thread did not terminate gracefully")
         except Exception as exc:
             logger.error(f"Error joining thread for {self.name}: {exc}")
 
@@ -177,16 +175,6 @@ class BaseGenerator(ABC):
             # Always clear running flag when the worker exits (success or failure)
             self._is_running = False
 
-    def _join_thread(self) -> None:
-        if not self._thread or not self._thread.is_alive():
-            return
-        try:
-            self._thread.join(timeout=5.0)
-            if self._thread.is_alive():
-                logger.warning("%s thread did not terminate gracefully", self.name)
-        except Exception as exc:
-            logger.error("Error joining thread for %s: %s", self.name, exc)
-
 
 @dataclass
 class CommandSpec:
@@ -200,15 +188,13 @@ class CommandSpec:
 class CommandSpecBuilder(Protocol):
     """Strategy interface for building command specs."""
 
-    def build(self, config: Any) -> CommandSpec:
-        ...
+    def build(self, config: Any) -> CommandSpec: ...
 
 
 class ResultParser(Protocol):
     """Strategy interface for parsing command results."""
 
-    def parse(self, result: dict[str, Any]) -> dict[str, Any]:
-        ...
+    def parse(self, result: dict[str, Any]) -> dict[str, Any]: ...
 
 
 class CommandGenerator(BaseGenerator):
@@ -248,9 +234,7 @@ class CommandGenerator(BaseGenerator):
     def _log_command(self, cmd: list[str]) -> None:
         logger.info("Running command: %s", " ".join(cmd))
 
-    def _consume_process_output(
-        self, proc: subprocess.Popen[str]
-    ) -> tuple[str, str]:
+    def _consume_process_output(self, proc: subprocess.Popen[str]) -> tuple[str, str]:
         stdout, stderr = proc.communicate(timeout=self._timeout_seconds())
         return stdout or "", stderr or ""
 

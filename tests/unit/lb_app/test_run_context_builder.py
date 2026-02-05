@@ -15,7 +15,9 @@ pytestmark = pytest.mark.unit_ui
 
 
 class _FakeConfigService:
-    def __init__(self, cfg: BenchmarkConfig, platform_cfg: PlatformConfig, resolved: Path):
+    def __init__(
+        self, cfg: BenchmarkConfig, platform_cfg: PlatformConfig, resolved: Path
+    ):
         self._cfg = cfg
         self._platform_cfg = platform_cfg
         self._resolved = resolved
@@ -89,7 +91,10 @@ def test_context_builder_filters_disabled_workloads(tmp_path: Path) -> None:
     assert context.config.remote_execution.run_setup is False
     assert context.config.remote_execution.run_teardown is False
     assert context.config.remote_execution.enabled is True
-    assert ui.warnings and "Skipping workloads disabled by platform config" in ui.warnings[0]
+    assert (
+        ui.warnings
+        and "Skipping workloads disabled by platform config" in ui.warnings[0]
+    )
     assert context.config.output_dir.exists()
     assert context.config.report_dir.exists()
     assert context.config.data_export_dir.exists()

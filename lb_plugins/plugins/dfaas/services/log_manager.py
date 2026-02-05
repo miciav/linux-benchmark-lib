@@ -86,8 +86,7 @@ class DfaasLogManager:
             return False
         root_logger = logging.getLogger()
         if any(
-            isinstance(handler, LBEventLogHandler)
-            for handler in root_logger.handlers
+            isinstance(handler, LBEventLogHandler) for handler in root_logger.handlers
         ):
             return False
         if self._event_run_id is None:

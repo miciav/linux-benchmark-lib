@@ -28,9 +28,9 @@ class MultipassProvisioner:
     """Manage ephemeral Multipass VMs."""
 
     def __init__(self, base_state_dir: Path | None = None):
-        self.base_state_dir = base_state_dir or Path(
-            tempfile.gettempdir()
-        ) / "lb_multipass"
+        self.base_state_dir = (
+            base_state_dir or Path(tempfile.gettempdir()) / "lb_multipass"
+        )
         self.base_state_dir.mkdir(parents=True, exist_ok=True)
 
     def provision(self, request: ProvisioningRequest) -> List[ProvisionedNode]:
@@ -63,16 +63,24 @@ class MultipassProvisioner:
                 become=True,
                 vars={
                     "ansible_ssh_private_key_file": str(key_path.absolute()),
-                    "ansible_ssh_common_args": "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
+                    "ansible_ssh_common_args": (
+                        "-o StrictHostKeyChecking=no "
+                        "-o UserKnownHostsFile=/dev/null"
+                    ),
                     "ansible_python_interpreter": "/usr/bin/python3",
                 },
             )
+            def _destroy(
+                name: str = vm_name,
+                kp: Path = key_path,
+                pp: Path = pub_path,
+            ) -> None:
+                self._destroy_vm(name, kp, pp)
+
             nodes.append(
                 ProvisionedNode(
                     host=host,
-                    destroy=lambda name=vm_name, kp=key_path, pp=pub_path: self._destroy_vm(
-                        name, kp, pp
-                    ),
+                    destroy=_destroy,
                 )
             )
         return nodes
@@ -119,16 +127,23 @@ class MultipassProvisioner:
         ]
         logger.info("Launching Multipass VM %s (%s)", vm_name, image)
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            subprocess.run(
+                cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+            )
         except subprocess.CalledProcessError:
             fallback = cmd[:]
             fallback[2] = "lts"
             try:
                 subprocess.run(
-                    fallback, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+                    fallback,
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
                 )
             except subprocess.CalledProcessError as exc:  # pragma: no cover - defensive
-                raise ProvisioningError(f"Failed to launch VM {vm_name}: {exc}") from exc
+                raise ProvisioningError(
+                    f"Failed to launch VM {vm_name}: {exc}"
+                ) from exc
 
     def _get_ip_address(self, vm_name: str) -> str:
         """Return the IPv4 address for the VM, waiting until assigned."""

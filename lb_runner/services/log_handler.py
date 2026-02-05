@@ -12,13 +12,14 @@ class LBEventLogHandler(logging.Handler):
     Logging handler that emits logs as structured LB_EVENT JSON lines
     to stdout, allowing the controller to capture and stream them.
     """
+
     def __init__(
         self,
         run_id: str,
         host: str,
         workload: str,
         repetition: int,
-        total_repetitions: int
+        total_repetitions: int,
     ) -> None:
         super().__init__()
         self.run_id = run_id
@@ -41,7 +42,7 @@ class LBEventLogHandler(logging.Handler):
                 "level": record.levelname,
                 "message": msg,
                 "timestamp": record.created,
-                "logger": record.name
+                "logger": record.name,
             }
             # Use direct print to stdout to ensure Ansible captures it
             # We must flush to ensure real-time streaming

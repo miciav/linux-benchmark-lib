@@ -70,10 +70,10 @@ def test_local_runner_writes_results(tmp_path, monkeypatch):
     registry = DummyRegistry(plugin, generator)
 
     # _pre_test_cleanup is no longer on LocalRunner, it's called by RepetitionExecutor
-    # We can mock it in execution module if needed, but for characterization 
+    # We can mock it in execution module if needed, but for characterization
     # we might want to let it run (it deletes temp files).
     # Since we are mocking other things, let's just let it run or patch it out globally.
-    
+
     with patch("lb_runner.engine.execution.pre_test_cleanup"):
         runner = LocalRunner(cfg, registry=registry)
         run_id = "run-characterization"

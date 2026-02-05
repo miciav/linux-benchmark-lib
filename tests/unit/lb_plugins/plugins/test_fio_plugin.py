@@ -7,7 +7,6 @@ from lb_plugins.api import FIOConfig, FIOGenerator
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
 
-
 def _make_generator() -> FIOGenerator:
     return FIOGenerator(FIOConfig())
 
@@ -37,7 +36,9 @@ fio: terminating on signal 15
 trailing text that should be ignored
 """.strip()
 
-    parsed = generator._parse_json_output(noisy_output)  # pylint: disable=protected-access
+    parsed = generator._parse_json_output(
+        noisy_output
+    )  # pylint: disable=protected-access
 
     assert parsed["read_iops"] == pytest.approx(1234.5)
     assert parsed["write_iops"] == pytest.approx(2345.6)
@@ -52,7 +53,9 @@ def test_parse_json_output_without_payload(caplog):
     generator = _make_generator()
 
     with caplog.at_level("ERROR"):
-        parsed = generator._parse_json_output("fio: nothing to see here")  # pylint: disable=protected-access
+        parsed = generator._parse_json_output(
+            "fio: nothing to see here"
+        )  # pylint: disable=protected-access
 
     assert parsed == {}
     assert "Failed to locate fio JSON payload" in caplog.text

@@ -163,9 +163,7 @@ class GrafanaClient:
     ) -> str:
         """Create a Grafana service account and return its token."""
         if not self.basic_auth:
-            raise ValueError(
-                "Basic auth credentials are required to create a token."
-            )
+            raise ValueError("Basic auth credentials are required to create a token.")
         status, data = self._request(
             "POST",
             "/api/serviceaccounts",
@@ -284,7 +282,7 @@ class GrafanaClient:
             return None
 
     def _sleep_backoff(self, attempt: int) -> None:
-        delay = self.backoff_base * (self.backoff_factor ** attempt)
+        delay = self.backoff_base * (self.backoff_factor**attempt)
         if delay > 0:
             time.sleep(delay)
 
@@ -342,9 +340,7 @@ class GrafanaClient:
         data: bytes | None,
     ) -> tuple[int, str]:
         req = request.Request(url, data=data, headers=headers, method=method)
-        with request.urlopen(  # nosec B310
-            req, timeout=self.timeout_seconds
-        ) as resp:
+        with request.urlopen(req, timeout=self.timeout_seconds) as resp:  # nosec B310
             status = resp.status
             body = resp.read().decode("utf-8") if resp is not None else ""
         return status, body

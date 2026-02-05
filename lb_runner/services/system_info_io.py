@@ -9,7 +9,9 @@ from pathlib import Path
 from lb_runner.services.system_info_types import SystemInfo
 
 
-def write_outputs(info: SystemInfo, json_path: Path | None, csv_path: Path | None) -> None:
+def write_outputs(
+    info: SystemInfo, json_path: Path | None, csv_path: Path | None
+) -> None:
     """Persist collected info to JSON/CSV if paths are provided."""
     if json_path:
         json_path.parent.mkdir(parents=True, exist_ok=True)

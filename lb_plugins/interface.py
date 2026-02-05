@@ -19,6 +19,7 @@ class WorkloadIntensity(str, Enum):
 
 class BasePluginConfig(BaseModel):
     """Base model for common plugin configuration fields."""
+
     max_retries: int = Field(
         default=0,
         ge=0,
@@ -103,9 +104,7 @@ class WorkloadPlugin(ABC):
                 `self.config_cls` schema.
         """
         if not config_file_path.exists():
-            raise FileNotFoundError(
-                f"Configuration file not found: {config_file_path}"
-            )
+            raise FileNotFoundError(f"Configuration file not found: {config_file_path}")
 
         with open(config_file_path, "r") as f:
             full_data = yaml.safe_load(f) or {}
@@ -121,9 +120,7 @@ class WorkloadPlugin(ABC):
         # Pydantic will handle default values for missing fields
         return self.config_cls(**merged_data)
 
-    def get_preset_config(
-        self, level: WorkloadIntensity
-    ) -> Optional[BasePluginConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> Optional[BasePluginConfig]:
         """
         Return a configuration object for the specified intensity level.
         If USER_DEFINED or not implemented, return None.

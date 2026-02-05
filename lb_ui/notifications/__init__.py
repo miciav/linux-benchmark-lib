@@ -18,5 +18,5 @@ def send_notification(
         message=message,
         success=success,
         run_id=run_id,
-        duration_s=duration_s
+        duration_s=duration_s,
     )

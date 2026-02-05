@@ -16,8 +16,11 @@ from lb_runner.api import (
     RemoteHostConfig,
     WorkloadConfig,
 )
-from lb_controller.api import AnsibleRunnerExecutor, BenchmarkController, ControllerOptions
-from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
+from lb_controller.api import (
+    AnsibleRunnerExecutor,
+    BenchmarkController,
+    ControllerOptions,
+)
 from tests.helpers.multipass import make_test_ansible_env, stage_private_key
 
 pytestmark = [
@@ -25,20 +28,25 @@ pytestmark = [
     pytest.mark.inter_multipass,
     pytest.mark.inter_baseline,
 ]
+pytest_plugins = ["tests.e2e.test_multipass_benchmark"]
 
 STRICT_MULTIPASS_SETUP = os.environ.get("LB_STRICT_MULTIPASS_SETUP", "").lower() in {
     "1",
     "true",
     "yes",
 }
-STRICT_MULTIPASS_ARTIFACTS = os.environ.get("LB_STRICT_MULTIPASS_ARTIFACTS", "").lower() in {
+STRICT_MULTIPASS_ARTIFACTS = os.environ.get(
+    "LB_STRICT_MULTIPASS_ARTIFACTS", ""
+).lower() in {
     "1",
     "true",
     "yes",
 }
 
 
-def _build_host_configs(multipass_vms: List[Dict], staged_key: Path) -> List[RemoteHostConfig]:
+def _build_host_configs(
+    multipass_vms: List[Dict], staged_key: Path
+) -> List[RemoteHostConfig]:
     return [
         RemoteHostConfig(
             name=vm["name"],
@@ -101,7 +109,9 @@ def _run_single_workload(
     tmp_path: Path,
 ) -> None:
     ansible_dir = tmp_path / f"ansible_data_{workload}"
-    staged_key = stage_private_key(Path(multipass_vms[0]["key_path"]), ansible_dir / "keys")
+    staged_key = stage_private_key(
+        Path(multipass_vms[0]["key_path"]), ansible_dir / "keys"
+    )
     host_configs = _build_host_configs(multipass_vms, staged_key)
 
     output_dir = tmp_path / f"{workload}_results"
@@ -146,11 +156,17 @@ def _run_single_workload(
         if STRICT_MULTIPASS_SETUP:
             pytest.fail(msg)
         pytest.skip(msg)
-    
+
     # Baseline has no setup/teardown ansible roles, so setup might be skipped or successful (no-op)
     # The runner ensures phases exist.
-    assert summary.phases.get(f"run_{workload}") and summary.phases[f"run_{workload}"].success
-    assert summary.phases.get(f"collect_{workload}") and summary.phases[f"collect_{workload}"].success
+    assert (
+        summary.phases.get(f"run_{workload}")
+        and summary.phases[f"run_{workload}"].success
+    )
+    assert (
+        summary.phases.get(f"collect_{workload}")
+        and summary.phases[f"collect_{workload}"].success
+    )
 
     for vm in multipass_vms:
         host_output_dir = summary.per_host_output[vm["name"]]
@@ -165,11 +181,7 @@ def test_multipass_baseline_three_reps(multipass_vm, tmp_path: Path) -> None:
         plugin="baseline",
         options=baseline_cfg.model_dump(mode="json"),
     )
-    
+
     _run_single_workload(
-        "baseline",
-        workload_cfg,
-        {"baseline": baseline_cfg},
-        multipass_vm,
-        tmp_path
+        "baseline", workload_cfg, {"baseline": baseline_cfg}, multipass_vm, tmp_path
     )

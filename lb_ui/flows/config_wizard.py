@@ -14,7 +14,7 @@ def run_config_wizard(ui: UI, cfg: BenchmarkConfig) -> None:
     user = ui.form.ask("SSH user", default="ubuntu")
     key_path = ui.form.ask("SSH private key path", default="~/.ssh/id_rsa")
     become = ui.form.confirm("Use sudo (become)?", default=True)
-    
+
     cfg.remote_hosts = [
         RemoteHostConfig(
             name=name,

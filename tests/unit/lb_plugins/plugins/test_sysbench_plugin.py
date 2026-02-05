@@ -2,7 +2,12 @@ import subprocess
 
 import pytest
 
-from lb_plugins.api import CommandGenerator, SysbenchConfig, SysbenchGenerator, SysbenchPlugin
+from lb_plugins.api import (
+    CommandGenerator,
+    SysbenchConfig,
+    SysbenchGenerator,
+    SysbenchPlugin,
+)
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
@@ -68,7 +73,9 @@ def test_sysbench_validate_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         calls.append(cmd)
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
-    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/sysbench" if name == "sysbench" else None)
+    monkeypatch.setattr(
+        "shutil.which", lambda name: "/usr/bin/sysbench" if name == "sysbench" else None
+    )
     monkeypatch.setattr(subprocess, "run", fake_run)
     cfg = SysbenchConfig()
     gen = SysbenchGenerator(cfg)

@@ -33,9 +33,7 @@ def _resolve_resume_identifier(context: RunContext) -> tuple[str, Path]:
         return _latest_resume_identifier(context.config)
     if not context.resume_from:
         raise ValueError("Resume requested without a run identifier.")
-    journal_path = (
-        context.config.output_dir / context.resume_from / "run_journal.json"
-    )
+    journal_path = context.config.output_dir / context.resume_from / "run_journal.json"
     return context.resume_from, journal_path
 
 
@@ -67,9 +65,7 @@ def _load_or_rebuild_journal(
 
 def _validate_run_id(requested: str | None, actual: str) -> None:
     if requested and requested != actual:
-        raise ValueError(
-            f"Run ID mismatch: resume journal={actual}, cli={requested}"
-        )
+        raise ValueError(f"Run ID mismatch: resume journal={actual}, cli={requested}")
 
 
 def resolve_resume_path(context: RunContext) -> Path:
@@ -147,9 +143,7 @@ def _ensure_test_tasks(
     for rep in range(1, context.config.repetitions + 1):
         if journal.get_task(host.name, test_name, rep):
             continue
-        journal.add_task(
-            TaskState(host=host.name, workload=test_name, repetition=rep)
-        )
+        journal.add_task(TaskState(host=host.name, workload=test_name, repetition=rep))
 
 
 def initialize_new_journal(

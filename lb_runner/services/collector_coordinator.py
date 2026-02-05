@@ -24,7 +24,7 @@ class CollectorCoordinator:
         for collector in collectors:
             try:
                 collector.start()
-            except Exception as exc:
+            except Exception:
                 error = MetricCollectionError(
                     "Collector start failed",
                     context={"collector": getattr(collector, "name", "unknown")},
@@ -32,7 +32,8 @@ class CollectorCoordinator:
                 )
                 errors.append(error)
                 logger.exception(
-                    "Failed to start collector %s", getattr(collector, "name", "unknown")
+                    "Failed to start collector %s",
+                    getattr(collector, "name", "unknown"),
                 )
         if errors:
             raise MetricCollectionError(
@@ -44,7 +45,7 @@ class CollectorCoordinator:
         for collector in collectors:
             try:
                 collector.stop()
-            except Exception as exc:
+            except Exception:
                 logger.exception(
                     "Failed to stop collector %s", getattr(collector, "name", "unknown")
                 )
@@ -58,4 +59,6 @@ class CollectorCoordinator:
         repetition: int,
         result: dict[str, Any],
     ) -> None:
-        collect_metrics(collectors, workload_dir, rep_dir, test_name, repetition, result)
+        collect_metrics(
+            collectors, workload_dir, rep_dir, test_name, repetition, result
+        )

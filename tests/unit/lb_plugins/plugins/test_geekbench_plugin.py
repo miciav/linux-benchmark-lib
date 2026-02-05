@@ -11,7 +11,6 @@ from lb_plugins.api import GeekbenchConfig, GeekbenchGenerator, GeekbenchPlugin
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
 
-
 def test_geekbench_defaults():
     cfg = GeekbenchConfig()
     plugin = GeekbenchPlugin()
@@ -59,7 +58,9 @@ def test_geekbench_generator_builds_command(monkeypatch, tmp_path):
 
     monkeypatch.setattr(gen, "_validate_environment", lambda: True)
     monkeypatch.setattr(platform, "machine", lambda: "x86_64")
-    monkeypatch.setattr(gen, "_prepare_geekbench", lambda: (exec_path, archive_path, exec_path.parent))
+    monkeypatch.setattr(
+        gen, "_prepare_geekbench", lambda: (exec_path, archive_path, exec_path.parent)
+    )
 
     calls: list[list[str]] = []
 
@@ -93,7 +94,10 @@ def test_geekbench_generator_builds_command(monkeypatch, tmp_path):
     assert not archive_path.exists()
     assert not exec_path.parent.exists()
 
-def test_geekbench_load_config_from_file_merges_common_and_plugin(tmp_path: Path) -> None:
+
+def test_geekbench_load_config_from_file_merges_common_and_plugin(
+    tmp_path: Path,
+) -> None:
     cfg_path = tmp_path / "config.yaml"
     cfg_path.write_text(
         """

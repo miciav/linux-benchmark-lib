@@ -67,7 +67,7 @@ class TestSigintDoublePressHandler:
     def test_handler_install_and_restore(self, mock_signal, mock_getsignal):
         sm = Mock()
         sm.on_sigint.return_value = SigintDecision.WARN_ARM
-        
+
         with SigintDoublePressHandler(
             state_machine=sm,
             run_active=lambda: True,
@@ -77,7 +77,7 @@ class TestSigintDoublePressHandler:
             # Should install our handler
             mock_signal.assert_called_with(signal.SIGINT, ANY)
             handler_installed = mock_signal.call_args[0][1]
-            
+
             # Simulate a signal call
             handler_installed(signal.SIGINT, None)
             sm.on_sigint.assert_called_once()
@@ -92,23 +92,23 @@ class TestSigintDoublePressHandler:
         sm = DoubleCtrlCStateMachine()
         on_first = Mock()
         on_confirmed = Mock()
-        
+
         handler = SigintDoublePressHandler(
             state_machine=sm,
             run_active=lambda: True,
             on_first_sigint=on_first,
             on_confirmed_sigint=on_confirmed,
         )
-        
+
         # We manually invoke _handle_sigint to test logic without dealing with real signal stack
         # 1. First press -> WARN_ARM
         handler._handle_sigint(signal.SIGINT, None)
         on_first.assert_called_once()
         on_confirmed.assert_not_called()
-        
+
         # 2. Second press -> REQUEST_STOP
         handler._handle_sigint(signal.SIGINT, None)
-        on_first.assert_called_once() # count stays 1
+        on_first.assert_called_once()  # count stays 1
         on_confirmed.assert_called_once()
 
     def test_handler_skips_install_when_not_main_thread(self):
@@ -118,9 +118,18 @@ class TestSigintDoublePressHandler:
         main_thread = object()
 
         with (
-            patch("lb_controller.engine.interrupts.threading.current_thread", return_value=dummy_thread),
-            patch("lb_controller.engine.interrupts.threading.main_thread", return_value=main_thread),
-            patch("signal.signal", side_effect=ValueError("signal only works in main thread")) as mock_signal,
+            patch(
+                "lb_controller.engine.interrupts.threading.current_thread",
+                return_value=dummy_thread,
+            ),
+            patch(
+                "lb_controller.engine.interrupts.threading.main_thread",
+                return_value=main_thread,
+            ),
+            patch(
+                "signal.signal",
+                side_effect=ValueError("signal only works in main thread"),
+            ) as mock_signal,
             patch("signal.getsignal") as mock_getsignal,
         ):
             with SigintDoublePressHandler(

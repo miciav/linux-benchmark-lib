@@ -23,6 +23,13 @@ def build_run_plan_table(plan: List[Dict[str, Any]]) -> TableModel:
     ]
     return TableModel(
         title="Run Plan",
-        columns=["Workload", "Plugin", "Intensity", "Configuration", "Repetitions", "Status"],
+        columns=[
+            "Workload",
+            "Plugin",
+            "Intensity",
+            "Configuration",
+            "Repetitions",
+            "Status",
+        ],
         rows=rows,
     )

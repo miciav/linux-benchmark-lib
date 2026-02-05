@@ -25,7 +25,9 @@ def _command_available(name: str) -> bool:
 
 def create_test_app(ctx: UIContext) -> typer.Typer:
     """Build the test Typer app for integration helpers."""
-    app = typer.Typer(help="Convenience helpers to run integration tests.", no_args_is_help=True)
+    app = typer.Typer(
+        help="Convenience helpers to run integration tests.", no_args_is_help=True
+    )
 
     @app.command(
         "multipass",
@@ -81,9 +83,18 @@ def create_test_app(ctx: UIContext) -> typer.Typer:
                     PickItem(id=f"{opt}:{level_name}", title=level_name)
                     for level_name in ["low", "medium", "high"]
                 ]
-                items.append(PickItem(id=opt, title=opt, variants=variants, description=f"Run {opt} scenario"))
+                items.append(
+                    PickItem(
+                        id=opt,
+                        title=opt,
+                        variants=variants,
+                        description=f"Run {opt} scenario",
+                    )
+                )
 
-            selection = ctx.ui.picker.pick_one(items, title="Select Multipass Scenario & Intensity")
+            selection = ctx.ui.picker.pick_one(
+                items, title="Select Multipass Scenario & Intensity"
+            )
             if selection:
                 if ":" in selection.id:
                     scenario_choice, level = selection.id.split(":")
@@ -111,7 +122,9 @@ def create_test_app(ctx: UIContext) -> typer.Typer:
 
         label = "multi-VM" if vm_count > 1 else "single-VM"
         ctx.ui.present.info(f"VM count: {vm_count} ({label})")
-        ctx.ui.present.info(f"Scenario: {scenario.workload_label} -> {scenario.target_label}")
+        ctx.ui.present.info(
+            f"Scenario: {scenario.workload_label} -> {scenario.target_label}"
+        )
         ctx.ui.present.info(f"Artifacts: {output}")
 
         try:

@@ -26,7 +26,7 @@ def _run_tray_icon() -> None:
     icon_path = resolve_icon_path()
     if not icon_path:
         return
-    
+
     try:
         # Load the pre-optimized icon from cache
         final_image = Image.open(icon_path)
@@ -38,10 +38,7 @@ def _run_tray_icon() -> None:
         )
 
         icon = pystray.Icon(
-            "lb_runner",
-            final_image,
-            title="Linux Benchmark Lib",
-            menu=menu
+            "lb_runner", final_image, title="Linux Benchmark Lib", menu=menu
         )
 
         icon.run()
@@ -60,13 +57,10 @@ class TrayManager:
         if pystray is None:
             return
 
-        # We use 'spawn' context for better cross-platform consistency, 
+        # We use 'spawn' context for better cross-platform consistency,
         # especially on macOS.
         ctx = multiprocessing.get_context("spawn")
-        self._process = ctx.Process(
-            target=_run_tray_icon,
-            daemon=True
-        )
+        self._process = ctx.Process(target=_run_tray_icon, daemon=True)
         try:
             self._process.start()
         except Exception as exc:

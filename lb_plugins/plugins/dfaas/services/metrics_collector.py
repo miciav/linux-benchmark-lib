@@ -176,10 +176,7 @@ class MetricsCollector:
                 function_name=function_name,
             )
             power = float("nan")
-            if (
-                self.scaphandre_enabled
-                and "power_usage_function" in self._queries
-            ):
+            if self.scaphandre_enabled and "power_usage_function" in self._queries:
                 pid_regex = self.function_pid_regexes.get(function_name)
                 if pid_regex:
                     power = self._runner.execute(

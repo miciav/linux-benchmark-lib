@@ -10,7 +10,12 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from lb_plugins.api import BasePluginConfig, PluginRegistry, USER_PLUGIN_DIR, builtin_plugins
+from lb_plugins.api import (
+    BasePluginConfig,
+    PluginRegistry,
+    USER_PLUGIN_DIR,
+    builtin_plugins,
+)
 
 pytestmark = pytest.mark.unit_runner
 
@@ -19,7 +24,9 @@ def _has_external(name: str) -> bool:
     return (USER_PLUGIN_DIR / name).exists()
 
 
-def test_sysbench_user_plugin_yaml_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sysbench_user_plugin_yaml_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     if not _has_external("sysbench-plugin"):
         pytest.skip("external sysbench-plugin not present")
 
@@ -51,7 +58,9 @@ plugins:
     assert getattr(cfg, "threads") == 4
 
 
-def test_unixbench_user_plugin_yaml_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unixbench_user_plugin_yaml_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     if not _has_external("unixbench-plugin"):
         pytest.skip("external unixbench-plugin not present")
 
@@ -81,7 +90,9 @@ plugins:
     assert getattr(cfg, "workdir") == Path("./UnixBench")
 
 
-def test_unixbench_user_plugin_yaml_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unixbench_user_plugin_yaml_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     if not _has_external("unixbench-plugin"):
         pytest.skip("external unixbench-plugin not present")
 

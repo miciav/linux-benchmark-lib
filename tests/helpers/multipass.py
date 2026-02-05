@@ -43,7 +43,12 @@ def ensure_multipass_access() -> None:
     if shutil.which("multipass") is None:
         pytest.skip("multipass not available on this host")
     try:
-        subprocess.run(["multipass", "list"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(
+            ["multipass", "list"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     except Exception as exc:
         pytest.skip(f"multipass not usable ({exc}); skipping integration tests")
 
@@ -181,7 +186,9 @@ def stage_private_key(source_key: Path, target_dir: Path) -> Path:
     return staged_key
 
 
-def make_test_ansible_env(tmp_path: Path, roles_path: Optional[Path] = None) -> Dict[str, str]:
+def make_test_ansible_env(
+    tmp_path: Path, roles_path: Optional[Path] = None
+) -> Dict[str, str]:
     """
     Build an Ansible environment that avoids host-level callback plugins.
 

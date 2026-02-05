@@ -14,7 +14,9 @@ def test_polling_rollup_summarizes_polling_loop() -> None:
     log_buffer: list[str] = []
     helper = PollingRollupHelper(log_buffer, summary_only=True)
 
-    assert helper.maybe_rollup("• [run dummy] (host1) Poll LB_EVENT stream done in 1.2s")
+    assert helper.maybe_rollup(
+        "• [run dummy] (host1) Poll LB_EVENT stream done in 1.2s"
+    )
     assert helper.maybe_rollup("• [run dummy] (host1) Delay done in 0.8s")
 
     assert any("Polling loop poll x1 1.2s delay x1 0.8s" in line for line in log_buffer)

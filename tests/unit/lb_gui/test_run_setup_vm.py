@@ -240,7 +240,10 @@ class TestRunSetupViewModel:
 
         assert request is not None
         assert request.run_id
-        assert request.stop_file == Path("/tmp/benchmark_results") / request.run_id / "STOP"
+        assert (
+            request.stop_file
+            == Path("/tmp/benchmark_results") / request.run_id / "STOP"
+        )
 
     def test_refresh_workloads_loads_enabled_plugins(
         self, mock_services: tuple[MagicMock, MagicMock]
@@ -252,13 +255,20 @@ class TestRunSetupViewModel:
 
         # Setup mock registry
         mock_registry = MagicMock()
-        mock_registry.available.return_value = {"stress_ng": MagicMock(), "fio": MagicMock()}
+        mock_registry.available.return_value = {
+            "stress_ng": MagicMock(),
+            "fio": MagicMock(),
+        }
         plugin_service.get_registry.return_value = mock_registry
 
         # Setup mock platform config
         mock_platform = MagicMock()
         mock_platform.is_plugin_enabled.side_effect = lambda name: name == "stress_ng"
-        config_service.load_platform_config.return_value = (mock_platform, Path("/path"), True)
+        config_service.load_platform_config.return_value = (
+            mock_platform,
+            Path("/path"),
+            True,
+        )
 
         vm = RunSetupViewModel(plugin_service, config_service)
         vm.refresh_workloads()

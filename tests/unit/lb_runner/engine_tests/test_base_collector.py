@@ -10,8 +10,14 @@ from lb_runner.api import BaseCollector
 
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
+
 class DummyCollector(BaseCollector):
-    def __init__(self, interval_seconds: float = 0.01, fail_env: bool = False, raise_on_collect: bool = False):
+    def __init__(
+        self,
+        interval_seconds: float = 0.01,
+        fail_env: bool = False,
+        raise_on_collect: bool = False,
+    ):
         super().__init__("Dummy", interval_seconds=interval_seconds)
         self.fail_env = fail_env
         self.raise_on_collect = raise_on_collect

@@ -12,7 +12,9 @@ class DashboardHandleAdapter(Dashboard):
     def __init__(self, sink: Dashboard, *, threaded: bool = False) -> None:
         self._sink = sink
         self._threaded = threaded
-        self._queue: queue.Queue[tuple[str, tuple[Any, ...], dict[str, Any]] | None] | None = None
+        self._queue: (
+            queue.Queue[tuple[str, tuple[Any, ...], dict[str, Any]] | None] | None
+        ) = None
         self._stop: threading.Event | None = None
         self._thread: threading.Thread | None = None
         if threaded:

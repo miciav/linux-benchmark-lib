@@ -11,7 +11,9 @@ from lb_ui.flows.selection import select_plugins_interactively, apply_plugin_sel
 
 def create_plugin_app(ctx: UIContext) -> typer.Typer:
     """Build the plugin Typer app (list/manage workload plugins)."""
-    app = typer.Typer(help="Inspect and manage workload plugins.", no_args_is_help=False)
+    app = typer.Typer(
+        help="Inspect and manage workload plugins.", no_args_is_help=False
+    )
 
     def _load_platform():
         cfg, resolved, exists = ctx.config_service.load_platform_config()
@@ -43,8 +45,7 @@ def create_plugin_app(ctx: UIContext) -> typer.Typer:
 
         cfg_for_table = _load_platform()
         enabled_map = {
-            name: cfg_for_table.is_plugin_enabled(name)
-            for name in registry.available()
+            name: cfg_for_table.is_plugin_enabled(name) for name in registry.available()
         }
         headers, rows = build_plugin_table(registry, enabled=enabled_map)
         ctx.ui.tables.show(
@@ -94,8 +95,7 @@ def create_plugin_app(ctx: UIContext) -> typer.Typer:
 
         cfg_for_table = _load_platform()
         enabled_map = {
-            name: cfg_for_table.is_plugin_enabled(name)
-            for name in registry.available()
+            name: cfg_for_table.is_plugin_enabled(name) for name in registry.available()
         }
         try:
             selection = select_plugins_interactively(ctx.ui, registry, enabled_map)

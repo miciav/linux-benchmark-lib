@@ -60,7 +60,11 @@ def test_hpl_export_results_to_csv_writes_gflops(tmp_path: Path) -> None:
             "repetition": 1,
             "duration_seconds": 30.0,
             "success": True,
-            "generator_result": {"returncode": 0, "gflops": 42.5, "result_line": "WR00C2R4"},
+            "generator_result": {
+                "returncode": 0,
+                "gflops": 42.5,
+                "result_line": "WR00C2R4",
+            },
         }
     ]
 

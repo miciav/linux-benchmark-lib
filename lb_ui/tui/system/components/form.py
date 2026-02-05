@@ -2,11 +2,14 @@ from rich.console import Console
 from rich.prompt import Prompt, Confirm
 from lb_ui.tui.core.protocols import Form
 
+
 class RichForm(Form):
     def __init__(self, console: Console):
         self._console = console
 
-    def ask(self, prompt: str, default: str | None = None, password: bool = False) -> str:
+    def ask(
+        self, prompt: str, default: str | None = None, password: bool = False
+    ) -> str:
         # rich.Prompt.ask uses default=... but it prints it differently.
         # It's close enough.
         kwargs = {}
@@ -14,7 +17,7 @@ class RichForm(Form):
             kwargs["default"] = default
         if password:
             kwargs["password"] = True
-        
+
         return Prompt.ask(prompt, console=self._console, **kwargs)
 
     def confirm(self, prompt: str, default: bool = True) -> bool:

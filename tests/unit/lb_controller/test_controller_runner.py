@@ -17,7 +17,11 @@ def test_runner_completes_and_emits_states():
     def on_state(state: ControllerState, _reason: str | None) -> None:
         states.append(state)
 
-    runner = ControllerRunner(run_callable=lambda: "ok", stop_token=StopToken(enable_signals=False), on_state_change=on_state)
+    runner = ControllerRunner(
+        run_callable=lambda: "ok",
+        stop_token=StopToken(enable_signals=False),
+        on_state_change=on_state,
+    )
     runner.start()
     result = runner.wait(timeout=2.0)
 
@@ -26,7 +30,10 @@ def test_runner_completes_and_emits_states():
 
 
 def test_runner_propagates_exceptions_as_failed():
-    runner = ControllerRunner(run_callable=lambda: (_ for _ in ()).throw(RuntimeError("fail")), stop_token=StopToken(enable_signals=False))
+    runner = ControllerRunner(
+        run_callable=lambda: (_ for _ in ()).throw(RuntimeError("fail")),
+        stop_token=StopToken(enable_signals=False),
+    )
     runner.start()
     with pytest.raises(RuntimeError):
         runner.wait(timeout=2.0)
@@ -41,7 +48,9 @@ def test_runner_aborts_when_stop_requested():
         stop_token.request_stop()
         raise RuntimeError("stopped")
 
-    runner = ControllerRunner(run_callable=_run, stop_token=stop_token, on_state_change=lambda *_: None)
+    runner = ControllerRunner(
+        run_callable=_run, stop_token=stop_token, on_state_change=lambda *_: None
+    )
     runner.start()
     with pytest.raises(RuntimeError):
         runner.wait(timeout=2.0)

@@ -25,12 +25,13 @@ if TYPE_CHECKING:
 class RecordedTable:
     model: TableModel
 
+
 @dataclass
 class HeadlessUI(UI):
     recorded_tables: list[RecordedTable] = field(default_factory=list)
     recorded_messages: list[str] = field(default_factory=list)
     recorded_dashboard_logs: list[str] = field(default_factory=list)
-    
+
     # Configuration for automated responses
     next_pick_one: PickItem | None = None
     next_pick_many: list[PickItem] | None = field(default_factory=list)
@@ -70,6 +71,7 @@ class _HeadlessPicker(Picker):
         query_hint: str = "",
     ) -> list[PickItem] | None:
         return self._ui.next_pick_many
+
 
 class _HeadlessHierarchicalPicker(HierarchicalPicker):
     def __init__(self, ui: HeadlessUI):
@@ -120,12 +122,14 @@ class _HeadlessHierarchicalPicker(HierarchicalPicker):
                 return leaf
         return None
 
+
 class _HeadlessTablePresenter(TablePresenter):
     def __init__(self, ui: HeadlessUI):
         self._ui = ui
 
     def show(self, table: TableModel) -> None:
         self._ui.recorded_tables.append(RecordedTable(table))
+
 
 class _HeadlessPresenterSink(PresenterSink):
     def __init__(self, ui: HeadlessUI) -> None:
@@ -145,9 +149,11 @@ class _HeadlessPresenterSink(PresenterSink):
     def emit_rule(self, title: str) -> None:
         self._ui.recorded_messages.append(f"RULE: {title}")
 
+
 class _HeadlessPresenter(Presenter):
     def __init__(self, ui: HeadlessUI) -> None:
         super().__init__(_HeadlessPresenterSink(ui))
+
 
 class _HeadlessForm(Form):
     def __init__(self, ui: HeadlessUI):
@@ -161,13 +167,15 @@ class _HeadlessForm(Form):
     def confirm(self, prompt: str, default: bool = True) -> bool:
         return self._ui.next_confirm_response
 
+
 class _HeadlessProgress(Progress):
     def __init__(self, ui: HeadlessUI):
         self._ui = ui
-        
+
     def status(self, message: str) -> ContextManager[None]:
         self._ui.recorded_messages.append(f"STATUS: {message}")
         return nullcontext()
+
 
 class _HeadlessDashboardSink(NullDashboard):
     def __init__(self, ui: HeadlessUI) -> None:
@@ -179,6 +187,7 @@ class _HeadlessDashboardSink(NullDashboard):
 
     def add_log(self, line: str) -> None:
         self._ui.recorded_dashboard_logs.append(line)
+
 
 class _HeadlessDashboardFactory(DashboardFactory):
     def __init__(self, ui: HeadlessUI):

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from lb_plugins.observability import GrafanaAssets, GrafanaDashboardAsset, GrafanaDatasourceAsset
+from lb_plugins.observability import (
+    GrafanaAssets,
+    GrafanaDashboardAsset,
+    GrafanaDatasourceAsset,
+)
 from lb_provisioner.services.loki_grafana import (
     GrafanaConfigSummary,
     configure_grafana,
@@ -34,7 +38,9 @@ class DummyGrafanaClient:
         self.datasource_calls.append((name, url, datasource_type))
         return 1
 
-    def import_dashboard(self, dashboard, *, overwrite: bool = True, folder_id: int = 0):
+    def import_dashboard(
+        self, dashboard, *, overwrite: bool = True, folder_id: int = 0
+    ):
         self.dashboard_calls.append({"dashboard": dashboard, "overwrite": overwrite})
         return {"id": 1}
 
@@ -79,9 +85,7 @@ def test_configure_grafana_uses_assets() -> None:
                 datasource_type="prometheus",
             ),
         ),
-        dashboards=(
-            GrafanaDashboardAsset(name="dfaas", dashboard={"title": "DFaaS"}),
-        ),
+        dashboards=(GrafanaDashboardAsset(name="dfaas", dashboard={"title": "DFaaS"}),),
     )
 
     summary = configure_grafana(

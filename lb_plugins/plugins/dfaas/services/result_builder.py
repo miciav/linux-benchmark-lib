@@ -180,9 +180,7 @@ class DfaasResultBuilder:
             "cpu_usage_node": self._format_float(node_cpu),
             "ram_usage_idle_node": self._format_float(idle_snapshot.ram),
             "ram_usage_node": self._format_float(node_ram),
-            "ram_usage_idle_node_percentage": self._format_float(
-                idle_snapshot.ram_pct
-            ),
+            "ram_usage_idle_node_percentage": self._format_float(idle_snapshot.ram_pct),
             "ram_usage_node_percentage": self._format_float(node_ram_pct),
             "power_usage_idle_node": self._format_float(idle_snapshot.power),
             "power_usage_node": self._format_float(node_power),

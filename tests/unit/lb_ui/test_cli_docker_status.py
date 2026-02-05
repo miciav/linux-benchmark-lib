@@ -20,5 +20,14 @@ def test_build_run_plan_table_docker_mode():
 
     table = build_run_plan_table(plan)
 
-    assert table.columns == ["Workload", "Plugin", "Intensity", "Configuration", "Repetitions", "Status"]
-    assert table.rows == [["stress_ng", "stress_ng", "default", "Docker engine", "1", "ready"]]
+    assert table.columns == [
+        "Workload",
+        "Plugin",
+        "Intensity",
+        "Configuration",
+        "Repetitions",
+        "Status",
+    ]
+    assert table.rows == [
+        ["stress_ng", "stress_ng", "default", "Docker engine", "1", "ready"]
+    ]

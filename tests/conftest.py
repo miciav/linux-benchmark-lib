@@ -2,32 +2,50 @@ from rich.console import Console
 from rich.table import Table
 from collections import defaultdict
 
+
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """
     Custom hook to print statistics by marker at the end of the test session.
     """
     _ = (exitstatus, config)  # unused in our reporting helper
     # Initialize statistics
-    marker_stats = defaultdict(lambda: {"passed": 0, "failed": 0, "skipped": 0, "total": 0})
-    
+    marker_stats = defaultdict(
+        lambda: {"passed": 0, "failed": 0, "skipped": 0, "total": 0}
+    )
+
     # Defined markers in pyproject.toml
     known_markers = {
-        "unit_runner", "unit_controller", "unit_ui", "unit_provisioner", 
-        "unit_analytics", "unit_plugins", "unit_baseline",
-        "inter_generic", "inter_docker", "inter_multipass", 
-        "inter_multipass_single", "inter_e2e", "inter_plugins", "inter_baseline",
-        "slow", "slowest"
+        "unit_runner",
+        "unit_controller",
+        "unit_ui",
+        "unit_provisioner",
+        "unit_analytics",
+        "unit_plugins",
+        "unit_baseline",
+        "inter_generic",
+        "inter_docker",
+        "inter_multipass",
+        "inter_multipass_single",
+        "inter_e2e",
+        "inter_plugins",
+        "inter_baseline",
+        "slow",
+        "slowest",
     }
 
     # Iterate over relevant outcomes in terminalreporter.stats
     # stats is a dict like {'passed': [Report, ...], 'failed': [...]}
-    marker_stats = defaultdict(lambda: {"passed": 0, "failed": 0, "skipped": 0, "total": 0, "duration": 0.0})
+    marker_stats = defaultdict(
+        lambda: {"passed": 0, "failed": 0, "skipped": 0, "total": 0, "duration": 0.0}
+    )
 
     for outcome in ["passed", "failed", "skipped"]:
         reports = terminalreporter.stats.get(outcome, [])
         for report in reports:
             # Only count the actual test call, or setup skips
-            if report.when == "call" or (report.when == "setup" and report.outcome == "skipped"):
+            if report.when == "call" or (
+                report.when == "setup" and report.outcome == "skipped"
+            ):
                 duration = getattr(report, "duration", 0.0)
                 # Check for markers
                 for marker in known_markers:
@@ -40,14 +58,16 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
 
     # Create a Rich table
     console = Console()
-    
+
     # Only print if we found something
     if not marker_stats:
         # Optional: uncomment to debug if needed, but for now just silence or simple msg
         # console.print("\n[dim]No statistics for known markers found.[/dim]")
         return
 
-    table = Table(title="Test Statistics by Marker", show_header=True, header_style="bold magenta")
+    table = Table(
+        title="Test Statistics by Marker", show_header=True, header_style="bold magenta"
+    )
     table.add_column("Marker", style="cyan")
     table.add_column("Total", justify="right")
     table.add_column("Passed", justify="right", style="green")
@@ -69,7 +89,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
                 str(stats["failed"]),
                 str(stats["skipped"]),
                 f"{stats['duration']:.2f}",
-                f"{avg_duration:.2f}"
+                f"{avg_duration:.2f}",
             )
 
     console.print("\n")

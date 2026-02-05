@@ -64,9 +64,17 @@ def test_format_float_handles_nan() -> None:
             "ram_usage_node": float("nan"),
             "ram_usage_node_pct": float("nan"),
             "power_usage_node": float("nan"),
-            "functions": {"figlet": {"cpu": float("nan"), "ram": float("nan"), "power": float("nan")}},
+            "functions": {
+                "figlet": {
+                    "cpu": float("nan"),
+                    "ram": float("nan"),
+                    "power": float("nan"),
+                }
+            },
         },
-        MetricsSnapshot(cpu=float("nan"), ram=float("nan"), ram_pct=float("nan"), power=float("nan")),
+        MetricsSnapshot(
+            cpu=float("nan"), ram=float("nan"), ram_pct=float("nan"), power=float("nan")
+        ),
         rest_seconds=0,
     )
 

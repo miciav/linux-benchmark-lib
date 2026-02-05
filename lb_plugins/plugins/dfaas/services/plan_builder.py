@@ -139,9 +139,7 @@ class DfaasPlanBuilder:
         for fn in self.config.functions:
             if fn.max_rate is None:
                 continue
-            rates_by_function[fn.name] = [
-                rate for rate in rates if rate <= fn.max_rate
-            ]
+            rates_by_function[fn.name] = [rate for rate in rates if rate <= fn.max_rate]
         return rates_by_function
 
     def build_configurations(

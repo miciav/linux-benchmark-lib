@@ -54,7 +54,9 @@ class Connection(ConnectionBase):
     def put_file(self, in_path: str, out_path: str) -> None:
         command = ["docker", "cp", in_path, f"{self.container_name}:{out_path}"]
         try:
-            subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
         except subprocess.CalledProcessError as exc:  # pragma: no cover - defensive
             raise AnsibleError(
                 f"Failed to copy {in_path} to {out_path}: {exc.stderr.decode()}"
@@ -65,7 +67,9 @@ class Connection(ConnectionBase):
         os.makedirs(target_dir, exist_ok=True)
         command = ["docker", "cp", f"{self.container_name}:{in_path}", out_path]
         try:
-            subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
         except subprocess.CalledProcessError as exc:  # pragma: no cover - defensive
             raise AnsibleError(
                 f"Failed to fetch {in_path} to {out_path}: {exc.stderr.decode()}"

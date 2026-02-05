@@ -10,7 +10,9 @@ from lb_ui.wiring.dependencies import UIContext
 
 def create_provision_app(ctx: UIContext) -> typer.Typer:
     """Build the provision Typer app (observability services)."""
-    app = typer.Typer(help="Install and configure observability services.", no_args_is_help=True)
+    app = typer.Typer(
+        help="Install and configure observability services.", no_args_is_help=True
+    )
 
     loki_grafana_app = typer.Typer(help="Provision Loki + Grafana together.")
 
@@ -41,12 +43,18 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
         grafana_admin_user: Optional[str] = typer.Option(
             None,
             "--grafana-admin-user",
-            help="Grafana admin user to create an API key automatically (default: admin).",
+            help=(
+                "Grafana admin user to create an API key automatically "
+                "(default: admin)."
+            ),
         ),
         grafana_admin_password: Optional[str] = typer.Option(
             None,
             "--grafana-admin-password",
-            help="Grafana admin password to create an API key automatically (default: admin).",
+            help=(
+                "Grafana admin password to create an API key automatically "
+                "(default: admin)."
+            ),
         ),
         grafana_token_name: Optional[str] = typer.Option(
             None,

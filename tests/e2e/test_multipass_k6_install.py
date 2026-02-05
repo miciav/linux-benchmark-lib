@@ -33,7 +33,9 @@ def _launch_vm(vm_name: str) -> None:
     )
 
 
-def _write_inventory(inventory_path: Path, vm_name: str, ip_addr: str, key_path: Path) -> None:
+def _write_inventory(
+    inventory_path: Path, vm_name: str, ip_addr: str, key_path: Path
+) -> None:
     inventory_path.write_text(
         "[k6]\n"
         f"{vm_name} ansible_host={ip_addr} ansible_user=ubuntu "
@@ -73,7 +75,14 @@ def test_multipass_k6_install(tmp_path: Path) -> None:
         env = make_test_ansible_env(tmp_path)
         env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
-        playbook = Path(__file__).resolve().parents[2] / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "setup_k6.yml"
+        playbook = (
+            Path(__file__).resolve().parents[2]
+            / "lb_plugins"
+            / "plugins"
+            / "peva_faas"
+            / "ansible"
+            / "setup_k6.yml"
+        )
         subprocess.run(
             ["ansible-playbook", "-i", str(inventory_path), str(playbook)],
             cwd=tmp_path,

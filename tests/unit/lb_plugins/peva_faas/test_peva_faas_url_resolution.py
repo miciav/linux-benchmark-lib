@@ -26,7 +26,9 @@ def test_resolve_prometheus_url_uses_k3s_host_template() -> None:
 
 
 def test_resolve_prometheus_url_replaces_localhost() -> None:
-    config = _make_config(k3s_host="192.168.1.50", prometheus_url="http://localhost:30411")
+    config = _make_config(
+        k3s_host="192.168.1.50", prometheus_url="http://localhost:30411"
+    )
     gen = DfaasGenerator(config)
     assert gen._resolve_prometheus_url() == "http://192.168.1.50:30411"
 

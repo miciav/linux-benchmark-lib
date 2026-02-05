@@ -7,6 +7,7 @@ from lb_runner.api import aggregate_cli
 
 pytestmark = pytest.mark.unit_runner
 
+
 def test_aggregate_cli_handles_numeric_columns():
     df = pd.DataFrame(
         [

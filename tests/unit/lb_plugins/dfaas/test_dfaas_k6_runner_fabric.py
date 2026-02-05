@@ -26,12 +26,12 @@ def k6_runner():
 
 
 class TestK6RunnerFabric:
-    
+
     @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
     def test_get_connection(self, mock_conn_cls, k6_runner):
         """Test Fabric connection initialization."""
         conn = k6_runner._get_connection()
-        
+
         mock_conn_cls.assert_called_once_with(
             host="1.2.3.4",
             user="testuser",
@@ -39,7 +39,7 @@ class TestK6RunnerFabric:
             connect_kwargs={
                 "key_filename": "/tmp/key",
                 "banner_timeout": 30,
-            }
+            },
         )
         assert conn == mock_conn_cls.return_value
 
@@ -47,7 +47,9 @@ class TestK6RunnerFabric:
     @patch("tempfile.NamedTemporaryFile")
     @patch("pathlib.Path.read_text")
     @patch("os.unlink")
-    def test_execute_success(self, mock_unlink, mock_read_text, mock_tempfile, mock_conn_cls, k6_runner):
+    def test_execute_success(
+        self, mock_unlink, mock_read_text, mock_tempfile, mock_conn_cls, k6_runner
+    ):
         """Test successful execution flow."""
         # Mock connection and run results
         mock_conn = mock_conn_cls.return_value
@@ -55,12 +57,12 @@ class TestK6RunnerFabric:
         mock_run_result.failed = False
         mock_run_result.exited = 0
         mock_conn.run.return_value = mock_run_result
-        
+
         # Mock temp files (script and summary download)
         mock_file = MagicMock()
         mock_file.name = "/tmp/local_script.js"
         mock_tempfile.return_value.__enter__.return_value = mock_file
-        
+
         # Mock summary content
         mock_read_text.return_value = json.dumps({"metrics": {"http_reqs": 100}})
 
@@ -100,10 +102,10 @@ class TestK6RunnerFabric:
         # 4. Verify Summary Download
         # Note: tempfile is called twice (script, then summary download)
         # We assume the second name generated is used for get
-        mock_conn.get.assert_called() # Exact path match is tricky with shared mock_file name
+        mock_conn.get.assert_called()  # Exact path match is tricky with shared mock_file name
 
         # 5. Verify Cleanup
-        assert mock_unlink.call_count == 2 # Script and Summary local temp files
+        assert mock_unlink.call_count == 2  # Script and Summary local temp files
         mock_conn.close.assert_called_once()
 
         # 6. Verify Result
@@ -114,17 +116,21 @@ class TestK6RunnerFabric:
     @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
     @patch("tempfile.NamedTemporaryFile")
     @patch("os.unlink")
-    def test_execute_failure_k6_error(self, mock_unlink, mock_tempfile, mock_conn_cls, k6_runner):
+    def test_execute_failure_k6_error(
+        self, mock_unlink, mock_tempfile, mock_conn_cls, k6_runner
+    ):
         """Test handling of k6 non-zero exit code."""
         mock_conn = mock_conn_cls.return_value
-        
+
         # First run (mkdir) succeeds
         # Second run (k6) fails
         success_result = MagicMock(failed=False)
-        failure_result = MagicMock(failed=True, exited=99, stdout="Error log", stderr="Fatal error")
-        
+        failure_result = MagicMock(
+            failed=True, exited=99, stdout="Error log", stderr="Fatal error"
+        )
+
         mock_conn.run.side_effect = [success_result, failure_result]
-        
+
         mock_file = MagicMock()
         mock_tempfile.return_value.__enter__.return_value = mock_file
 
@@ -138,16 +144,20 @@ class TestK6RunnerFabric:
     @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
     @patch("tempfile.NamedTemporaryFile")
     @patch("os.unlink")
-    def test_execute_failure_ssh_error(self, mock_unlink, mock_tempfile, mock_conn_cls, k6_runner):
+    def test_execute_failure_ssh_error(
+        self, mock_unlink, mock_tempfile, mock_conn_cls, k6_runner
+    ):
         """Test handling of SSH transport errors (UnexpectedExit)."""
         mock_conn = mock_conn_cls.return_value
-        
+
         # Simulate SSH dropping during k6 run
         mock_conn.run.side_effect = [
-            MagicMock(), # mkdir
-            UnexpectedExit(MagicMock(command="k6 run", exited=255, stderr="Connection reset")) # k6
+            MagicMock(),  # mkdir
+            UnexpectedExit(
+                MagicMock(command="k6 run", exited=255, stderr="Connection reset")
+            ),  # k6
         ]
-        
+
         mock_file = MagicMock()
         mock_tempfile.return_value.__enter__.return_value = mock_file
 
@@ -164,10 +174,10 @@ class TestK6RunnerFabric:
         """Test log streaming callback."""
         mock_callback = MagicMock()
         k6_runner._log_callback = mock_callback
-        
+
         chunk = "Line 1\nLine 2  "
         k6_runner._stream_handler(chunk)
-        
+
         assert mock_callback.call_count == 2
         mock_callback.assert_any_call("k6 remote: Line 1")
         mock_callback.assert_any_call("k6 remote: Line 2")

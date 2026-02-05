@@ -124,9 +124,7 @@ def _resolve_poetry_entrypoint(root: Path, poetry: Any) -> Optional[Path]:
     return _resolve_poetry_name(root, poetry)
 
 
-def _resolve_entrypoint_mapping(
-    root: Path, entry_points: Any
-) -> Optional[Path]:
+def _resolve_entrypoint_mapping(root: Path, entry_points: Any) -> Optional[Path]:
     if not isinstance(entry_points, dict):
         return None
     workload_group = entry_points.get("linux_benchmark.workloads")
@@ -135,9 +133,7 @@ def _resolve_entrypoint_mapping(
     return _resolve_entrypoint_values(root, workload_group.values())
 
 
-def _resolve_entrypoint_values(
-    root: Path, values: Iterable[Any]
-) -> Optional[Path]:
+def _resolve_entrypoint_values(root: Path, values: Iterable[Any]) -> Optional[Path]:
     for value in values:
         if isinstance(value, str):
             target = _resolve_entrypoint_module(root, value)
@@ -236,38 +232,6 @@ def _load_module_from_spec(
         logger.error("Error executing module %s: %s", path, exc)
         return None
     return module
-
-
-def _extract_module_candidates(module: Any, source: str) -> list[Any]:
-    getter = getattr(module, "get_plugins", None)
-    if callable(getter):
-        return _normalize_plugins(getter())
-    if hasattr(module, "PLUGINS"):
-        return _normalize_plugins(getattr(module, "PLUGINS"))
-    if hasattr(module, "PLUGIN"):
-        return [getattr(module, "PLUGIN")]
-    logger.debug(
-        "Skipping %s: no PLUGIN/PLUGINS/get_plugins exports found", source
-    )
-    return []
-
-
-def _normalize_plugins(discovered: Any) -> list[Any]:
-    if isinstance(discovered, list):
-        return discovered
-    return [discovered]
-
-
-def _register_candidates(
-    candidates: Iterable[Any], register: Callable[[Any], None]
-) -> int:
-    registered = 0
-    for plugin in candidates:
-        if plugin is None:
-            continue
-        register(plugin)
-        registered += 1
-    return registered
 
 
 def _module_name_for_target(root: Path, target: Path) -> str:
@@ -384,9 +348,7 @@ def _resolve_module_candidate(candidate: Path) -> Optional[Path]:
     return None
 
 
-def _iter_poetry_package_paths(
-    root: Path, packages: list[Any]
-) -> Iterable[Path]:
+def _iter_poetry_package_paths(root: Path, packages: list[Any]) -> Iterable[Path]:
     for entry in packages:
         package_path = _poetry_package_path(root, entry)
         if package_path:

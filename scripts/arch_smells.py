@@ -8,16 +8,30 @@ from pathlib import Path
 
 
 IO_IMPORT_HINTS = {
-    "requests", "httpx",
-    "sqlalchemy", "psycopg", "pymongo", "redis",
-    "boto3", "google", "azure",
-    "subprocess", "socket", "paramiko",
-    "fastapi", "flask", "django",
-    "typer", "click",
-    "pathlib", "os",
+    "requests",
+    "httpx",
+    "sqlalchemy",
+    "psycopg",
+    "pymongo",
+    "redis",
+    "boto3",
+    "google",
+    "azure",
+    "subprocess",
+    "socket",
+    "paramiko",
+    "fastapi",
+    "flask",
+    "django",
+    "typer",
+    "click",
+    "pathlib",
+    "os",
 }
 
-MANAGER_NAME_RE = re.compile(r"(manager|service|controller|orchestrator|handler|pipeline)", re.I)
+MANAGER_NAME_RE = re.compile(
+    r"(manager|service|controller|orchestrator|handler|pipeline)", re.I
+)
 
 
 @dataclass(frozen=True)
@@ -52,11 +66,7 @@ def _should_skip(path: Path) -> bool:
 
 
 def py_files_under(pkg: Path) -> list[Path]:
-    return [
-        p
-        for p in pkg.rglob("*.py")
-        if p.is_file() and not _should_skip(p)
-    ]
+    return [p for p in pkg.rglob("*.py") if p.is_file() and not _should_skip(p)]
 
 
 def top_level_imports(tree: ast.AST) -> set[str]:
@@ -157,13 +167,17 @@ def main(pkg_dir: str) -> None:
     out_dir.mkdir(exist_ok=True)
 
     hotspots = [ci for ci in all_infos if ci.suspicious]
-    hotspots.sort(key=lambda x: (len(x.suspicious), x.n_methods, x.init_params, x.n_imports), reverse=True)
+    hotspots.sort(
+        key=lambda x: (len(x.suspicious), x.n_methods, x.init_params, x.n_imports),
+        reverse=True,
+    )
 
     (out_dir / "hotspots.txt").write_text(
         "\n".join(
             f"{h.file}:{h.name} | methods={h.n_methods} init_params={h.init_params} imports={h.n_imports} flags={list(h.suspicious)}"
             for h in hotspots[:500]
-        ) + "\n",
+        )
+        + "\n",
         encoding="utf-8",
     )
 
@@ -185,14 +199,17 @@ def main(pkg_dir: str) -> None:
                 f"  common_methods={sorted(set(a.methods) & set(b.methods))[:30]}\n"
             )
             for sim, a, b in pairs[:500]
-        ) + "\n",
+        )
+        + "\n",
         encoding="utf-8",
     )
 
     print("Wrote:")
     print(" - arch_report/hotspots.txt")
     print(" - arch_report/duplication_candidates.txt")
-    print(f"Classes analyzed: {len(all_infos)} | hotspots: {len(hotspots)} | dup_pairs: {len(pairs)}")
+    print(
+        f"Classes analyzed: {len(all_infos)} | hotspots: {len(hotspots)} | dup_pairs: {len(pairs)}"
+    )
 
 
 if __name__ == "__main__":

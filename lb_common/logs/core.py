@@ -56,9 +56,7 @@ def build_jsonl_handler(
 ) -> JsonlLogHandler:
     """Create a JSONL file handler using defaults and env overrides."""
     resolved_template = (
-        path_template
-        or os.environ.get("LB_JSONL_LOG_PATH")
-        or DEFAULT_JSONL_TEMPLATE
+        path_template or os.environ.get("LB_JSONL_LOG_PATH") or DEFAULT_JSONL_TEMPLATE
     )
     resolved_max_bytes = max_bytes
     if resolved_max_bytes is None:
@@ -305,9 +303,7 @@ def _resolve_loki_labels(labels: Mapping[str, Any] | None) -> dict[str, Any]:
     return resolved_labels
 
 
-def _resolve_env_value(
-    value: Any, env_key: str, parser: Any
-) -> Any:
+def _resolve_env_value(value: Any, env_key: str, parser: Any) -> Any:
     if value is not None:
         return value
     return parser(os.environ.get(env_key))

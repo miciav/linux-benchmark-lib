@@ -60,9 +60,7 @@ class RunnerLogManager:
             tags=tags,
         )
         if self._jsonl_handler:
-            self._jsonl_handler.addFilter(
-                _ExcludeLoggerPrefixFilter(("lb_plugins.",))
-            )
+            self._jsonl_handler.addFilter(_ExcludeLoggerPrefixFilter(("lb_plugins.",)))
         self._attach_loki(
             run_id,
             workload=workload,
@@ -122,9 +120,7 @@ class RunnerLogManager:
                     tags={"phase": phase} if phase else None,
                 )
             )
-            self._loki_handler.addFilter(
-                _ExcludeLoggerPrefixFilter(("lb_plugins.",))
-            )
+            self._loki_handler.addFilter(_ExcludeLoggerPrefixFilter(("lb_plugins.",)))
 
     def sync_loki_env(self) -> None:
         if not self.config.loki.enabled:

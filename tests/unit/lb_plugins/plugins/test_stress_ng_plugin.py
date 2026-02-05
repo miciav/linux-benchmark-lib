@@ -2,7 +2,12 @@ import subprocess
 
 import pytest
 
-from lb_plugins.api import CommandGenerator, StressNGConfig, StressNGGenerator, StressNGPlugin
+from lb_plugins.api import (
+    CommandGenerator,
+    StressNGConfig,
+    StressNGGenerator,
+    StressNGPlugin,
+)
 
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 

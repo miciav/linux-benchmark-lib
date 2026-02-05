@@ -29,8 +29,11 @@ from lb_runner.api import (
 )
 from lb_controller.api import AnsibleRunnerExecutor
 from lb_controller.api import BenchmarkController, ControllerOptions
-from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
-from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
+from tests.helpers.multipass import (
+    get_intensity,
+    make_test_ansible_env,
+    stage_private_key,
+)
 
 pytestmark = [
     pytest.mark.inter_e2e,
@@ -39,13 +42,16 @@ pytestmark = [
     pytest.mark.inter_generic,
     pytest.mark.inter_multipass_single,
 ]
+pytest_plugins = ["tests.e2e.test_multipass_benchmark"]
 
 STRICT_MULTIPASS_SETUP = os.environ.get("LB_STRICT_MULTIPASS_SETUP", "").lower() in {
     "1",
     "true",
     "yes",
 }
-STRICT_MULTIPASS_ARTIFACTS = os.environ.get("LB_STRICT_MULTIPASS_ARTIFACTS", "").lower() in {
+STRICT_MULTIPASS_ARTIFACTS = os.environ.get(
+    "LB_STRICT_MULTIPASS_ARTIFACTS", ""
+).lower() in {
     "1",
     "true",
     "yes",
@@ -58,7 +64,9 @@ def _handle_missing_artifacts(msg: str) -> None:
     pytest.skip(msg)
 
 
-def _build_host_configs(multipass_vms: List[Dict], staged_key: Path) -> List[RemoteHostConfig]:
+def _build_host_configs(
+    multipass_vms: List[Dict], staged_key: Path
+) -> List[RemoteHostConfig]:
     return [
         RemoteHostConfig(
             name=vm["name"],
@@ -117,7 +125,9 @@ def _run_single_workload(
 ) -> None:
     intensity = get_intensity()
     ansible_dir = tmp_path / f"ansible_data_{workload}"
-    staged_key = stage_private_key(Path(multipass_vms[0]["key_path"]), ansible_dir / "keys")
+    staged_key = stage_private_key(
+        Path(multipass_vms[0]["key_path"]), ansible_dir / "keys"
+    )
     host_configs = _build_host_configs(multipass_vms, staged_key)
 
     output_dir = tmp_path / f"{workload}_results"
@@ -147,7 +157,15 @@ def _run_single_workload(
         ),
     )
 
-    os.environ.update(make_test_ansible_env(ansible_dir, roles_path=Path(__file__).parents[2] / "lb_controller" / "ansible" / "roles"))
+    os.environ.update(
+        make_test_ansible_env(
+            ansible_dir,
+            roles_path=Path(__file__).parents[2]
+            / "lb_controller"
+            / "ansible"
+            / "roles",
+        )
+    )
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)
@@ -167,9 +185,18 @@ def _run_single_workload(
             pytest.fail(msg)
         pytest.skip(msg)
 
-    assert summary.phases.get(f"setup_{workload}") and summary.phases[f"setup_{workload}"].success
-    assert summary.phases.get(f"run_{workload}") and summary.phases[f"run_{workload}"].success
-    assert summary.phases.get(f"collect_{workload}") and summary.phases[f"collect_{workload}"].success
+    assert (
+        summary.phases.get(f"setup_{workload}")
+        and summary.phases[f"setup_{workload}"].success
+    )
+    assert (
+        summary.phases.get(f"run_{workload}")
+        and summary.phases[f"run_{workload}"].success
+    )
+    assert (
+        summary.phases.get(f"collect_{workload}")
+        and summary.phases[f"collect_{workload}"].success
+    )
 
     for vm in multipass_vms:
         host_output_dir = summary.per_host_output[vm["name"]]
@@ -184,7 +211,9 @@ def test_multipass_stress_ng_three_reps(multipass_vm, tmp_path: Path) -> None:
         plugin="stress_ng",
         options=stress_cfg.model_dump(mode="json"),
     )
-    _run_single_workload("stress_ng", workload_cfg, {"stress_ng": stress_cfg}, multipass_vm, tmp_path)
+    _run_single_workload(
+        "stress_ng", workload_cfg, {"stress_ng": stress_cfg}, multipass_vm, tmp_path
+    )
 
 
 def test_multipass_dd_three_reps(multipass_vm, tmp_path: Path) -> None:

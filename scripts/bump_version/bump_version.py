@@ -25,14 +25,16 @@ import questionary
 from questionary import Style
 
 # Custom style for questionary
-CUSTOM_STYLE = Style([
-    ("qmark", "fg:cyan bold"),
-    ("question", "bold"),
-    ("answer", "fg:cyan bold"),
-    ("pointer", "fg:cyan bold"),
-    ("highlighted", "fg:cyan bold"),
-    ("selected", "fg:cyan"),
-])
+CUSTOM_STYLE = Style(
+    [
+        ("qmark", "fg:cyan bold"),
+        ("question", "bold"),
+        ("answer", "fg:cyan bold"),
+        ("pointer", "fg:cyan bold"),
+        ("highlighted", "fg:cyan bold"),
+        ("selected", "fg:cyan"),
+    ]
+)
 
 BumpType = Literal["patch", "minor", "major"]
 
@@ -139,7 +141,9 @@ def check_gh_cli() -> bool:
 
 def generate_release_notes(version: str, commits: list[str], tag: str | None) -> str:
     """Generate markdown release notes."""
-    bullet_commits = "\n".join(f"- {c}" for c in commits) if commits else "- No commits found"
+    bullet_commits = (
+        "\n".join(f"- {c}" for c in commits) if commits else "- No commits found"
+    )
 
     return f"""# Release {version}
 
@@ -167,7 +171,9 @@ def update_pyproject(repo_root: Path, new_version: str) -> None:
     pyproject.write_text(new_text)
 
 
-def run_git_commands(repo_root: Path, new_version: str, release_notes: str, dry_run: bool) -> bool:
+def run_git_commands(
+    repo_root: Path, new_version: str, release_notes: str, dry_run: bool
+) -> bool:
     """Execute git commands for release. Returns True on success."""
     tag = f"v{new_version}"
 
@@ -394,12 +400,22 @@ def main() -> int:
     )
 
     bump_group = parser.add_mutually_exclusive_group()
-    bump_group.add_argument("--patch", action="store_true", help="Bump patch version (X.Y.Z -> X.Y.Z+1)")
-    bump_group.add_argument("--minor", action="store_true", help="Bump minor version (X.Y.Z -> X.Y+1.0)")
-    bump_group.add_argument("--major", action="store_true", help="Bump major version (X.Y.Z -> X+1.0.0)")
+    bump_group.add_argument(
+        "--patch", action="store_true", help="Bump patch version (X.Y.Z -> X.Y.Z+1)"
+    )
+    bump_group.add_argument(
+        "--minor", action="store_true", help="Bump minor version (X.Y.Z -> X.Y+1.0)"
+    )
+    bump_group.add_argument(
+        "--major", action="store_true", help="Bump major version (X.Y.Z -> X+1.0.0)"
+    )
 
-    parser.add_argument("--dry-run", action="store_true", help="Preview actions without executing")
-    parser.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview actions without executing"
+    )
+    parser.add_argument(
+        "--yes", "-y", action="store_true", help="Skip confirmation prompt"
+    )
     parser.add_argument("--notes", type=Path, help="Custom release notes file")
 
     args = parser.parse_args()
@@ -413,11 +429,17 @@ def main() -> int:
 
     # Determine mode
     if args.patch:
-        return non_interactive_mode(repo_root, "patch", args.dry_run, args.yes, args.notes)
+        return non_interactive_mode(
+            repo_root, "patch", args.dry_run, args.yes, args.notes
+        )
     elif args.minor:
-        return non_interactive_mode(repo_root, "minor", args.dry_run, args.yes, args.notes)
+        return non_interactive_mode(
+            repo_root, "minor", args.dry_run, args.yes, args.notes
+        )
     elif args.major:
-        return non_interactive_mode(repo_root, "major", args.dry_run, args.yes, args.notes)
+        return non_interactive_mode(
+            repo_root, "major", args.dry_run, args.yes, args.notes
+        )
     else:
         # Interactive mode
         return interactive_mode(repo_root, args.dry_run, args.notes)

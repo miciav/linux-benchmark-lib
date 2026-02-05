@@ -26,7 +26,7 @@ def test_run_event_defaults():
     assert event.level == "INFO"
     assert event.error_type is None
     assert event.error_context is None
-    
+
     as_dict = event.to_dict()
     assert as_dict["type"] == "status"
     assert as_dict["level"] == "INFO"
@@ -42,22 +42,22 @@ def test_lb_event_log_handler_emit(capsys):
         host="node1",
         workload="stress_ng",
         repetition=2,
-        total_repetitions=5
+        total_repetitions=5,
     )
-    
+
     logger = logging.getLogger("test_logger")
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
-    
+
     logger.info("Test message")
-    
+
     captured = capsys.readouterr()
     stdout = captured.out.strip()
-    
+
     assert stdout.startswith("LB_EVENT")
     payload_str = stdout.replace("LB_EVENT ", "")
     payload = json.loads(payload_str)
-    
+
     assert payload["run_id"] == "run-123"
     assert payload["host"] == "node1"
     assert payload["workload"] == "stress_ng"
@@ -75,7 +75,7 @@ def test_lb_event_log_handler_emit(capsys):
 def test_ansible_output_formatter_log_parsing():
     """Verify AnsibleOutputFormatter correctly parses log events."""
     formatter = AnsibleOutputFormatter()
-    
+
     # Construct a raw line as it would appear from Ansible stdout
     payload = {
         "run_id": "r1",
@@ -86,20 +86,20 @@ def test_ansible_output_formatter_log_parsing():
         "status": "running",
         "type": "log",
         "level": "WARNING",
-        "message": "Something went wrong"
+        "message": "Something went wrong",
     }
     line = f"LB_EVENT {json.dumps(payload)}"
-    
+
     # Verify parsing helper first
     extracted = _extract_lb_event_data(line)
     assert extracted is not None
     assert extracted["type"] == "log"
-    
+
     # Verify formatter logic
     result = formatter._format_progress(line)
     assert result is not None
     phase, message, host = result
-    
+
     assert phase == "run w1"
     assert message == "[WARNING] Something went wrong"
     assert host == "h1"
@@ -109,20 +109,20 @@ def test_ansible_output_formatter_log_parsing():
 def test_ansible_output_formatter_mixed_input():
     """Verify parser handles mixed Ansible output correctly."""
     formatter = AnsibleOutputFormatter()
-    
+
     # Normal status event
     status_payload = {
         "host": "h1",
         "workload": "w1",
         "repetition": 1,
         "status": "running",
-        "type": "status"
+        "type": "status",
     }
     status_line = f"LB_EVENT {json.dumps(status_payload)}"
-    
+
     res_status = formatter._format_progress(status_line)
     assert res_status == ("run w1", "1/? running", "h1")
-    
+
     # Log event inside an Ansible task output line (simulated)
     log_payload = {
         "host": "h1",
@@ -131,10 +131,10 @@ def test_ansible_output_formatter_mixed_input():
         "status": "running",
         "type": "log",
         "level": "ERROR",
-        "message": "Critical failure"
+        "message": "Critical failure",
     }
     # Ansible often wraps output in quotes or escapes
-    log_line = f'msg: LB_EVENT {json.dumps(log_payload)}'
+    log_line = f"msg: LB_EVENT {json.dumps(log_payload)}"
 
     res_log = formatter._format_progress(log_line)
     assert res_log == ("run w1", "[ERROR] Critical failure", "h1")

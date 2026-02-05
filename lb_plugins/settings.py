@@ -30,8 +30,7 @@ class SupportsWorkloads(Protocol):
 class WorkloadFactory(Protocol):
     """Factory for workload config objects."""
 
-    def __call__(self, *, plugin: str, options: Dict[str, Any]) -> Any:
-        ...
+    def __call__(self, *, plugin: str, options: Dict[str, Any]) -> Any: ...
 
 
 def _default_registry() -> PluginRegistry:
@@ -152,9 +151,7 @@ def _resolve_pydantic_config_cls(
 
 def _is_pydantic_config_cls(config_cls: Any) -> bool:
     return bool(
-        config_cls
-        and isclass(config_cls)
-        and issubclass(config_cls, BaseModel)
+        config_cls and isclass(config_cls) and issubclass(config_cls, BaseModel)
     )
 
 

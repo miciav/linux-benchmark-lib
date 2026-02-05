@@ -10,7 +10,6 @@ from lb_controller.api import RunJournal, RunStatus
 pytestmark = pytest.mark.unit_controller
 
 
-
 def _base_config() -> BenchmarkConfig:
     cfg = BenchmarkConfig(
         remote_hosts=[RemoteHostConfig(name="node1", address="127.0.0.1")],

@@ -29,7 +29,9 @@ def test_local_runner_requires_registry(tmp_path: Path) -> None:
         LocalRunner(cfg)  # type: ignore[call-arg]
 
 
-def test_local_runner_merges_results_across_repetition_override_calls(tmp_path: Path) -> None:
+def test_local_runner_merges_results_across_repetition_override_calls(
+    tmp_path: Path,
+) -> None:
     cfg = BenchmarkConfig(
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",
@@ -56,10 +58,14 @@ def test_local_runner_merges_results_across_repetition_override_calls(tmp_path: 
     run_id = "run-merge-test"
 
     runner1 = LocalRunner(cfg, registry=registry)
-    assert runner1.run_benchmark("dummy", repetition_override=1, total_repetitions=2, run_id=run_id)
+    assert runner1.run_benchmark(
+        "dummy", repetition_override=1, total_repetitions=2, run_id=run_id
+    )
 
     runner2 = LocalRunner(cfg, registry=registry)
-    assert runner2.run_benchmark("dummy", repetition_override=2, total_repetitions=2, run_id=run_id)
+    assert runner2.run_benchmark(
+        "dummy", repetition_override=2, total_repetitions=2, run_id=run_id
+    )
 
     results_path = cfg.output_dir / run_id / "dummy" / "dummy_results.json"
     data = json.loads(results_path.read_text(encoding="utf-8"))

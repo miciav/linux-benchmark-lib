@@ -31,9 +31,7 @@ class TestAnalyticsViewModel:
         run.created_at = datetime(2024, 1, 15, 10, 30, 0)
         return run
 
-    def test_initial_state(
-        self, mock_services: tuple[MagicMock, MagicMock]
-    ) -> None:
+    def test_initial_state(self, mock_services: tuple[MagicMock, MagicMock]) -> None:
         """Test initial viewmodel state."""
         from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
 

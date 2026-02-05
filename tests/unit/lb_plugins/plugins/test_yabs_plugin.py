@@ -10,7 +10,6 @@ from lb_plugins.api import YabsConfig, YabsGenerator, YabsPlugin
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
 
-
 def test_yabs_defaults():
     cfg = YabsConfig()
     plugin = YabsPlugin()
@@ -39,7 +38,9 @@ def test_yabs_paths_exist():
 
 
 def test_yabs_generator_builds_command(monkeypatch, tmp_path):
-    cfg = YabsConfig(skip_disk=True, skip_network=True, skip_geekbench=True, output_dir=tmp_path)
+    cfg = YabsConfig(
+        skip_disk=True, skip_network=True, skip_geekbench=True, output_dir=tmp_path
+    )
     gen = YabsGenerator(cfg)
 
     run_calls: list[list[str]] = []
@@ -77,7 +78,9 @@ def test_yabs_generator_builds_command(monkeypatch, tmp_path):
 
 
 def test_yabs_retries_without_cleanup_flag(monkeypatch, tmp_path):
-    cfg = YabsConfig(skip_disk=True, skip_network=True, skip_geekbench=True, output_dir=tmp_path)
+    cfg = YabsConfig(
+        skip_disk=True, skip_network=True, skip_geekbench=True, output_dir=tmp_path
+    )
     gen = YabsGenerator(cfg)
 
     run_calls: list[list[str]] = []

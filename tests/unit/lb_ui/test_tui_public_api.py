@@ -1,6 +1,6 @@
 import pytest
 
-import lb_ui.tui as tui
+from lb_ui import tui
 
 pytestmark = pytest.mark.unit_ui
 

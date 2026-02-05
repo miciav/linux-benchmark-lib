@@ -35,9 +35,7 @@ class RunDirectoryPreparer:
 
     config: BenchmarkConfig
 
-    def prepare(
-        self, run_id: str
-    ) -> tuple[Path, Path, Path, dict[str, Path]]:
+    def prepare(self, run_id: str) -> tuple[Path, Path, Path, dict[str, Path]]:
         output_root, report_root, data_export_root = prepare_run_dirs(
             self.config, run_id
         )

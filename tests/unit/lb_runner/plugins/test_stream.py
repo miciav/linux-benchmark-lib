@@ -17,6 +17,7 @@ from lb_plugins.api import (
 
 pytestmark = pytest.mark.unit_runner
 
+
 @pytest.fixture
 def stream_config():
     return StreamConfig()
@@ -85,7 +86,7 @@ def test_build_command_with_numactl(stream_config):
     stream_config.numactl_args = ["--physcpubind=0", "--localalloc"]
     gen = StreamGenerator(stream_config)
     gen.stream_path = Path("/mock/stream")
-    
+
     cmd = gen._build_command()
     assert cmd == ["numactl", "--physcpubind=0", "--localalloc", "/mock/stream"]
 
@@ -105,7 +106,7 @@ def test_launcher_env(stream_config):
 def test_validate_environment_missing_gcc_for_recompile(mock_which, stream_config):
     stream_config.recompile = True
     mock_which.return_value = None  # gcc missing
-    
+
     gen = StreamGenerator(stream_config)
     assert gen._validate_environment() is False
 
@@ -113,8 +114,10 @@ def test_validate_environment_missing_gcc_for_recompile(mock_which, stream_confi
 @patch("shutil.which")
 def test_validate_environment_missing_numactl(mock_which, stream_config):
     stream_config.use_numactl = True
-    mock_which.side_effect = lambda cmd: "/usr/bin/gcc" if cmd == "gcc" else None # numactl missing
-    
+    mock_which.side_effect = lambda cmd: (
+        "/usr/bin/gcc" if cmd == "gcc" else None
+    )  # numactl missing
+
     gen = StreamGenerator(stream_config)
     assert gen._validate_environment() is False
 
@@ -127,17 +130,19 @@ def test_compile_binary_success(_mock_copy, mock_run, stream_generator, tmp_path
     stream_generator.workspace_bin_dir = tmp_path / "bin"
     stream_generator.workspace_src_dir.mkdir(parents=True)
     stream_generator.workspace_bin_dir.mkdir(parents=True)
-    
+
     # Create a dummy output file to simulate successful compilation
     output_path = stream_generator.workspace_bin_dir / "stream"
     output_path.touch()
 
     # Mock upstream file existence check
-    with patch.object(StreamGenerator, "_upstream_stream_c", return_value=Path("/upstream/stream.c")):
+    with patch.object(
+        StreamGenerator, "_upstream_stream_c", return_value=Path("/upstream/stream.c")
+    ):
         mock_run.return_value = MagicMock(returncode=0)
-        
+
         out_path = stream_generator._compile_binary_for_compiler("gcc", output_path)
-        
+
         assert out_path == output_path
         assert mock_run.called
         args = mock_run.call_args[0][0]
@@ -149,17 +154,19 @@ def test_compile_binary_success(_mock_copy, mock_run, stream_generator, tmp_path
 def test_compile_binary_failure(mock_run, stream_generator, tmp_path):
     stream_generator.workspace_src_dir = tmp_path / "src"
     stream_generator.workspace_bin_dir = tmp_path / "bin"
-    
-    with patch.object(StreamGenerator, "_upstream_stream_c", return_value=Path("/upstream/stream.c")):
+
+    with patch.object(
+        StreamGenerator, "_upstream_stream_c", return_value=Path("/upstream/stream.c")
+    ):
         with patch("shutil.copy2"):
             # Simulate gcc failure
             mock_run.return_value = MagicMock(returncode=1, stderr="Compilation error")
-            
+
             with pytest.raises(RuntimeError) as exc:
                 stream_generator._compile_binary_for_compiler(
                     "gcc", stream_generator.workspace_bin_dir / "stream"
                 )
-            
+
             assert "Failed to compile STREAM" in str(exc.value)
 
 
@@ -176,7 +183,7 @@ def test_ensure_binary_uses_system_if_available(mock_access, stream_generator):
 
     with patch.object(Path, "exists", side_effect=side_effect, autospec=True):
         mock_access.return_value = True
-        
+
         assert (
             stream_generator._ensure_binary_for_compiler("gcc", None, multi=False)
             == stream_generator.system_stream_path
@@ -190,7 +197,8 @@ def test_ensure_binary_fails_if_nothing_available(mock_access, stream_generator)
     # Mock nothing exists
     with patch.object(Path, "exists", return_value=False):
         assert (
-            stream_generator._ensure_binary_for_compiler("gcc", None, multi=False) is None
+            stream_generator._ensure_binary_for_compiler("gcc", None, multi=False)
+            is None
         )
         assert "stream binary missing" in stream_generator._result["error"]
 
@@ -334,6 +342,8 @@ Solution Validates: avg error less than 1.000000e-13 on all three arrays
 """
     table = gen._extract_result_table(sample)  # type: ignore[attr-defined]
     assert table is not None
-    assert table.startswith("-------------------------------------------------------------")
+    assert table.startswith(
+        "-------------------------------------------------------------"
+    )
     assert "Function    Best Rate MB/s" in table
     assert "Triad:" in table

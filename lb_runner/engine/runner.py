@@ -31,12 +31,13 @@ from lb_runner.services.result_persister import ResultPersister
 from lb_runner.engine.stop_context import should_stop, stop_context
 from lb_runner.engine.stop_token import StopToken
 from lb_runner.engine.metrics import MetricManager
+
 logger = logging.getLogger(__name__)
 
 
 class LocalRunner:
     """Local agent for executing benchmarks on a single node."""
-    
+
     def __init__(
         self,
         config: BenchmarkConfig,
@@ -48,7 +49,7 @@ class LocalRunner:
     ):
         """
         Initialize the local runner.
-        
+
         Args:
             config: Benchmark configuration
         """
@@ -67,8 +68,12 @@ class LocalRunner:
         self._scope_manager = RunScopeManager(self.config, logger)
         self._result_persister = ResultPersister()
         self._current_run_id: Optional[str] = None
-        self._host_name = host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
-        self._progress = RunProgressEmitter(host=self._host_name, callback=progress_callback)
+        self._host_name = (
+            host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
+        )
+        self._progress = RunProgressEmitter(
+            host=self._host_name, callback=progress_callback
+        )
         self._stop_token = stop_token
         self._output_manager = RunnerOutputManager(
             config=self.config,
@@ -95,15 +100,17 @@ class LocalRunner:
         registry: PluginRegistry | RunnerRegistry,
         collector_registry: CollectorRegistry | None,
     ) -> RunnerRegistry | Any:
-        if hasattr(registry, "create_collectors") and hasattr(registry, "create_generator"):
+        if hasattr(registry, "create_collectors") and hasattr(
+            registry, "create_generator"
+        ):
             return registry
         collectors = collector_registry or CollectorRegistry(builtin_collectors())
         return RunnerRegistry(registry, collectors)
-        
+
     def collect_system_info(self) -> Dict[str, Any]:
         """
         Collect detailed information about the system.
-        
+
         Returns:
             Dictionary containing system information
         """
@@ -119,7 +126,7 @@ class LocalRunner:
     ) -> bool:
         """
         Run a complete benchmark test.
-        
+
         Args:
             test_type: Name of the workload to run (plugin id)
             repetition_override: When set, run only this repetition index.
@@ -156,7 +163,9 @@ class LocalRunner:
                 success_overall = success_overall and success
 
                 if idx < len(reps) - 1 and self.config.cooldown_seconds > 0:
-                    logger.info("Cooldown period: %s seconds", self.config.cooldown_seconds)
+                    logger.info(
+                        "Cooldown period: %s seconds", self.config.cooldown_seconds
+                    )
                     time.sleep(self.config.cooldown_seconds)
 
                 if should_stop(self._stop_token):
@@ -205,7 +214,7 @@ class LocalRunner:
 
         logger.info("Starting repetition %s/%s", repetition, total_reps)
         config_input = self._planner.resolve_config_input(workload_cfg, plugin)
-        
+
         context = RunnerContext(
             run_id=self._current_run_id,
             config=self.config,

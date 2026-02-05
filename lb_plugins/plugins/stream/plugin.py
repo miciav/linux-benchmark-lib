@@ -41,9 +41,7 @@ class StreamConfig(BasePluginConfig):
     stream_array_size: int = Field(
         default=DEFAULT_STREAM_ARRAY_SIZE,
         gt=0,
-        description=(
-            "STREAM_ARRAY_SIZE (compile-time); number of elements per array"
-        ),
+        description=("STREAM_ARRAY_SIZE (compile-time); number of elements per array"),
     )
     ntimes: int = Field(
         default=DEFAULT_NTIMES,
@@ -84,9 +82,7 @@ class StreamConfig(BasePluginConfig):
     )
     compilers: List[str] = Field(
         default_factory=lambda: ["gcc"],
-        description=(
-            "Compilers to run (e.g., ['gcc'], ['icc'], ['gcc', 'icc'])"
-        ),
+        description=("Compilers to run (e.g., ['gcc'], ['icc'], ['gcc', 'icc'])"),
     )
     allow_missing_compilers: bool = Field(
         default=False,
@@ -96,9 +92,7 @@ class StreamConfig(BasePluginConfig):
     @model_validator(mode="after")
     def normalize_compilers(self) -> "StreamConfig":
         compilers = [
-            str(item).strip().lower()
-            for item in self.compilers
-            if str(item).strip()
+            str(item).strip().lower() for item in self.compilers if str(item).strip()
         ]
         unique: list[str] = []
         for compiler in compilers:
@@ -169,9 +163,7 @@ class StreamGenerator(CommandGenerator):
         return None
 
     @staticmethod
-    def _iter_oneapi_candidates(
-        roots: list[Path], preferred: list[str]
-    ) -> list[Path]:
+    def _iter_oneapi_candidates(roots: list[Path], preferred: list[str]) -> list[Path]:
         candidates: list[Path] = []
         for root in roots:
             for bin_dir in ("linux/bin/intel64", "linux/bin"):
@@ -271,9 +263,7 @@ class StreamGenerator(CommandGenerator):
         if not missing:
             return compilers
         if self.config.allow_missing_compilers:
-            logger.warning(
-                "Skipping missing STREAM compilers: %s", ", ".join(missing)
-            )
+            logger.warning("Skipping missing STREAM compilers: %s", ", ".join(missing))
             available = [c for c in compilers if c not in missing]
             if not available:
                 logger.error("No available compilers remain for STREAM")
@@ -584,21 +574,21 @@ class StreamGenerator(CommandGenerator):
         overall_rc = 0 if not failures else failures[0].get("returncode") or 1
         result = {
             "returncode": overall_rc,
-            "command": "stream (multi)"
-            if multi
-            else compiler_results[0].get("command"),
+            "command": (
+                "stream (multi)" if multi else compiler_results[0].get("command")
+            ),
             "stream_version": STREAM_VERSION,
             "upstream_commit": UPSTREAM_COMMIT,
             "stream_array_size": self.config.stream_array_size,
             "ntimes": self.config.ntimes,
             "threads": self.config.threads,
             "compiler_results": compiler_results,
-            "compiler": compiler_results[0].get("compiler")
-            if compiler_results
-            else None,
-            "compiler_bin": compiler_results[0].get("compiler_bin")
-            if compiler_results
-            else None,
+            "compiler": (
+                compiler_results[0].get("compiler") if compiler_results else None
+            ),
+            "compiler_bin": (
+                compiler_results[0].get("compiler_bin") if compiler_results else None
+            ),
         }
         if failures:
             result["error"] = "STREAM failed for one or more compilers"

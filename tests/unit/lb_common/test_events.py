@@ -8,7 +8,6 @@ from lb_controller.api import LogSink, RunJournal, RunStatus
 pytestmark = pytest.mark.unit_controller
 
 
-
 def test_log_sink_updates_journal_and_log(tmp_path):
     # Minimal journal stub
     journal = RunJournal(run_id="run-1")

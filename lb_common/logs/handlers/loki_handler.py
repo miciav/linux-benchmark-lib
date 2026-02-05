@@ -136,9 +136,7 @@ class LokiPushHandler(logging.Handler):
         """Flush pending records and stop the background worker."""
         self._stop_event.set()
         try:
-            self._queue.put_nowait(
-                LokiLogEntry(labels={}, timestamp_ns="0", line="")
-            )
+            self._queue.put_nowait(LokiLogEntry(labels={}, timestamp_ns="0", line=""))
         except queue.Full:
             pass
         if self._thread.is_alive():
@@ -212,5 +210,5 @@ class LokiPushHandler(logging.Handler):
 
     def _sleep_backoff(self, attempt: int) -> None:
         if attempt < self._max_retries and self._backoff_base > 0:
-            delay = self._backoff_base * (self._backoff_factor ** attempt)
+            delay = self._backoff_base * (self._backoff_factor**attempt)
             time.sleep(delay)

@@ -32,9 +32,7 @@ class BaselineGenerator(BaseGenerator):
         self._stop_event = threading.Event()
 
     def _run_command(self) -> None:
-        logger.info(
-            "Starting baseline run for %s seconds", self.config.duration
-        )
+        logger.info("Starting baseline run for %s seconds", self.config.duration)
 
         start_time = time.time()
         stopped_early = self._stop_event.wait(self.config.duration)
@@ -51,9 +49,7 @@ class BaselineGenerator(BaseGenerator):
             "tags": self.config.tags,
         }
 
-        logger.info(
-            "Baseline run finished. Actual duration: %.2fs", actual_duration
-        )
+        logger.info("Baseline run finished. Actual duration: %.2fs", actual_duration)
 
     def _validate_environment(self) -> bool:
         return True

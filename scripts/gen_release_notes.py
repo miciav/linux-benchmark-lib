@@ -14,6 +14,7 @@ from textwrap import dedent
 
 from lb_common.api import configure_logging
 
+
 def git_log(from_ref: str | None = None, to_ref: str = "HEAD") -> list[str]:
     """Return a list of commit subjects between refs."""
     range_spec = f"{from_ref}..{to_ref}" if from_ref else to_ref
@@ -30,7 +31,9 @@ def git_log(from_ref: str | None = None, to_ref: str = "HEAD") -> list[str]:
 def main() -> None:
     configure_logging()
     parser = argparse.ArgumentParser(description="Generate release notes skeleton.")
-    parser.add_argument("--version", required=True, help="Version string (e.g., 0.21.0)")
+    parser.add_argument(
+        "--version", required=True, help="Version string (e.g., 0.21.0)"
+    )
     parser.add_argument("--output", required=True, help="Output markdown file")
     parser.add_argument("--from-ref", help="Optional git ref to start from (exclusive)")
     args = parser.parse_args()

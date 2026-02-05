@@ -28,8 +28,8 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     mock_col_instance = MagicMock()
     mock_col_instance.name = "PSUtilCollector"
     mock_col_instance.get_data.return_value = [
-        {'timestamp': '2025-01-01T12:00:00', 'cpu_percent': 50.0},
-        {'timestamp': '2025-01-01T12:00:01', 'cpu_percent': 55.0},
+        {"timestamp": "2025-01-01T12:00:00", "cpu_percent": 50.0},
+        {"timestamp": "2025-01-01T12:00:01", "cpu_percent": 55.0},
     ]
 
     # --- Configuration ---
@@ -50,10 +50,8 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
             )
         },
         collectors=MetricCollectorConfig(
-            cli_commands=[],
-            perf_config=PerfConfig(events=[]),
-            enable_ebpf=False
-        )
+            cli_commands=[], perf_config=PerfConfig(events=[]), enable_ebpf=False
+        ),
     )
 
     registry = MagicMock()
@@ -82,7 +80,7 @@ def test_run_stress_ng_benchmark(tmp_path, mocker):
     mock_col_instance.save_data.assert_called_once()
 
     # LocalRunner no longer performs analytics aggregation inline.
-    
+
     # Verify save path
     save_data_calls = mock_col_instance.save_data.call_args_list
     assert len(save_data_calls) == 1

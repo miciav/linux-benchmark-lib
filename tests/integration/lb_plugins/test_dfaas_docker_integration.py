@@ -111,7 +111,9 @@ class _DockerConnection:
         return None
 
 
-def test_dfaas_end_to_end_with_docker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dfaas_end_to_end_with_docker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     if not _docker_available():
         pytest.skip("Docker not available.")
 
@@ -315,8 +317,14 @@ def test_dfaas_end_to_end_with_docker(tmp_path: Path, monkeypatch: pytest.Monkey
             combinations={"min_functions": 1, "max_functions": 2},
             duration="2s",
             iterations=1,
-            cooldown={"max_wait_seconds": 5, "sleep_step_seconds": 1, "idle_threshold_pct": 15},
-            queries_path=str(Path("lb_plugins/plugins/peva_faas/queries.yml").resolve()),
+            cooldown={
+                "max_wait_seconds": 5,
+                "sleep_step_seconds": 1,
+                "idle_threshold_pct": 15,
+            },
+            queries_path=str(
+                Path("lb_plugins/plugins/peva_faas/queries.yml").resolve()
+            ),
         )
 
         generator = DfaasGenerator(cfg)

@@ -15,9 +15,11 @@ class DummyController:
 
     def run(self, *args, **kwargs):
         self.called = True
+
         class _Summary:
             success = True
             phases = {}
+
         return _Summary()
 
 
@@ -49,7 +51,9 @@ def test_run_service_uses_controller_runner(monkeypatch):
 
     dummy_controller = DummyController()
     monkeypatch.setattr(
-        coordinator_module, "BenchmarkController", lambda *_args, **_kwargs: dummy_controller
+        coordinator_module,
+        "BenchmarkController",
+        lambda *_args, **_kwargs: dummy_controller,
     )
 
     run_called = {"flag": False}

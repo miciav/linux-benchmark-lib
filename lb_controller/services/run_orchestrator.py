@@ -103,9 +103,7 @@ class RunOrchestrator:
         return bool(stop_requested)
 
     @staticmethod
-    def _ensure_running_workloads(
-        session: RunSession, stop_requested: bool
-    ) -> None:
+    def _ensure_running_workloads(session: RunSession, stop_requested: bool) -> None:
         if stop_requested:
             return
         if session.state_machine.state != ControllerState.RUNNING_WORKLOADS:

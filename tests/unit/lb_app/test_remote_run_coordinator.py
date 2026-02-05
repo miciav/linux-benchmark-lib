@@ -51,7 +51,9 @@ def _make_context() -> RunContext:
     cfg = BenchmarkConfig()
     cfg.remote_hosts = [RemoteHostConfig(name="host", address="127.0.0.1", user="root")]
     cfg.repetitions = 1
-    return RunContext(config=cfg, target_tests=["stress_ng"], registry=SimpleNamespace())
+    return RunContext(
+        config=cfg, target_tests=["stress_ng"], registry=SimpleNamespace()
+    )
 
 
 def _make_session(stop_token: StopToken):
@@ -65,7 +67,9 @@ def _make_session(stop_token: StopToken):
         log_path=SimpleNamespace(),
         ui_stream_log_path=None,
         sink=SimpleNamespace(close=lambda: None),
-        log_file=SimpleNamespace(write=lambda *_: None, flush=lambda: None, close=lambda: None),
+        log_file=SimpleNamespace(
+            write=lambda *_: None, flush=lambda: None, close=lambda: None
+        ),
         ui_stream_log_file=None,
         effective_run_id="run-1",
     )
@@ -82,16 +86,22 @@ def _make_pipeline() -> _EventPipeline:
     )
 
 
-def test_remote_run_short_circuits_when_no_pending(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_remote_run_short_circuits_when_no_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     stop_token = StopToken(enable_signals=False)
     session = _make_session(stop_token)
     short_result = RunResult(context=_make_context(), summary=None)
     service = _DummyService(session, short_result, _make_pipeline(), summary=None)
     coordinator = RemoteRunCoordinator(service)
 
-    monkeypatch.setattr(coordinator_mod, "pending_exists", lambda *args, **kwargs: False)
+    monkeypatch.setattr(
+        coordinator_mod, "pending_exists", lambda *args, **kwargs: False
+    )
     monkeypatch.setattr(coordinator_mod, "apply_playbook_defaults", lambda *_: None)
-    monkeypatch.setattr(coordinator_mod, "apply_plugin_assets", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        coordinator_mod, "apply_plugin_assets", lambda *_args, **_kwargs: None
+    )
 
     result = coordinator.run(
         _make_context(),
@@ -113,14 +123,25 @@ def test_remote_run_executes_when_pending(monkeypatch: pytest.MonkeyPatch) -> No
     stop_token = StopToken(enable_signals=False)
     session = _make_session(stop_token)
     summary = object()
-    service = _DummyService(session, RunResult(context=_make_context(), summary=None), _make_pipeline(), summary=summary)
+    service = _DummyService(
+        session,
+        RunResult(context=_make_context(), summary=None),
+        _make_pipeline(),
+        summary=summary,
+    )
     coordinator = RemoteRunCoordinator(service)
 
     monkeypatch.setattr(coordinator_mod, "pending_exists", lambda *args, **kwargs: True)
     monkeypatch.setattr(coordinator_mod, "apply_playbook_defaults", lambda *_: None)
-    monkeypatch.setattr(coordinator_mod, "apply_plugin_assets", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(coordinator_mod, "maybe_start_event_tailer", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(coordinator_mod, "BenchmarkController", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(
+        coordinator_mod, "apply_plugin_assets", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        coordinator_mod, "maybe_start_event_tailer", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        coordinator_mod, "BenchmarkController", lambda *_args, **_kwargs: object()
+    )
 
     result = coordinator.run(
         _make_context(),

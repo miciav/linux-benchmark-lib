@@ -34,7 +34,9 @@ def _multipass_status() -> MultipassStatus:
         timeout=10,
     )
     if info.returncode != 0:
-        return MultipassStatus(False, f"multipass unavailable: {info.stderr or info.stdout}")
+        return MultipassStatus(
+            False, f"multipass unavailable: {info.stderr or info.stdout}"
+        )
     os.environ.setdefault(MULTIPASS_ENV_FLAG, "1")
     return MultipassStatus(True, "")
 
@@ -64,9 +66,14 @@ MULTIPASS_READY = _multipass_status()
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slow]
 
-@pytest.mark.skipif(not MULTIPASS_READY.ready, reason=MULTIPASS_READY.reason or "multipass unavailable")
+
+@pytest.mark.skipif(
+    not MULTIPASS_READY.ready, reason=MULTIPASS_READY.reason or "multipass unavailable"
+)
 @pytest.mark.parametrize("plugin_name,kind,playbook_path", PLAYBOOKS)
-def test_plugin_playbook_syntax(plugin_name: str, kind: str, playbook_path: Path) -> None:
+def test_plugin_playbook_syntax(
+    plugin_name: str, kind: str, playbook_path: Path
+) -> None:
     """Run ansible syntax-check on each plugin playbook."""
     result = subprocess.run(
         ["ansible-playbook", "--syntax-check", str(playbook_path)],

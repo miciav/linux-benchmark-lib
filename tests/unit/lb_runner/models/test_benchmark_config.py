@@ -20,7 +20,6 @@ from lb_plugins.api import (
 pytestmark = pytest.mark.unit_runner
 
 
-
 class TestBenchmarkConfig:
     """Test cases for BenchmarkConfig class."""
 
@@ -69,7 +68,7 @@ class TestBenchmarkConfig:
             config = BenchmarkConfig(
                 output_dir=Path(tmpdir) / "output",
                 report_dir=Path(tmpdir) / "reports",
-                data_export_dir=Path(tmpdir) / "exports"
+                data_export_dir=Path(tmpdir) / "exports",
             )
             # Directories are created on demand, not during init
             assert not config.output_dir.exists()
@@ -105,7 +104,7 @@ class TestBenchmarkConfig:
 
     def test_config_save_load(self):
         """Test saving and loading config."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             config_path = Path(f.name)
 
         try:
@@ -128,7 +127,9 @@ class TestBenchmarkConfig:
                 workload_factory=WorkloadConfig,
             )
             # Loaded plugin_settings should be Pydantic models
-            assert isinstance(loaded_config.plugin_settings["stress_ng"], StressNGConfig)
+            assert isinstance(
+                loaded_config.plugin_settings["stress_ng"], StressNGConfig
+            )
             assert loaded_config.plugin_settings["stress_ng"].cpu_workers == 8
             # Workload options should also reflect this
             assert loaded_config.workloads["stress_ng"].options["cpu_workers"] == 8
@@ -169,7 +170,9 @@ class TestBenchmarkConfig:
         assert all(isinstance(wl, WorkloadConfig) for wl in config.workloads.values())
 
         round_trip = BenchmarkConfig.model_validate(config.model_dump())
-        assert all(isinstance(wl, WorkloadConfig) for wl in round_trip.workloads.values())
+        assert all(
+            isinstance(wl, WorkloadConfig) for wl in round_trip.workloads.values()
+        )
 
     def test_loki_env_overrides(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("LB_LOKI_ENABLED", "1")
@@ -217,7 +220,7 @@ class TestStressNGConfig:
             cpu_workers=4,
             cpu_method="matrixprod",
             vm_bytes="2G",
-            extra_args=["--verbose"]
+            extra_args=["--verbose"],
         )
 
         assert config.cpu_workers == 4

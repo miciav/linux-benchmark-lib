@@ -165,9 +165,7 @@ class DfaasGenerator(BaseGenerator):
         """Resolve {host.address} in URL with best available address."""
         if "{host.address}" in url:
             replacement = (
-                self._exec_ctx.host_address
-                or target_name
-                or self._get_local_ip()
+                self._exec_ctx.host_address or target_name or self._get_local_ip()
             )
             url = url.replace("{host.address}", replacement)
 
@@ -225,9 +223,7 @@ class DfaasGenerator(BaseGenerator):
             "--tls-no-verify",
         ]
         try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, check=True
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         except subprocess.CalledProcessError as exc:
             logger.error("faas-cli list failed: %s", exc)
             return replicas

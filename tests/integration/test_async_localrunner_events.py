@@ -49,21 +49,23 @@ def test_async_localrunner_emits_events_to_stream_file(tmp_path: Path) -> None:
 
     # Run async_localrunner directly (non-daemonized for easier testing)
     env = os.environ.copy()
-    env.update({
-        "LB_RUN_HOST": "test-host",
-        "LB_RUN_WORKLOAD": "baseline",
-        "LB_RUN_REPETITION": "1",
-        "LB_RUN_TOTAL_REPS": "1",
-        "LB_RUN_ID": "test-run-001",
-        "LB_RUN_STOP_FILE": str(stop_path),
-        "LB_BENCH_CONFIG_PATH": str(config_path),
-        "LB_EVENT_STREAM_PATH": str(stream_log_path),
-        "LB_ENABLE_EVENT_LOGGING": "1",
-        "LB_LOG_LEVEL": "INFO",
-        "LB_RUN_STATUS_PATH": str(status_path),
-        "LB_RUN_PID_PATH": str(pid_path),
-        # NOT setting LB_RUN_DAEMONIZE so it runs in foreground
-    })
+    env.update(
+        {
+            "LB_RUN_HOST": "test-host",
+            "LB_RUN_WORKLOAD": "baseline",
+            "LB_RUN_REPETITION": "1",
+            "LB_RUN_TOTAL_REPS": "1",
+            "LB_RUN_ID": "test-run-001",
+            "LB_RUN_STOP_FILE": str(stop_path),
+            "LB_BENCH_CONFIG_PATH": str(config_path),
+            "LB_EVENT_STREAM_PATH": str(stream_log_path),
+            "LB_ENABLE_EVENT_LOGGING": "1",
+            "LB_LOG_LEVEL": "INFO",
+            "LB_RUN_STATUS_PATH": str(status_path),
+            "LB_RUN_PID_PATH": str(pid_path),
+            # NOT setting LB_RUN_DAEMONIZE so it runs in foreground
+        }
+    )
 
     result = subprocess.run(
         [sys.executable, "-m", "lb_runner.services.async_localrunner"],
@@ -87,10 +89,7 @@ def test_async_localrunner_emits_events_to_stream_file(tmp_path: Path) -> None:
     log_content = stream_log_path.read_text()
 
     # Should have at least one LB_EVENT line
-    lb_event_lines = [
-        line for line in log_content.split("\n")
-        if "LB_EVENT" in line
-    ]
+    lb_event_lines = [line for line in log_content.split("\n") if "LB_EVENT" in line]
 
     assert len(lb_event_lines) > 0, (
         f"No LB_EVENT lines in stream log.\n"
@@ -101,12 +100,14 @@ def test_async_localrunner_emits_events_to_stream_file(tmp_path: Path) -> None:
 
     # Check for final done/failed event
     final_events = [
-        line for line in lb_event_lines
+        line
+        for line in lb_event_lines
         if '"status": "done"' in line or '"status": "failed"' in line
     ]
-    assert len(final_events) > 0, (
-        "No final done/failed event in stream log.\n"
-        "LB_EVENT lines:\n" + "\n".join(lb_event_lines)
+    assert (
+        len(final_events) > 0
+    ), "No final done/failed event in stream log.\n" "LB_EVENT lines:\n" + "\n".join(
+        lb_event_lines
     )
 
 
@@ -142,21 +143,23 @@ def test_async_localrunner_daemonized_emits_events(tmp_path: Path) -> None:
 
     # Run async_localrunner in daemonized mode
     env = os.environ.copy()
-    env.update({
-        "LB_RUN_HOST": "test-host",
-        "LB_RUN_WORKLOAD": "baseline",
-        "LB_RUN_REPETITION": "1",
-        "LB_RUN_TOTAL_REPS": "1",
-        "LB_RUN_ID": "test-run-002",
-        "LB_RUN_STOP_FILE": str(stop_path),
-        "LB_BENCH_CONFIG_PATH": str(config_path),
-        "LB_EVENT_STREAM_PATH": str(stream_log_path),
-        "LB_ENABLE_EVENT_LOGGING": "1",
-        "LB_LOG_LEVEL": "INFO",
-        "LB_RUN_STATUS_PATH": str(status_path),
-        "LB_RUN_PID_PATH": str(pid_path),
-        "LB_RUN_DAEMONIZE": "1",  # Enable daemonization
-    })
+    env.update(
+        {
+            "LB_RUN_HOST": "test-host",
+            "LB_RUN_WORKLOAD": "baseline",
+            "LB_RUN_REPETITION": "1",
+            "LB_RUN_TOTAL_REPS": "1",
+            "LB_RUN_ID": "test-run-002",
+            "LB_RUN_STOP_FILE": str(stop_path),
+            "LB_BENCH_CONFIG_PATH": str(config_path),
+            "LB_EVENT_STREAM_PATH": str(stream_log_path),
+            "LB_ENABLE_EVENT_LOGGING": "1",
+            "LB_LOG_LEVEL": "INFO",
+            "LB_RUN_STATUS_PATH": str(status_path),
+            "LB_RUN_PID_PATH": str(pid_path),
+            "LB_RUN_DAEMONIZE": "1",  # Enable daemonization
+        }
+    )
 
     # Start the daemonized process
     result = subprocess.run(
@@ -196,10 +199,7 @@ def test_async_localrunner_daemonized_emits_events(tmp_path: Path) -> None:
     assert stream_log_path.exists(), "Event stream log file not created"
     log_content = stream_log_path.read_text()
 
-    lb_event_lines = [
-        line for line in log_content.split("\n")
-        if "LB_EVENT" in line
-    ]
+    lb_event_lines = [line for line in log_content.split("\n") if "LB_EVENT" in line]
 
     assert len(lb_event_lines) > 0, (
         f"No LB_EVENT lines in stream log after daemonized run.\n"
@@ -219,13 +219,14 @@ def test_lb_event_handler_attached_when_enabled(tmp_path: Path) -> None:
 
     # Import and call the logging configuration
     from lb_runner.services.async_localrunner import _configure_logging_level
+
     _configure_logging_level()
 
     # Check root logger level is INFO
     root_logger = logging.getLogger()
-    assert root_logger.level <= logging.INFO, (
-        f"Root logger level is {root_logger.level}, expected <= {logging.INFO}"
-    )
+    assert (
+        root_logger.level <= logging.INFO
+    ), f"Root logger level is {root_logger.level}, expected <= {logging.INFO}"
 
     # Create handler and attach
     handler = LBEventLogHandler(
@@ -294,7 +295,7 @@ def test_tee_writes_to_log_file(tmp_path: Path) -> None:
 
     try:
         # Print something
-        print("LB_EVENT {\"test\": true}", flush=True)
+        print('LB_EVENT {"test": true}', flush=True)
 
         # Check log file
         log_file.close()
@@ -350,20 +351,22 @@ def test_async_localrunner_merges_plugin_settings_into_workload_options(
     stop_path = tmp_path / "STOP"
 
     env = os.environ.copy()
-    env.update({
-        "LB_RUN_HOST": "test-host",
-        "LB_RUN_WORKLOAD": "baseline",
-        "LB_RUN_REPETITION": "1",
-        "LB_RUN_TOTAL_REPS": "1",
-        "LB_RUN_ID": "plugin-settings-merge-test",
-        "LB_RUN_STOP_FILE": str(stop_path),
-        "LB_BENCH_CONFIG_PATH": str(config_path),
-        "LB_EVENT_STREAM_PATH": str(stream_log_path),
-        "LB_ENABLE_EVENT_LOGGING": "1",
-        "LB_LOG_LEVEL": "INFO",
-        "LB_RUN_STATUS_PATH": str(status_path),
-        "LB_RUN_PID_PATH": str(pid_path),
-    })
+    env.update(
+        {
+            "LB_RUN_HOST": "test-host",
+            "LB_RUN_WORKLOAD": "baseline",
+            "LB_RUN_REPETITION": "1",
+            "LB_RUN_TOTAL_REPS": "1",
+            "LB_RUN_ID": "plugin-settings-merge-test",
+            "LB_RUN_STOP_FILE": str(stop_path),
+            "LB_BENCH_CONFIG_PATH": str(config_path),
+            "LB_EVENT_STREAM_PATH": str(stream_log_path),
+            "LB_ENABLE_EVENT_LOGGING": "1",
+            "LB_LOG_LEVEL": "INFO",
+            "LB_RUN_STATUS_PATH": str(status_path),
+            "LB_RUN_PID_PATH": str(pid_path),
+        }
+    )
 
     result = subprocess.run(
         [sys.executable, "-m", "lb_runner.services.async_localrunner"],
@@ -389,6 +392,6 @@ def test_async_localrunner_merges_plugin_settings_into_workload_options(
 
     # Check stream log for successful completion
     log_content = stream_log_path.read_text()
-    assert '"status": "done"' in log_content, (
-        f"Run did not complete successfully.\nLog: {log_content}"
-    )
+    assert (
+        '"status": "done"' in log_content
+    ), f"Run did not complete successfully.\nLog: {log_content}"

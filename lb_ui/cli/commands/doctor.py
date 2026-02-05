@@ -11,7 +11,9 @@ from lb_ui.presenters.doctor import render_doctor_report
 
 def create_doctor_app(ctx: UIContext) -> typer.Typer:
     """Build the doctor Typer app, wired to the given context."""
-    app = typer.Typer(help="Check environment health and prerequisites.", no_args_is_help=False)
+    app = typer.Typer(
+        help="Check environment health and prerequisites.", no_args_is_help=False
+    )
 
     @app.callback(invoke_without_command=True)
     def doctor_root(typer_ctx: typer.Context) -> None:
@@ -59,7 +61,10 @@ def create_doctor_app(ctx: UIContext) -> typer.Typer:
             None,
             "--config",
             "-c",
-            help="Config file to load; uses saved default or local benchmark_config.json when omitted.",
+            help=(
+                "Config file to load; uses saved default or local "
+                "benchmark_config.json when omitted."
+            ),
         ),
         timeout: int = typer.Option(
             10,

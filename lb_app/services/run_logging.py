@@ -48,9 +48,7 @@ def _emit_ui_message(
     print(message)
 
 
-def _emit_via_ui(
-    ui_adapter: UIAdapter | None, level: str, message: str
-) -> bool:
+def _emit_via_ui(ui_adapter: UIAdapter | None, level: str, message: str) -> bool:
     if not ui_adapter:
         return False
     try:

@@ -95,7 +95,9 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
             ["Workloads", ", ".join(run.workloads) if run.workloads else "-"],
             ["Journal", str(run.journal_path or "-")],
         ]
-        ctx.ui.tables.show(TableModel(title="Run Details", columns=["Field", "Value"], rows=rows))
+        ctx.ui.tables.show(
+            TableModel(title="Run Details", columns=["Field", "Value"], rows=rows)
+        )
 
     @app.command("analyze")
     def analyze(
@@ -166,7 +168,9 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
 
         run = catalog.get_run(selected_run_id)
         if not run:
-            ctx.ui.present.error(f"Run '{selected_run_id}' not found under {output_root}")
+            ctx.ui.present.error(
+                f"Run '{selected_run_id}' not found under {output_root}"
+            )
             raise typer.Exit(1)
 
         selected_kind = kind

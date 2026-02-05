@@ -33,7 +33,13 @@ K3S_REQUIRED_VARS = {
 
 def _get_ansible_dir() -> Path:
     """Get the PEVA-faas ansible directory path."""
-    return Path(__file__).resolve().parents[4] / "lb_plugins" / "plugins" / "peva_faas" / "ansible"
+    return (
+        Path(__file__).resolve().parents[4]
+        / "lb_plugins"
+        / "plugins"
+        / "peva_faas"
+        / "ansible"
+    )
 
 
 def _load_playbook(name: str) -> list[dict]:
@@ -103,7 +109,9 @@ def _find_get_url_tasks(tasks: list[dict], url_contains: str | None = None) -> b
             if url_contains is None or url_contains in url_value:
                 return True
         for key in ("block", "rescue", "always"):
-            if key in task and _find_get_url_tasks(task[key], url_contains=url_contains):
+            if key in task and _find_get_url_tasks(
+                task[key], url_contains=url_contains
+            ):
                 return True
     return False
 
@@ -111,7 +119,11 @@ def _find_get_url_tasks(tasks: list[dict], url_contains: str | None = None) -> b
 def _find_command_tasks(tasks: list[dict], needle: str) -> bool:
     """Recursively find command/shell tasks containing the needle."""
     for task in tasks:
-        cmd = task.get("ansible.builtin.command") or task.get("ansible.builtin.shell") or ""
+        cmd = (
+            task.get("ansible.builtin.command")
+            or task.get("ansible.builtin.shell")
+            or ""
+        )
         if needle in str(cmd):
             return True
         for key in ("block", "rescue", "always"):
@@ -147,17 +159,35 @@ def test_setup_k6_playbook_imports_install_tasks() -> None:
 def test_install_k6_tasks_has_apt_install() -> None:
     """Verify tasks/install_k6.yml contains k6 apt installation."""
     repo_root = Path(__file__).resolve().parents[4]
-    path = repo_root / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "tasks" / "install_k6.yml"
+    path = (
+        repo_root
+        / "lb_plugins"
+        / "plugins"
+        / "peva_faas"
+        / "ansible"
+        / "tasks"
+        / "install_k6.yml"
+    )
     tasks = yaml.safe_load(path.read_text())
     assert isinstance(tasks, list)
     # k6 is installed via apt with ignore_errors, falling back to tarball if APT fails
-    assert _find_apt_tasks(tasks, "k6"), "k6 apt installation not found in install_k6.yml"
+    assert _find_apt_tasks(
+        tasks, "k6"
+    ), "k6 apt installation not found in install_k6.yml"
 
 
 def test_install_k6_tasks_has_key_download_fallback() -> None:
     """Verify k6 key download fallback is present."""
     repo_root = Path(__file__).resolve().parents[4]
-    path = repo_root / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "tasks" / "install_k6.yml"
+    path = (
+        repo_root
+        / "lb_plugins"
+        / "plugins"
+        / "peva_faas"
+        / "ansible"
+        / "tasks"
+        / "install_k6.yml"
+    )
     tasks = yaml.safe_load(path.read_text())
     assert isinstance(tasks, list)
     assert _find_get_url_tasks(tasks, "k6_key_url"), "k6 key download fallback missing"
@@ -167,18 +197,38 @@ def test_install_k6_tasks_has_key_download_fallback() -> None:
 def test_install_k6_tasks_checks_apt_availability() -> None:
     """Verify install_k6.yml checks apt availability before install."""
     repo_root = Path(__file__).resolve().parents[4]
-    path = repo_root / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "tasks" / "install_k6.yml"
+    path = (
+        repo_root
+        / "lb_plugins"
+        / "plugins"
+        / "peva_faas"
+        / "ansible"
+        / "tasks"
+        / "install_k6.yml"
+    )
     tasks = yaml.safe_load(path.read_text())
     assert isinstance(tasks, list)
-    assert _find_command_tasks(tasks, "apt-cache policy k6"), "k6 apt-cache check missing"
-    assert _find_set_fact_tasks(tasks, "k6_apt_available"), "k6_apt_available fact missing"
+    assert _find_command_tasks(
+        tasks, "apt-cache policy k6"
+    ), "k6 apt-cache check missing"
+    assert _find_set_fact_tasks(
+        tasks, "k6_apt_available"
+    ), "k6_apt_available fact missing"
     assert _find_set_fact_tasks(tasks, "k6_apt_failed"), "k6_apt_failed fact missing"
 
 
 def test_install_k6_tasks_sets_keyring_permissions() -> None:
     """Verify tasks/install_k6.yml ensures the k6 keyring is apt-readable."""
     repo_root = Path(__file__).resolve().parents[4]
-    path = repo_root / "lb_plugins" / "plugins" / "peva_faas" / "ansible" / "tasks" / "install_k6.yml"
+    path = (
+        repo_root
+        / "lb_plugins"
+        / "plugins"
+        / "peva_faas"
+        / "ansible"
+        / "tasks"
+        / "install_k6.yml"
+    )
     tasks = yaml.safe_load(path.read_text())
     assert isinstance(tasks, list)
     assert _find_file_tasks(
@@ -192,8 +242,7 @@ def test_teardown_k6_playbook_has_cleanup() -> None:
     playbook = _load_playbook("teardown_k6.yml")
     tasks = playbook[0]["tasks"]
     assert any(
-        task.get("ansible.builtin.file", {}).get("state") == "absent"
-        for task in tasks
+        task.get("ansible.builtin.file", {}).get("state") == "absent" for task in tasks
     )
 
 

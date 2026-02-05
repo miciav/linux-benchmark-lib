@@ -92,7 +92,9 @@ class TestCooldownManager:
                 return high_cpu
             return normal
 
-        monkeypatch.setattr("lb_plugins.plugins.peva_faas.services.cooldown.time.sleep", lambda _: None)
+        monkeypatch.setattr(
+            "lb_plugins.plugins.peva_faas.services.cooldown.time.sleep", lambda _: None
+        )
 
         manager = CooldownManager(
             max_wait_seconds=60,
@@ -107,7 +109,9 @@ class TestCooldownManager:
         assert result.iterations == 3
         assert result.waited_seconds == 10  # 2 sleep cycles
 
-    def test_waits_for_replicas_to_scale_down(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_waits_for_replicas_to_scale_down(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         baseline = MetricsSnapshot(cpu=10.0, ram=1000.0, ram_pct=50.0, power=100.0)
 
         replica_count = [5]  # Use list to allow mutation in closure
@@ -118,7 +122,9 @@ class TestCooldownManager:
                 replica_count[0] -= 1
             return {name: current for name in names}
 
-        monkeypatch.setattr("lb_plugins.plugins.peva_faas.services.cooldown.time.sleep", lambda _: None)
+        monkeypatch.setattr(
+            "lb_plugins.plugins.peva_faas.services.cooldown.time.sleep", lambda _: None
+        )
 
         manager = CooldownManager(
             max_wait_seconds=60,
@@ -137,7 +143,9 @@ class TestCooldownManager:
         baseline = MetricsSnapshot(cpu=10.0, ram=1000.0, ram_pct=50.0, power=100.0)
         high_cpu = MetricsSnapshot(cpu=50.0, ram=1000.0, ram_pct=50.0, power=100.0)
 
-        monkeypatch.setattr("lb_plugins.plugins.peva_faas.services.cooldown.time.sleep", lambda _: None)
+        monkeypatch.setattr(
+            "lb_plugins.plugins.peva_faas.services.cooldown.time.sleep", lambda _: None
+        )
 
         manager = CooldownManager(
             max_wait_seconds=10,
@@ -154,8 +162,12 @@ class TestCooldownManager:
         assert exc_info.value.max_seconds == 10
 
     def test_nan_power_treated_as_idle(self) -> None:
-        baseline = MetricsSnapshot(cpu=10.0, ram=1000.0, ram_pct=50.0, power=float("nan"))
-        current = MetricsSnapshot(cpu=10.0, ram=1000.0, ram_pct=50.0, power=float("nan"))
+        baseline = MetricsSnapshot(
+            cpu=10.0, ram=1000.0, ram_pct=50.0, power=float("nan")
+        )
+        current = MetricsSnapshot(
+            cpu=10.0, ram=1000.0, ram_pct=50.0, power=float("nan")
+        )
 
         manager = CooldownManager(
             max_wait_seconds=60,

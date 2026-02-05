@@ -107,13 +107,12 @@ class HPLGenerator(CommandGenerator):
             self.working_dir = self.xhpl_path.parent
             return True
 
-        # If neither binary exists, fail fast: remote/multipass setup must install the deb.
+        # If neither binary exists, fail fast: remote/multipass setup must install
+        # the deb.
         self._result = {
             "error": "xhpl missing; ensure remote setup installed the HPL .deb"
         }
-        logger.error(
-            "xhpl missing; ensure remote setup installed the HPL .deb"
-        )
+        logger.error("xhpl missing; ensure remote setup installed the HPL .deb")
         return False
 
     def prepare(self) -> None:
@@ -263,7 +262,8 @@ HPL.out      output file name (if any)
         # Typical summary line:
         # WR00C2R4        N    NB     P     Q        Time       Gflops
         wr_pattern = re.compile(
-            r"^(W[A-Z0-9]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+([\d\.Ee\+\-]+)\s+([\d\.Ee\+\-]+)"
+            r"^(W[A-Z0-9]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+"
+            r"([\d\.Ee\+\-]+)\s+([\d\.Ee\+\-]+)"
         )
         residual_pattern = re.compile(
             r"\|\|Ax-b\|\|.*=\s*([\d\.Ee\+\-]+)", flags=re.IGNORECASE
@@ -349,9 +349,7 @@ HPL.out      output file name (if any)
             return None
 
     @staticmethod
-    def _parse_residual(
-        line: str, pattern: re.Pattern[str]
-    ) -> float | None:
+    def _parse_residual(line: str, pattern: re.Pattern[str]) -> float | None:
         match = pattern.search(line)
         if not match:
             return None
@@ -428,9 +426,7 @@ class HPLPlugin(SimpleWorkloadPlugin):
         return (p, q)
 
     @classmethod
-    def _preset_for_ranks(
-        cls, *, n: int, nb: int, ranks: int
-    ) -> HPLConfig:
+    def _preset_for_ranks(cls, *, n: int, nb: int, ranks: int) -> HPLConfig:
         p, q = cls._grid_for_ranks(ranks)
         return HPLConfig(n=n, nb=nb, p=p, q=q, mpi_ranks=ranks)
 
@@ -504,9 +500,7 @@ def _handle_internal_error(stdout: str, result: dict[str, Any]) -> None:
         result["error"] = "HPL reported an internal error"
 
 
-def _handle_returncode_error(
-    returncode: int | None, result: dict[str, Any]
-) -> None:
+def _handle_returncode_error(returncode: int | None, result: dict[str, Any]) -> None:
     if returncode not in (None, 0) and "error" not in result:
         result["error"] = f"HPL exited with return code {returncode}"
 
@@ -596,9 +590,7 @@ def _grid_for_ranks(ranks: int) -> tuple[int, int]:
     return (p, q)
 
 
-def _preset_for_level(
-    level: WorkloadIntensity, cpu_count: int
-) -> Optional[HPLConfig]:
+def _preset_for_level(level: WorkloadIntensity, cpu_count: int) -> Optional[HPLConfig]:
     if level == WorkloadIntensity.LOW:
         return HPLConfig(n=5000, nb=128, p=1, q=1, mpi_ranks=1)
     if level == WorkloadIntensity.MEDIUM:

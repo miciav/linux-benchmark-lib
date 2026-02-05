@@ -318,9 +318,7 @@ class SubprocessRunner:
         return ExecutionResult(rc=rc, status=status, stats={})
 
     @staticmethod
-    def _finalize_process(
-        proc: subprocess.Popen[str], stop_requested: bool
-    ) -> int:
+    def _finalize_process(proc: subprocess.Popen[str], stop_requested: bool) -> int:
         try:
             proc.wait(timeout=5 if stop_requested else None)
         except subprocess.TimeoutExpired:

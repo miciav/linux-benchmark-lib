@@ -195,9 +195,7 @@ def _build_plugin_metadata(name: str, plugin: Any) -> Dict[str, Any]:
     return {
         "name": name,
         "description": getattr(plugin, "description", ""),
-        "ansible_setup_path": _call_plugin_method(
-            plugin, "get_ansible_setup_path"
-        ),
+        "ansible_setup_path": _call_plugin_method(plugin, "get_ansible_setup_path"),
         "ansible_teardown_path": _call_plugin_method(
             plugin, "get_ansible_teardown_path"
         ),

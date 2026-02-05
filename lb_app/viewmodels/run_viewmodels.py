@@ -82,9 +82,7 @@ def _progress_flags(tasks: Dict[int, TaskState]) -> dict[str, bool]:
     }
 
 
-def _status_from_flags(
-    flags: dict[str, bool], completed: int, total: int
-) -> str:
+def _status_from_flags(flags: dict[str, bool], completed: int, total: int) -> str:
     conditions = (
         (flags["failed"], "failed"),
         (flags["running"], "running"),

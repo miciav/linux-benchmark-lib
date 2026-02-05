@@ -22,9 +22,10 @@ from lb_ui.tui.core.protocols import UI
 @dataclass
 class UIContext:
     """Container for UI services and state, initialized lazily."""
+
     headless: bool = False
     dev_mode: bool = False
-    
+
     # Lazily initialized services
     _ui: Optional[UI] = None
     _ui_adapter: Optional[UIAdapter] = None
@@ -39,6 +40,7 @@ class UIContext:
         if self._ui is None:
             if self.headless:
                 from lb_ui.tui.system.headless import HeadlessUI
+
                 self._ui = HeadlessUI()
             else:
                 self._ui = TUI()

@@ -26,15 +26,21 @@ def test_collect_runs_even_when_stop_requested(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(playbooks, "execute_run_playbook", fake_execute)
     monkeypatch.setattr(playbooks, "handle_collect_phase", fake_collect)
     monkeypatch.setattr(playbooks, "run_teardown_playbook", fake_teardown)
-    monkeypatch.setattr(playbooks, "handle_stop_during_workloads", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        playbooks, "handle_stop_during_workloads", lambda *_a, **_k: None
+    )
 
     stop_token = SimpleNamespace(should_stop=lambda: True)
     services = SimpleNamespace(
         stop_token=stop_token,
-        config=SimpleNamespace(workloads={"stress_ng": SimpleNamespace(plugin="stress_ng")}),
-        lifecycle=SimpleNamespace(start_phase=lambda p: None)
+        config=SimpleNamespace(
+            workloads={"stress_ng": SimpleNamespace(plugin="stress_ng")}
+        ),
+        lifecycle=SimpleNamespace(start_phase=lambda p: None),
     )
-    session = SimpleNamespace(transition=lambda s, r=None: None, arm_stop=lambda r: None)
+    session = SimpleNamespace(
+        transition=lambda s, r=None: None, arm_stop=lambda r: None
+    )
 
     playbooks.run_workload_execution(
         services,

@@ -123,9 +123,7 @@ class ConnectivityService:
         except subprocess.TimeoutExpired:
             return _timeout_result(host, address, start_time, timeout)
         except FileNotFoundError:
-            return _error_result(
-                host, address, "SSH client not found in PATH"
-            )
+            return _error_result(host, address, "SSH client not found in PATH")
         except Exception as exc:
             return _error_result(host, address, str(exc), start_time)
 
@@ -136,9 +134,7 @@ class ConnectivityService:
         return _error_result(host, address, error_msg, start_time)
 
 
-def _build_ssh_command(
-    host: RemoteHostConfig, timeout: int, address: str
-) -> list[str]:
+def _build_ssh_command(host: RemoteHostConfig, timeout: int, address: str) -> list[str]:
     ssh_cmd = [
         "ssh",
         "-o",

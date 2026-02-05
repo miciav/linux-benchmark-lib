@@ -119,9 +119,7 @@ class _DDCommandBuilder:
         conv: Optional[str], oflag: Optional[str]
     ) -> tuple[Optional[str], Optional[str]]:
         if oflag == "direct":
-            logger.debug(
-                "Ignoring 'oflag=direct' on macOS (not supported by BSD dd)"
-            )
+            logger.debug("Ignoring 'oflag=direct' on macOS (not supported by BSD dd)")
             oflag = None
         if conv == "fdatasync":
             logger.debug("Mapping 'conv=fdatasync' to 'conv=sync' on macOS")
@@ -201,9 +199,7 @@ class DDGenerator(ProcessCommandGenerator):
         try:
             output_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            logger.error(
-                "Failed to create output directory %s: %s", output_dir, exc
-            )
+            logger.error("Failed to create output directory %s: %s", output_dir, exc)
             return False
 
         if not output_dir.is_dir():
@@ -314,9 +310,7 @@ def _normalize_dd_options(
     if not is_macos:
         return conv, oflag
     if oflag == "direct":
-        logger.debug(
-            "Ignoring 'oflag=direct' on macOS (not supported by BSD dd)"
-        )
+        logger.debug("Ignoring 'oflag=direct' on macOS (not supported by BSD dd)")
         oflag = None
     if conv == "fdatasync":
         logger.debug("Mapping 'conv=fdatasync' to 'conv=sync' on macOS")

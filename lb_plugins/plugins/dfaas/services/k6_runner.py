@@ -176,7 +176,11 @@ class K6Runner:
             full_cmd = f"{k6_cmd} 2>&1 | tee {log_path}"
 
             try:
-                out_writer = _StreamWriter(self._stream_handler) if self.log_stream_enabled else None
+                out_writer = (
+                    _StreamWriter(self._stream_handler)
+                    if self.log_stream_enabled
+                    else None
+                )
                 result = conn.run(
                     full_cmd,
                     hide=True,
@@ -277,9 +281,7 @@ class K6Runner:
 
         return parsed
 
-    def _unique_metric_id(
-        self, name: str, metric_ids: dict[str, str]
-    ) -> str:
+    def _unique_metric_id(self, name: str, metric_ids: dict[str, str]) -> str:
         metric_id = _normalize_metric_id(name)
         if metric_id in metric_ids.values():
             metric_id = f"{metric_id}_{len(metric_ids) + 1}"
@@ -307,7 +309,7 @@ class K6Runner:
         )
         check_line = (
             '  check(res, { "status is 2xx": (r) => r.status >= 200 && '
-            'r.status < 300 });'
+            "r.status < 300 });"
         )
 
         return [
@@ -431,9 +433,7 @@ class K6Runner:
 
         try:
             out_writer = (
-                _StreamWriter(self._stream_handler)
-                if self.log_stream_enabled
-                else None
+                _StreamWriter(self._stream_handler) if self.log_stream_enabled else None
             )
             result = conn.run(
                 full_cmd,
@@ -470,9 +470,7 @@ class K6Runner:
             os.unlink(local_summary)
 
     @staticmethod
-    def _coerce_execution_error(
-        config_id: str, exc: Exception
-    ) -> K6ExecutionError:
+    def _coerce_execution_error(config_id: str, exc: Exception) -> K6ExecutionError:
         if isinstance(exc, K6ExecutionError):
             return exc
         return K6ExecutionError(

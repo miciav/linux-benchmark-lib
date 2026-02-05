@@ -47,7 +47,9 @@ def test_resolve_prometheus_url_rewrites_localhost() -> None:
     assert resolved == "http://10.0.0.5:30411"
 
 
-def test_resolve_prometheus_url_replaces_host_address(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_prometheus_url_replaces_host_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     cfg = DfaasConfig(prometheus_url="http://{host.address}:30411")
     generator = DfaasGenerator(cfg)
 

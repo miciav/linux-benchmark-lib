@@ -1,9 +1,9 @@
-
 from pathlib import Path
 from unittest.mock import MagicMock
 import pytest
 from lb_runner.api import BenchmarkConfig
 from lb_runner.api import ensure_run_dirs
+
 
 @pytest.mark.unit_runner
 def test_ensure_run_dirs_does_not_create_report_and_export_dirs(tmp_path: Path):
@@ -12,7 +12,7 @@ def test_ensure_run_dirs_does_not_create_report_and_export_dirs(tmp_path: Path):
     config.output_dir = tmp_path / "out"
     config.report_dir = tmp_path / "rep"
     config.data_export_dir = tmp_path / "exp"
-    
+
     # Mock ensure_output_dirs to do nothing
     config.ensure_output_dirs = MagicMock()
 
@@ -21,7 +21,7 @@ def test_ensure_run_dirs_does_not_create_report_and_export_dirs(tmp_path: Path):
 
     assert output_root.exists()
     assert output_root.name == run_id
-    
+
     # These should NOT exist yet
     assert not report_root.exists()
     assert not data_export_root.exists()

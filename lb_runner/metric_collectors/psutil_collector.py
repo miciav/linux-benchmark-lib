@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class PSUtilCollector(BaseCollector):
     """Metric collector using psutil."""
-    
+
     def __init__(self, name: str = "PSUtilCollector", interval_seconds: float = 1.0):
         """
         Initialize the PSUtil collector.
@@ -45,7 +45,7 @@ class PSUtilCollector(BaseCollector):
             net_io = psutil.net_io_counters()
             metrics["net_bytes_sent"] = net_io.bytes_sent
             metrics["net_bytes_recv"] = net_io.bytes_recv
-            
+
         except Exception as e:
             logger.error(f"Error collecting psutil data: {e}")
 
@@ -60,4 +60,3 @@ class PSUtilCollector(BaseCollector):
         """
         # Assume psutil is always available in Python environment
         return True
-

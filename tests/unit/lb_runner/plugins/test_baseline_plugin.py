@@ -22,9 +22,9 @@ class TestBaselineConfig:
     def test_defaults(self):
         config = BaselineConfig()
         assert config.duration == 60
-        assert config.max_retries == 0 # Inherited default
-        assert config.timeout_buffer == 10 # Inherited default
-        assert config.tags == [] # Inherited default
+        assert config.max_retries == 0  # Inherited default
+        assert config.timeout_buffer == 10  # Inherited default
+        assert config.tags == []  # Inherited default
 
     def test_custom_values(self):
         config = BaselineConfig(duration=10, max_retries=5, tags=["e2e", "dev"])
@@ -34,11 +34,11 @@ class TestBaselineConfig:
 
     def test_validation_error(self):
         with pytest.raises(ValidationError):
-            BaselineConfig(duration=0) # duration must be greater than 0
+            BaselineConfig(duration=0)  # duration must be greater than 0
         with pytest.raises(ValidationError):
             BaselineConfig(duration=-1)
         with pytest.raises(ValidationError):
-            BaselineConfig(max_retries=-1) # max_retries must be >= 0
+            BaselineConfig(max_retries=-1)  # max_retries must be >= 0
 
 
 class TestBaselinePlugin:
@@ -52,12 +52,12 @@ class TestBaselinePlugin:
         generator = BASELINE_PLUGIN.create_generator(config)
         assert isinstance(generator, BaselineGenerator)
         assert generator.config.duration == 5
-        assert generator.config.max_retries == 0 # Ensure inherited fields are present
+        assert generator.config.max_retries == 0  # Ensure inherited fields are present
 
     def test_presets(self):
         low = BASELINE_PLUGIN.get_preset_config(WorkloadIntensity.LOW)
         assert low.duration == 30
-        assert low.max_retries == 0 # Inherited default still applies for presets
+        assert low.max_retries == 0  # Inherited default still applies for presets
 
         medium = BASELINE_PLUGIN.get_preset_config(WorkloadIntensity.MEDIUM)
         assert medium.duration == 60
@@ -85,11 +85,13 @@ class TestBaselineConfigLoading:
 
     def test_load_config_from_file_common_only(self, tmp_path):
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("""
+        config_file.write_text(
+            """
 common:
   max_retries: 5
   tags: ["common-tag"]
-""")
+"""
+        )
         loaded_config = BASELINE_PLUGIN.load_config_from_file(config_file)
         assert isinstance(loaded_config, BaselineConfig)
         assert loaded_config.duration == 60  # From BaselineConfig default
@@ -98,12 +100,14 @@ common:
 
     def test_load_config_from_file_plugin_specific_only(self, tmp_path):
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("""
+        config_file.write_text(
+            """
 plugins:
   baseline:
     duration: 120
     timeout_buffer: 50
-""")
+"""
+        )
         loaded_config = BASELINE_PLUGIN.load_config_from_file(config_file)
         assert isinstance(loaded_config, BaselineConfig)
         assert loaded_config.duration == 120  # From plugin specific
@@ -112,7 +116,8 @@ plugins:
 
     def test_load_config_from_file_with_override(self, tmp_path):
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("""
+        config_file.write_text(
+            """
 common:
   max_retries: 5
   tags: ["common-tag"]
@@ -121,7 +126,8 @@ plugins:
     duration: 120
     max_retries: 10 # Plugin-specific overrides common
     tags: ["baseline-tag"] # Plugin-specific overrides common
-""")
+"""
+        )
         loaded_config = BASELINE_PLUGIN.load_config_from_file(config_file)
         assert isinstance(loaded_config, BaselineConfig)
         assert loaded_config.duration == 120
@@ -130,11 +136,13 @@ plugins:
 
     def test_load_config_from_file_invalid_data(self, tmp_path):
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("""
+        config_file.write_text(
+            """
 plugins:
   baseline:
     duration: 0 # Invalid duration (must be gt 0)
-""")
+"""
+        )
         with pytest.raises(ValidationError):
             BASELINE_PLUGIN.load_config_from_file(config_file)
 
@@ -152,40 +160,39 @@ class TestBaselineGenerator:
 
     def test_run_success(self):
         # Run a very short test
-        config = BaselineConfig(duration=0.01) # duration must be > 0
+        config = BaselineConfig(duration=0.01)  # duration must be > 0
         generator = BaselineGenerator(config)
-        
+
         generator._run_command()
-        
+
         result = generator.get_result()
         assert result is not None
         assert result["status"] == "completed"
         assert result["workload"] == "idle"
         assert "actual_duration" in result
         assert result["target_duration"] == 0.01
-        assert result["max_retries"] == 0 # Check inherited field in result
-        assert result["tags"] == [] # Check inherited field in result
-
+        assert result["max_retries"] == 0  # Check inherited field in result
+        assert result["tags"] == []  # Check inherited field in result
 
     def test_stop_early(self):
         """Test that the generator can be stopped before duration expires."""
         config = BaselineConfig(duration=2)  # Long enough to intercept
         generator = BaselineGenerator(config)
-        
-        # Start in a thread (using the public start/stop interface would be integration, 
+
+        # Start in a thread (using the public start/stop interface would be integration,
         # but here we test the internal logic via _run_command or by simulating threading)
-        
+
         # We'll use a thread to run _run_command so we can stop it from main thread
         t = threading.Thread(target=generator._run_command)
         t.start()
-        
+
         # Give it a moment to start waiting
         time.sleep(0.1)
-        
+
         # Stop it
         generator._stop_workload()
         t.join(timeout=1.0)
-        
+
         assert not t.is_alive()
         result = generator.get_result()
         assert result["status"] == "stopped"
@@ -198,17 +205,17 @@ class TestBaselineGenerator:
         """Verify logic without actual sleeping using mocks."""
         config = BaselineConfig(duration=100, max_retries=3, tags=["mocked"])
         generator = BaselineGenerator(config)
-        
+
         # Setup mocks
         mock_wait.return_value = False  # Simulate duration completion (timeout)
-        
-        mock_time.side_effect = [1000.0, 1100.0] # start, end (100s duration)
-        
+
+        mock_time.side_effect = [1000.0, 1100.0]  # start, end (100s duration)
+
         generator._run_command()
-        
-        mock_wait.assert_called_with(100) # Ensure duration is passed to wait
+
+        mock_wait.assert_called_with(100)  # Ensure duration is passed to wait
         result = generator.get_result()
         assert result["status"] == "completed"
         assert result["actual_duration"] == 100.0
-        assert result["max_retries"] == 3 # Check inherited field in result
-        assert result["tags"] == ["mocked"] # Check inherited field in result
+        assert result["max_retries"] == 3  # Check inherited field in result
+        assert result["tags"] == ["mocked"]  # Check inherited field in result

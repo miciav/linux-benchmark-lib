@@ -115,7 +115,9 @@ def collect_system_info() -> SystemInfo:
 
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint for system information collection."""
-    parser = argparse.ArgumentParser(description="Collect system information into JSON/CSV.")
+    parser = argparse.ArgumentParser(
+        description="Collect system information into JSON/CSV."
+    )
     parser.add_argument("--json", type=Path, help="Path to write JSON output")
     parser.add_argument("--csv", type=Path, help="Path to write CSV output (flattened)")
     args = parser.parse_args(argv)

@@ -108,7 +108,7 @@ def main() -> int:
     # Set up a fallback logger for early startup errors
     logging.basicConfig(level=logging.ERROR)
     start_ts = time.time()
-    
+
     try:
         workload = _env("LB_RUN_WORKLOAD")
         repetition = int(_env("LB_RUN_REPETITION"))
@@ -140,7 +140,7 @@ def main() -> int:
         hydrate_plugin_settings(cfg, registry=registry)
         ensure_workloads_from_plugin_settings(cfg, workload_factory=WorkloadConfig)
         stop_token = StopToken(stop_file=stop_path)
-        
+
         # LocalRunner will use default StdoutEmitter which uses print()
         # and since we redirected sys.stdout to _Tee, it will go to the log file.
         runner = LocalRunner(
@@ -187,7 +187,7 @@ def main() -> int:
         print("LB_EVENT " + json.dumps(payload), flush=True)
         _write_status(status_path, 1)
         return 1
-        
+
     payload = {
         "run_id": run_id,
         "host": host,

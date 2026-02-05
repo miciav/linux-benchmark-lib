@@ -11,7 +11,6 @@ from lb_runner.api import BenchmarkConfig, LocalRunner, WorkloadConfig
 pytestmark = [pytest.mark.unit_runner, pytest.mark.unit_plugins]
 
 
-
 class DummyPlugin(WorkloadPlugin):
     """Minimal plugin that records export invocations."""
 
@@ -27,18 +26,21 @@ class DummyPlugin(WorkloadPlugin):
         return "dummy plugin"
 
     @property
-    def config_cls(
-    ):
+    def config_cls():
         @dataclass
         class _Cfg:
             pass
 
         return _Cfg
 
-    def create_generator(self, config: Any) -> Any:  # pragma: no cover - not used in this test
+    def create_generator(
+        self, config: Any
+    ) -> Any:  # pragma: no cover - not used in this test
         return MagicMock()
 
-    def export_results_to_csv(self, results, output_dir: Path, run_id: str, test_name: str):
+    def export_results_to_csv(
+        self, results, output_dir: Path, run_id: str, test_name: str
+    ):
         self.export_called = {
             "results": results,
             "output_dir": output_dir,

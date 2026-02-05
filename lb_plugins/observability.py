@@ -86,9 +86,7 @@ def resolve_grafana_assets(
     hosts: Sequence[Any] | None = None,
 ) -> GrafanaAssets:
     """Resolve datasource URLs using the provided plugin config."""
-    resolved = list(
-        _iter_resolved_datasources(assets, config, hosts or ())
-    )
+    resolved = list(_iter_resolved_datasources(assets, config, hosts or ()))
     dashboards = tuple(assets.dashboards)
     return GrafanaAssets(datasources=tuple(resolved), dashboards=dashboards)
 

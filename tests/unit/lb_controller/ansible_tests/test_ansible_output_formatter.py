@@ -119,5 +119,5 @@ def test_msg_line_parsing_from_ansible_debug():
     formatter.process(line, log_sink=captured.append)
 
     assert captured == [
-        "• \\[global-setup] (h1) Workload runner mode=execute tests=[\"dd\"]"
+        '• \\[global-setup] (h1) Workload runner mode=execute tests=["dd"]'
     ]

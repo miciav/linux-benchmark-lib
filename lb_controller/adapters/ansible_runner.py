@@ -241,9 +241,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         )
 
     @staticmethod
-    def _finalize_result(
-        playbook_path: Path, result: Any
-    ) -> ExecutionResult:
+    def _finalize_result(playbook_path: Path, result: Any) -> ExecutionResult:
         rc = getattr(result, "rc", 1)
         status = getattr(result, "status", "failed")
         stats = getattr(result, "stats", {}) or {}

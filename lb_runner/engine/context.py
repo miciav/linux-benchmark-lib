@@ -11,10 +11,11 @@ if TYPE_CHECKING:
     from lb_runner.engine.stop_token import StopToken
     from lb_runner.engine.metrics import MetricManager
 
+
 @dataclass
 class RunnerContext:
     """Context object encapsulating request-scoped dependencies for execution."""
-    
+
     run_id: str | None
     config: BenchmarkConfig
     output_manager: RunnerOutputManager

@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from lb_controller.api import AnsibleRunnerExecutor, BenchmarkController, ControllerOptions
+from lb_controller.api import (
+    AnsibleRunnerExecutor,
+    BenchmarkController,
+    ControllerOptions,
+)
 from lb_plugins.api import DDConfig, FIOConfig, StressNGConfig
 from lb_runner.api import (
     BenchmarkConfig,
@@ -11,10 +15,14 @@ from lb_runner.api import (
     RemoteHostConfig,
     WorkloadConfig,
 )
-from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401
-from tests.helpers.multipass import get_intensity, make_test_ansible_env, stage_private_key
+from tests.helpers.multipass import (
+    get_intensity,
+    make_test_ansible_env,
+    stage_private_key,
+)
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
+pytest_plugins = ["tests.e2e.test_multipass_benchmark"]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
@@ -98,7 +106,9 @@ def test_remote_multiple_workloads(multipass_vm, tmp_path):
         },
     )
 
-    os.environ.update(make_test_ansible_env(ansible_dir, roles_path=ANSIBLE_ROOT / "roles"))
+    os.environ.update(
+        make_test_ansible_env(ansible_dir, roles_path=ANSIBLE_ROOT / "roles")
+    )
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
     executor = AnsibleRunnerExecutor(private_data_dir=ansible_dir, stream_output=True)

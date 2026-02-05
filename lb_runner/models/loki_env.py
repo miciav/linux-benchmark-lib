@@ -13,7 +13,9 @@ from lb_common.api import (
 )
 
 
-def apply_loki_env_fallbacks(values: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
+def apply_loki_env_fallbacks(
+    values: MutableMapping[str, Any],
+) -> MutableMapping[str, Any]:
     _fallback_bool(values, "enabled", "LB_LOKI_ENABLED")
     _fallback_str(values, "endpoint", "LB_LOKI_ENDPOINT")
     _merge_labels(values, "LB_LOKI_LABELS")

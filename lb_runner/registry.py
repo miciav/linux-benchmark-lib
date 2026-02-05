@@ -26,11 +26,15 @@ class RunnerRegistry:
     def available(self, load_entrypoints: bool = False) -> Dict[str, Any]:
         return self._workloads.available(load_entrypoints=load_entrypoints)
 
-    def create_generator(self, plugin_name: str, options: Dict[str, Any] | None = None) -> Any:
+    def create_generator(
+        self, plugin_name: str, options: Dict[str, Any] | None = None
+    ) -> Any:
         return self._workloads.create_generator(plugin_name, options)
 
     def create_collectors(self, config: BenchmarkConfig) -> list[Any]:
         return self._collectors.create_collectors(config)
 
-    def available_collectors(self, load_entrypoints: bool = False) -> Dict[str, CollectorPlugin]:
+    def available_collectors(
+        self, load_entrypoints: bool = False
+    ) -> Dict[str, CollectorPlugin]:
         return self._collectors.available(load_entrypoints=load_entrypoints)

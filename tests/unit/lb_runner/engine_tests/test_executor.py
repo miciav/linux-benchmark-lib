@@ -12,6 +12,7 @@ from lb_runner.engine.context import RunnerContext
 
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
+
 @pytest.fixture
 def mock_config():
     config = MagicMock()
@@ -19,17 +20,21 @@ def mock_config():
     config.output_dir = "dummy_output"
     return config
 
+
 @pytest.fixture
 def mock_metric_manager():
     return MagicMock()
+
 
 @pytest.fixture
 def mock_output_manager():
     return MagicMock()
 
+
 @pytest.fixture
 def mock_log_manager():
     return MagicMock()
+
 
 @pytest.fixture
 def context(mock_config, mock_metric_manager, mock_output_manager, mock_log_manager):
@@ -41,9 +46,11 @@ def context(mock_config, mock_metric_manager, mock_output_manager, mock_log_mana
         metric_manager=mock_metric_manager,
     )
 
+
 @pytest.fixture
 def executor(context):
     return RepetitionExecutor(context)
+
 
 def test_execute_success(executor, context):
     """Test successful execution of a test repetition."""
@@ -57,8 +64,10 @@ def test_execute_success(executor, context):
 
     # Mock resolve_duration
     with patch("lb_runner.engine.executor.resolve_duration", return_value=1):
-        with patch("lb_runner.engine.executor.wait_for_generator", return_value=datetime.now()):
-             result = executor.execute("test_workload", generator, 1, 3)
+        with patch(
+            "lb_runner.engine.executor.wait_for_generator", return_value=datetime.now()
+        ):
+            result = executor.execute("test_workload", generator, 1, 3)
 
     assert result["generator_result"] == {"status": "ok"}
     assert generator.start.called
@@ -67,6 +76,7 @@ def test_execute_success(executor, context):
     assert metric_session.collect.called
     assert metric_session.close.called
     assert context.output_manager.persist_rep_result.called
+
 
 def test_execute_stop_requested(executor, context):
     """Test execution when stop is requested."""
@@ -77,16 +87,17 @@ def test_execute_stop_requested(executor, context):
     metric_session = MagicMock()
     metric_session.collectors = []
     context.metric_manager.begin_repetition.return_value = metric_session
-    
+
     # Mock resolve_duration
     with patch("lb_runner.engine.executor.resolve_duration", return_value=1):
-         with pytest.raises(StopRequested):
-             executor.execute("test_workload", generator, 1, 3)
+        with pytest.raises(StopRequested):
+            executor.execute("test_workload", generator, 1, 3)
 
     assert not generator.start.called
     # Cleanup should still be called
     assert metric_session.stop.called
     assert metric_session.close.called
+
 
 def test_execute_generator_failure(executor, context):
     """Test execution when generator fails."""
@@ -95,10 +106,10 @@ def test_execute_generator_failure(executor, context):
     metric_session = MagicMock()
     metric_session.collectors = []
     context.metric_manager.begin_repetition.return_value = metric_session
-    
+
     with patch("lb_runner.engine.executor.resolve_duration", return_value=1):
         with pytest.raises(WorkloadError):
-             executor.execute("test_workload", generator, 1, 3)
+            executor.execute("test_workload", generator, 1, 3)
 
     assert metric_session.stop.called
     assert metric_session.close.called

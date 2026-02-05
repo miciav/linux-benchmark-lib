@@ -52,7 +52,9 @@ def test_directory_preparer_creates_per_host_dirs(tmp_path) -> None:
     ]
     preparer = RunDirectoryPreparer(cfg)
 
-    output_root, report_root, data_export_root, per_host_output = preparer.prepare("run-1")
+    output_root, report_root, data_export_root, per_host_output = preparer.prepare(
+        "run-1"
+    )
 
     assert output_root.exists()
     assert not report_root.exists()
