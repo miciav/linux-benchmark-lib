@@ -14,7 +14,7 @@ from typing import List, Optional
 from pydantic import Field
 
 from ...base_generator import CommandSpec
-from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
+from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
 from ..command_base import StdoutCommandGenerator
 
 
@@ -26,8 +26,14 @@ class UnixBenchConfig(BasePluginConfig):
 
     threads: int = Field(default=1, gt=0, description="Passed as -c to Run.")
     iterations: int = Field(default=1, gt=0, description="Passed as -i to Run.")
-    tests: list[str] = Field(default_factory=list, description="If empty, run default suite.")
-    workdir: Path = Field(default=Path("/opt/UnixBench"), description="Where Run lives.")
+    tests: list[str] = Field(
+        default_factory=list,
+        description="If empty, run default suite.",
+    )
+    workdir: Path = Field(
+        default=Path("/opt/UnixBench"),
+        description="Where Run lives.",
+    )
     extra_args: list[str] = Field(default_factory=list)
     debug: bool = Field(default=False)
 
@@ -64,7 +70,9 @@ class UnixBenchGenerator(StdoutCommandGenerator):
         return self.config.timeout_buffer + max(120, 60 * self.config.iterations)
 
     def _log_command(self, cmd: list[str]) -> None:
-        logger.info("Running UnixBench in %s: %s", self.config.workdir, " ".join(cmd))
+        logger.info(
+            "Running UnixBench in %s: %s", self.config.workdir, " ".join(cmd)
+        )
 
     def _validate_environment(self) -> bool:
         # Check Run exists in workdir
@@ -73,10 +81,11 @@ class UnixBenchGenerator(StdoutCommandGenerator):
             logger.error("UnixBench Run script not found at %s", run_path)
             return False
         if not os.access(run_path, os.X_OK):
-            logger.error("UnixBench Run script at %s is not executable", run_path)
+            logger.error(
+                "UnixBench Run script at %s is not executable", run_path
+            )
             return False
         return True
-
 
 
 class UnixBenchPlugin(SimpleWorkloadPlugin):

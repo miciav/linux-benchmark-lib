@@ -1,7 +1,4 @@
-"""
-DD workload generator implementation.
-Modular plugin version.
-"""
+"""DD workload generator implementation."""
 
 import logging
 import os
@@ -16,14 +13,16 @@ from typing import Any, List, Optional
 import pandas as pd
 from pydantic import Field
 
-from ...interface import SimpleWorkloadPlugin, WorkloadIntensity, BasePluginConfig
+from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
 from ...base_generator import CommandSpec
 from ..command_base import ProcessCommandGenerator
 
 logger = logging.getLogger(__name__)
 
 _DD_SUMMARY_RE = re.compile(
-    r"(?P<bytes>\d+) bytes .* copied, (?P<seconds>[0-9.]+) s, (?P<rate>[0-9.]+) (?P<rate_unit>\S+/s)"
+    r"(?P<bytes>\d+) bytes .* copied, "
+    r"(?P<seconds>[0-9.]+) s, "
+    r"(?P<rate>[0-9.]+) (?P<rate_unit>\S+/s)"
 )
 
 
@@ -61,11 +60,28 @@ class DDConfig(BasePluginConfig):
         default_factory=_default_dd_output_path,
         description="Output file path",
     )
-    bs: str = Field(default="1M", description="Block size for reads/writes (e.g., 1M, 4k)")
-    count: Optional[int] = Field(default=None, ge=1, description="Number of blocks to copy (None means run until stopped by runner duration)")
-    conv: Optional[str] = Field(default="fdatasync", description="Conversion options (e.g., fdatasync, noerror, sync)")
-    oflag: Optional[str] = Field(default="direct", description="Output flags (e.g., direct, sync, dsync)")
-    timeout: int = Field(default=60, gt=0, description="Timeout in seconds for dd execution")
+    bs: str = Field(
+        default="1M",
+        description="Block size for reads/writes (e.g., 1M, 4k)",
+    )
+    count: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="Number of blocks to copy (None means run until stopped)",
+    )
+    conv: Optional[str] = Field(
+        default="fdatasync",
+        description="Conversion options (e.g., fdatasync, noerror, sync)",
+    )
+    oflag: Optional[str] = Field(
+        default="direct",
+        description="Output flags (e.g., direct, sync, dsync)",
+    )
+    timeout: int = Field(
+        default=60,
+        gt=0,
+        description="Timeout in seconds for dd execution",
+    )
     debug: bool = Field(default=False, description="Enable debug logging")
 
 
@@ -81,16 +97,7 @@ class _DDCommandBuilder:
         if config.count is not None:
             cmd.append(f"count={config.count}")
 
-        conv = config.conv
-        oflag = config.oflag
-
-        if is_macos:
-            if oflag == "direct":
-                logger.debug("Ignoring 'oflag=direct' on macOS (not supported by BSD dd)")
-                oflag = None
-            if conv == "fdatasync":
-                logger.debug("Mapping 'conv=fdatasync' to 'conv=sync' on macOS")
-                conv = "sync"
+        conv, oflag = _normalize_dd_options(config, is_macos)
 
         if conv:
             cmd.append(f"conv={conv}")
@@ -173,7 +180,9 @@ class DDGenerator(ProcessCommandGenerator):
         try:
             output_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            logger.error("Failed to create output directory %s: %s", output_dir, exc)
+            logger.error(
+                "Failed to create output directory %s: %s", output_dir, exc
+            )
             return False
 
         if not output_dir.is_dir():
@@ -202,19 +211,19 @@ class DDPlugin(SimpleWorkloadPlugin):
         if level == WorkloadIntensity.LOW:
             return DDConfig(
                 bs="1M",
-                count=1024, # 1GB
+                count=1024,
             )
-        elif level == WorkloadIntensity.MEDIUM:
+        if level == WorkloadIntensity.MEDIUM:
             return DDConfig(
                 bs="4M",
-                count=2048, # 8GB
+                count=2048,
             )
-        elif level == WorkloadIntensity.HIGH:
+        if level == WorkloadIntensity.HIGH:
             return DDConfig(
                 bs="4M",
-                count=8192, # 32GB
+                count=8192,
                 oflag="direct",
-                conv="fdatasync"
+                conv="fdatasync",
             )
         return None
 
@@ -225,31 +234,11 @@ class DDPlugin(SimpleWorkloadPlugin):
         run_id: str,
         test_name: str,
     ) -> List[Path]:
-        rows: list[dict[str, Any]] = []
-        for entry in results:
-            row = {
-                "run_id": run_id,
-                "workload": test_name,
-                "repetition": entry.get("repetition"),
-                "duration_seconds": entry.get("duration_seconds"),
-                "success": entry.get("success"),
-            }
-            gen_result = entry.get("generator_result") or {}
-            if isinstance(gen_result, dict):
-                stderr = gen_result.get("stderr") or ""
-                stdout = gen_result.get("stdout") or ""
-                row["generator_stdout"] = stdout
-                row["generator_returncode"] = gen_result.get("returncode")
-                row["generator_command"] = gen_result.get("command")
-                row["generator_max_retries"] = gen_result.get("max_retries")
-                row["generator_tags"] = gen_result.get("tags")
-                if entry.get("success"):
-                    summary = _summarize_dd_stderr(stderr)
-                    row.update(summary)
-                    row["generator_stderr"] = summary.get("dd_summary", "")
-                else:
-                    row["generator_stderr"] = stderr
-            rows.append(row)
+        rows = [
+            row
+            for entry in results
+            if (row := _build_dd_row(entry, run_id, test_name)) is not None
+        ]
 
         if not rows:
             return []
@@ -262,3 +251,51 @@ class DDPlugin(SimpleWorkloadPlugin):
 
 
 PLUGIN = DDPlugin()
+
+
+def _normalize_dd_options(
+    config: DDConfig, is_macos: bool
+) -> tuple[str | None, str | None]:
+    conv = config.conv
+    oflag = config.oflag
+    if not is_macos:
+        return conv, oflag
+    if oflag == "direct":
+        logger.debug(
+            "Ignoring 'oflag=direct' on macOS (not supported by BSD dd)"
+        )
+        oflag = None
+    if conv == "fdatasync":
+        logger.debug("Mapping 'conv=fdatasync' to 'conv=sync' on macOS")
+        conv = "sync"
+    return conv, oflag
+
+
+def _build_dd_row(
+    entry: dict[str, Any],
+    run_id: str,
+    test_name: str,
+) -> dict[str, Any] | None:
+    row = {
+        "run_id": run_id,
+        "workload": test_name,
+        "repetition": entry.get("repetition"),
+        "duration_seconds": entry.get("duration_seconds"),
+        "success": entry.get("success"),
+    }
+    gen_result = entry.get("generator_result") or {}
+    if not isinstance(gen_result, dict):
+        return row
+    stderr = gen_result.get("stderr") or ""
+    row["generator_stdout"] = gen_result.get("stdout") or ""
+    row["generator_returncode"] = gen_result.get("returncode")
+    row["generator_command"] = gen_result.get("command")
+    row["generator_max_retries"] = gen_result.get("max_retries")
+    row["generator_tags"] = gen_result.get("tags")
+    if entry.get("success"):
+        summary = _summarize_dd_stderr(stderr)
+        row.update(summary)
+        row["generator_stderr"] = summary.get("dd_summary", "")
+    else:
+        row["generator_stderr"] = stderr
+    return row

@@ -18,7 +18,7 @@ resolve_user_plugin_dir = discovery_module.resolve_user_plugin_dir
 
 
 class PluginRegistry:
-    """In-memory registry that supports built-in, entry-point, and user directory plugins."""
+    """In-memory registry for built-in, entry-point, and user plugins."""
 
     def __init__(self, plugins: Optional[Iterable[Any]] = None):
         self._workloads: Dict[str, IWorkloadPlugin] = {}
@@ -34,7 +34,8 @@ class PluginRegistry:
         if isinstance(plugin, IWorkloadPlugin):
             self._workloads[plugin.name] = plugin
         else:
-            # Try duck typing for IWorkloadPlugin if strict check fails (e.g. different import paths)
+            # Try duck typing for IWorkloadPlugin if strict check fails
+            # (e.g. different import paths).
             if hasattr(plugin, "name") and hasattr(plugin, "create_generator"):
                 self._workloads[plugin.name] = plugin
             else:

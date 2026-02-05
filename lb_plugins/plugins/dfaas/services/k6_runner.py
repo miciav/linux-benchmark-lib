@@ -205,7 +205,7 @@ class K6Runner:
         """Execute k6 script via Fabric/SSH."""
         conn = self._get_connection()
         start_time = time.time()
-        
+
         workspace = f"{self.k6_workspace_root}/{target_name}/{run_id}/{config_id}"
         script_path = f"{workspace}/script.js"
         summary_path = f"{workspace}/summary.json"
@@ -220,7 +220,7 @@ class K6Runner:
             with tempfile.NamedTemporaryFile("w", delete=False) as f:
                 f.write(script)
                 local_tmp = f.name
-            
+
             try:
                 conn.put(local_tmp, script_path)
             finally:
@@ -228,9 +228,9 @@ class K6Runner:
 
             k6_cmd = self._build_k6_command(script_path, summary_path, outputs, tags)
             self._log(f"Running k6 for config {config_id}...")
-            
+
             full_cmd = f"{k6_cmd} 2>&1 | tee {log_path}"
-            
+
             try:
                 out_writer = _StreamWriter(self._stream_handler) if self.log_stream_enabled else None
                 result = conn.run(
@@ -258,7 +258,7 @@ class K6Runner:
 
             with tempfile.NamedTemporaryFile("w", delete=False) as f:
                 local_summary = f.name
-            
+
             try:
                 conn.get(summary_path, local_summary)
                 summary_data = json.loads(Path(local_summary).read_text())
@@ -301,8 +301,8 @@ class K6Runner:
             logger.info("%s", message)
 
     def _build_k6_command(
-        self, 
-        script_path: str, 
+        self,
+        script_path: str,
         summary_path: str,
         outputs: Iterable[str] | None,
         tags: Mapping[str, str] | None

@@ -1,59 +1,65 @@
-"""
-Baseline workload generator implementation.
-This plugin performs no actual work, allowing the system to measure baseline performance/overhead.
-"""
+"""Baseline workload generator implementation."""
 
 import logging
 import threading
 import time
-# Removed from dataclasses import dataclass
 from typing import Optional
 
-from pydantic import Field # Added pydantic Field
+from pydantic import Field
 
 from ...base_generator import BaseGenerator
-from ...interface import WorkloadIntensity, SimpleWorkloadPlugin, BasePluginConfig # Imported BasePluginConfig
+from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
 
 logger = logging.getLogger(__name__)
 
+
 class BaselineConfig(BasePluginConfig):
     """Configuration for baseline workload generator."""
-    duration: float = Field(default=60.0, gt=0, description="Duration to sleep in seconds") # Using Pydantic Field, changed to float
+
+    duration: float = Field(
+        default=60.0,
+        gt=0,
+        description="Duration to sleep in seconds",
+    )
 
 
 class BaselineGenerator(BaseGenerator):
     """Workload generator that does nothing (sleeps) to establish a baseline."""
-    
+
     def __init__(self, config: BaselineConfig, name: str = "BaselineGenerator"):
         super().__init__(name)
         self.config = config
         self._stop_event = threading.Event()
-        
+
     def _run_command(self) -> None:
-        logger.info(f"Starting baseline run for {self.config.duration} seconds")
-        
+        logger.info(
+            "Starting baseline run for %s seconds", self.config.duration
+        )
+
         start_time = time.time()
         # Wait for the duration or until stopped
         stopped_early = self._stop_event.wait(self.config.duration)
         end_time = time.time()
-        
+
         actual_duration = end_time - start_time
-        
+
         self._result = {
             "status": "completed" if not stopped_early else "stopped",
             "target_duration": self.config.duration,
             "actual_duration": actual_duration,
             "workload": "idle",
-            "max_retries": self.config.max_retries, # Example of using inherited field
-            "tags": self.config.tags # Example of using inherited field
+            "max_retries": self.config.max_retries,
+            "tags": self.config.tags,
         }
-        
-        logger.info(f"Baseline run finished. Actual duration: {actual_duration:.2f}s")
+
+        logger.info(
+            "Baseline run finished. Actual duration: %.2fs", actual_duration
+        )
 
     def _validate_environment(self) -> bool:
         # Baseline requires no external tools
         return True
-    
+
     def _stop_workload(self) -> None:
         self._stop_event.set()
 
@@ -67,15 +73,15 @@ class BaselinePlugin(SimpleWorkloadPlugin):
     GENERATOR_CLS = BaselineGenerator
     REQUIRED_APT_PACKAGES: list[str] = []
     REQUIRED_LOCAL_TOOLS: list[str] = []
-    
+
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[BaselineConfig]:
         if level == WorkloadIntensity.LOW:
             return BaselineConfig(duration=30)
-        elif level == WorkloadIntensity.MEDIUM:
+        if level == WorkloadIntensity.MEDIUM:
             return BaselineConfig(duration=60)
-        elif level == WorkloadIntensity.HIGH:
+        if level == WorkloadIntensity.HIGH:
             return BaselineConfig(duration=300)
         return None
 
-# Exposed Plugin Instance
+
 PLUGIN = BaselinePlugin()

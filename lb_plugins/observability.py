@@ -45,7 +45,9 @@ class GrafanaDatasourceAsset:
         value_str = str(value).strip()
         return value_str or None
 
-    def resolve(self, config: Any | Mapping[str, Any] | None) -> "GrafanaDatasourceAsset | None":
+    def resolve(
+        self, config: Any | Mapping[str, Any] | None
+    ) -> "GrafanaDatasourceAsset | None":
         """Return a copy with URL populated, or None if unavailable."""
         url = self.resolve_url(config)
         if not url:
@@ -84,21 +86,45 @@ def resolve_grafana_assets(
     hosts: Sequence[Any] | None = None,
 ) -> GrafanaAssets:
     """Resolve datasource URLs using the provided plugin config."""
-    resolved: list[GrafanaDatasourceAsset] = []
-    host_specs: list[RemoteHostSpec] = []
-    if hosts:
-        host_specs = [RemoteHostSpec.from_object(host) for host in hosts]
+    resolved = list(
+        _iter_resolved_datasources(assets, config, hosts or ())
+    )
+    dashboards = tuple(assets.dashboards)
+    return GrafanaAssets(datasources=tuple(resolved), dashboards=dashboards)
+
+
+def _iter_resolved_datasources(
+    assets: GrafanaAssets,
+    config: Any | Mapping[str, Any] | None,
+    hosts: Sequence[Any],
+) -> list[GrafanaDatasourceAsset]:
+    host_specs = _resolve_host_specs(hosts)
     cfg_context = _to_namespace(config)
+    resolved: list[GrafanaDatasourceAsset] = []
     for datasource in assets.datasources:
         resolved_ds = datasource.resolve(config)
-        if resolved_ds is not None:
-            if resolved_ds.per_host and host_specs:
-                resolved.extend(
-                    _expand_per_host_datasource(resolved_ds, host_specs, cfg_context)
-                )
-            else:
-                resolved.append(resolved_ds)
-    return GrafanaAssets(datasources=tuple(resolved), dashboards=tuple(assets.dashboards))
+        if resolved_ds is None:
+            continue
+        _append_datasource(resolved, resolved_ds, host_specs, cfg_context)
+    return resolved
+
+
+def _resolve_host_specs(hosts: Sequence[Any]) -> list[RemoteHostSpec]:
+    return [RemoteHostSpec.from_object(host) for host in hosts] if hosts else []
+
+
+def _append_datasource(
+    resolved: list[GrafanaDatasourceAsset],
+    datasource: GrafanaDatasourceAsset,
+    host_specs: Sequence[RemoteHostSpec],
+    cfg_context: Any | None,
+) -> None:
+    if datasource.per_host and host_specs:
+        resolved.extend(
+            _expand_per_host_datasource(datasource, host_specs, cfg_context)
+        )
+        return
+    resolved.append(datasource)
 
 
 def _expand_per_host_datasource(
@@ -106,34 +132,17 @@ def _expand_per_host_datasource(
     hosts: Sequence[RemoteHostSpec],
     config: Any | None,
 ) -> list[GrafanaDatasourceAsset]:
-    expanded: list[GrafanaDatasourceAsset] = []
     name_template = datasource.name_template or "{name}-{host.name}"
     url_template = datasource.url_template or datasource.url or ""
-    if len(hosts) > 1 and not _template_has_host_placeholder(
-        url_template, datasource, hosts[0], config
-    ):
-        logger.warning(
-            "Skipping Grafana datasource %s: per_host requires a {host.*} template",
-            datasource.name,
-        )
+    if not _allow_multi_host_template(url_template, datasource, hosts, config):
         return []
+    expanded: list[GrafanaDatasourceAsset] = []
     for host in hosts:
-        name = _format_template(name_template, datasource, host, config)
-        url = _format_template(url_template, datasource, host, config)
-        if "{host" in url or "{config" in url or "{name" in url:
-            url = _format_template(url, datasource, host, config)
-        if not url:
-            continue
-        expanded.append(
-            replace(
-                datasource,
-                name=name,
-                url=url,
-                per_host=False,
-                name_template=None,
-                url_template=None,
-            )
+        resolved = _format_host_datasource(
+            datasource, host, config, name_template, url_template
         )
+        if resolved is not None:
+            expanded.append(resolved)
     return expanded
 
 
@@ -160,6 +169,7 @@ def _to_namespace(config: Any | Mapping[str, Any] | None) -> Any | None:
         return SimpleNamespace(**config)
     return config
 
+
 def _template_has_host_placeholder(
     template: str,
     datasource: GrafanaDatasourceAsset,
@@ -172,3 +182,43 @@ def _template_has_host_placeholder(
         resolved = _format_template(template, datasource, host, config)
         return "{host" in resolved
     return False
+
+
+def _allow_multi_host_template(
+    url_template: str,
+    datasource: GrafanaDatasourceAsset,
+    hosts: Sequence[RemoteHostSpec],
+    config: Any | None,
+) -> bool:
+    if len(hosts) <= 1:
+        return True
+    if _template_has_host_placeholder(url_template, datasource, hosts[0], config):
+        return True
+    logger.warning(
+        "Skipping Grafana datasource %s: per_host requires a {host.*} template",
+        datasource.name,
+    )
+    return False
+
+
+def _format_host_datasource(
+    datasource: GrafanaDatasourceAsset,
+    host: RemoteHostSpec,
+    config: Any | None,
+    name_template: str,
+    url_template: str,
+) -> GrafanaDatasourceAsset | None:
+    name = _format_template(name_template, datasource, host, config)
+    url = _format_template(url_template, datasource, host, config)
+    if "{host" in url or "{config" in url or "{name" in url:
+        url = _format_template(url, datasource, host, config)
+    if not url:
+        return None
+    return replace(
+        datasource,
+        name=name,
+        url=url,
+        per_host=False,
+        name_template=None,
+        url_template=None,
+    )

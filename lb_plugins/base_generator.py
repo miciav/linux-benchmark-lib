@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class BaseGenerator(ABC):
     """Abstract base class for all workload generators."""
-    
+
     def __init__(self, name: str):
         """
         Initialize the base generator.
@@ -32,7 +32,7 @@ class BaseGenerator(ABC):
         self._thread: Optional[threading.Thread] = None
         self._result: Optional[Any] = None
         self._error: WorkloadError | None = None
-    
+
     @abstractmethod
     def _run_command(self) -> None:
         """
@@ -69,7 +69,7 @@ class BaseGenerator(ABC):
         repetition without affecting shared setup/provisioning.
         """
         return None
-    
+
     @abstractmethod
     def _stop_workload(self) -> None:
         """
@@ -83,38 +83,15 @@ class BaseGenerator(ABC):
     def start(self) -> None:
         """Start the workload generation in a background thread."""
         if self._is_running:
-            logger.warning(f"{self.name} generator is already running")
+            logger.warning("%s generator is already running", self.name)
             return
 
-        if not self._validate_environment():
-            raise WorkloadError(
-                f"{self.name} generator cannot run in this environment",
-                context={"workload": self.name},
-            )
-
+        self._ensure_environment()
         self._is_running = True
-        def _wrapper() -> None:
-            try:
-                self._run_command()
-            except WorkloadError as exc:
-                self._set_error(exc)
-                logger.error("%s workload error: %s", self.name, exc)
-            except Exception as exc:
-                error = WorkloadError(
-                    f"{self.name} workload failed",
-                    context={"workload": self.name},
-                    cause=exc,
-                )
-                self._set_error(error)
-                logger.exception("%s workload crashed", self.name)
-            finally:
-                # Always clear running flag when the worker exits (success or failure)
-                self._is_running = False
-
-        self._thread = threading.Thread(target=_wrapper)
+        self._thread = threading.Thread(target=self._run_worker)
         self._thread.start()
 
-        logger.info(f"{self.name} generator started")
+        logger.info("%s generator started", self.name)
 
     def stop(self) -> None:
         """Stop the workload generation."""
@@ -123,23 +100,16 @@ class BaseGenerator(ABC):
             self._stop_workload()
             self._is_running = False
         else:
-            logger.debug(f"{self.name} generator was already stopped or finished")
+            logger.debug("%s generator was already stopped or finished", self.name)
 
         # Always ensure the thread is joined to avoid zombies
-        if self._thread and self._thread.is_alive():
-            try:
-                self._thread.join(timeout=5.0)
-                if self._thread.is_alive():
-                    logger.warning(f"{self.name} thread did not terminate gracefully")
-            except Exception as e:
-                logger.error(f"Error joining thread for {self.name}: {e}")
-            
-        logger.info(f"{self.name} generator stopped")
+        self._join_thread()
+        logger.info("%s generator stopped", self.name)
 
     def check_prerequisites(self) -> bool:
         """
         Check if the generator's prerequisites are met.
-        
+
         Delegates to the protected _validate_environment method.
         """
         return self._validate_environment()
@@ -164,6 +134,42 @@ class BaseGenerator(ABC):
             self._result.update(payload)
         else:
             self._result = payload
+
+    def _ensure_environment(self) -> None:
+        if self._validate_environment():
+            return
+        raise WorkloadError(
+            f"{self.name} generator cannot run in this environment",
+            context={"workload": self.name},
+        )
+
+    def _run_worker(self) -> None:
+        try:
+            self._run_command()
+        except WorkloadError as exc:
+            self._set_error(exc)
+            logger.error("%s workload error: %s", self.name, exc)
+        except Exception as exc:
+            error = WorkloadError(
+                f"{self.name} workload failed",
+                context={"workload": self.name},
+                cause=exc,
+            )
+            self._set_error(error)
+            logger.exception("%s workload crashed", self.name)
+        finally:
+            # Always clear running flag when the worker exits (success or failure)
+            self._is_running = False
+
+    def _join_thread(self) -> None:
+        if not self._thread or not self._thread.is_alive():
+            return
+        try:
+            self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                logger.warning("%s thread did not terminate gracefully", self.name)
+        except Exception as exc:
+            logger.error("Error joining thread for %s: %s", self.name, exc)
 
 
 @dataclass

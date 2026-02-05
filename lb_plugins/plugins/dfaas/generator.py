@@ -166,11 +166,11 @@ class DfaasGenerator(BaseGenerator):
                 or self._get_local_ip()
             )
             url = url.replace("{host.address}", replacement)
-        
+
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
             return url
-        
+
         # Fallback for localhost replacement logic
         host = parsed.hostname
         if host in {"127.0.0.1", "localhost", "0.0.0.0"}:
