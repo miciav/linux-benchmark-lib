@@ -264,14 +264,14 @@ ignore_imports = [
 name = "lb_analytics isolation"
 type = "forbidden"
 source_modules = ["lb_analytics"]
-forbidden_modules = ["lb_plugins", "lb_runner", "lb_controller", "lb_app", "lb_ui", "lb_provisioner"]
+forbidden_modules = ["lb_plugins", "lb_runner", "lb_controller", "lb_app", "lb_ui", "lb_gui", "lb_provisioner"]
 
 # lb_provisioner can only import from lb_common and lb_plugins
 [[tool.importlinter.contracts]]
 name = "lb_provisioner layer restrictions"
 type = "forbidden"
 source_modules = ["lb_provisioner"]
-forbidden_modules = ["lb_runner", "lb_controller", "lb_app", "lb_ui", "lb_analytics"]
+forbidden_modules = ["lb_runner", "lb_controller", "lb_app", "lb_ui", "lb_gui", "lb_analytics"]
 
 # Note: The "forbidden" contract type tracks transitive imports, which is not what
 # we want for the .api boundary check. Use scripts/check_api_imports.py for that.

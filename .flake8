@@ -1,6 +1,7 @@
 [flake8]
 max-line-length = 88
 extend-ignore = E203, W503
+exclude = .venv,.uv_cache,.uv-cache,.mypy_cache,.pytest_cache,.ruff_cache,.coverage,.ansible_runner,lb_controller/ansible/collections/ansible_collections
 
 banned-modules =
     lb_controller.ansible = Use lb_controller.api instead.
