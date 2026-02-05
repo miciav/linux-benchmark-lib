@@ -43,23 +43,13 @@ class JsonlLogFormatter(logging.Formatter):
         self._tags = tags
 
     def format(self, record: logging.LogRecord) -> str:
-        event_type = getattr(record, "lb_event_type", None) or self._event_type
-        workload = getattr(record, "lb_workload", None) or self._workload
-        package = getattr(record, "lb_package", None) or self._package
-        plugin = getattr(record, "lb_plugin", None) or self._plugin
-        scenario = getattr(record, "lb_scenario", None) or self._scenario
-        repetition = getattr(record, "lb_repetition", None)
-        if repetition is None:
-            repetition = self._repetition
-        tags = dict(self._tags or {})
-        phase = getattr(record, "lb_phase", None)
-        if phase:
-            tags["phase"] = phase
-        record_tags = getattr(record, "lb_tags", None)
-        if isinstance(record_tags, Mapping):
-            tags.update(record_tags)
-        if not tags:
-            tags = None
+        event_type = _resolve_record_value(record, "lb_event_type", self._event_type)
+        workload = _resolve_record_value(record, "lb_workload", self._workload)
+        package = _resolve_record_value(record, "lb_package", self._package)
+        plugin = _resolve_record_value(record, "lb_plugin", self._plugin)
+        scenario = _resolve_record_value(record, "lb_scenario", self._scenario)
+        repetition = _resolve_record_value(record, "lb_repetition", self._repetition)
+        tags = _merge_record_tags(self._tags, record)
         event = StructuredLogEvent.from_log_record(
             record,
             component=self._component,
@@ -74,6 +64,26 @@ class JsonlLogFormatter(logging.Formatter):
             tags=tags,
         )
         return event.to_json()
+
+
+def _resolve_record_value(
+    record: logging.LogRecord, attribute: str, fallback: Any
+) -> Any:
+    value = getattr(record, attribute, None)
+    return value if value is not None else fallback
+
+
+def _merge_record_tags(
+    base_tags: Mapping[str, Any] | None, record: logging.LogRecord
+) -> dict[str, Any] | None:
+    tags = dict(base_tags or {})
+    phase = getattr(record, "lb_phase", None)
+    if phase:
+        tags["phase"] = phase
+    record_tags = getattr(record, "lb_tags", None)
+    if isinstance(record_tags, Mapping):
+        tags.update(record_tags)
+    return tags or None
 
 
 def resolve_jsonl_path(

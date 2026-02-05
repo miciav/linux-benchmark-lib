@@ -38,72 +38,54 @@ def normalize_line(line: str) -> str | None:
     return stripped or None
 
 
-def _extract_lb_event_data(line: str, token: str = "LB_EVENT") -> dict[str, Any] | None:
+def _extract_lb_event_data(
+    line: str, token: str = "LB_EVENT"
+) -> dict[str, Any] | None:
     """Extract LB_EVENT JSON payloads from noisy Ansible output."""
-    token_idx = line.find(token)
-    if token_idx == -1:
-        return None
-
-    payload = line[token_idx + len(token) :].strip()
-    start = payload.find("{")
-    if start == -1:
-        return None
-
-    # Walk the payload to find the matching closing brace to avoid picking up
-    # trailing characters from debug output (e.g., quotes + extra braces).
-    depth = 0
-    end: int | None = None
-    for idx, ch in enumerate(payload[start:], start):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                end = idx + 1
-                break
-    if end is None:
-        return None
-
-    raw = payload[start:end]
-    candidates = (
-        raw,
-        raw.strip("\"'"),
-        raw.replace(r"\"", '"'),
-        raw.strip("\"'").replace(r"\"", '"'),
-    )
-    for candidate in candidates:
-        try:
-            return json.loads(candidate)
-        except Exception:
-            continue
-    return None
+    return _extract_tagged_json(line, token)
 
 
-def _extract_lb_task_data(line: str, token: str = "LB_TASK") -> dict[str, Any] | None:
+def _extract_lb_task_data(
+    line: str, token: str = "LB_TASK"
+) -> dict[str, Any] | None:
     """Extract LB_TASK JSON payloads from Ansible callback output."""
+    return _extract_tagged_json(line, token)
+
+
+def _extract_tagged_json(line: str, token: str) -> dict[str, Any] | None:
     token_idx = line.find(token)
     if token_idx == -1:
         return None
 
     payload = line[token_idx + len(token) :].strip()
+    start, end = _find_json_bounds(payload)
+    if start is None or end is None:
+        return None
+    raw = payload[start:end]
+    return _parse_json_candidates(raw)
+
+
+def _find_json_bounds(payload: str) -> tuple[int | None, int | None]:
     start = payload.find("{")
     if start == -1:
-        return None
-
+        return None, None
     depth = 0
-    end: int | None = None
     for idx, ch in enumerate(payload[start:], start):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                end = idx + 1
-                break
-    if end is None:
-        return None
+        depth = _advance_json_depth(depth, ch)
+        if depth == 0 and ch == "}":
+            return start, idx + 1
+    return None, None
 
-    raw = payload[start:end]
+
+def _advance_json_depth(depth: int, ch: str) -> int:
+    if ch == "{":
+        return depth + 1
+    if ch == "}":
+        return depth - 1
+    return depth
+
+
+def _parse_json_candidates(raw: str) -> dict[str, Any] | None:
     candidates = (
         raw,
         raw.strip("\"'"),
@@ -171,8 +153,10 @@ def is_noise_line(line: str, *, emit_task_starts: bool) -> bool:
 
 def is_changed_line(line: str) -> bool:
     """Return True when the line indicates Ansible 'changed' output."""
-    return line.startswith("changed:") or line.startswith('"changed":') or line.startswith(
-        "'changed':"
+    return (
+        line.startswith("changed:")
+        or line.startswith('"changed":')
+        or line.startswith("'changed':")
     )
 
 

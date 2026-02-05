@@ -8,7 +8,8 @@ from lb_plugins.registry import PluginRegistry
 
 
 def build_plugin_table(
-    registry: PluginRegistry, enabled: Optional[Dict[str, bool]] = None
+    registry: PluginRegistry,
+    enabled: Optional[Dict[str, bool]] = None,
 ) -> tuple[list[str], list[list[str]]]:
     """Return headers and rows representing plugin availability/enabled status."""
     enabled = enabled or {}

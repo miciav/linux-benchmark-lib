@@ -19,44 +19,57 @@ def load_resume_journal(
     context: RunContext, run_id: str | None
 ) -> tuple[RunJournal, Path, str]:
     """Load an existing journal and reconcile configuration for resume."""
-    journal_path: Path | None = None
-    run_identifier: str | None = None
-
-    if context.resume_latest:
-        journal_path = find_latest_journal(context.config)
-        if journal_path is not None:
-            run_identifier = journal_path.parent.name
-        else:
-            latest = find_latest_results_run(context.config)
-            if latest is None:
-                raise ValueError("No previous run found to resume.")
-            run_identifier, journal_path = latest
-    else:
-        run_identifier = context.resume_from
-        if not run_identifier:
-            raise ValueError("Resume requested without a run identifier.")
-        journal_path = context.config.output_dir / run_identifier / "run_journal.json"
-
-    if run_identifier is None:
-        raise ValueError("Resume requested without a run identifier.")
-
-    if journal_path.exists():
-        journal = RunJournal.load(journal_path)
-    else:
-        run_root = journal_path.parent
-        if not results_exist_for_run(run_root):
-            raise ValueError("Resume journal missing and no results were found to rebuild it.")
-        journal = build_journal_from_results(run_identifier, context)
-        run_root.mkdir(parents=True, exist_ok=True)
-        journal.save(journal_path)
+    run_identifier, journal_path = _resolve_resume_identifier(context)
+    journal = _load_or_rebuild_journal(context, run_identifier, journal_path)
 
     rehydrate_resume_config(context, journal)
     ensure_resume_tasks(context, journal)
-    if run_id and run_id != journal.run_id:
-        raise ValueError(
-            f"Run ID mismatch: resume journal={journal.run_id}, cli={run_id}"
-        )
+    _validate_run_id(run_id, journal.run_id)
     return journal, journal_path, journal.run_id
+
+
+def _resolve_resume_identifier(context: RunContext) -> tuple[str, Path]:
+    if context.resume_latest:
+        return _latest_resume_identifier(context.config)
+    if not context.resume_from:
+        raise ValueError("Resume requested without a run identifier.")
+    journal_path = (
+        context.config.output_dir / context.resume_from / "run_journal.json"
+    )
+    return context.resume_from, journal_path
+
+
+def _latest_resume_identifier(config: BenchmarkConfig) -> tuple[str, Path]:
+    journal_path = find_latest_journal(config)
+    if journal_path is not None:
+        return journal_path.parent.name, journal_path
+    latest = find_latest_results_run(config)
+    if latest is None:
+        raise ValueError("No previous run found to resume.")
+    return latest
+
+
+def _load_or_rebuild_journal(
+    context: RunContext, run_identifier: str, journal_path: Path
+) -> RunJournal:
+    if journal_path.exists():
+        return RunJournal.load(journal_path)
+    run_root = journal_path.parent
+    if not results_exist_for_run(run_root):
+        raise ValueError(
+            "Resume journal missing and no results were found to rebuild it."
+        )
+    journal = build_journal_from_results(run_identifier, context)
+    run_root.mkdir(parents=True, exist_ok=True)
+    journal.save(journal_path)
+    return journal
+
+
+def _validate_run_id(requested: str | None, actual: str) -> None:
+    if requested and requested != actual:
+        raise ValueError(
+            f"Run ID mismatch: resume journal={actual}, cli={requested}"
+        )
 
 
 def resolve_resume_path(context: RunContext) -> Path:
@@ -75,37 +88,68 @@ def rehydrate_resume_config(context: RunContext, journal: RunJournal) -> None:
     rehydrated = journal.rehydrate_config()
     meta_hash = (journal.metadata or {}).get("config_hash")
     cfg_hash = hash_config(context.config)
-    if meta_hash and meta_hash != cfg_hash and rehydrated is not None:
-        context.config = rehydrated
-    elif context.config is None and rehydrated is not None:
-        context.config = rehydrated
-    if original_remote_exec and context.config:
-        context.config.remote_execution.run_setup = original_remote_exec.run_setup
-        context.config.remote_execution.run_teardown = (
-            original_remote_exec.run_teardown
-        )
-        context.config.remote_execution.run_collect = (
-            original_remote_exec.run_collect
-        )
+    context.config = _select_rehydrated_config(
+        context.config, rehydrated, meta_hash, cfg_hash
+    )
+    _restore_remote_execution(original_remote_exec, context.config)
+
+
+def _select_rehydrated_config(
+    current: BenchmarkConfig | None,
+    rehydrated: BenchmarkConfig | None,
+    meta_hash: str | None,
+    cfg_hash: str | None,
+) -> BenchmarkConfig | None:
+    if rehydrated is None:
+        return current
+    if meta_hash and meta_hash != cfg_hash:
+        return rehydrated
+    if current is None:
+        return rehydrated
+    return current
+
+
+def _restore_remote_execution(
+    original_remote_exec: Any, config: BenchmarkConfig | None
+) -> None:
+    if not original_remote_exec or not config:
+        return
+    config.remote_execution.run_setup = original_remote_exec.run_setup
+    config.remote_execution.run_teardown = original_remote_exec.run_teardown
+    config.remote_execution.run_collect = original_remote_exec.run_collect
 
 
 def ensure_resume_tasks(context: RunContext, journal: RunJournal) -> None:
     """Add any missing tasks to the resume journal for new hosts/workloads."""
-    hosts = (
-        context.config.remote_hosts
-        if getattr(context.config, "remote_hosts", None)
-        else [SimpleNamespace(name="localhost")]
-    )
+    hosts = _resume_hosts(context)
+    for host in hosts:
+        _ensure_host_tasks(context, journal, host)
+
+
+def _resume_hosts(context: RunContext) -> list[SimpleNamespace]:
+    if getattr(context.config, "remote_hosts", None):
+        return list(context.config.remote_hosts)
+    return [SimpleNamespace(name="localhost")]
+
+
+def _ensure_host_tasks(
+    context: RunContext, journal: RunJournal, host: SimpleNamespace
+) -> None:
     for test_name in context.target_tests:
-        if test_name not in context.config.workloads:
+        _ensure_test_tasks(context, journal, host, test_name)
+
+
+def _ensure_test_tasks(
+    context: RunContext, journal: RunJournal, host: SimpleNamespace, test_name: str
+) -> None:
+    if test_name not in context.config.workloads:
+        return
+    for rep in range(1, context.config.repetitions + 1):
+        if journal.get_task(host.name, test_name, rep):
             continue
-        for host in hosts:
-            for rep in range(1, context.config.repetitions + 1):
-                if journal.get_task(host.name, test_name, rep):
-                    continue
-                journal.add_task(
-                    TaskState(host=host.name, workload=test_name, repetition=rep)
-                )
+        journal.add_task(
+            TaskState(host=host.name, workload=test_name, repetition=rep)
+        )
 
 
 def initialize_new_journal(
@@ -114,7 +158,9 @@ def initialize_new_journal(
     """Create a fresh journal for a new run."""
     run_identifier = run_id or generate_run_id()
     journal_path = context.config.output_dir / run_identifier / "run_journal.json"
-    journal = RunJournal.initialize(run_identifier, context.config, context.target_tests)
+    journal = RunJournal.initialize(
+        run_identifier, context.config, context.target_tests
+    )
     return journal, journal_path, run_identifier
 
 
@@ -128,17 +174,35 @@ def build_journal_from_results(
     output_root = context.config.output_dir / run_id
     hosts = host_names or _resolve_host_names(context)
     for host_name in hosts:
-        host_root = output_root / host_name
-        if not host_root.exists():
-            host_root = output_root
-        for test_name in context.target_tests:
-            results_file = find_results_file(host_root, test_name)
-            if not results_file:
-                continue
-            entries = load_results_entries(results_file)
-            for entry in entries:
-                apply_result_entry(journal, host_name, test_name, entry)
+        _apply_host_results(journal, output_root, host_name, context)
     return journal
+
+
+def _apply_host_results(
+    journal: RunJournal,
+    output_root: Path,
+    host_name: str,
+    context: RunContext,
+) -> None:
+    host_root = output_root / host_name
+    if not host_root.exists():
+        host_root = output_root
+    for test_name in context.target_tests:
+        _apply_test_results(journal, host_root, host_name, test_name)
+
+
+def _apply_test_results(
+    journal: RunJournal,
+    host_root: Path,
+    host_name: str,
+    test_name: str,
+) -> None:
+    results_file = find_results_file(host_root, test_name)
+    if not results_file:
+        return
+    entries = load_results_entries(results_file)
+    for entry in entries:
+        apply_result_entry(journal, host_name, test_name, entry)
 
 
 def find_results_file(output_root: Path, test_name: str) -> Path | None:
@@ -259,19 +323,32 @@ def find_latest_results_run(config: BenchmarkConfig) -> tuple[str, Path] | None:
     root = config.output_dir
     if not root.exists():
         return None
-    latest: tuple[float, Path] | None = None
-    for child in root.iterdir():
-        if not child.is_dir():
-            continue
-        mtime = _latest_results_mtime(child)
-        if mtime is None:
-            continue
-        if latest is None or mtime > latest[0]:
-            latest = (mtime, child)
+    latest = _latest_results_dir(root)
     if latest is None:
         return None
-    run_dir = latest[1]
-    return run_dir.name, run_dir / "run_journal.json"
+    return latest.name, latest / "run_journal.json"
+
+
+def _latest_results_dir(root: Path) -> Path | None:
+    latest: tuple[float, Path] | None = None
+    for child in root.iterdir():
+        candidate = _latest_results_candidate(child)
+        if candidate is None:
+            continue
+        if latest is None or candidate[0] > latest[0]:
+            latest = candidate
+    if latest is None:
+        return None
+    return latest[1]
+
+
+def _latest_results_candidate(path: Path) -> tuple[float, Path] | None:
+    if not path.is_dir():
+        return None
+    mtime = _latest_results_mtime(path)
+    if mtime is None:
+        return None
+    return mtime, path
 
 
 def results_exist_for_run(run_root: Path) -> bool:

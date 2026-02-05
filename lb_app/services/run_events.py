@@ -39,7 +39,10 @@ class JsonEventTailer:
         if _DEBUG:
             debug_path = self.path.parent / "lb_events.tailer.debug.log"
             with debug_path.open("a") as f:
-                f.write(f"[{time.time()}] Tailer started, path={self.path}, initial_pos={self._pos}\n")
+                f.write(
+                    f"[{time.time()}] Tailer started, path={self.path}, "
+                    f"initial_pos={self._pos}\n"
+                )
         self._thread = threading.Thread(
             target=self._run, name="lb-event-tailer", daemon=True
         )
@@ -50,17 +53,60 @@ class JsonEventTailer:
         if self._thread:
             self._thread.join(timeout=2)
 
-    def _run(self) -> None:
-        debug_path = self.path.parent / "lb_events.tailer.debug.log" if _DEBUG else None
-        while not self._stop.is_set():
-            try:
-                size = self.path.stat().st_size
-            except FileNotFoundError:
-                time.sleep(self.poll_interval)
-                continue
+    @staticmethod
+    def _debug_path(base_path: Path) -> Path | None:
+        if _DEBUG:
+            return base_path.parent / "lb_events.tailer.debug.log"
+        return None
 
-            if self._pos > size:
-                self._pos = 0
+    @staticmethod
+    def _write_debug(debug_path: Path | None, message: str) -> None:
+        if not debug_path:
+            return
+        with debug_path.open("a") as f:
+            f.write(f"[{time.time()}] {message}\n")
+
+    def _refresh_file_size(self, debug_path: Path | None) -> bool:
+        try:
+            size = self.path.stat().st_size
+        except FileNotFoundError:
+            time.sleep(self.poll_interval)
+            return False
+
+        if self._pos > size:
+            self._pos = 0
+        return True
+
+    def _parse_json(self, line: str, debug_path: Path | None) -> dict[str, Any] | None:
+        try:
+            return json.loads(line)
+        except Exception:
+            self._write_debug(debug_path, f"JSON parse error: {line[:100]!r}")
+            return None
+
+    def _handle_line(self, line: str, debug_path: Path | None) -> None:
+        line = line.strip()
+        if not line:
+            return
+        data = self._parse_json(line, debug_path)
+        if data is None:
+            return
+        self._write_debug(debug_path, f"Read event: {data}")
+        self.on_event(data)
+
+    def _consume_lines(self, fp: Any, debug_path: Path | None) -> None:
+        while True:
+            line = fp.readline()
+            if not line:
+                return
+            self._pos = fp.tell()
+            self._handle_line(line, debug_path)
+
+    def _run(self) -> None:
+        debug_path = self._debug_path(self.path)
+        while not self._stop.is_set():
+            if not self._refresh_file_size(debug_path):
+                continue
 
             try:
                 with self.path.open("r", encoding="utf-8") as fp:
@@ -68,28 +114,8 @@ class JsonEventTailer:
                     # Use readline() instead of iteration to allow fp.tell()
                     # Python 3.13+ raises OSError when calling tell() after
                     # using the file iterator (for line in fp)
-                    while True:
-                        line = fp.readline()
-                        if not line:
-                            break
-                        self._pos = fp.tell()
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            data = json.loads(line)
-                        except Exception:
-                            if debug_path:
-                                with debug_path.open("a") as f:
-                                    f.write(f"[{time.time()}] JSON parse error: {line[:100]!r}\n")
-                            continue
-                        if debug_path:
-                            with debug_path.open("a") as f:
-                                f.write(f"[{time.time()}] Read event: {data}\n")
-                        self.on_event(data)
-            except Exception as e:
-                if debug_path:
-                    with debug_path.open("a") as f:
-                        f.write(f"[{time.time()}] Error reading file: {e}\n")
+                    self._consume_lines(fp, debug_path)
+            except Exception as exc:
+                self._write_debug(debug_path, f"Error reading file: {exc}")
 
             time.sleep(self.poll_interval)

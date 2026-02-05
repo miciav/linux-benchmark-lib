@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Dict
+from typing import Callable, Dict
 
 from lb_controller.adapters.playbooks import build_summary, run_global_setup
 from lb_controller.engine.lifecycle import RunPhase
@@ -42,41 +42,16 @@ class RunOrchestrator:
         phases: Dict[str, ExecutionResult] = {}
         flags = RunFlags()
 
-        initial_state = (
-            ControllerState.RUNNING_GLOBAL_SETUP
-            if self._services.config.remote_execution.run_setup
-            else ControllerState.RUNNING_WORKLOADS
-        )
-        session.transition(initial_state)
-        self._services.lifecycle.start_phase(
-            RunPhase.GLOBAL_SETUP
-            if self._services.config.remote_execution.run_setup
-            else RunPhase.WORKLOADS
-        )
-
-        def ui_log(msg: str) -> None:
-            self._ui.log(msg)
-
+        ui_log = self._make_ui_log()
+        self._enter_initial_state(session)
         ui_log(f"Starting Run {session.run_id}")
 
-        if self._services.config.remote_execution.run_setup:
-            early_summary = run_global_setup(
-                self._services, session, phases, flags, ui_log
-            )
-            if early_summary:
-                return early_summary
+        early_summary = self._maybe_run_setup(session, phases, flags, ui_log)
+        if early_summary:
+            return early_summary
 
-        stop_requested = (
-            self._services.stop_token and self._services.stop_token.should_stop()
-        )
-        if stop_requested:
-            session.arm_stop("stop requested")
-
-        if (
-            not stop_requested
-            and session.state_machine.state != ControllerState.RUNNING_WORKLOADS
-        ):
-            session.transition(ControllerState.RUNNING_WORKLOADS)
+        stop_requested = self._maybe_arm_stop(session)
+        self._ensure_running_workloads(session, stop_requested)
 
         flags = self._workload_runner.run_workloads(
             self._services,
@@ -91,8 +66,52 @@ class RunOrchestrator:
             self._services, session, session.state, phases, flags, ui_log
         )
 
+        self._finalize_run(ui_log)
+        return build_summary(self._services, session, phases, flags)
+
+    def _make_ui_log(self) -> Callable[[str], None]:
+        def ui_log(msg: str) -> None:
+            self._ui.log(msg)
+
+        return ui_log
+
+    def _enter_initial_state(self, session: RunSession) -> None:
+        if self._services.config.remote_execution.run_setup:
+            session.transition(ControllerState.RUNNING_GLOBAL_SETUP)
+            self._services.lifecycle.start_phase(RunPhase.GLOBAL_SETUP)
+            return
+        session.transition(ControllerState.RUNNING_WORKLOADS)
+        self._services.lifecycle.start_phase(RunPhase.WORKLOADS)
+
+    def _maybe_run_setup(
+        self,
+        session: RunSession,
+        phases: Dict[str, ExecutionResult],
+        flags: RunFlags,
+        ui_log: Callable[[str], None],
+    ) -> RunExecutionSummary | None:
+        if not self._services.config.remote_execution.run_setup:
+            return None
+        return run_global_setup(self._services, session, phases, flags, ui_log)
+
+    def _maybe_arm_stop(self, session: RunSession) -> bool:
+        stop_requested = (
+            self._services.stop_token and self._services.stop_token.should_stop()
+        )
+        if stop_requested:
+            session.arm_stop("stop requested")
+        return bool(stop_requested)
+
+    @staticmethod
+    def _ensure_running_workloads(
+        session: RunSession, stop_requested: bool
+    ) -> None:
+        if stop_requested:
+            return
+        if session.state_machine.state != ControllerState.RUNNING_WORKLOADS:
+            session.transition(ControllerState.RUNNING_WORKLOADS)
+
+    def _finalize_run(self, ui_log: Callable[[str], None]) -> None:
         ui_log("Run Finished.")
         time.sleep(1)
-
         self._services.lifecycle.finish()
-        return build_summary(self._services, session, phases, flags)

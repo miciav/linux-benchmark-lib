@@ -49,7 +49,14 @@ class WorkloadRunner:
                 )
                 break
             if not self._process_single_workload(
-                services, session, test_name, state, phases, flags, resume_requested, ui_log
+                services,
+                session,
+                test_name,
+                state,
+                phases,
+                flags,
+                resume_requested,
+                ui_log,
             ):
                 break
         return flags
@@ -148,11 +155,14 @@ class WorkloadRunner:
         assets = self._config.plugin_assets.get(plugin_name)
         if assets is None:
             ui_log(
-                f"No plugin assets found for {test_name} ({plugin_name}); skipping setup/teardown."
+                f"No plugin assets found for {test_name} ({plugin_name}); "
+                "skipping setup/teardown."
             )
         return assets
-    
-    def _stop_requested(self, services: ControllerServices, session: RunSession) -> bool:
+
+    def _stop_requested(
+        self, services: ControllerServices, session: RunSession
+    ) -> bool:
         if services.stop_token and services.stop_token.should_stop():
             session.arm_stop("stop requested")
             return True

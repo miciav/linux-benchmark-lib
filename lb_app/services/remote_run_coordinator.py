@@ -26,15 +26,21 @@ if TYPE_CHECKING:
 class ControllerLogHandlers:
     """Attach controller log handlers and ensure cleanup."""
 
-    def __init__(self, service: IRunService, context: RunContext, session: _RemoteSession) -> None:
+    def __init__(
+        self, service: IRunService, context: RunContext, session: _RemoteSession
+    ) -> None:
         self._service = service
         self._context = context
         self._session = session
         self._handlers: list[logging.Handler | None] = []
 
     def __enter__(self) -> "ControllerLogHandlers":
-        jsonl_handler = self._service._attach_controller_jsonl(self._context, self._session)
-        loki_handler = self._service._attach_controller_loki(self._context, self._session)
+        jsonl_handler = self._service._attach_controller_jsonl(
+            self._context, self._session
+        )
+        loki_handler = self._service._attach_controller_loki(
+            self._context, self._session
+        )
         self._handlers = [jsonl_handler, loki_handler]
         return self
 
@@ -70,7 +76,9 @@ class RemoteRunCoordinator:
         apply_playbook_defaults(context.config)
         if not context.config.plugin_assets:
             apply_plugin_assets(context.config, context.registry)
-        session = self._service._prepare_remote_session(context, run_id, ui_adapter, stop_token)
+        session = self._service._prepare_remote_session(
+            context, run_id, ui_adapter, stop_token
+        )
 
         with ControllerLogHandlers(self._service, context, session):
             if not session.stop_token.should_stop() and not pending_exists(
@@ -80,7 +88,9 @@ class RemoteRunCoordinator:
                 context.config.repetitions,
                 allow_skipped=session.resume_requested,
             ):
-                return self._service._short_circuit_empty_run(context, session, ui_adapter)
+                return self._service._short_circuit_empty_run(
+                    context, session, ui_adapter
+                )
 
             pipeline = self._service._build_event_pipeline(
                 context, session, formatter, output_callback, ui_adapter, emit_timing
@@ -91,7 +101,9 @@ class RemoteRunCoordinator:
                 ControllerOptions(
                     output_callback=pipeline.output_cb,
                     output_formatter=formatter,
-                    journal_refresh=session.dashboard.refresh if session.dashboard else None,
+                    journal_refresh=(
+                        session.dashboard.refresh if session.dashboard else None
+                    ),
                     stop_token=session.stop_token,
                     state_machine=session.controller_state,
                 ),

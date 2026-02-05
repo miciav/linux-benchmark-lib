@@ -20,21 +20,27 @@ class WorkloadIntensity(str, Enum):
 class BasePluginConfig(BaseModel):
     """Base model for common plugin configuration fields."""
     max_retries: int = Field(
-        default=0, ge=0, description="Maximum number of retries for the workload"
+        default=0,
+        ge=0,
+        description="Maximum number of retries for the workload",
     )
     timeout_buffer: int = Field(
         default=10,
         description="Safety buffer in seconds added to expected runtime",
     )
     tags: List[str] = Field(
-        default_factory=list, description="Tags associated with the workload"
+        default_factory=list,
+        description="Tags associated with the workload",
     )
 
-    model_config = {"extra": "ignore"}
+    model_config = {
+        "extra": "ignore",
+    }
 
 
 class WorkloadPlugin(ABC):
-    """Abstract base class for all workload plugins.
+    """
+    Abstract base class for all workload plugins.
 
     A plugin encapsulates the logic for:
     1. Configuration (schema)
@@ -97,7 +103,9 @@ class WorkloadPlugin(ABC):
                 `self.config_cls` schema.
         """
         if not config_file_path.exists():
-            raise FileNotFoundError(f"Configuration file not found: {config_file_path}")
+            raise FileNotFoundError(
+                f"Configuration file not found: {config_file_path}"
+            )
 
         with open(config_file_path, "r") as f:
             full_data = yaml.safe_load(f) or {}
@@ -200,9 +208,10 @@ class WorkloadPlugin(ABC):
         Plugins with richer report formats can override to write multiple CSVs.
         """
         rows = [
-            self._build_export_row(entry, run_id, test_name) for entry in results
+            row
+            for entry in results
+            if (row := _build_result_row(entry, run_id, test_name)) is not None
         ]
-
         if not rows:
             return []
 
@@ -300,3 +309,22 @@ class SimpleWorkloadPlugin(WorkloadPlugin):
         if self.COLLECT_POST_PLAYBOOK and self.COLLECT_POST_PLAYBOOK.exists():
             return self.COLLECT_POST_PLAYBOOK
         return None
+
+
+def _build_result_row(
+    entry: Dict[str, Any],
+    run_id: str,
+    test_name: str,
+) -> dict[str, Any] | None:
+    row = {
+        "run_id": run_id,
+        "workload": test_name,
+        "repetition": entry.get("repetition"),
+        "duration_seconds": entry.get("duration_seconds"),
+        "success": entry.get("success"),
+    }
+    gen_result = entry.get("generator_result") or {}
+    if isinstance(gen_result, dict):
+        for key, value in gen_result.items():
+            row[f"generator_{key}"] = value
+    return row

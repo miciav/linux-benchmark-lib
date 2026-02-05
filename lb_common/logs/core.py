@@ -110,48 +110,41 @@ def build_loki_handler(
     Priority: explicit parameters > environment variables > defaults.
     Environment variables are only used as fallbacks when parameters are None.
     """
-    # enabled: parameter > env var > False
-    env_enabled = parse_bool_env(os.environ.get("LB_LOKI_ENABLED"))
-    resolved_enabled = (
-        enabled
-        if enabled is not None
-        else (env_enabled if env_enabled is not None else False)
-    )
+    resolved_enabled = _resolve_loki_enabled(enabled)
     if not resolved_enabled:
         return None
 
-    # endpoint: parameter > env var > default
-    resolved_endpoint = (
-        endpoint or os.environ.get("LB_LOKI_ENDPOINT") or "http://localhost:3100"
+    resolved_endpoint = _resolve_loki_endpoint(endpoint)
+    resolved_labels = _resolve_loki_labels(labels)
+    resolved_batch_size = _resolve_env_value(
+        batch_size, "LB_LOKI_BATCH_SIZE", parse_int_env
+    )
+    resolved_flush_ms = _resolve_env_value(
+        flush_interval_ms, "LB_LOKI_FLUSH_INTERVAL_MS", parse_int_env
+    )
+    resolved_timeout = _resolve_env_value(
+        timeout_seconds, "LB_LOKI_TIMEOUT_SECONDS", parse_float_env
+    )
+    resolved_max_retries = _resolve_env_value(
+        max_retries, "LB_LOKI_MAX_RETRIES", parse_int_env
+    )
+    resolved_queue_size = _resolve_env_value(
+        max_queue_size, "LB_LOKI_MAX_QUEUE_SIZE", parse_int_env
+    )
+    resolved_backoff_base = _resolve_env_value(
+        backoff_base, "LB_LOKI_BACKOFF_BASE", parse_float_env
+    )
+    resolved_backoff_factor = _resolve_env_value(
+        backoff_factor, "LB_LOKI_BACKOFF_FACTOR", parse_float_env
     )
 
-    # labels: merge env labels first, then config labels override
-    env_labels = parse_labels_env(os.environ.get("LB_LOKI_LABELS"))
-    resolved_labels = dict(env_labels or {})
-    if labels:
-        resolved_labels.update(labels)  # Config labels override env labels
-
-    resolved_batch_size = batch_size
-    if resolved_batch_size is None:
-        resolved_batch_size = parse_int_env(os.environ.get("LB_LOKI_BATCH_SIZE"))
-    resolved_flush_ms = flush_interval_ms
-    if resolved_flush_ms is None:
-        resolved_flush_ms = parse_int_env(os.environ.get("LB_LOKI_FLUSH_INTERVAL_MS"))
-    resolved_timeout = timeout_seconds
-    if resolved_timeout is None:
-        resolved_timeout = parse_float_env(os.environ.get("LB_LOKI_TIMEOUT_SECONDS"))
-    resolved_max_retries = max_retries
-    if resolved_max_retries is None:
-        resolved_max_retries = parse_int_env(os.environ.get("LB_LOKI_MAX_RETRIES"))
-    resolved_queue_size = max_queue_size
-    if resolved_queue_size is None:
-        resolved_queue_size = parse_int_env(os.environ.get("LB_LOKI_MAX_QUEUE_SIZE"))
-    resolved_backoff_base = backoff_base
-    if resolved_backoff_base is None:
-        resolved_backoff_base = parse_float_env(os.environ.get("LB_LOKI_BACKOFF_BASE"))
-    resolved_backoff_factor = backoff_factor
-    if resolved_backoff_factor is None:
-        resolved_backoff_factor = parse_float_env(os.environ.get("LB_LOKI_BACKOFF_FACTOR"))
+    resolved_batch_size = _coalesce(resolved_batch_size, 100)
+    resolved_flush_ms = _coalesce(resolved_flush_ms, 1000)
+    resolved_timeout = _coalesce(resolved_timeout, 5.0)
+    resolved_max_retries = _coalesce(resolved_max_retries, 3)
+    resolved_queue_size = _coalesce(resolved_queue_size, 10000)
+    resolved_backoff_base = _coalesce(resolved_backoff_base, 0.5)
+    resolved_backoff_factor = _coalesce(resolved_backoff_factor, 2.0)
 
     return LokiPushHandler(
         endpoint=resolved_endpoint,
@@ -164,13 +157,13 @@ def build_loki_handler(
         scenario=scenario,
         repetition=repetition,
         labels=resolved_labels,
-        batch_size=resolved_batch_size or 100,
-        flush_interval=(resolved_flush_ms or 1000) / 1000.0,
-        timeout_seconds=resolved_timeout or 5.0,
-        max_retries=resolved_max_retries if resolved_max_retries is not None else 3,
-        max_queue_size=resolved_queue_size or 10000,
-        backoff_base=resolved_backoff_base if resolved_backoff_base is not None else 0.5,
-        backoff_factor=resolved_backoff_factor if resolved_backoff_factor is not None else 2.0,
+        batch_size=resolved_batch_size,
+        flush_interval=resolved_flush_ms / 1000.0,
+        timeout_seconds=resolved_timeout,
+        max_retries=resolved_max_retries,
+        max_queue_size=resolved_queue_size,
+        backoff_base=resolved_backoff_base,
+        backoff_factor=resolved_backoff_factor,
     )
 
 
@@ -272,14 +265,69 @@ def configure_logging(
     force: bool = False,
 ) -> None:
     """Configure stdlib logging and structlog with a shared formatter."""
-    env_level = os.environ.get("LB_LOG_LEVEL")
-    env_json = parse_bool_env(os.environ.get("LB_LOG_JSON"))
-    env_log_file = os.environ.get("LB_LOG_FILE")
-
+    env_level, env_json, env_log_file = _read_logging_env()
     resolved_level = _resolve_level(level or env_level, debug)
     resolved_json = env_json if json is None else json
     resolved_log_file = env_log_file if log_file is None else log_file
 
+    formatter = _make_structlog_formatter(resolved_json)
+    root_logger = logging.getLogger()
+    if _reuse_existing_handlers(root_logger, force):
+        _configure_structlog()
+        return
+
+    handlers = _build_handlers(
+        formatter, resolved_log_file, jsonl_handler, loki_handler
+    )
+    if force:
+        root_logger.handlers.clear()
+
+    _attach_handlers(root_logger, resolved_level, handlers)
+    _configure_structlog()
+
+
+def _resolve_loki_enabled(enabled: bool | None) -> bool:
+    env_enabled = parse_bool_env(os.environ.get("LB_LOKI_ENABLED"))
+    if enabled is not None:
+        return enabled
+    return env_enabled if env_enabled is not None else False
+
+
+def _resolve_loki_endpoint(endpoint: str | None) -> str:
+    return endpoint or os.environ.get("LB_LOKI_ENDPOINT") or "http://localhost:3100"
+
+
+def _resolve_loki_labels(labels: Mapping[str, Any] | None) -> dict[str, Any]:
+    env_labels = parse_labels_env(os.environ.get("LB_LOKI_LABELS"))
+    resolved_labels = dict(env_labels or {})
+    if labels:
+        resolved_labels.update(labels)  # Config labels override env labels
+    return resolved_labels
+
+
+def _resolve_env_value(
+    value: Any, env_key: str, parser: Any
+) -> Any:
+    if value is not None:
+        return value
+    return parser(os.environ.get(env_key))
+
+
+def _coalesce(value: Any, default: Any) -> Any:
+    return default if value is None else value
+
+
+def _read_logging_env() -> tuple[str | None, bool | None, str | None]:
+    return (
+        os.environ.get("LB_LOG_LEVEL"),
+        parse_bool_env(os.environ.get("LB_LOG_JSON")),
+        os.environ.get("LB_LOG_FILE"),
+    )
+
+
+def _make_structlog_formatter(
+    resolved_json: bool | None,
+) -> structlog.stdlib.ProcessorFormatter:
     renderer: structlog.types.Processor
     if resolved_json:
         renderer = structlog.processors.JSONRenderer()
@@ -292,47 +340,46 @@ def configure_logging(
         structlog.processors.TimeStamper(fmt="iso", utc=True),
     ]
 
-    formatter = structlog.stdlib.ProcessorFormatter(
+    return structlog.stdlib.ProcessorFormatter(
         processor=renderer,
         foreign_pre_chain=pre_chain,
     )
 
-    root_logger = logging.getLogger()
-    if root_logger.handlers and not force:
-        structlog.configure(
-            processors=[
-                structlog.contextvars.merge_contextvars,
-                structlog.processors.add_log_level,
-                structlog.processors.TimeStamper(fmt="iso", utc=True),
-                structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
-            ],
-            logger_factory=structlog.stdlib.LoggerFactory(),
-            wrapper_class=structlog.stdlib.BoundLogger,
-            cache_logger_on_first_use=True,
-        )
-        return
 
+def _reuse_existing_handlers(root_logger: logging.Logger, force: bool) -> bool:
+    return bool(root_logger.handlers) and not force
+
+
+def _build_handlers(
+    formatter: structlog.stdlib.ProcessorFormatter,
+    log_file: str | None,
+    jsonl_handler: logging.Handler | None,
+    loki_handler: logging.Handler | None,
+) -> list[logging.Handler]:
     handlers: list[logging.Handler] = []
     stream_handler = logging.StreamHandler(sys.stderr)
     stream_handler.setFormatter(formatter)
     handlers.append(stream_handler)
-
-    if resolved_log_file:
-        file_handler = logging.FileHandler(resolved_log_file)
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(formatter)
         handlers.append(file_handler)
     if jsonl_handler:
         handlers.append(jsonl_handler)
     if loki_handler:
         handlers.append(loki_handler)
+    return handlers
 
-    if force:
-        root_logger.handlers.clear()
 
-    root_logger.setLevel(resolved_level)
+def _attach_handlers(
+    root_logger: logging.Logger, level: int, handlers: list[logging.Handler]
+) -> None:
+    root_logger.setLevel(level)
     for handler in handlers:
         root_logger.addHandler(handler)
 
+
+def _configure_structlog() -> None:
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,

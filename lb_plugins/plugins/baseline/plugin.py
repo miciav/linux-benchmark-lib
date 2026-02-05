@@ -1,9 +1,4 @@
-"""
-Baseline workload generator implementation.
-
-This plugin performs no actual work, allowing the system to measure baseline
-performance/overhead.
-"""
+"""Baseline workload generator implementation."""
 
 import logging
 import threading
@@ -22,12 +17,14 @@ class BaselineConfig(BasePluginConfig):
     """Configuration for baseline workload generator."""
 
     duration: float = Field(
-        default=60.0, gt=0, description="Duration to sleep in seconds"
+        default=60.0,
+        gt=0,
+        description="Duration to sleep in seconds",
     )
 
 
 class BaselineGenerator(BaseGenerator):
-    """Workload generator that sleeps to establish a baseline."""
+    """Workload generator that does nothing (sleeps) to establish a baseline."""
 
     def __init__(self, config: BaselineConfig, name: str = "BaselineGenerator"):
         super().__init__(name)
@@ -35,11 +32,15 @@ class BaselineGenerator(BaseGenerator):
         self._stop_event = threading.Event()
 
     def _run_command(self) -> None:
-        logger.info("Starting baseline run for %s seconds", self.config.duration)
+        logger.info(
+            "Starting baseline run for %s seconds", self.config.duration
+        )
 
         start_time = time.time()
         stopped_early = self._stop_event.wait(self.config.duration)
-        actual_duration = time.time() - start_time
+        end_time = time.time()
+
+        actual_duration = end_time - start_time
 
         self._result = {
             "status": "completed" if not stopped_early else "stopped",
@@ -71,9 +72,7 @@ class BaselinePlugin(SimpleWorkloadPlugin):
     REQUIRED_APT_PACKAGES: list[str] = []
     REQUIRED_LOCAL_TOOLS: list[str] = []
 
-    def get_preset_config(
-        self, level: WorkloadIntensity
-    ) -> Optional[BaselineConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> Optional[BaselineConfig]:
         if level == WorkloadIntensity.LOW:
             return BaselineConfig(duration=30)
         if level == WorkloadIntensity.MEDIUM:

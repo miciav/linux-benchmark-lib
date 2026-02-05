@@ -12,7 +12,7 @@ from .run_output_formatting import (
     format_bullet_line,
     format_progress_line,
 )
-from .run_output_parsing import _extract_lb_event_data as _extract_lb_event_data  # noqa: F401
+from .run_output_parsing import _extract_lb_event_data  # noqa: F401
 from .run_output_parsing import (
     _extract_lb_task_data,
     extract_benchmark_name,
@@ -119,28 +119,38 @@ class AnsibleOutputFormatter:
         line = normalize_line(line)
         if line is None:
             return
-        if self._maybe_emit_task_timing(line, log_sink):
-            return
-        if self._maybe_emit_progress(line, log_sink):
-            return
-        if "LB_EVENT" in line:
-            return
-        if self._maybe_emit_msg_line(line, log_sink):
+        if self._handle_early_line(line, log_sink):
             return
         self._maybe_flush_task_timing(line, log_sink)
-        if is_noise_line(line, emit_task_starts=self.emit_task_starts):
-            return
-        if self._maybe_emit_task(line, log_sink):
-            return
-        if self._maybe_emit_benchmark_start(line, log_sink):
-            return
-        if is_changed_line(line):
-            return
-        if self._maybe_emit_interesting(line, log_sink):
-            return
-        if self._maybe_emit_error(line, log_sink):
+        if self._handle_late_line(line, log_sink):
             return
         self._emit(line, log_sink)
+
+    def _handle_early_line(
+        self, line: str, log_sink: Callable[[str], None] | None
+    ) -> bool:
+        if self._maybe_emit_task_timing(line, log_sink):
+            return True
+        if self._maybe_emit_progress(line, log_sink):
+            return True
+        if "LB_EVENT" in line:
+            return True
+        return self._maybe_emit_msg_line(line, log_sink)
+
+    def _handle_late_line(
+        self, line: str, log_sink: Callable[[str], None] | None
+    ) -> bool:
+        if is_noise_line(line, emit_task_starts=self.emit_task_starts):
+            return True
+        if self._maybe_emit_task(line, log_sink):
+            return True
+        if self._maybe_emit_benchmark_start(line, log_sink):
+            return True
+        if is_changed_line(line):
+            return True
+        if self._maybe_emit_interesting(line, log_sink):
+            return True
+        return self._maybe_emit_error(line, log_sink)
 
     def _handle_timing_line(
         self, line: str, log_sink: Callable[[str], None] | None = None
@@ -184,22 +194,26 @@ class AnsibleOutputFormatter:
         phase, message = parsed
         if self._should_suppress_task(raw_task, message, log_sink):
             return True
-        status = str(data.get("status") or "").lower()
-        if status in {"failed", "skipped", "unreachable"}:
-            message = f"{message} {status}"
-        else:
-            duration = data.get("duration_s")
-            if duration is None:
-                duration = data.get("duration")
-            if duration is not None:
-                try:
-                    duration_val = float(duration)
-                    message = f"{message} done in {duration_val:.1f}s"
-                except Exception:
-                    pass
+        message = self._format_task_timing_message(message, data)
         host_label = str(data.get("host") or "") or None
         self._emit_bullet(phase, message, log_sink, host_label=host_label)
         return True
+
+    @staticmethod
+    def _format_task_timing_message(message: str, data: dict[str, Any]) -> str:
+        status = str(data.get("status") or "").lower()
+        if status in {"failed", "skipped", "unreachable"}:
+            return f"{message} {status}"
+        duration = data.get("duration_s")
+        if duration is None:
+            duration = data.get("duration")
+        if duration is None:
+            return message
+        try:
+            duration_val = float(duration)
+        except Exception:
+            return message
+        return f"{message} done in {duration_val:.1f}s"
 
     def _maybe_emit_msg_line(
         self, line: str, log_sink: Callable[[str], None] | None
@@ -258,7 +272,10 @@ class AnsibleOutputFormatter:
         task_name: str,
         log_sink: Callable[[str], None] | None,
     ) -> bool:
-        if raw_task in self._suppress_task_names or task_name in self._suppress_task_names:
+        if (
+            raw_task in self._suppress_task_names
+            or task_name in self._suppress_task_names
+        ):
             # Allow dashboard sinks to summarize polling tasks instead of dropping them.
             return log_sink is None
         return False
@@ -277,7 +294,11 @@ class AnsibleOutputFormatter:
             "unreachable:",
             "included:",
         )
-        if line.startswith("PLAY [") or line.startswith("PLAY RECAP") or line.startswith(completion_tokens):
+        if (
+            line.startswith("PLAY [")
+            or line.startswith("PLAY RECAP")
+            or line.startswith(completion_tokens)
+        ):
             timing = self._task_timer.flush()
             if timing:
                 timing_phase, timing_message = timing

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 from lb_app.interfaces import UIHooks, RunRequest
 from lb_app.services.config_service import ConfigService
@@ -27,6 +27,7 @@ from lb_provisioner.api import (
     ProvisioningMode,
     ProvisioningRequest,
     ProvisioningError,
+    ProvisioningResult,
 )
 from lb_plugins.api import create_registry
 
@@ -54,7 +55,12 @@ class ApplicationClient:
     def list_runs(self, config: BenchmarkConfig) -> Iterable[RunJournal]:
         return RunJournal.list_runs(config.output_dir)
 
-    def get_run_plan(self, config: BenchmarkConfig, tests: Sequence[str], execution_mode: str = "remote"):
+    def get_run_plan(
+        self,
+        config: BenchmarkConfig,
+        tests: Sequence[str],
+        execution_mode: str = "remote",
+    ):
         platform_cfg, _, _ = self._config_service.load_platform_config()
         return self._run_service.get_run_plan(
             config,
@@ -72,44 +78,25 @@ class ApplicationClient:
         docker_engine: str | None = None,
         resume: str | None = None,
     ):
-        """Provision nodes according to execution mode; returns updated config and provisioner result."""
+        """Provision nodes according to execution mode.
+
+        Returns updated config and provisioner result.
+        """
         mode = ProvisioningMode(execution_mode)
-        node_names = None
-        if resume and mode in (ProvisioningMode.DOCKER, ProvisioningMode.MULTIPASS):
-            node_names = self._resume_node_names(config, resume)
-            if not node_names:
-                raise ProvisioningError(
-                    "Unable to determine previous container/VM names for resume; "
-                    "ensure the run journal or host directories are available."
-                )
-            if node_count != len(node_names):
-                raise ProvisioningError(
-                    "Resume node count does not match original run; "
-                    "use --nodes to match the previous run."
-                )
-        if mode is ProvisioningMode.REMOTE:
-            request = ProvisioningRequest(
-                mode=ProvisioningMode.REMOTE,
-                count=len(config.remote_hosts),
-                remote_hosts=[RemoteHostSpec.from_object(h) for h in config.remote_hosts],
-            )
-        elif mode is ProvisioningMode.DOCKER:
-            request = ProvisioningRequest(
-                mode=ProvisioningMode.DOCKER,
-                count=node_count,
-                node_names=node_names,
-                docker_engine=docker_engine or "docker",
-            )
-        else:
-            temp_dir = config.output_dir.parent / "temp_keys"
-            request = ProvisioningRequest(
-                mode=ProvisioningMode.MULTIPASS,
-                count=node_count,
-                node_names=node_names,
-                state_dir=temp_dir,
-            )
+        node_names = self._resolve_resume_node_names(
+            config, resume, mode, node_count
+        )
+        request = self._build_provision_request(
+            config, mode, node_count, node_names, docker_engine
+        )
         result = self._provisioner.provision(request)
-        config.remote_hosts = [
+        config.remote_hosts = self._build_remote_hosts(result)
+        config.remote_execution.enabled = True
+        return config, result
+
+    @staticmethod
+    def _build_remote_hosts(result: ProvisioningResult) -> list[RemoteHostConfig]:
+        return [
             RemoteHostConfig(
                 name=node.host.name,
                 address=node.host.address,
@@ -121,60 +108,127 @@ class ApplicationClient:
             )
             for node in result.nodes
         ]
-        config.remote_execution.enabled = True
-        return config, result
+
+    def _resolve_resume_node_names(
+        self,
+        config: BenchmarkConfig,
+        resume: str | None,
+        mode: ProvisioningMode,
+        node_count: int,
+    ) -> list[str] | None:
+        if not resume or mode not in (
+            ProvisioningMode.DOCKER,
+            ProvisioningMode.MULTIPASS,
+        ):
+            return None
+        node_names = self._resume_node_names(config, resume)
+        if not node_names:
+            raise ProvisioningError(
+                "Unable to determine previous container/VM names for resume; "
+                "ensure the run journal or host directories are available."
+            )
+        if node_count != len(node_names):
+            raise ProvisioningError(
+                "Resume node count does not match original run; "
+                "use --nodes to match the previous run."
+            )
+        return node_names
 
     @staticmethod
-    def _resume_node_names(config: BenchmarkConfig, resume: str) -> list[str] | None:
+    def _build_provision_request(
+        config: BenchmarkConfig,
+        mode: ProvisioningMode,
+        node_count: int,
+        node_names: list[str] | None,
+        docker_engine: str | None,
+    ) -> ProvisioningRequest:
+        if mode is ProvisioningMode.REMOTE:
+            return ProvisioningRequest(
+                mode=ProvisioningMode.REMOTE,
+                count=len(config.remote_hosts),
+                remote_hosts=[
+                    RemoteHostSpec.from_object(h) for h in config.remote_hosts
+                ],
+            )
+        if mode is ProvisioningMode.DOCKER:
+            return ProvisioningRequest(
+                mode=ProvisioningMode.DOCKER,
+                count=node_count,
+                node_names=node_names,
+                docker_engine=docker_engine or "docker",
+            )
+        temp_dir = config.output_dir.parent / "temp_keys"
+        return ProvisioningRequest(
+            mode=ProvisioningMode.MULTIPASS,
+            count=node_count,
+            node_names=node_names,
+            state_dir=temp_dir,
+        )
+
+    @classmethod
+    def _resume_node_names(
+        cls, config: BenchmarkConfig, resume: str
+    ) -> list[str] | None:
         from lb_app.services.run_journal import (
             find_latest_journal,
             find_latest_results_run,
         )
 
-        run_root = None
-        journal_path = None
+        run_root, journal_path = cls._resolve_resume_paths(
+            config, resume, find_latest_journal, find_latest_results_run
+        )
+
+        names = cls._journal_node_names(journal_path)
+        if names:
+            return names
+
+        return cls._run_root_node_names(run_root)
+
+    @staticmethod
+    def _resolve_resume_paths(
+        config: BenchmarkConfig,
+        resume: str,
+        find_latest_journal: Callable[[BenchmarkConfig], Path | None],
+        find_latest_results_run: Callable[[BenchmarkConfig], tuple[str, Path] | None],
+    ) -> tuple[Path | None, Path | None]:
         if resume == "latest":
             journal_path = find_latest_journal(config)
             if journal_path is not None:
-                run_root = journal_path.parent
-            else:
-                latest = find_latest_results_run(config)
-                if latest:
-                    journal_path = latest[1]
-                    run_root = journal_path.parent
-        else:
-            run_root = config.output_dir / resume
-            journal_path = run_root / "run_journal.json"
+                return journal_path.parent, journal_path
+            latest = find_latest_results_run(config)
+            if latest:
+                journal_path = latest[1]
+                return journal_path.parent, journal_path
+            return None, None
+        run_root = config.output_dir / resume
+        return run_root, run_root / "run_journal.json"
 
-        if journal_path is not None and journal_path.exists():
-            try:
-                journal = RunJournal.load(journal_path)
-            except Exception:
-                journal = None
-            if journal is not None:
-                names = sorted(
-                    {task.host for task in journal.tasks.values() if task.host}
-                )
-                if names:
-                    return names
+    @staticmethod
+    def _journal_node_names(journal_path: Path | None) -> list[str] | None:
+        if journal_path is None or not journal_path.exists():
+            return None
+        try:
+            journal = RunJournal.load(journal_path)
+        except Exception:
+            return None
+        names = sorted({task.host for task in journal.tasks.values() if task.host})
+        return names or None
 
-        if run_root is not None and run_root.exists():
-            names = sorted(
-                entry.name
-                for entry in run_root.iterdir()
-                if entry.is_dir() and not entry.name.startswith("_")
-            )
-            return names or None
-        return None
+    @staticmethod
+    def _run_root_node_names(run_root: Path | None) -> list[str] | None:
+        if run_root is None or not run_root.exists():
+            return None
+        names = sorted(
+            entry.name
+            for entry in run_root.iterdir()
+            if entry.is_dir() and not entry.name.startswith("_")
+        )
+        return names or None
 
     def start_run(self, request: RunRequest, hooks: UIHooks) -> RunResult | None:
         cfg = request.config
-        target_tests = list(
-            request.tests or list(cfg.workloads.keys())
-        )
-        for name in target_tests:
-            if name not in cfg.workloads:
-                cfg.workloads[name] = WorkloadConfig(plugin=name, options={})
+        target_tests = list(request.tests or list(cfg.workloads.keys()))
+        self._ensure_workloads(cfg, target_tests)
 
         context = self._run_service.create_session(
             self._config_service,
@@ -193,24 +247,8 @@ class ApplicationClient:
             preloaded_config=cfg,
         )
 
-        # Pre-flight connectivity check for remote mode
-        if (
-            not request.skip_connectivity_check
-            and request.execution_mode == "remote"
-            and cfg.remote_hosts
-        ):
-            connectivity_service = ConnectivityService(
-                timeout_seconds=request.connectivity_timeout
-            )
-            connectivity_report = connectivity_service.check_hosts(cfg.remote_hosts)
-            if not connectivity_report.all_reachable:
-                unreachable = ", ".join(connectivity_report.unreachable_hosts)
-                hooks.on_warning(
-                    f"Unreachable hosts: {unreachable}. "
-                    "Use --skip-connectivity-check to bypass this check.",
-                    ttl=10,
-                )
-                return None
+        if not self._connectivity_ok(request, cfg, hooks):
+            return None
 
         # Provision according to execution mode
         prov_result = None
@@ -229,30 +267,82 @@ class ApplicationClient:
 
         run_result: RunResult | None = None
         try:
-            output_cb = None
-            # If no UI adapter is provided, forward raw logs to hooks.
-            if request.ui_adapter is None:
-                def _output_cb(text: str, end: str = "") -> None:
-                    hooks.on_log(text)
-
-                output_cb = _output_cb
-
+            output_cb = self._make_output_callback(request, hooks)
             run_result = self._run_service.execute(
                 context,
                 run_id=request.run_id,
                 output_callback=output_cb,
                 ui_adapter=request.ui_adapter,
             )
-            if run_result.summary and hasattr(run_result.summary, "controller_state"):
-                hooks.on_status(str(run_result.summary.controller_state))
+            self._emit_controller_state(run_result, hooks)
         finally:
-            if prov_result:
-                if run_result and run_result.summary and getattr(run_result.summary, "cleanup_allowed", False):
-                    prov_result.destroy_all()
-                else:
-                    prov_result.keep_nodes = True
-                    hooks.on_warning("Leaving provisioned nodes for inspection", ttl=5)
+            self._cleanup_provisioning(prov_result, run_result, hooks)
         return run_result
+
+    @staticmethod
+    def _ensure_workloads(cfg: BenchmarkConfig, target_tests: list[str]) -> None:
+        for name in target_tests:
+            if name not in cfg.workloads:
+                cfg.workloads[name] = WorkloadConfig(plugin=name, options={})
+
+    @staticmethod
+    def _connectivity_ok(
+        request: RunRequest, cfg: BenchmarkConfig, hooks: UIHooks
+    ) -> bool:
+        if request.skip_connectivity_check:
+            return True
+        if request.execution_mode != "remote" or not cfg.remote_hosts:
+            return True
+        connectivity_service = ConnectivityService(
+            timeout_seconds=request.connectivity_timeout
+        )
+        connectivity_report = connectivity_service.check_hosts(cfg.remote_hosts)
+        if connectivity_report.all_reachable:
+            return True
+        unreachable = ", ".join(connectivity_report.unreachable_hosts)
+        hooks.on_warning(
+            f"Unreachable hosts: {unreachable}. "
+            "Use --skip-connectivity-check to bypass this check.",
+            ttl=10,
+        )
+        return False
+
+    @staticmethod
+    def _make_output_callback(
+        request: RunRequest, hooks: UIHooks
+    ) -> Callable[[str, str], None] | None:
+        if request.ui_adapter is not None:
+            return None
+
+        def _output_cb(text: str, end: str = "") -> None:
+            hooks.on_log(text)
+
+        return _output_cb
+
+    @staticmethod
+    def _emit_controller_state(run_result: RunResult | None, hooks: UIHooks) -> None:
+        if run_result and run_result.summary and hasattr(
+            run_result.summary, "controller_state"
+        ):
+            hooks.on_status(str(run_result.summary.controller_state))
+
+    @staticmethod
+    def _cleanup_provisioning(
+        prov_result: ProvisioningResult | None,
+        run_result: RunResult | None,
+        hooks: UIHooks,
+    ) -> None:
+        if not prov_result:
+            return
+        if (
+            run_result
+            and run_result.summary
+            and getattr(run_result.summary, "cleanup_allowed", False)
+        ):
+            prov_result.destroy_all()
+            return
+        prov_result.keep_nodes = True
+        hooks.on_warning("Leaving provisioned nodes for inspection", ttl=5)
 
     def install_loki_grafana(
         self,

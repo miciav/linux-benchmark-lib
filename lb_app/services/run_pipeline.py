@@ -31,15 +31,8 @@ def pipeline_output_callback(
     last_refresh = {"ts": 0.0}
 
     def _dashboard_callback(text: str, end: str = ""):
-        if formatter and output_callback == formatter.process:
-            formatter.process(text, end=end, log_sink=dashboard.add_log)
-        else:
-            output_callback(text, end=end)
-            dashboard.add_log(text)
-        now = time.monotonic()
-        if now - last_refresh["ts"] > 0.25:
-            dashboard.refresh()
-            last_refresh["ts"] = now
+        _emit_pipeline_output(text, end, formatter, output_callback, dashboard)
+        _maybe_refresh_dashboard(dashboard, last_refresh)
 
     return _dashboard_callback
 
@@ -147,21 +140,13 @@ def make_output_tee(
     progress_handler: Callable[[str], None],
     timing_handler: Callable[[str], None] | None = None,
 ) -> Callable[[str, str], None]:
-    """Return an output callback that logs, parses progress/timing, and tees downstream."""
+    """Return an output callback that logs progress/timing and tees downstream."""
 
     def _tee_output(text: str, end: str = "") -> None:
         fragment = text + (end if end else "\n")
-        try:
-            session.log_file.write(fragment)
-            session.log_file.flush()
-        except Exception:
-            pass
-        for line in fragment.splitlines():
-            if timing_handler:
-                timing_handler(line)
-            progress_handler(line)
-        if downstream:
-            downstream(text, end=end)
+        _write_log_fragment(session.log_file, fragment)
+        _emit_progress_lines(fragment, progress_handler, timing_handler)
+        _emit_downstream(downstream, text, end)
 
     return _tee_output
 
@@ -212,3 +197,54 @@ def parse_progress_line(line: str, token: str) -> dict[str, Any] | None:
         "error_type": data.get("error_type"),
         "error_context": data.get("error_context"),
     }
+
+
+def _emit_pipeline_output(
+    text: str,
+    end: str,
+    formatter: AnsibleOutputFormatter | None,
+    output_callback: Callable[[str, str], None],
+    dashboard: DashboardHandle,
+) -> None:
+    if formatter and output_callback == formatter.process:
+        formatter.process(text, end=end, log_sink=dashboard.add_log)
+        return
+    output_callback(text, end=end)
+    dashboard.add_log(text)
+
+
+def _maybe_refresh_dashboard(
+    dashboard: DashboardHandle, last_refresh: dict[str, float]
+) -> None:
+    now = time.monotonic()
+    if now - last_refresh["ts"] > 0.25:
+        dashboard.refresh()
+        last_refresh["ts"] = now
+
+
+def _write_log_fragment(log_file: Any, fragment: str) -> None:
+    try:
+        log_file.write(fragment)
+        log_file.flush()
+    except Exception:
+        pass
+
+
+def _emit_progress_lines(
+    fragment: str,
+    progress_handler: Callable[[str], None],
+    timing_handler: Callable[[str], None] | None,
+) -> None:
+    for line in fragment.splitlines():
+        if timing_handler:
+            timing_handler(line)
+        progress_handler(line)
+
+
+def _emit_downstream(
+    downstream: Callable[[str, str], None] | None,
+    text: str,
+    end: str,
+) -> None:
+    if downstream:
+        downstream(text, end=end)

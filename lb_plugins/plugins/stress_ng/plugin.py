@@ -1,8 +1,4 @@
-"""
-Stress-ng workload generator implementation.
-
-Modular plugin version.
-"""
+"""Stress-ng workload generator implementation."""
 
 from pathlib import Path
 from typing import List, Optional
@@ -18,24 +14,16 @@ class StressNGConfig(BasePluginConfig):
     """Configuration for stress-ng workload generator."""
 
     cpu_workers: int = Field(
-        default=0, ge=0, description="0 means use all available CPUs"
+        default=0,
+        ge=0,
+        description="0 means use all available CPUs",
     )
-    cpu_method: str = Field(
-        default="all", description="CPU stress method"
-    )
-    vm_workers: int = Field(
-        default=1, ge=0, description="Virtual memory workers"
-    )
-    vm_bytes: str = Field(
-        default="1G", description="Memory per VM worker"
-    )
-    io_workers: int = Field(
-        default=1, ge=0, description="I/O workers"
-    )
+    cpu_method: str = Field(default="all", description="CPU stress method")
+    vm_workers: int = Field(default=1, ge=0, description="Virtual memory workers")
+    vm_bytes: str = Field(default="1G", description="Memory per VM worker")
+    io_workers: int = Field(default=1, ge=0, description="I/O workers")
     timeout: int = Field(default=60, gt=0, description="Timeout in seconds")
-    metrics_brief: bool = Field(
-        default=True, description="Use brief metrics output"
-    )
+    metrics_brief: bool = Field(default=True, description="Use brief metrics output")
     extra_args: List[str] = Field(
         default_factory=list, description="Additional stress-ng arguments"
     )
@@ -87,9 +75,7 @@ class StressNGPlugin(SimpleWorkloadPlugin):
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     TEARDOWN_PLAYBOOK = Path(__file__).parent / "ansible" / "teardown.yml"
 
-    def get_preset_config(
-        self, level: WorkloadIntensity
-    ) -> Optional[StressNGConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> Optional[StressNGConfig]:
         if level == WorkloadIntensity.LOW:
             return StressNGConfig(
                 cpu_workers=1,

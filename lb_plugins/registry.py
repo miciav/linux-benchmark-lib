@@ -34,7 +34,8 @@ class PluginRegistry:
         if isinstance(plugin, IWorkloadPlugin):
             self._workloads[plugin.name] = plugin
         else:
-            # Duck typing for IWorkloadPlugin if strict check fails.
+            # Try duck typing for IWorkloadPlugin if strict check fails
+            # (e.g. different import paths).
             if hasattr(plugin, "name") and hasattr(plugin, "create_generator"):
                 self._workloads[plugin.name] = plugin
             else:

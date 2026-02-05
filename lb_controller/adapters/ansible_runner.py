@@ -51,7 +51,8 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         self.stream_output = stream_output
         self.stop_token = stop_token
         self._active_label: str | None = None
-        # Force Ansible temp into a writable location inside the runner dir to avoid host-level permission issues
+        # Force Ansible temp into a writable location inside the runner dir to avoid
+        # host-level permission issues.
         self.local_tmp = self.private_data_dir / "tmp"
         self.local_tmp.mkdir(parents=True, exist_ok=True)
         if stream_output and output_callback is None:
@@ -92,8 +93,9 @@ class AnsibleRunnerExecutor(RemoteExecutor):
     ) -> ExecutionResult:
         """Execute a playbook using ansible-runner."""
         self._process_runner.clear_interrupt()
-        if self._process_runner.should_stop(cancellable):
-            return ExecutionResult(rc=1, status="stopped", stats={})
+        stop_result = self._maybe_stop(cancellable)
+        if stop_result is not None:
+            return stop_result
         if not playbook_path.exists():
             raise FileNotFoundError(f"Playbook not found: {playbook_path}")
 
@@ -110,44 +112,24 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         )
         self._active_label = label
 
-        merged_extravars = extravars.copy() if extravars else {}
-        merged_extravars.setdefault("_lb_inventory_path", str(inventory_path))
+        merged_extravars = self._merge_extravars(extravars, inventory_path)
         envvars = self._env_builder.build()
 
         try:
-            if self._runner_fn:
-                result = runner_fn(
-                    private_data_dir=str(self.private_data_dir),
-                    playbook=str(abs_playbook_path),
-                    inventory=str(inventory_path.resolve()),
-                    extravars=merged_extravars,
-                    tags=",".join(tags) if tags else None,
-                    envvars=envvars,
-                    limit=",".join(limit_hosts) if limit_hosts else None,
-                )
-            else:
-                result = self._run_subprocess_playbook(
-                    abs_playbook_path=abs_playbook_path,
-                    inventory_path=inventory_path,
-                    extravars=merged_extravars,
-                    tags=tags,
-                    envvars=envvars,
-                    limit_hosts=limit_hosts,
-                    cancellable=cancellable,
-                )
+            result = self._execute_playbook(
+                runner_fn=runner_fn,
+                abs_playbook_path=abs_playbook_path,
+                inventory_path=inventory_path,
+                extravars=merged_extravars,
+                tags=tags,
+                envvars=envvars,
+                limit_hosts=limit_hosts,
+                cancellable=cancellable,
+            )
         finally:
             self._active_label = None
 
-        rc = getattr(result, "rc", 1)
-        status = getattr(result, "status", "failed")
-        stats = getattr(result, "stats", {}) or {}
-        logger.info(
-            "Playbook %s finished with rc=%s status=%s",
-            playbook_path,
-            rc,
-            status,
-        )
-        return ExecutionResult(rc=rc, status=status, stats=stats)
+        return self._finalize_result(playbook_path, result)
 
     @staticmethod
     def _import_runner() -> Callable[..., Any]:
@@ -173,7 +155,8 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         cancellable: bool = True,
     ) -> ExecutionResult:
         """
-        Execute ansible-playbook via subprocess to avoid ansible-runner's awx_display callback.
+        Execute ansible-playbook via subprocess to avoid ansible-runner's
+        awx_display callback.
         """
         cmd = self._command_builder.build(
             abs_playbook_path, inventory_path, tags, limit_hosts
@@ -210,3 +193,64 @@ class AnsibleRunnerExecutor(RemoteExecutor):
     @_active_process.setter
     def _active_process(self, proc):  # type: ignore[override]
         self._process_runner.set_active_process(proc)
+
+    def _maybe_stop(self, cancellable: bool) -> ExecutionResult | None:
+        if not self._process_runner.should_stop(cancellable):
+            return None
+        return ExecutionResult(rc=1, status="stopped", stats={})
+
+    @staticmethod
+    def _merge_extravars(
+        extravars: Optional[Dict[str, Any]],
+        inventory_path: Path,
+    ) -> Dict[str, Any]:
+        merged = extravars.copy() if extravars else {}
+        merged.setdefault("_lb_inventory_path", str(inventory_path))
+        return merged
+
+    def _execute_playbook(
+        self,
+        *,
+        runner_fn: Callable[..., Any],
+        abs_playbook_path: Path,
+        inventory_path: Path,
+        extravars: Dict[str, Any],
+        tags: Optional[List[str]],
+        envvars: Dict[str, str],
+        limit_hosts: Optional[List[str]],
+        cancellable: bool,
+    ) -> Any:
+        if self._runner_fn:
+            return runner_fn(
+                private_data_dir=str(self.private_data_dir),
+                playbook=str(abs_playbook_path),
+                inventory=str(inventory_path.resolve()),
+                extravars=extravars,
+                tags=",".join(tags) if tags else None,
+                envvars=envvars,
+                limit=",".join(limit_hosts) if limit_hosts else None,
+            )
+        return self._run_subprocess_playbook(
+            abs_playbook_path=abs_playbook_path,
+            inventory_path=inventory_path,
+            extravars=extravars,
+            tags=tags,
+            envvars=envvars,
+            limit_hosts=limit_hosts,
+            cancellable=cancellable,
+        )
+
+    @staticmethod
+    def _finalize_result(
+        playbook_path: Path, result: Any
+    ) -> ExecutionResult:
+        rc = getattr(result, "rc", 1)
+        status = getattr(result, "status", "failed")
+        stats = getattr(result, "stats", {}) or {}
+        logger.info(
+            "Playbook %s finished with rc=%s status=%s",
+            playbook_path,
+            rc,
+            status,
+        )
+        return ExecutionResult(rc=rc, status=status, stats=stats)

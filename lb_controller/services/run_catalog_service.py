@@ -33,12 +33,7 @@ class RunCatalogService:
             return []
 
         runs: List[RunInfo] = []
-        for item in self.output_dir.iterdir():
-            if not item.is_dir():
-                continue
-            run_id = item.name
-            if not run_id.startswith("run-"):
-                continue
+        for run_id in self._iter_run_ids():
             info = self.get_run(run_id)
             if info:
                 runs.append(info)
@@ -121,20 +116,13 @@ class RunCatalogService:
     def _extract_hosts_workloads(
         journal_data: Dict[str, Any],
     ) -> tuple[Set[str], Set[str]]:
-        hosts: Set[str] = set()
-        workloads: Set[str] = set()
-        tasks = journal_data.get("tasks") if isinstance(journal_data, dict) else None
-        if not isinstance(tasks, list):
-            return hosts, workloads
-        for task in tasks:
-            if not isinstance(task, dict):
-                continue
-            host = task.get("host")
-            workload = task.get("workload")
-            if isinstance(host, str):
-                hosts.add(host)
-            if isinstance(workload, str):
-                workloads.add(workload)
+        tasks = _task_list(journal_data)
+        hosts = {host for host in _task_field(tasks, "host") if isinstance(host, str)}
+        workloads = {
+            workload
+            for workload in _task_field(tasks, "workload")
+            if isinstance(workload, str)
+        }
         return hosts, workloads
 
     @staticmethod
@@ -152,3 +140,19 @@ class RunCatalogService:
             for entry in host_root.iterdir()
             if entry.is_dir() and not entry.name.startswith("_")
         }
+
+    def _iter_run_ids(self) -> Iterable[str]:
+        for item in self.output_dir.iterdir():
+            if item.is_dir() and item.name.startswith("run-"):
+                yield item.name
+
+
+def _task_list(journal_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    tasks = journal_data.get("tasks") if isinstance(journal_data, dict) else None
+    if not isinstance(tasks, list):
+        return []
+    return [task for task in tasks if isinstance(task, dict)]
+
+
+def _task_field(tasks: Iterable[Dict[str, Any]], field: str) -> Iterable[Any]:
+    return (task.get(field) for task in tasks)

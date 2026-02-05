@@ -18,7 +18,7 @@ from typing import Any, List, Optional
 from pydantic import Field
 
 from ...base_generator import CommandSpec
-from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
+from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
 from ..command_base import StdoutCommandGenerator
 
 logger = logging.getLogger(__name__)
@@ -51,37 +51,27 @@ class SysbenchConfig(BasePluginConfig):
 class _SysbenchCommandBuilder:
     def build(self, config: SysbenchConfig) -> CommandSpec:
         cmd: List[str] = ["sysbench", config.test]
-        cmd.append(f"--threads={config.threads}")
-        cmd.append(f"--time={config.time}")
-        if config.max_requests is not None:
-            cmd.append(f"--events={config.max_requests}")
-        if config.rate is not None:
-            cmd.append(f"--rate={config.rate}")
-        if config.test == "cpu":
-            cmd.append(f"--cpu-max-prime={config.cpu_max_prime}")
-        if config.debug:
-            cmd.append("--verbosity=3")
-        cmd.extend(config.extra_args)
+        cmd.extend(_sysbench_args(config))
         cmd.append("run")
         return CommandSpec(cmd=cmd)
 
 
 class _SysbenchResultParser:
     def parse(self, result: dict[str, Any]) -> dict[str, Any]:
-        stdout = result.get("stdout") or ""
+        stdout = result.get("stdout")
         if not isinstance(stdout, str):
             return result
-        self._update_metric(
+        _update_float_metric(
             result,
             stdout,
-            key="events_per_second",
-            pattern=r"events per second:\\s*([0-9.]+)",
+            "events_per_second",
+            r"events per second:\\s*([0-9.]+)",
         )
-        self._update_metric(
+        _update_float_metric(
             result,
             stdout,
-            key="total_time_seconds",
-            pattern=r"total time:\\s*([0-9.]+)s",
+            "total_time_seconds",
+            r"total time:\\s*([0-9.]+)s",
         )
         return result
 
@@ -187,3 +177,54 @@ class SysbenchPlugin(SimpleWorkloadPlugin):
 
 
 PLUGIN = SysbenchPlugin()
+
+
+def _sysbench_args(config: SysbenchConfig) -> list[str]:
+    args = [f"--threads={config.threads}", f"--time={config.time}"]
+    args.extend(_sysbench_optional_args(config))
+    return args
+
+
+def _sysbench_optional_args(config: SysbenchConfig) -> list[str]:
+    args: list[str] = []
+    _append_event_arg(args, config)
+    _append_rate_arg(args, config)
+    _append_cpu_arg(args, config)
+    _append_debug_arg(args, config)
+    args.extend(config.extra_args)
+    return args
+
+
+def _append_event_arg(args: list[str], config: SysbenchConfig) -> None:
+    if config.max_requests is not None:
+        args.append(f"--events={config.max_requests}")
+
+
+def _append_rate_arg(args: list[str], config: SysbenchConfig) -> None:
+    if config.rate is not None:
+        args.append(f"--rate={config.rate}")
+
+
+def _append_cpu_arg(args: list[str], config: SysbenchConfig) -> None:
+    if config.test == "cpu":
+        args.append(f"--cpu-max-prime={config.cpu_max_prime}")
+
+
+def _append_debug_arg(args: list[str], config: SysbenchConfig) -> None:
+    if config.debug:
+        args.append("--verbosity=3")
+
+
+def _update_float_metric(
+    result: dict[str, Any],
+    stdout: str,
+    key: str,
+    pattern: str,
+) -> None:
+    match = re.search(pattern, stdout, re.I)
+    if not match:
+        return
+    try:
+        result[key] = float(match.group(1))
+    except ValueError:
+        return

@@ -163,19 +163,18 @@ class DfaasGenerator(BaseGenerator):
 
     def _resolve_url_template(self, url: str, target_name: str) -> str:
         """Resolve {host.address} in URL with best available address."""
-        url = self._apply_host_placeholder(url, target_name)
+        if "{host.address}" in url:
+            replacement = (
+                self._exec_ctx.host_address
+                or target_name
+                or self._get_local_ip()
+            )
+            url = url.replace("{host.address}", replacement)
+
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
             return url
-        return self._replace_localhost(parsed, url)
 
-    def _apply_host_placeholder(self, url: str, target_name: str) -> str:
-        if "{host.address}" not in url:
-            return url
-        replacement = self._exec_ctx.host_address or target_name or self._get_local_ip()
-        return url.replace("{host.address}", replacement)
-
-    def _replace_localhost(self, parsed, url: str) -> str:
         # Fallback for localhost replacement logic
         host = parsed.hostname
         if host not in {"127.0.0.1", "localhost", "0.0.0.0"}:

@@ -17,22 +17,28 @@ from lb_app.services.run_types import RunContext
 from lb_app.ui_interfaces import UIAdapter
 
 
-def apply_overrides(
-    cfg: BenchmarkConfig, intensity: str | None, debug: bool
-) -> None:
+def apply_overrides(cfg: BenchmarkConfig, intensity: str | None, debug: bool) -> None:
     """Apply CLI-driven overrides to the configuration."""
     if intensity:
-        for wl_name in cfg.workloads:
-            cfg.workloads[wl_name].intensity = intensity
+        _apply_intensity_override(cfg, intensity)
     if debug:
-        for workload in cfg.workloads.values():
-            if isinstance(workload.options, dict):
-                workload.options["debug"] = True
-            else:
-                try:
-                    setattr(workload.options, "debug", True)
-                except Exception:
-                    pass
+        _apply_debug_override(cfg)
+
+
+def _apply_intensity_override(cfg: BenchmarkConfig, intensity: str) -> None:
+    for wl_name in cfg.workloads:
+        cfg.workloads[wl_name].intensity = intensity
+
+
+def _apply_debug_override(cfg: BenchmarkConfig) -> None:
+    for workload in cfg.workloads.values():
+        if isinstance(workload.options, dict):
+            workload.options["debug"] = True
+            continue
+        try:
+            setattr(workload.options, "debug", True)
+        except Exception:
+            pass
 
 
 def resolve_target_tests(
@@ -46,24 +52,41 @@ def resolve_target_tests(
     if not target_tests:
         raise ValueError("No workloads selected to run.")
 
+    allowed, disabled = _partition_targets(cfg, target_tests, platform_config)
+    _warn_disabled_tests(disabled, ui_adapter)
+    if not allowed:
+        raise ValueError("All selected workloads are disabled by platform config.")
+    return allowed
+
+
+def _partition_targets(
+    cfg: BenchmarkConfig,
+    target_tests: List[str],
+    platform_config: PlatformConfig,
+) -> tuple[list[str], list[str]]:
     disabled: list[str] = []
     allowed: list[str] = []
     for name in target_tests:
-        workload = cfg.workloads.get(name)
-        plugin_name = workload.plugin if workload else name
+        plugin_name = _resolve_plugin_name(cfg, name)
         if not platform_config.is_plugin_enabled(plugin_name):
             disabled.append(name)
             continue
         allowed.append(name)
+    return allowed, disabled
 
-    if disabled and ui_adapter:
-        ui_adapter.show_warning(
-            "Skipping workloads disabled by platform config: "
-            + ", ".join(sorted(disabled))
-        )
-    if not allowed:
-        raise ValueError("All selected workloads are disabled by platform config.")
-    return allowed
+
+def _resolve_plugin_name(cfg: BenchmarkConfig, name: str) -> str:
+    workload = cfg.workloads.get(name)
+    return workload.plugin if workload else name
+
+
+def _warn_disabled_tests(disabled: list[str], ui_adapter: UIAdapter | None) -> None:
+    if not disabled or not ui_adapter:
+        return
+    ui_adapter.show_warning(
+        "Skipping workloads disabled by platform config: "
+        + ", ".join(sorted(disabled))
+    )
 
 
 class RunContextBuilder:
@@ -130,9 +153,7 @@ class RunContextBuilder:
         self._apply_setup_overrides(
             cfg, setup, repetitions, intensity, ui_adapter, debug
         )
-        target_tests = resolve_target_tests(
-            cfg, tests, platform_config, ui_adapter
-        )
+        target_tests = resolve_target_tests(cfg, tests, platform_config, ui_adapter)
         context = self.build_context(
             cfg,
             target_tests,
@@ -155,22 +176,38 @@ class RunContextBuilder:
     ) -> tuple[BenchmarkConfig, Optional[Path]]:
         """Load config from disk or return a provided instance with UI feedback."""
         if preloaded_config is not None:
-            if not preloaded_config.plugin_assets:
-                apply_plugin_assets(preloaded_config, create_registry())
-            return preloaded_config, config_path
+            cfg = self._prepare_preloaded_config(preloaded_config)
+            return cfg, config_path
         cfg, resolved, stale = config_service.load_for_read(config_path)
+        self._ensure_plugin_assets(cfg)
+        self._notify_config_resolution(ui_adapter, resolved, stale)
+        return cfg, resolved
+
+    @staticmethod
+    def _prepare_preloaded_config(cfg: BenchmarkConfig) -> BenchmarkConfig:
         if not cfg.plugin_assets:
             apply_plugin_assets(cfg, create_registry())
-        if ui_adapter:
-            if stale:
-                ui_adapter.show_warning(f"Saved default config not found: {stale}")
-            if resolved:
-                ui_adapter.show_success(f"Loaded config: {resolved}")
-            else:
-                ui_adapter.show_warning(
-                    "No config file found; using built-in defaults."
-                )
-        return cfg, resolved
+        return cfg
+
+    @staticmethod
+    def _ensure_plugin_assets(cfg: BenchmarkConfig) -> None:
+        if not cfg.plugin_assets:
+            apply_plugin_assets(cfg, create_registry())
+
+    @staticmethod
+    def _notify_config_resolution(
+        ui_adapter: UIAdapter | None,
+        resolved: Optional[Path],
+        stale: Optional[Path],
+    ) -> None:
+        if not ui_adapter:
+            return
+        if stale:
+            ui_adapter.show_warning(f"Saved default config not found: {stale}")
+        if resolved:
+            ui_adapter.show_success(f"Loaded config: {resolved}")
+        else:
+            ui_adapter.show_warning("No config file found; using built-in defaults.")
 
     def _apply_setup_overrides(
         self,
@@ -182,15 +219,32 @@ class RunContextBuilder:
         debug: bool,
     ) -> None:
         """Apply CLI flags to config and ensure directories exist."""
+        self._apply_setup_flags(cfg, setup)
+        self._apply_repetitions(cfg, repetitions, ui_adapter)
+        apply_overrides(cfg, intensity=intensity, debug=debug)
+        self._announce_intensity(intensity, ui_adapter)
+        cfg.ensure_output_dirs()
+
+    @staticmethod
+    def _apply_setup_flags(cfg: BenchmarkConfig, setup: bool) -> None:
         cfg.remote_execution.run_setup = setup
         if not setup:
             cfg.remote_execution.run_teardown = False
         cfg.remote_execution.enabled = True
-        if repetitions is not None:
-            cfg.repetitions = repetitions
-            if ui_adapter:
-                ui_adapter.show_info(f"Using {repetitions} repetitions for this run")
-        apply_overrides(cfg, intensity=intensity, debug=debug)
+
+    @staticmethod
+    def _apply_repetitions(
+        cfg: BenchmarkConfig, repetitions: Optional[int], ui_adapter: UIAdapter | None
+    ) -> None:
+        if repetitions is None:
+            return
+        cfg.repetitions = repetitions
+        if ui_adapter:
+            ui_adapter.show_info(f"Using {repetitions} repetitions for this run")
+
+    @staticmethod
+    def _announce_intensity(
+        intensity: Optional[str], ui_adapter: UIAdapter | None
+    ) -> None:
         if intensity and ui_adapter:
             ui_adapter.show_info(f"Global intensity override: {intensity}")
-        cfg.ensure_output_dirs()

@@ -5,7 +5,9 @@ from __future__ import annotations
 from lb_controller.api import BenchmarkConfig, PlatformConfig
 
 
-def apply_platform_defaults(cfg: BenchmarkConfig, platform_config: PlatformConfig) -> None:
+def apply_platform_defaults(
+    cfg: BenchmarkConfig, platform_config: PlatformConfig
+) -> None:
     """Apply platform defaults without mutating workload selection."""
     if platform_config.output_dir:
         cfg.output_dir = platform_config.output_dir

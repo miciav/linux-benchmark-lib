@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 class StopState(Enum):
     IDLE = auto()
     STOPPING_WORKLOADS = auto()  # Request sent, waiting for runners
-    TEARDOWN_READY = auto()      # All runners confirmed stop
-    STOP_FAILED = auto()         # Timeout or failure in stop protocol
+    TEARDOWN_READY = auto()  # All runners confirmed stop
+    STOP_FAILED = auto()  # Timeout or failure in stop protocol
 
 
 class StopCoordinator:
@@ -43,7 +43,7 @@ class StopCoordinator:
         self.stop_timeout = stop_timeout
         self.start_time: float | None = None
         self.run_id = run_id
-        
+
     def initiate_stop(self) -> None:
         """Transition to STOPPING_WORKLOADS."""
         if self.state != StopState.IDLE:
@@ -57,14 +57,18 @@ class StopCoordinator:
     def process_event(self, event: RunEvent) -> None:
         """
         Process incoming events to check for stop confirmation.
-        
-        We accept 'stopped', 'failed', or 'cancelled' as confirmation that 
+
+        We accept 'stopped', 'failed', or 'cancelled' as confirmation that
         the runner has ceased execution for the current workload.
         """
         if self.state != StopState.STOPPING_WORKLOADS:
             return
 
-        if self.run_id and getattr(event, "run_id", None) and event.run_id != self.run_id:
+        if (
+            self.run_id
+            and getattr(event, "run_id", None)
+            and event.run_id != self.run_id
+        ):
             return
 
         if event.host not in self.expected_runners:
@@ -74,7 +78,11 @@ class StopCoordinator:
         # Note: 'failed' is often emitted on interrupt. 'stopped' is ideal.
         if event.status.lower() in ("stopped", "failed", "cancelled", "done"):
             if event.host not in self.confirmed_runners:
-                logger.info(f"Stop confirmed for host: {event.host} (status={event.status})")
+                logger.info(
+                    "Stop confirmed for host: %s (status=%s)",
+                    event.host,
+                    event.status,
+                )
                 self.confirmed_runners.add(event.host)
                 self._check_completion()
 
@@ -88,10 +96,13 @@ class StopCoordinator:
         """Check if the stop protocol has timed out."""
         if self.state != StopState.STOPPING_WORKLOADS:
             return
-        
+
         if self.start_time and (time.time() - self.start_time > self.stop_timeout):
             missing = self.expected_runners - self.confirmed_runners
-            logger.error(f"Stop protocol timed out. Missing confirmations from: {missing}")
+            logger.error(
+                "Stop protocol timed out. Missing confirmations from: %s",
+                missing,
+            )
             self.state = StopState.STOP_FAILED
 
     def can_proceed_to_teardown(self) -> bool:

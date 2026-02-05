@@ -146,14 +146,13 @@ def _current_action(tasks: Iterable[TaskState]) -> str:
 
 
 def _latest_duration(tasks: Iterable[TaskState]) -> str:
-    latest: TaskState | None = None
-    for task in tasks:
-        if task.finished_at:
-            if latest is None or task.finished_at > (latest.finished_at or 0):
-                latest = task
-    if latest and latest.duration_seconds is not None:
-        return f"{latest.duration_seconds:.1f}s"
-    return ""
+    finished = [task for task in tasks if task.finished_at]
+    if not finished:
+        return ""
+    latest = max(finished, key=lambda task: task.finished_at or 0)
+    if latest.duration_seconds is None:
+        return ""
+    return f"{latest.duration_seconds:.1f}s"
 
 
 def _summarize_statuses(tasks: Iterable[TaskState]) -> DashboardStatusSummary:

@@ -1,5 +1,6 @@
 """
-Service for managing and configuring test scenarios, specifically for Multipass integration.
+Service for managing and configuring test scenarios, specifically for
+Multipass integration.
 """
 
 import os
@@ -14,6 +15,7 @@ from lb_app.ui_interfaces import UIAdapter, NoOpUIAdapter
 @dataclass
 class MultipassScenario:
     """Configuration for a Multipass test run."""
+
     target: str
     target_label: str
     workload_label: str
@@ -35,7 +37,9 @@ class TestService:
         self.ui: UIAdapter = ui or NoOpUIAdapter()
         self.config_service: ConfigService = config_service or ConfigService()
 
-    def get_multipass_intensity(self, force_env: Optional[str] = None) -> Dict[str, Any]:
+    def get_multipass_intensity(
+        self, force_env: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Return intensity parameters based on LB_MULTIPASS_FORCE env var or argument.
         """
@@ -102,7 +106,7 @@ class TestService:
         self, intensity: Dict[str, Any], selection: str
     ) -> MultipassScenario:
         """Construct the scenario details for the test plan."""
-        
+
         # Defaults for generic single workload
         target = "tests/e2e/test_multipass_benchmark.py"
         target_label = "benchmark"
@@ -113,13 +117,31 @@ class TestService:
 
         # Helper to build specific rows
         def row_stress_ng():
-            return ("stress_ng", f"{intensity['stress']}s", "1", "0s/0s", f"timeout={intensity['stress']}s, cpu_workers=1")
-        
+            return (
+                "stress_ng",
+                f"{intensity['stress']}s",
+                "1",
+                "0s/0s",
+                f"timeout={intensity['stress']}s, cpu_workers=1",
+            )
+
         def row_dd():
-            return ("dd", f"approx {intensity['dd_count']}MiB", "1", "0s/0s", f"bs=1M, count={intensity['dd_count']}")
+            return (
+                "dd",
+                f"approx {intensity['dd_count']}MiB",
+                "1",
+                "0s/0s",
+                f"bs=1M, count={intensity['dd_count']}",
+            )
 
         def row_fio():
-            return ("fio", f"{intensity['fio_runtime']}s", "1", "0s/0s", f"size={intensity['fio_size']}, randrw, bs=4k")
+            return (
+                "fio",
+                f"{intensity['fio_runtime']}s",
+                "1",
+                "0s/0s",
+                f"size={intensity['fio_size']}, randrw, bs=4k",
+            )
 
         if selection == "multi":
             target = "tests/e2e/test_multipass_multi_workloads.py"
@@ -131,20 +153,20 @@ class TestService:
                 f"fio {intensity['fio_runtime']}s/{intensity['fio_size']}"
             )
             workload_rows = [row_stress_ng(), row_dd(), row_fio()]
-            env_vars = {} # Uses its own hardcoded logic or we could migrate it
-            
+            env_vars = {}  # Uses its own hardcoded logic or we could migrate it
+
         elif selection == "stress_ng":
             duration_label = f"stress_ng {intensity['stress']}s"
             workload_rows = [row_stress_ng()]
-            
+
         elif selection == "dd":
             duration_label = f"dd ~{intensity['dd_count']}MiB"
             workload_rows = [row_dd()]
-            
+
         elif selection == "fio":
             duration_label = f"fio {intensity['fio_runtime']}s"
             workload_rows = [row_fio()]
-            
+
         else:
             # Generic fallback for workloads not explicitly detailed in intensity
             duration_label = "default"
@@ -156,5 +178,5 @@ class TestService:
             workload_label=workload_label,
             duration_label=duration_label,
             workload_rows=workload_rows,
-            env_vars=env_vars
+            env_vars=env_vars,
         )

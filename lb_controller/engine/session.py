@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class RunSession:
     """
     Encapsulates all state for a single benchmark run.
-    
+
     Includes:
     - Static configuration state (RunState)
     - Dynamic control state (ControllerStateMachine)
@@ -53,6 +53,6 @@ class RunSession:
             self.state_machine.transition(ControllerState.STOP_ARMED, reason=reason)
         except Exception:
             pass
-    
+
     def allows_cleanup(self) -> bool:
         return self.state_machine.allows_cleanup()
