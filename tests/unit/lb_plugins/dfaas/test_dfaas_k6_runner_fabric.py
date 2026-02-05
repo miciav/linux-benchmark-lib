@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
-from pathlib import Path
 from unittest.mock import MagicMock, patch, ANY
 
 import pytest
-from fabric import Connection
 from invoke.exceptions import UnexpectedExit
 
 from lb_plugins.plugins.dfaas.services.k6_runner import K6Runner, K6ExecutionError
-from lb_plugins.plugins.dfaas.config import DfaasFunctionConfig
 
 
 @pytest.fixture
@@ -175,4 +171,3 @@ class TestK6RunnerFabric:
         assert mock_callback.call_count == 2
         mock_callback.assert_any_call("k6 remote: Line 1")
         mock_callback.assert_any_call("k6 remote: Line 2")
-

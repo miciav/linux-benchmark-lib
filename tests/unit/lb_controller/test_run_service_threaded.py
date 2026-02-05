@@ -1,7 +1,7 @@
 import pytest
 import lb_app.services.execution_loop as execution_loop_module
 import lb_app.services.remote_run_coordinator as coordinator_module
-from lb_app.api import RunService, RunContext, RunResult, run_service_module
+from lb_app.api import RunService, RunContext, RunResult
 from lb_plugins.api import PluginRegistry
 from lb_runner.api import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 

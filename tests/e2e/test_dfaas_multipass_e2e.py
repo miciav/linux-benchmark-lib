@@ -17,7 +17,6 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import pytest
-import tenacity
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from lb_controller.api import (

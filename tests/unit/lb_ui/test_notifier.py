@@ -1,6 +1,4 @@
-
-import pytest
-from unittest.mock import patch, MagicMock, ANY
+from unittest.mock import patch, MagicMock
 import os
 from lb_ui.notifications.manager import NotificationManager
 from lb_ui.notifications.providers.desktop import DesktopProvider
@@ -73,4 +71,3 @@ class TestDesktopProvider:
         
         mock_dn_cls.assert_called()
         mock_async.assert_called()
-

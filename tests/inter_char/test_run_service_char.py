@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, ANY
+from unittest.mock import MagicMock
 
 from lb_app.services.run_service import RunService
 from lb_controller.api import BenchmarkConfig, WorkloadConfig
