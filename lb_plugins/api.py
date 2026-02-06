@@ -241,6 +241,10 @@ def _build_plugin_assets(plugin: Any) -> PluginAssetConfig:
             plugin, "get_ansible_collect_post_extravars", default={}
         )
         or {},
+        required_uv_extras=_call_plugin_method(
+            plugin, "get_required_uv_extras", default=[]
+        )
+        or [],
     )
 
 
