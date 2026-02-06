@@ -246,6 +246,32 @@ def test_teardown_k6_playbook_has_cleanup() -> None:
     )
 
 
+def test_teardown_k6_playbook_can_cleanup_memory_assets() -> None:
+    playbook = _load_playbook("teardown_k6.yml")
+    play = playbook[0]
+    vars_section = play.get("vars", {})
+    assert vars_section.get("peva_faas_memory_cleanup") is False
+    assert vars_section.get("peva_faas_memory_paths") == []
+
+    tasks = play.get("tasks", [])
+    guard_task = next(
+        (task for task in tasks if task.get("name") == "Guard memory cleanup paths"),
+        None,
+    )
+    assert guard_task is not None
+    guard_text = str(guard_task)
+    assert "benchmark_results/peva_faas" in guard_text
+    assert "~/.peva_faas-k6" in guard_text
+
+    cleanup_task = next(
+        (task for task in tasks if task.get("name") == "Remove memory cleanup paths"),
+        None,
+    )
+    assert cleanup_task is not None
+    assert cleanup_task.get("ansible.builtin.file", {}).get("state") == "absent"
+    assert cleanup_task.get("loop") == "{{ peva_faas_memory_paths }}"
+
+
 def test_setup_target_playbook_has_core_steps() -> None:
     playbook = _load_playbook("setup_target.yml")
     tasks = playbook[0]["tasks"]
