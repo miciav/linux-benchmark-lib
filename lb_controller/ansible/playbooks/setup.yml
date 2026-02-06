@@ -13,6 +13,12 @@
     lb_uv_install_script: "{{ lb_workdir }}/uv-install.sh"
     lb_apt_cache_valid_time: 3600
     lb_src_root: "{{ playbook_dir }}/../../.."
+    lb_uv_extra_args: >-
+      {{
+        (lb_uv_extras | default([]))
+        | map('regex_replace', '^(.*)$', '--extra \1')
+        | join(' ')
+      }}
 
   tasks:
     - name: Install collector dependencies (APT)
@@ -125,7 +131,7 @@
 
     - name: Sync benchmark dependencies with uv (no dev)
       ansible.builtin.command:
-        cmd: "{{ lb_uv_bin }} sync --frozen --no-dev"
+        cmd: "{{ lb_uv_bin }} sync --frozen --no-dev {{ lb_uv_extra_args }}"
         chdir: "{{ lb_workdir }}"
 
     - name: Ensure benchmark output directory exists

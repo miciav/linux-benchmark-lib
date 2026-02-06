@@ -165,6 +165,38 @@ def apply_plugin_assets(
     config.plugin_assets = assets
 
 
+def merge_plugin_assets(
+    config: SupportsPluginAssets,
+    registry: PluginRegistry,
+) -> None:
+    """Merge user-provided plugin assets with registry defaults.
+
+    User overrides are preserved, while required UV extras fall back to plugin
+    defaults when omitted so runtime dependencies stay installable.
+    """
+    existing_assets = dict(config.plugin_assets or {})
+    apply_plugin_assets(config, registry)
+    if not existing_assets:
+        return
+
+    merged_assets = dict(config.plugin_assets)
+    for name, user_asset in existing_assets.items():
+        default_asset = merged_assets.get(name)
+        if not isinstance(user_asset, PluginAssetConfig):
+            merged_assets[name] = user_asset
+            continue
+        if not isinstance(default_asset, PluginAssetConfig):
+            merged_assets[name] = user_asset
+            continue
+
+        merged = user_asset.model_copy(deep=True)
+        if not merged.required_uv_extras and default_asset.required_uv_extras:
+            merged.required_uv_extras = list(default_asset.required_uv_extras)
+        merged_assets[name] = merged
+
+    config.plugin_assets = merged_assets
+
+
 def collect_grafana_assets(
     registry: PluginRegistry,
     plugin_settings: Dict[str, Any] | None = None,
@@ -241,6 +273,10 @@ def _build_plugin_assets(plugin: Any) -> PluginAssetConfig:
             plugin, "get_ansible_collect_post_extravars", default={}
         )
         or {},
+        required_uv_extras=_call_plugin_method(
+            plugin, "get_required_uv_extras", default=[]
+        )
+        or [],
     )
 
 
@@ -283,6 +319,7 @@ __all__ = [
     "plugin_metadata",
     "build_plugin_table",
     "apply_plugin_assets",
+    "merge_plugin_assets",
     "apply_plugin_settings_defaults",
     "ensure_workloads_from_plugin_settings",
     "hydrate_plugin_settings",

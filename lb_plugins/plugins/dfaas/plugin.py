@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import csv
+from importlib import import_module
 import json
 from pathlib import Path
 from typing import Any
 
-from ...interface import SimpleWorkloadPlugin
+from ...interface import BasePluginConfig, SimpleWorkloadPlugin
 from .config import DfaasConfig
 from .grafana_assets import GRAFANA_ASSETS
-from .generator import DfaasGenerator
 
 
 class DfaasPlugin(SimpleWorkloadPlugin):
@@ -18,12 +18,19 @@ class DfaasPlugin(SimpleWorkloadPlugin):
 
     NAME = "dfaas"
     DESCRIPTION = "DFaaS k6 + OpenFaaS workload"
+    REQUIRED_UV_EXTRAS = ["dfaas"]
     CONFIG_CLS = DfaasConfig
-    GENERATOR_CLS = DfaasGenerator
+    GENERATOR_CLS = None
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     COLLECT_PRE_PLAYBOOK = Path(__file__).parent / "ansible" / "collect" / "pre.yml"
     COLLECT_POST_PLAYBOOK = Path(__file__).parent / "ansible" / "collect" / "post.yml"
     GRAFANA_ASSETS = GRAFANA_ASSETS
+
+    def create_generator(self, config: BasePluginConfig) -> Any:
+        generator_cls = import_module(
+            "lb_plugins.plugins.dfaas.generator"
+        ).DfaasGenerator
+        return generator_cls(config)
 
     def export_results_to_csv(
         self,

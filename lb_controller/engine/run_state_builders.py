@@ -66,6 +66,18 @@ class ExtravarsBuilder:
     ) -> dict[str, Any]:
         remote_exec = self.config.remote_execution
         remote_output_root = f"/tmp/benchmark_results/{run_id}"
+        enabled_plugins = {
+            workload.plugin
+            for workload in self.config.workloads.values()
+            if workload.enabled
+        }
+        uv_extras_set: set[str] = set()
+        for plugin_name in enabled_plugins:
+            plugin_assets = self.config.plugin_assets.get(plugin_name)
+            if plugin_assets is None:
+                continue
+            uv_extras_set.update(plugin_assets.required_uv_extras)
+        uv_extras = sorted(uv_extras_set)
         return {
             "run_id": run_id,
             "output_root": str(output_root),
@@ -77,6 +89,7 @@ class ExtravarsBuilder:
             "benchmark_config": self.config.model_dump(mode="json"),
             "use_container_fallback": remote_exec.use_container_fallback,
             "lb_upgrade_pip": remote_exec.upgrade_pip,
+            "lb_uv_extras": uv_extras,
             "collector_apt_packages": sorted(collector_packages),
             "workload_runner_install_deps": False,
             "repetitions_total": target_reps,

@@ -7,6 +7,7 @@ import logging
 import os
 import platform
 import subprocess
+import sys
 import time
 
 from lb_ui.notifications.base import NotificationProvider, NotificationContext
@@ -23,6 +24,17 @@ except ImportError:
     DesktopNotifier = None
 
 logger = logging.getLogger(__name__)
+
+
+def _is_running_in_macos_app_bundle() -> bool:
+    """Return True when running from a macOS .app bundle runtime."""
+    if platform.system() != "Darwin":
+        return False
+    force_enable = os.environ.get("LB_FORCE_DESKTOP_NOTIFIER", "").lower()
+    if force_enable in {"1", "true", "yes"}:
+        return True
+    normalized = sys.executable.replace("\\", "/")
+    return ".app/Contents/MacOS/" in normalized
 
 
 class DesktopProvider(NotificationProvider):
@@ -81,8 +93,8 @@ class DesktopProvider(NotificationProvider):
 
     def _send_macos(self, context: NotificationContext) -> None:
         """Send notification using desktop-notifier or osascript fallback."""
-        # Try modern API first
-        if DesktopNotifier is not None:
+        # desktop-notifier on macOS requires app-bundle context.
+        if DesktopNotifier is not None and _is_running_in_macos_app_bundle():
             try:
                 notifier = DesktopNotifier(
                     app_name=self.app_name, app_icon=context.icon_path
@@ -99,6 +111,10 @@ class DesktopProvider(NotificationProvider):
                 return
             except Exception as exc:
                 logger.debug(f"desktop-notifier failed, trying fallback: {exc}")
+        elif DesktopNotifier is not None:
+            logger.debug(
+                "Skipping desktop-notifier outside app bundle; using osascript fallback"
+            )
 
         # Fallback
         self._send_macos_osascript(context)
@@ -107,8 +123,8 @@ class DesktopProvider(NotificationProvider):
     def _send_macos_osascript(self, context: NotificationContext) -> None:
         """Execute AppleScript via osascript."""
         # Basic escaping to prevent syntax errors
-        safe_title = context.title.replace('"', '"')
-        safe_message = context.message.replace('"', '"')
+        safe_title = context.title.replace('"', '\\"')
+        safe_message = context.message.replace('"', '\\"')
 
         script = (
             f'display notification "{safe_message}" '

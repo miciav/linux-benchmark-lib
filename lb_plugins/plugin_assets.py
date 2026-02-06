@@ -35,3 +35,6 @@ class PluginAssetConfig(BaseModel):
     collect_post_extravars: Dict[str, Any] = Field(
         default_factory=dict, description="Collect post extravars"
     )
+    required_uv_extras: list[str] = Field(
+        default_factory=list, description="UV extras required by plugin runtime"
+    )

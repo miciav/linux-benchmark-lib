@@ -12,6 +12,8 @@
     run_id: ""
     config_id: ""
     k6_cleanup: false
+    peva_faas_memory_cleanup: false
+    peva_faas_memory_paths: []
   tasks:
     - name: Build cleanup path
       ansible.builtin.set_fact:
@@ -38,3 +40,30 @@
         path: "{{ cleanup_path }}"
         state: absent
       when: k6_cleanup
+
+    - name: Guard memory cleanup paths
+      ansible.builtin.assert:
+        that:
+          - peva_faas_memory_paths is iterable
+          - peva_faas_memory_paths is not string
+          - >-
+            (
+              peva_faas_memory_paths
+              | select(
+                  'match',
+                  '^(benchmark_results/peva_faas(?:/.*)?|~/.peva_faas-k6(?:/.*)?)$'
+                )
+              | list
+              | length
+            ) == (peva_faas_memory_paths | length)
+        fail_msg: >-
+          Memory cleanup paths must stay under benchmark_results/peva_faas or
+          ~/.peva_faas-k6.
+      when: peva_faas_memory_cleanup
+
+    - name: Remove memory cleanup paths
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ peva_faas_memory_paths }}"
+      when: peva_faas_memory_cleanup

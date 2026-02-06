@@ -6,7 +6,7 @@ import os
 import re
 import warnings
 from pathlib import Path
-from typing import Annotated, Any, Union
+from typing import Annotated, Any, Literal, Union
 
 import yaml
 from pydantic import BaseModel, Discriminator, Field, field_validator, model_validator
@@ -272,6 +272,37 @@ class GrafanaConfig(BaseModel):
         return values
 
 
+class MemoryConfig(BaseModel):
+    """In-process memory settings for PEVA-faas execution."""
+
+    backend: Literal["duckdb"] = Field(
+        default="duckdb", description="Memory backend type"
+    )
+    db_path: str = Field(
+        default="benchmark_results/peva_faas/memory/peva_faas.duckdb",
+        description="DuckDB path for persistent memory",
+    )
+    preload_core_parquet_dir: str | None = Field(
+        default=None,
+        description="Optional Parquet directory used to preload core memory tables",
+    )
+    export_core_parquet_dir: str | None = Field(
+        default=None, description="Optional output directory for core Parquet exports"
+    )
+    export_raw_debug_parquet_dir: str | None = Field(
+        default=None, description="Optional output directory for raw debug Parquet exports"
+    )
+    preload_raw_debug: bool = Field(
+        default=False,
+        description="Load raw debug summaries at startup (disabled by default)",
+    )
+    schema_version: str = Field(
+        default="peva_faas_mem_v1", description="Strict schema version label"
+    )
+
+    model_config = {"extra": "ignore"}
+
+
 class DfaasConfig(BasePluginConfig):
     """Configuration for PEVA-faas workload generation."""
 
@@ -357,6 +388,24 @@ class DfaasConfig(BasePluginConfig):
     )
     duration: str = Field(default="30s", description="k6 duration string")
     iterations: int = Field(default=3, ge=1, description="Iterations per configuration")
+    selection_mode: Literal["online", "micro_batch"] = Field(
+        default="online",
+        description="Configuration selection mode for policy updates",
+    )
+    micro_batch_size: int = Field(
+        default=8,
+        ge=1,
+        description="Number of configurations processed before a micro-batch update",
+    )
+    micro_batch_window_s: int = Field(
+        default=30,
+        ge=1,
+        description="Maximum time window for micro-batch policy updates",
+    )
+    algorithm_entrypoint: str | None = Field(
+        default=None,
+        description="Optional module:class entrypoint for custom policy algorithm",
+    )
     cooldown: DfaasCooldownConfig = Field(
         default_factory=DfaasCooldownConfig, description="Cooldown behavior"
     )
@@ -384,6 +433,10 @@ class DfaasConfig(BasePluginConfig):
     loki: DfaasLokiConfig = Field(
         default_factory=DfaasLokiConfig,
         description="Loki log shipping settings",
+    )
+    memory: MemoryConfig = Field(
+        default_factory=MemoryConfig,
+        description="In-process memory configuration",
     )
 
     @model_validator(mode="before")

@@ -67,11 +67,37 @@ class TestDesktopProvider:
     @patch("platform.system", return_value="Darwin")
     @patch("lb_ui.notifications.providers.desktop.DesktopNotifier")
     @patch("asyncio.run")
-    def test_macos_desktop_notifier(self, mock_async, mock_dn_cls, mock_system):
+    @patch("time.sleep")
+    def test_macos_desktop_notifier(
+        self, mock_sleep, mock_async, mock_dn_cls, mock_system
+    ):
         provider = DesktopProvider("App")
         ctx = NotificationContext("T", "M", True, "App", "icon.png")
 
-        provider.send(ctx)
+        with patch(
+            "lb_ui.notifications.providers.desktop._is_running_in_macos_app_bundle",
+            return_value=True,
+        ):
+            provider.send(ctx)
 
         mock_dn_cls.assert_called()
         mock_async.assert_called()
+
+    @patch("platform.system", return_value="Darwin")
+    @patch("lb_ui.notifications.providers.desktop.DesktopNotifier")
+    @patch("subprocess.run")
+    @patch("time.sleep")
+    def test_macos_cli_avoids_desktop_notifier_when_not_app_bundle(
+        self, mock_sleep, mock_subprocess, mock_dn_cls, mock_system
+    ):
+        provider = DesktopProvider("App")
+        ctx = NotificationContext("T", "M", True, "App", "icon.png")
+
+        with patch(
+            "lb_ui.notifications.providers.desktop._is_running_in_macos_app_bundle",
+            return_value=False,
+        ):
+            provider.send(ctx)
+
+        mock_dn_cls.assert_not_called()
+        mock_subprocess.assert_called()

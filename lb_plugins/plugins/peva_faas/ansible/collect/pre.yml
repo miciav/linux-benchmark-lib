@@ -45,6 +45,14 @@
             ''
           )
       }}
+    peva_faas_k6_host_normalized: >-
+      {{
+        peva_faas_k6_host | default('') | string | trim | lower
+      }}
+    peva_faas_k6_is_remote: >-
+      {{
+        peva_faas_k6_host_normalized not in ['', '127.0.0.1', 'localhost', '::1']
+      }}
   delegate_to: localhost
   run_once: true
 
@@ -66,3 +74,4 @@
   when:
     - peva_faas_k6_host is defined
     - peva_faas_k6_host | length > 0
+    - peva_faas_k6_is_remote

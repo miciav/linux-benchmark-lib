@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from lb_plugins.api import PluginAssetConfig
 from lb_controller.engine.run_state_builders import (
     ExtravarsBuilder,
     RunDirectoryPreparer,
@@ -13,7 +14,7 @@ from lb_controller.engine.run_state_builders import (
     resolve_run_id,
 )
 from lb_controller.models.types import InventorySpec
-from lb_runner.api import BenchmarkConfig, RemoteHostConfig
+from lb_runner.api import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
 
 pytestmark = pytest.mark.unit_controller
@@ -83,3 +84,30 @@ def test_extravars_builder_sorts_packages(tmp_path) -> None:
     assert extravars["run_id"] == "run-1"
     assert extravars["collector_apt_packages"] == ["apt", "zlib"]
     assert extravars["per_host_output"]["host1"].endswith("host1")
+
+
+def test_extravars_builder_collects_uv_extras_for_enabled_workloads(tmp_path) -> None:
+    cfg = BenchmarkConfig(output_dir=tmp_path / "out")
+    cfg.workloads = {
+        "w1": WorkloadConfig(plugin="peva_faas", enabled=True),
+        "w2": WorkloadConfig(plugin="other", enabled=True),
+        "w3": WorkloadConfig(plugin="disabled", enabled=False),
+    }
+    cfg.plugin_assets = {
+        "peva_faas": PluginAssetConfig(required_uv_extras=["peva_faas"]),
+        "other": PluginAssetConfig(required_uv_extras=["other", "peva_faas"]),
+        "disabled": PluginAssetConfig(required_uv_extras=["disabled"]),
+    }
+    builder = ExtravarsBuilder(cfg)
+
+    extravars = builder.build(
+        run_id="run-1",
+        output_root=tmp_path / "out",
+        report_root=tmp_path / "rep",
+        data_export_root=tmp_path / "exp",
+        per_host_output={},
+        target_reps=1,
+        collector_packages=[],
+    )
+
+    assert extravars["lb_uv_extras"] == ["other", "peva_faas"]

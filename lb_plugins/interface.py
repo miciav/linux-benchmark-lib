@@ -135,6 +135,10 @@ class WorkloadPlugin(ABC):
         """Return list of Python packages required by this plugin."""
         return []
 
+    def get_required_uv_extras(self) -> List[str]:
+        """Return list of UV extras required by this plugin."""
+        return []
+
     def get_required_local_tools(self) -> List[str]:
         """
         Return list of command-line tools required by this plugin for local execution.
@@ -247,6 +251,7 @@ class SimpleWorkloadPlugin(WorkloadPlugin):
     GENERATOR_CLS: Any = None
     REQUIRED_APT_PACKAGES: List[str] = []
     REQUIRED_PIP_PACKAGES: List[str] = []
+    REQUIRED_UV_EXTRAS: List[str] = []
     REQUIRED_LOCAL_TOOLS: List[str] = []
     SETUP_PLAYBOOK: Optional[Path] = None
     TEARDOWN_PLAYBOOK: Optional[Path] = None
@@ -283,6 +288,9 @@ class SimpleWorkloadPlugin(WorkloadPlugin):
 
     def get_required_pip_packages(self) -> List[str]:
         return list(self.REQUIRED_PIP_PACKAGES)
+
+    def get_required_uv_extras(self) -> List[str]:
+        return list(self.REQUIRED_UV_EXTRAS)
 
     def get_required_local_tools(self) -> List[str]:
         return list(self.REQUIRED_LOCAL_TOOLS)

@@ -246,6 +246,140 @@ def test_teardown_k6_playbook_has_cleanup() -> None:
     )
 
 
+def test_teardown_k6_playbook_can_cleanup_memory_assets() -> None:
+    playbook = _load_playbook("teardown_k6.yml")
+    play = playbook[0]
+    vars_section = play.get("vars", {})
+    assert vars_section.get("peva_faas_memory_cleanup") is False
+    assert vars_section.get("peva_faas_memory_paths") == []
+
+    tasks = play.get("tasks", [])
+    guard_task = next(
+        (task for task in tasks if task.get("name") == "Guard memory cleanup paths"),
+        None,
+    )
+    assert guard_task is not None
+    guard_text = str(guard_task)
+    assert "benchmark_results/peva_faas" in guard_text
+    assert "~/.peva_faas-k6" in guard_text
+
+    cleanup_task = next(
+        (task for task in tasks if task.get("name") == "Remove memory cleanup paths"),
+        None,
+    )
+    assert cleanup_task is not None
+    assert cleanup_task.get("ansible.builtin.file", {}).get("state") == "absent"
+    assert cleanup_task.get("loop") == "{{ peva_faas_memory_paths }}"
+
+
+def test_collect_post_playbook_fetches_peva_faas_memory_duckdb() -> None:
+    playbook = _load_playbook("collect/post.yml")
+    tasks = playbook
+
+    derive_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Derive PEVA-FAAS memory DB path"
+        ),
+        None,
+    )
+    assert derive_task is not None
+    derive_text = str(derive_task)
+    assert "benchmark_config.plugin_settings" in derive_text
+    assert "peva_faas.duckdb" in derive_text
+
+    normalize_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Resolve PEVA-FAAS memory DB absolute path"
+        ),
+        None,
+    )
+    assert normalize_task is not None
+    assert "lb_workdir" in str(normalize_task)
+
+    stat_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Check PEVA-FAAS memory DB exists"
+        ),
+        None,
+    )
+    assert stat_task is not None
+    assert "ansible.builtin.stat" in stat_task
+
+    fetch_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Fetch PEVA-FAAS memory DB to controller"
+        ),
+        None,
+    )
+    assert fetch_task is not None
+    fetch_cfg = fetch_task.get("ansible.builtin.fetch", {})
+    assert "memory/" in str(fetch_cfg.get("dest", ""))
+    assert "peva_faas_memory_db" in str(fetch_cfg.get("src", ""))
+
+
+def test_collect_post_playbook_resolves_memory_db_path_safely() -> None:
+    tasks = _load_playbook("collect/post.yml")
+
+    assert not any(
+        "ansible.builtin.shell" in task or "ansible.builtin.command" in task
+        for task in tasks
+    )
+
+    guard_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Guard PEVA-FAAS memory DB path is safe"
+        ),
+        None,
+    )
+    assert guard_task is not None
+    guard_text = str(guard_task)
+    assert ".." in guard_text
+
+
+def test_collect_pre_playbook_does_not_register_loopback_k6_host() -> None:
+    tasks = _load_playbook("collect/pre.yml")
+    derive_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Derive DFaaS k6 settings from benchmark config"
+        ),
+        None,
+    )
+    assert derive_task is not None
+    derive_text = str(derive_task.get("ansible.builtin.set_fact", {}))
+    assert "127.0.0.1" in derive_text
+    assert "localhost" in derive_text
+    assert "peva_faas_k6_is_remote" in derive_text
+
+    register_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Register DFaaS k6 host"
+        ),
+        None,
+    )
+    assert register_task is not None
+    when_clause = register_task.get("when", [])
+    if isinstance(when_clause, str):
+        when_items = [when_clause]
+    else:
+        when_items = [str(item) for item in when_clause]
+    when_text = " ".join(when_items)
+    assert "peva_faas_k6_is_remote" in when_text
+
+
 def test_setup_target_playbook_has_core_steps() -> None:
     playbook = _load_playbook("setup_target.yml")
     tasks = playbook[0]["tasks"]

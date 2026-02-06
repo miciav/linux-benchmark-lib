@@ -105,3 +105,21 @@ def test_config_path_ignores_legacy_dfaas_plugin_section(tmp_path: Path) -> None
     config = DfaasConfig(config_path=config_path)
 
     assert config.k3s_host == "127.0.0.1"
+
+
+def test_memory_defaults_use_duckdb_and_core_preload_only() -> None:
+    config = DfaasConfig()
+
+    assert config.memory.backend == "duckdb"
+    assert config.memory.preload_raw_debug is False
+
+
+def test_micro_batch_requires_positive_batch_size() -> None:
+    with pytest.raises(ValidationError):
+        DfaasConfig(selection_mode="micro_batch", micro_batch_size=0)
+
+
+def test_custom_algorithm_entrypoint_is_optional() -> None:
+    config = DfaasConfig()
+
+    assert config.algorithm_entrypoint is None
