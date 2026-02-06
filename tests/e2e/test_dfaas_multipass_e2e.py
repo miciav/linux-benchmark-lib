@@ -25,6 +25,7 @@ from lb_controller.api import (
     ControllerOptions,
     _extract_lb_event,
 )
+from lb_controller.models.state import ControllerState
 from lb_plugins.api import PluginAssetConfig
 from lb_plugins.plugins.dfaas.generator import DfaasGenerator
 from lb_plugins.plugins.dfaas.services.plan_builder import (
@@ -49,11 +50,10 @@ from lb_runner.api import (
     MetricCollectorConfig,
     RemoteExecutionConfig,
     RemoteHostConfig,
+    StopToken,
     WorkloadConfig,
 )
-from tests.e2e.test_multipass_benchmark import (
-    multipass_vm,
-)  # noqa: F401 - fixture import
+from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401 - fixture import
 from tests.helpers.multipass import make_test_ansible_env, stage_private_key
 
 logger = logging.getLogger(__name__)
@@ -2140,6 +2140,383 @@ EOFCONFIG
         ), "LB_EVENT lines should be present in daemon stream log"
     else:
         pytest.fail("Stream log file not created by daemon")
+
+
+def test_peva_faas_multipass_stopfile_duckdb_e2e(
+    multipass_two_vms, tmp_path: Path
+) -> None:
+    """E2E stop-file flow with PEVA-faas DuckDB artifact transfer validation."""
+    _ensure_local_prereqs()
+    k3s_vm, runner_vm = multipass_two_vms[0], multipass_two_vms[1]
+    lb_workdir = _lb_workdir(runner_vm["user"])
+    runner_home = "/root" if runner_vm["user"] == "root" else f"/home/{runner_vm['user']}"
+    peva_k6_workspace_root = f"{runner_home}/.peva_faas-k6"
+
+    # Cleanup before run
+    _clean_remote_workspace(
+        runner_vm["name"],
+        [
+            peva_k6_workspace_root,
+            f"{lb_workdir}/benchmark_results",
+            "/tmp/benchmark_results",
+            f"{lb_workdir}/STOP",
+        ],
+    )
+    _clean_remote_workspace(k3s_vm["name"], ["/tmp/benchmark_results"])
+
+    ansible_dir = tmp_path / "ansible_peva_stop"
+    staged_key = stage_private_key(Path(runner_vm["key_path"]), ansible_dir / "keys")
+    k3s_host = {
+        "ip": k3s_vm["ip"],
+        "user": k3s_vm["user"],
+        "key": str(staged_key),
+    }
+    runner_host = {
+        "ip": runner_vm["ip"],
+        "user": runner_vm["user"],
+        "key": str(staged_key),
+    }
+    ansible_env = make_test_ansible_env(ansible_dir)
+    k3s_inventory = ansible_dir / "k3s_inventory.ini"
+    runner_inventory = ansible_dir / "runner_inventory.ini"
+    _write_inventory(k3s_inventory, k3s_host)
+    _write_inventory(runner_inventory, runner_host)
+
+    setup_target = Path("lb_plugins/plugins/peva_faas/ansible/setup_target.yml")
+    setup_k6 = Path("lb_plugins/plugins/peva_faas/ansible/setup_k6.yml")
+
+    try:
+        _run_playbook(
+            setup_target,
+            k3s_inventory,
+            {"openfaas_functions": ["env"]},
+            ansible_env,
+        )
+        _run_playbook(setup_k6, runner_inventory, {}, ansible_env)
+    except Exception as exc:  # noqa: BLE001
+        _skip_or_fail("PEVA-faas setup playbook failed", context="peva_setup", exc=exc)
+
+    if not _deploy_code_to_vm(runner_vm["name"], ansible_dir, staged_key, lb_workdir):
+        _skip_or_fail("Failed to deploy benchmark code to runner VM.")
+
+    try:
+        _multipass_exec(
+            runner_vm["name"],
+            [
+                "bash",
+                "-lc",
+                f"cd {lb_workdir} && .local/bin/uv sync --frozen --no-dev --extra peva_faas",
+            ],
+        )
+    except Exception as exc:  # noqa: BLE001
+        _skip_or_fail(
+            "Failed to install PEVA-faas dependencies on runner VM",
+            context="runner_uv_sync_peva",
+            exc=exc,
+        )
+
+    # Verify setup state on both VMs
+    try:
+        k6_version = _multipass_exec(runner_vm["name"], ["k6", "version"]).stdout.strip()
+        assert "k6" in k6_version.lower(), "k6 should be installed on runner VM"
+        _multipass_exec(runner_vm["name"], ["faas-cli", "version"])
+        duckdb_check = _multipass_exec(
+            runner_vm["name"],
+            [
+                "bash",
+                "-lc",
+                f"{lb_workdir}/.venv/bin/python -c \"import duckdb; print('duckdb-ok')\"",
+            ],
+        ).stdout.strip()
+        assert "duckdb-ok" in duckdb_check, "duckdb should be importable on runner VM"
+    except Exception as exc:  # noqa: BLE001
+        _skip_or_fail("Runner VM setup verification failed", context="runner_verify", exc=exc)
+
+    try:
+        _multipass_exec(k3s_vm["name"], ["kubectl", "get", "nodes"])
+        _multipass_exec(
+            k3s_vm["name"], ["kubectl", "-n", "openfaas", "get", "deploy", "gateway"]
+        )
+        _multipass_exec(
+            k3s_vm["name"],
+            ["kubectl", "-n", "openfaas", "get", "deploy", "prometheus"],
+        )
+    except Exception as exc:  # noqa: BLE001
+        _skip_or_fail("k3s/OpenFaaS setup verification failed", context="k3s_verify", exc=exc)
+
+    prometheus_url = f"http://{k3s_vm['ip']}:30411"
+    try:
+        _wait_for_http(f"{prometheus_url}/-/ready")
+        _wait_for_prometheus_metric(prometheus_url, "node_cpu_seconds_total")
+        _wait_for_prometheus_metric(prometheus_url, "node_memory_MemTotal_bytes")
+    except Exception as exc:  # noqa: BLE001
+        _skip_or_fail(
+            "Prometheus readiness/metrics verification failed",
+            context="prometheus_verify",
+            exc=exc,
+        )
+
+    try:
+        password = _get_openfaas_password(k3s_vm["name"])
+    except Exception as exc:  # noqa: BLE001
+        _skip_or_fail(
+            "Failed to read OpenFaaS password", context="openfaas_password_stop", exc=exc
+        )
+    auth_value = base64.b64encode(f"admin:{password}".encode("utf-8")).decode("utf-8")
+
+    peva_faas_options = {
+        "gateway_url": f"http://{k3s_vm['ip']}:31112",
+        "prometheus_url": prometheus_url,
+        "k3s_host": k3s_vm["ip"],
+        "k3s_user": k3s_vm["user"],
+        "k3s_ssh_key": str(staged_key),
+        "k3s_port": 22,
+        "k6_log_stream": True,
+        "functions": [
+            {
+                "name": "env",
+                "method": "GET",
+                "body": "",
+                "headers": {"Authorization": f"Basic {auth_value}"},
+            }
+        ],
+        "rates": {"min_rate": 10, "max_rate": 10, "step": 10},
+        "combinations": {"min_functions": 1, "max_functions": 2},
+        "duration": "1m",
+        "iterations": 1,
+        "cooldown": {
+            "max_wait_seconds": 60,
+            "sleep_step_seconds": 5,
+            "idle_threshold_pct": 20,
+        },
+    }
+
+    def _build_config(
+        options: dict[str, Any],
+        output_dir: Path,
+        report_dir: Path,
+        export_dir: Path,
+    ) -> BenchmarkConfig:
+        return BenchmarkConfig(
+            repetitions=1,
+            test_duration_seconds=240,
+            warmup_seconds=0,
+            cooldown_seconds=0,
+            output_dir=output_dir,
+            report_dir=report_dir,
+            data_export_dir=export_dir,
+            remote_hosts=[
+                RemoteHostConfig(
+                    name=runner_vm["name"],
+                    address=runner_vm["ip"],
+                    user=runner_vm["user"],
+                    become=True,
+                    vars={
+                        "ansible_ssh_private_key_file": str(staged_key),
+                        "ansible_ssh_common_args": (
+                            "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+                        ),
+                    },
+                )
+            ],
+            remote_execution=RemoteExecutionConfig(
+                enabled=True,
+                run_setup=False,
+                run_collect=True,
+                run_teardown=False,
+                lb_workdir=lb_workdir,
+            ),
+            plugin_settings={"peva_faas": options},
+                plugin_assets={
+                    "peva_faas": PluginAssetConfig(
+                        setup_playbook=None,
+                        teardown_playbook=None,
+                        collect_post_playbook=Path(
+                            "lb_plugins/plugins/peva_faas/ansible/collect/post.yml"
+                        ).resolve(),
+                    )
+                },
+            workloads={
+                "peva_faas": WorkloadConfig(
+                    plugin="peva_faas",
+                    options=options,
+                    collectors_enabled=False,
+                )
+            },
+            collectors=MetricCollectorConfig(
+                psutil_interval=1.0,
+                cli_commands=[],
+                enable_ebpf=False,
+            ),
+        )
+
+    baseline_output = tmp_path / "benchmark_results_baseline"
+    baseline_report = tmp_path / "reports_baseline"
+    baseline_export = tmp_path / "exports_baseline"
+    baseline_config = _build_config(
+        peva_faas_options,
+        baseline_output,
+        baseline_report,
+        baseline_export,
+    )
+    baseline_executor = AnsibleRunnerExecutor(
+        private_data_dir=ansible_dir / "runner_baseline",
+        stream_output=True,
+    )
+    baseline_controller = BenchmarkController(
+        baseline_config,
+        ControllerOptions(executor=baseline_executor),
+    )
+    baseline_summary = baseline_controller.run(
+        ["peva_faas"], run_id="peva_faas_duckdb_baseline_e2e"
+    )
+    assert baseline_summary.success is True, "Baseline PEVA-faas run should succeed"
+
+    baseline_host_output = (
+        Path(baseline_summary.output_root) / runner_vm["name"] / "peva_faas"
+    )
+    assert baseline_host_output.exists(), (
+        f"Expected PEVA-faas output directory at {baseline_host_output}"
+    )
+    baseline_results_csv = baseline_host_output / "results.csv"
+    assert baseline_results_csv.exists(), f"Expected {baseline_results_csv} to exist"
+    assert baseline_results_csv.read_text().strip(), "results.csv should be non-empty"
+    baseline_metrics_files = sorted(baseline_host_output.glob("metrics/metrics-*.csv"))
+    assert baseline_metrics_files, (
+        f"Expected metrics files under {baseline_host_output / 'metrics'}"
+    )
+    assert any(
+        len(path.read_text().splitlines()) > 1 for path in baseline_metrics_files
+    ), "At least one baseline metrics CSV should contain data rows"
+
+    import duckdb
+
+    baseline_memory_root = Path(baseline_summary.output_root) / "memory" / runner_vm["name"]
+    baseline_duckdb_files = sorted(baseline_memory_root.rglob("peva_faas.duckdb"))
+    assert baseline_duckdb_files, f"Expected fetched duckdb file under {baseline_memory_root}"
+    baseline_conn = duckdb.connect(str(baseline_duckdb_files[0]), read_only=True)
+    try:
+        baseline_table_names = {
+            str(row[0]) for row in baseline_conn.execute("SHOW TABLES").fetchall()
+        }
+        assert "execution_events" in baseline_table_names, (
+            "execution_events table should exist in baseline duckdb"
+        )
+        baseline_execution_rows = int(
+            baseline_conn.execute("SELECT COUNT(*) FROM execution_events").fetchone()[0]
+        )
+        assert baseline_execution_rows > 0, (
+            "execution_events should contain at least one row in baseline run"
+        )
+        payload_row = baseline_conn.execute(
+            "SELECT payload_json FROM execution_events LIMIT 1"
+        ).fetchone()
+        assert payload_row and payload_row[0], (
+            "execution_events payload_json should be present in baseline run"
+        )
+        payload_raw = payload_row[0]
+        if isinstance(payload_raw, str):
+            payload = json.loads(payload_raw)
+        elif isinstance(payload_raw, dict):
+            payload = payload_raw
+        else:
+            payload = json.loads(str(payload_raw))
+        metrics_payload = payload.get("metrics", {})
+        assert "cpu_usage_node" in metrics_payload, (
+            "Baseline DuckDB payload should include Prometheus-derived node metrics"
+        )
+    finally:
+        baseline_conn.close()
+
+    stop_options = dict(peva_faas_options)
+    stop_options["iterations"] = 2
+    stop_output = tmp_path / "benchmark_results_stop"
+    stop_report = tmp_path / "reports_stop"
+    stop_export = tmp_path / "exports_stop"
+    stop_config = _build_config(
+        stop_options,
+        stop_output,
+        stop_report,
+        stop_export,
+    )
+
+    stop_file = tmp_path / "peva_faas_stop.signal"
+    if stop_file.exists():
+        stop_file.unlink()
+    run_done = threading.Event()
+    run_summary: dict[str, Any] = {}
+    rep_running = threading.Event()
+
+    def _stop_output_cb(text: str, end: str) -> None:
+        del end
+        if "LB_EVENT" not in text:
+            return
+        event = _extract_lb_event(text)
+        if not event:
+            return
+        status = str(event.get("status", "")).lower()
+        if status == "running":
+            rep_running.set()
+
+    stop_executor = AnsibleRunnerExecutor(
+        private_data_dir=ansible_dir / "runner_stop",
+        stream_output=True,
+        output_callback=_stop_output_cb,
+    )
+    stop_controller = BenchmarkController(
+        stop_config,
+        ControllerOptions(
+            executor=stop_executor,
+            stop_token=StopToken(stop_file=stop_file, enable_signals=False),
+            stop_timeout_s=20.0,
+        ),
+    )
+
+    def _run_stop_controller() -> None:
+        try:
+            run_summary["summary"] = stop_controller.run(
+                ["peva_faas"], run_id="peva_faas_stop_duckdb_e2e"
+            )
+        finally:
+            run_done.set()
+
+    stop_thread = threading.Thread(target=_run_stop_controller, daemon=True)
+    stop_thread.start()
+
+    if not rep_running.wait(timeout=300):
+        pytest.fail("PEVA-faas stop run did not start.")
+    for _ in range(15):
+        if run_done.is_set():
+            break
+        time.sleep(1)
+    if run_done.is_set():
+        pytest.fail("Stop run completed before interruption could be requested.")
+    stop_file.write_text("stop\n")
+
+    stop_thread.join(timeout=900)
+    if stop_thread.is_alive():
+        pytest.fail("Controller did not terminate after stop-file request.")
+
+    stop_summary = run_summary.get("summary")
+    assert stop_summary is not None, "Stop-run summary should be available"
+    assert stop_summary.success is False, "Interrupted stop-run should not report success"
+    assert stop_summary.controller_state in {
+        ControllerState.ABORTED,
+        ControllerState.STOP_FAILED,
+        ControllerState.FAILED,
+    }, f"Unexpected controller state after stop: {stop_summary.controller_state}"
+
+    stop_memory_root = Path(stop_summary.output_root) / "memory" / runner_vm["name"]
+    stop_duckdb_files = sorted(stop_memory_root.rglob("peva_faas.duckdb"))
+    assert stop_duckdb_files, f"Expected fetched duckdb file under {stop_memory_root}"
+    stop_conn = duckdb.connect(str(stop_duckdb_files[0]), read_only=True)
+    try:
+        stop_table_names = {str(row[0]) for row in stop_conn.execute("SHOW TABLES").fetchall()}
+        assert "execution_events" in stop_table_names, (
+            "execution_events table should exist in stop-run duckdb"
+        )
+    finally:
+        stop_conn.close()
 
 
 def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> None:
