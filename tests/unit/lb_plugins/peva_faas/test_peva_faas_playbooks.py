@@ -325,6 +325,27 @@ def test_collect_post_playbook_fetches_peva_faas_memory_duckdb() -> None:
     assert "peva_faas_memory_db" in str(fetch_cfg.get("src", ""))
 
 
+def test_collect_post_playbook_resolves_memory_db_path_safely() -> None:
+    tasks = _load_playbook("collect/post.yml")
+
+    assert not any(
+        "ansible.builtin.shell" in task or "ansible.builtin.command" in task
+        for task in tasks
+    )
+
+    guard_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Guard PEVA-FAAS memory DB path is safe"
+        ),
+        None,
+    )
+    assert guard_task is not None
+    guard_text = str(guard_task)
+    assert ".." in guard_text
+
+
 def test_setup_target_playbook_has_core_steps() -> None:
     playbook = _load_playbook("setup_target.yml")
     tasks = playbook[0]["tasks"]

@@ -53,6 +53,13 @@
           )
       }}
 
+- name: Guard PEVA-FAAS memory DB path is safe
+  ansible.builtin.assert:
+    that:
+      - peva_faas_memory_db_path_raw is string
+      - not (peva_faas_memory_db_path_raw | regex_search('(^|/)\\.\\.(?:/|$)'))
+    fail_msg: "PEVA-FAAS memory DB path cannot contain '..' segments."
+
 - name: Check PEVA-FAAS memory DB exists
   ansible.builtin.stat:
     path: "{{ peva_faas_memory_db }}"
