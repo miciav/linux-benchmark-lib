@@ -1315,8 +1315,6 @@ version = "0.66.2"
 source = { editable = "." }
 dependencies = [
     { name = "desktop-notifier" },
-    { name = "fabric" },
-    { name = "invoke" },
     { name = "jc" },
     { name = "numpy" },
     { name = "pandas" },
@@ -1348,6 +1346,10 @@ dev = [
     { name = "rich" },
     { name = "typer" },
     { name = "vulture" },
+]
+dfaas = [
+    { name = "fabric" },
+    { name = "invoke" },
 ]
 docs = [
     { name = "mkdocs" },
@@ -1415,9 +1417,9 @@ requires-dist = [
     { name = "ansible-runner", marker = "extra == 'controller'", specifier = ">=2.4.0" },
     { name = "desktop-notifier", specifier = ">=6.2.0" },
     { name = "duckdb", marker = "extra == 'peva-faas'", specifier = ">=1.1.0" },
-    { name = "fabric", specifier = ">=3.2.2" },
+    { name = "fabric", marker = "extra == 'dfaas'", specifier = ">=3.2.2" },
     { name = "flake8-cognitive-complexity", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-    { name = "invoke", specifier = ">=2.2.1" },
+    { name = "invoke", marker = "extra == 'dfaas'", specifier = ">=2.2.1" },
     { name = "jc", specifier = ">=1.25.0" },
     { name = "matplotlib", marker = "extra == 'controller'", specifier = ">=3.7.0" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
@@ -1453,7 +1455,7 @@ requires-dist = [
     { name = "typer", marker = "extra == 'ui'", specifier = ">=0.12.5" },
     { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.10" },
 ]
-provides-extras = ["peva-faas", "ui", "controller", "dev", "docs", "gui"]
+provides-extras = ["dfaas", "peva-faas", "ui", "controller", "dev", "docs", "gui"]
 
 [package.metadata.requires-dev]
 dev = [

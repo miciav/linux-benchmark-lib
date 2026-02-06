@@ -10,6 +10,10 @@ For PEVA-FAAS, the optional extra is `peva_faas` and contains:
 - `duckdb`
 - `pyarrow`
 
+For DFAAS, the optional extra is `dfaas` and contains:
+- `fabric`
+- `invoke`
+
 ## Runtime resolution flow
 
 1. Plugin metadata is resolved into `config.plugin_assets`.
@@ -35,3 +39,22 @@ For PEVA-FAAS, teardown supports optional cleanup of memory assets via:
 Cleanup is guarded and only allowed under:
 - `benchmark_results/peva_faas`
 - `~/.peva_faas-k6`
+
+## Cross-plugin rollout status
+
+Completed migrations:
+- `peva_faas` -> extra `peva_faas`
+- `dfaas` -> extra `dfaas`
+
+Plugins reviewed with no new plugin-specific Python extras required at this stage:
+- `baseline`
+- `dd`
+- `fio`
+- `geekbench`
+- `hpl`
+- `phoronix_test_suite`
+- `stream`
+- `stress_ng`
+- `sysbench`
+- `unixbench`
+- `yabs`
