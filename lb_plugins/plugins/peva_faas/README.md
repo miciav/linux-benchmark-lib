@@ -8,6 +8,17 @@ The PEVA-faas plugin reproduces the legacy sampling workflow using:
 It runs one configuration at a time, applies cooldown and overload rules, and
 persists legacy-compatible CSV outputs.
 
+## Dependency lifecycle
+
+PEVA-FAAS uses the optional dependency extra `peva_faas` for Python runtime
+packages (`duckdb`, `pyarrow`) instead of global project dependencies.
+
+- Global setup installs enabled plugin extras through `uv sync --extra ...`.
+- `setup_plugin.yml` remains the plugin setup playbook for runtime assets
+  (k6/faas-cli and related host setup).
+- Teardown keeps cleanup explicit and opt-in via
+  `peva_faas_memory_cleanup`/`peva_faas_memory_paths`.
+
 ## Architecture
 
 ### Component diagram
