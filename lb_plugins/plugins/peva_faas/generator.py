@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import logging
 from pathlib import Path
 import socket
@@ -131,6 +132,12 @@ class DfaasGenerator(BaseGenerator):
         for tool in required:
             if subprocess.run(["which", tool], capture_output=True).returncode != 0:
                 logger.error("Required tool missing: %s", tool)
+                return False
+        for module in ("duckdb", "pyarrow"):
+            try:
+                importlib.import_module(module)
+            except ModuleNotFoundError:
+                logger.error("Required Python package missing: %s", module)
                 return False
         return True
 

@@ -18,6 +18,7 @@ class DfaasPlugin(SimpleWorkloadPlugin):
 
     NAME = "peva_faas"
     DESCRIPTION = "PEVA-faas k6 + OpenFaaS workload"
+    REQUIRED_UV_EXTRAS = ["peva_faas"]
     CONFIG_CLS = DfaasConfig
     GENERATOR_CLS = DfaasGenerator
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
