@@ -71,17 +71,13 @@ class ExtravarsBuilder:
             for workload in self.config.workloads.values()
             if workload.enabled
         }
-        uv_extras = sorted(
-            {
-                extra
-                for plugin_name in enabled_plugins
-                for extra in (
-                    self.config.plugin_assets.get(plugin_name).required_uv_extras
-                    if self.config.plugin_assets.get(plugin_name) is not None
-                    else []
-                )
-            }
-        )
+        uv_extras_set: set[str] = set()
+        for plugin_name in enabled_plugins:
+            plugin_assets = self.config.plugin_assets.get(plugin_name)
+            if plugin_assets is None:
+                continue
+            uv_extras_set.update(plugin_assets.required_uv_extras)
+        uv_extras = sorted(uv_extras_set)
         return {
             "run_id": run_id,
             "output_root": str(output_root),
