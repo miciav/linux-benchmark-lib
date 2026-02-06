@@ -272,6 +272,59 @@ def test_teardown_k6_playbook_can_cleanup_memory_assets() -> None:
     assert cleanup_task.get("loop") == "{{ peva_faas_memory_paths }}"
 
 
+def test_collect_post_playbook_fetches_peva_faas_memory_duckdb() -> None:
+    playbook = _load_playbook("collect/post.yml")
+    tasks = playbook
+
+    derive_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Derive PEVA-FAAS memory DB path"
+        ),
+        None,
+    )
+    assert derive_task is not None
+    derive_text = str(derive_task)
+    assert "benchmark_config.plugin_settings" in derive_text
+    assert "peva_faas.duckdb" in derive_text
+
+    normalize_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Resolve PEVA-FAAS memory DB absolute path"
+        ),
+        None,
+    )
+    assert normalize_task is not None
+    assert "lb_workdir" in str(normalize_task)
+
+    stat_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Check PEVA-FAAS memory DB exists"
+        ),
+        None,
+    )
+    assert stat_task is not None
+    assert "ansible.builtin.stat" in stat_task
+
+    fetch_task = next(
+        (
+            task
+            for task in tasks
+            if task.get("name") == "Fetch PEVA-FAAS memory DB to controller"
+        ),
+        None,
+    )
+    assert fetch_task is not None
+    fetch_cfg = fetch_task.get("ansible.builtin.fetch", {})
+    assert "memory/" in str(fetch_cfg.get("dest", ""))
+    assert "peva_faas_memory_db" in str(fetch_cfg.get("src", ""))
+
+
 def test_setup_target_playbook_has_core_steps() -> None:
     playbook = _load_playbook("setup_target.yml")
     tasks = playbook[0]["tasks"]

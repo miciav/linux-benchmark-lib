@@ -25,3 +25,46 @@
   run_once: true
   when:
     - "'peva_faas_k6' in hostvars"
+
+- name: Derive PEVA-FAAS memory DB path
+  ansible.builtin.set_fact:
+    peva_faas_memory_db_path_raw: >-
+      {{
+        (
+          (
+            (
+              (benchmark_config.plugin_settings | default({})).peva_faas
+              | default({})
+            ).memory
+            | default({})
+          ).db_path
+          | default('benchmark_results/peva_faas/memory/peva_faas.duckdb')
+        )
+      }}
+
+- name: Resolve PEVA-FAAS memory DB absolute path
+  ansible.builtin.set_fact:
+    peva_faas_memory_db: >-
+      {{
+        (peva_faas_memory_db_path_raw | string).startswith('/')
+        | ternary(
+            peva_faas_memory_db_path_raw,
+            lb_workdir ~ '/' ~ peva_faas_memory_db_path_raw
+          )
+      }}
+
+- name: Check PEVA-FAAS memory DB exists
+  ansible.builtin.stat:
+    path: "{{ peva_faas_memory_db }}"
+  register: peva_faas_memory_db_stat
+  changed_when: false
+  failed_when: false
+
+- name: Fetch PEVA-FAAS memory DB to controller
+  ansible.builtin.fetch:
+    src: "{{ peva_faas_memory_db }}"
+    dest: "{{ output_root | default('./benchmark_results') }}/memory/{{ inventory_hostname }}/"
+    flat: false
+  failed_when: false
+  when:
+    - peva_faas_memory_db_stat.stat.exists | default(false)
