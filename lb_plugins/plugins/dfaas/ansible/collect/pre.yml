@@ -45,6 +45,14 @@
             ''
           )
       }}
+    dfaas_k6_host_normalized: >-
+      {{
+        dfaas_k6_host | default('') | string | trim | lower
+      }}
+    dfaas_k6_is_remote: >-
+      {{
+        dfaas_k6_host_normalized not in ['', '127.0.0.1', 'localhost', '::1']
+      }}
   delegate_to: localhost
   run_once: true
 
@@ -66,3 +74,4 @@
   when:
     - dfaas_k6_host is defined
     - dfaas_k6_host | length > 0
+    - dfaas_k6_is_remote

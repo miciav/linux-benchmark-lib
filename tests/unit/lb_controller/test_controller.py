@@ -16,6 +16,7 @@ from lb_controller.api import (
     apply_playbook_defaults,
 )
 from lb_plugins.api import apply_plugin_assets, create_registry
+from lb_plugins.plugin_assets import PluginAssetConfig
 from lb_runner.api import (
     BenchmarkConfig,
     RemoteHostConfig,
@@ -221,6 +222,31 @@ def test_controller_merges_plugin_extravars_into_setup(tmp_path: Path) -> None:
     ]
     assert teardown_calls, "Expected PTS teardown playbook call"
     assert teardown_calls[0]["extravars"]["pts_profile"] == "build-linux-kernel"
+
+
+def test_controller_keeps_plugin_asset_overrides_and_fills_required_uv_extras(
+    tmp_path: Path,
+) -> None:
+    config = BenchmarkConfig(
+        output_dir=tmp_path / "out",
+        report_dir=tmp_path / "rep",
+        data_export_dir=tmp_path / "exp",
+        remote_hosts=[RemoteHostConfig(name="node1", address="127.0.0.1")],
+    )
+    config.workloads = {"dfaas": WorkloadConfig(plugin="dfaas")}
+    config.plugin_assets = {
+        "dfaas": PluginAssetConfig(
+            setup_playbook=None,
+            teardown_playbook=None,
+            required_uv_extras=[],
+        )
+    }
+
+    controller = BenchmarkController(config, ControllerOptions(executor=DummyExecutor()))
+    merged = controller.config.plugin_assets["dfaas"]
+    assert merged.setup_playbook is None
+    assert merged.teardown_playbook is None
+    assert merged.required_uv_extras == ["dfaas"]
 
 
 def test_controller_summary_includes_run_outputs(tmp_path: Path) -> None:

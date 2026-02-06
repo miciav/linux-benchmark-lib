@@ -46,6 +46,7 @@
         path: "{{ item }}"
         state: absent
       loop:
+        - "{{ workload_runner_workdir }}/STOP"
         - "{{ workload_runner_workdir }}/lb_localrunner.status.json"
         - "{{ workload_runner_workdir }}/lb_localrunner.pid"
         - "{{ workload_runner_workdir }}/lb_poll_start.time"

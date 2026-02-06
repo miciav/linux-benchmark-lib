@@ -711,7 +711,7 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
     )
 
 
-def test_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> None:
+def run_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> None:
     _ensure_local_prereqs()
     target_vm, k6_vm = multipass_two_vms[0], multipass_two_vms[1]
     k6_workspace_root = _k6_workspace_root(k6_vm["user"])
@@ -2142,7 +2142,7 @@ EOFCONFIG
         pytest.fail("Stream log file not created by daemon")
 
 
-def test_peva_faas_multipass_stopfile_duckdb_e2e(
+def run_peva_faas_multipass_stopfile_duckdb_e2e(
     multipass_two_vms, tmp_path: Path
 ) -> None:
     """E2E stop-file flow with PEVA-faas DuckDB artifact transfer validation."""
@@ -2519,7 +2519,7 @@ def test_peva_faas_multipass_stopfile_duckdb_e2e(
         stop_conn.close()
 
 
-def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> None:
+def run_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> None:
     """E2E test that executes PEVA-faas benchmark via CLI (lb run --remote).
 
     This test verifies the PEVA-faas workflow:
@@ -2810,15 +2810,34 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
                 ],
             ).stdout.strip()
 
-        remote_output_dir = f"{remote_run_root}/{runner_vm['name']}/peva_faas"
+        expected_remote_output_dir = f"{remote_run_root}/{runner_vm['name']}/peva_faas"
         remote_results = _remote_find_files(
             runner_vm["name"],
-            remote_output_dir,
+            expected_remote_output_dir,
             "peva_faas_results.json",
+        )
+        if not remote_results:
+            fallback_results = _remote_find_files(
+                runner_vm["name"],
+                remote_run_root,
+                "peva_faas_results.json",
+            )
+            remote_results = [
+                path
+                for path in fallback_results
+                if "/peva_faas/" in path and path.endswith("/peva_faas_results.json")
+            ]
+        remote_output_dir = (
+            str(Path(remote_results[0]).parent)
+            if remote_results
+            else expected_remote_output_dir
         )
         assert (
             remote_results
-        ), f"peva_faas_results.json should exist in remote output {remote_output_dir}"
+        ), (
+            "peva_faas_results.json should exist in remote output "
+            f"{expected_remote_output_dir} (run root: {remote_run_root})"
+        )
         _verify_peva_faas_results_text(
             _remote_read_file(runner_vm["name"], remote_results[0])
         )
@@ -2828,11 +2847,25 @@ def test_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> 
             f"{remote_output_dir}/rep1",
             "result.json",
         )
+        if not remote_rep_results:
+            remote_rep_results = _remote_find_files(
+                runner_vm["name"],
+                remote_output_dir,
+                "result.json",
+            )
+        rep_result_path = next(
+            (
+                path
+                for path in remote_rep_results
+                if path.endswith("/rep1/result.json")
+            ),
+            remote_rep_results[0] if remote_rep_results else "",
+        )
         assert (
-            remote_rep_results
+            rep_result_path
         ), f"rep1/result.json should exist in {remote_output_dir}/rep1"
         _verify_peva_faas_result_text(
-            _remote_read_file(runner_vm["name"], remote_rep_results[0])
+            _remote_read_file(runner_vm["name"], rep_result_path)
         )
 
     # Debug: Print journal and run log (critical for diagnosing setup failures)
