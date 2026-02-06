@@ -11,8 +11,6 @@ dependencies = [
     "psutil>=7.0.0",
     "pandas>=2.0.0",
     "numpy>=1.24.0",
-    "duckdb>=1.1.0",
-    "pyarrow>=17.0.0",
     "jc>=1.25.0",
     "PyYAML>=6.0",
     "pydantic>=2.0.0", # Added pydantic
@@ -26,6 +24,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+peva_faas = [
+    "duckdb>=1.1.0",
+    "pyarrow>=17.0.0",
+]
 ui = [
     "rich>=13.7.0",
     "typer>=0.12.5",

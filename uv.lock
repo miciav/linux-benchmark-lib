@@ -1315,7 +1315,6 @@ version = "0.66.2"
 source = { editable = "." }
 dependencies = [
     { name = "desktop-notifier" },
-    { name = "duckdb" },
     { name = "fabric" },
     { name = "invoke" },
     { name = "jc" },
@@ -1324,7 +1323,6 @@ dependencies = [
     { name = "pillow" },
     { name = "plyer" },
     { name = "psutil" },
-    { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pystray" },
     { name = "pyyaml" },
@@ -1362,6 +1360,10 @@ docs = [
 ]
 gui = [
     { name = "pyside6" },
+]
+peva-faas = [
+    { name = "duckdb" },
+    { name = "pyarrow" },
 ]
 ui = [
     { name = "prompt-toolkit" },
@@ -1412,7 +1414,7 @@ requires-dist = [
     { name = "ansible-core", marker = "extra == 'dev'", specifier = ">=2.15.0" },
     { name = "ansible-runner", marker = "extra == 'controller'", specifier = ">=2.4.0" },
     { name = "desktop-notifier", specifier = ">=6.2.0" },
-    { name = "duckdb", specifier = ">=1.1.0" },
+    { name = "duckdb", marker = "extra == 'peva-faas'", specifier = ">=1.1.0" },
     { name = "fabric", specifier = ">=3.2.2" },
     { name = "flake8-cognitive-complexity", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "invoke", specifier = ">=2.2.1" },
@@ -1431,7 +1433,7 @@ requires-dist = [
     { name = "prompt-toolkit", marker = "extra == 'docs'", specifier = ">=3.0.0" },
     { name = "prompt-toolkit", marker = "extra == 'ui'", specifier = ">=3.0.0" },
     { name = "psutil", specifier = ">=7.0.0" },
-    { name = "pyarrow", specifier = ">=17.0.0" },
+    { name = "pyarrow", marker = "extra == 'peva-faas'", specifier = ">=17.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pyside6", marker = "extra == 'dev'", specifier = ">=6.6.0" },
     { name = "pyside6", marker = "extra == 'gui'", specifier = ">=6.6.0" },
@@ -1451,7 +1453,7 @@ requires-dist = [
     { name = "typer", marker = "extra == 'ui'", specifier = ">=0.12.5" },
     { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.10" },
 ]
-provides-extras = ["ui", "controller", "dev", "docs", "gui"]
+provides-extras = ["peva-faas", "ui", "controller", "dev", "docs", "gui"]
 
 [package.metadata.requires-dev]
 dev = [
