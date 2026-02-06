@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 import socket
 import subprocess
 from urllib.parse import urlparse, urlunparse
@@ -15,8 +16,14 @@ from .services import (
     DfaasResultBuilder,
     DfaasResultWriter,
     DfaasRunPlanner,
+    DuckDBMemoryStore,
+    InProcessMemoryEngine,
     MetricsCollector,
+    ParquetCheckpoint,
+    TensorCache,
 )
+from .services.algorithm_loader import load_policy_algorithm
+from .services.cartesian_scheduler import CartesianScheduler
 from .services.k6_runner import K6Runner
 from .services.plan_builder import parse_duration_seconds
 from ...base_generator import BaseGenerator
@@ -37,6 +44,8 @@ class DfaasGenerator(BaseGenerator):
         self.config = config
         self._exec_ctx = execution_context or ExecutionContext.from_environment()
         self._planner = DfaasPlanBuilder(config)
+        self._policy_algorithm = load_policy_algorithm(config.algorithm_entrypoint)
+        self._scheduler = CartesianScheduler()
         self.expected_runtime_seconds = self._estimate_runtime()
         self._log_manager = DfaasLogManager(
             config=config,
@@ -60,6 +69,35 @@ class DfaasGenerator(BaseGenerator):
         )
         self._result_builder = DfaasResultBuilder(config.overload)
         self._duration_seconds = parse_duration_seconds(config.duration)
+        memory_db_path = Path(config.memory.db_path).expanduser()
+        checkpoint = ParquetCheckpoint(memory_db_path, config.memory.schema_version)
+        preload_core_dir = (
+            Path(config.memory.preload_core_parquet_dir).expanduser()
+            if config.memory.preload_core_parquet_dir
+            else None
+        )
+        export_core_dir = (
+            Path(config.memory.export_core_parquet_dir).expanduser()
+            if config.memory.export_core_parquet_dir
+            else None
+        )
+        export_debug_dir = (
+            Path(config.memory.export_raw_debug_parquet_dir).expanduser()
+            if config.memory.export_raw_debug_parquet_dir
+            else None
+        )
+        self._memory_engine = InProcessMemoryEngine(
+            mode=config.selection_mode,
+            batch_size=config.micro_batch_size,
+            batch_window_s=config.micro_batch_window_s,
+            store=DuckDBMemoryStore(memory_db_path, config.memory.schema_version),
+            cache=TensorCache(),
+            policy=self._policy_algorithm,
+            checkpoint=checkpoint,
+            preload_core_dir=preload_core_dir,
+            export_core_dir=export_core_dir,
+            export_debug_dir=export_debug_dir,
+        )
         self._run_planner = DfaasRunPlanner(
             config=self.config,
             exec_ctx=self._exec_ctx,
@@ -80,6 +118,8 @@ class DfaasGenerator(BaseGenerator):
             outputs_provider=self._resolve_k6_outputs,
             tags_provider=self._build_k6_tags,
             replicas_provider=self._get_function_replicas,
+            scheduler=self._scheduler,
+            memory_engine=self._memory_engine,
         )
         self._result_writer = DfaasResultWriter(self.config)
 

@@ -329,6 +329,31 @@ Validation:
 - `duration` (str, default `30s`): k6 duration.
 - `iterations` (int, default 3): iterations per config.
 
+### Selection and extensibility
+- `selection_mode` (`online` | `micro_batch`, default `online`): policy update strategy.
+- `micro_batch_size` (int, default 8): number of events before a micro-batch update.
+- `micro_batch_window_s` (int, default 30): max seconds before forcing a micro-batch update.
+- `algorithm_entrypoint` (str, optional): custom policy class in `module:Class` format.
+
+### Memory Core and Debug Archive
+
+The plugin separates persistent memory in two layers:
+
+- **Memory Core**: DuckDB + core Parquet checkpoint tables used for startup/preload.
+  Includes structured data for selection and learning (`execution_events`, `config_catalog`,
+  `policy_updates`, run metadata).
+- **Debug Archive**: raw k6 summaries (`k6_raw_summaries`) exported separately for
+  debugging/audit. It is not preloaded by default.
+
+Memory settings:
+- `memory.backend` (default `duckdb`).
+- `memory.db_path` (default `benchmark_results/peva_faas/memory/peva_faas.duckdb`).
+- `memory.preload_core_parquet_dir` (optional).
+- `memory.export_core_parquet_dir` (optional).
+- `memory.export_raw_debug_parquet_dir` (optional).
+- `memory.preload_raw_debug` (default `false`).
+- `memory.schema_version` (default `peva_faas_mem_v1`).
+
 ### Cooldown
 - `cooldown.max_wait_seconds` (int, default 180).
 - `cooldown.sleep_step_seconds` (int, default 5).
@@ -396,6 +421,10 @@ plugins:
 
     duration: "30s"
     iterations: 3
+    selection_mode: "online"
+    micro_batch_size: 8
+    micro_batch_window_s: 30
+    algorithm_entrypoint: null
 
     cooldown:
       max_wait_seconds: 180
@@ -412,6 +441,14 @@ plugins:
     queries_path: "lb_plugins/plugins/peva_faas/queries.yml"
     deploy_functions: true
     scaphandre_enabled: false
+    memory:
+      backend: "duckdb"
+      db_path: "benchmark_results/peva_faas/memory/peva_faas.duckdb"
+      preload_core_parquet_dir: null
+      export_core_parquet_dir: null
+      export_raw_debug_parquet_dir: null
+      preload_raw_debug: false
+      schema_version: "peva_faas_mem_v1"
 ```
 
 ## Outputs

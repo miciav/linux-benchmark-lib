@@ -13,7 +13,9 @@ from ..config import DfaasConfig
 from ..context import ExecutionContext
 from ..exceptions import K6ExecutionError
 from .annotation_service import DfaasAnnotationService
+from .cartesian_scheduler import CartesianScheduler
 from .cooldown import CooldownManager, CooldownTimeoutError, MetricsSnapshot
+from .contracts import ConfigScheduler, ExecutionEvent, MemoryEngine
 from .log_manager import DfaasLogManager
 from .metrics_collector import MetricsCollector
 from .plan_builder import DfaasPlanBuilder, config_id, config_key, dominates
@@ -35,6 +37,7 @@ class DfaasRunContext:
     target_name: str
     run_id: str
     output_dir: Path
+    repetition: int = 1
 
     # Result containers
     results_rows: list[dict[str, Any]] = field(default_factory=list)
@@ -104,6 +107,7 @@ class DfaasRunPlanner:
             target_name=target_name,
             run_id=run_id,
             output_dir=output_dir,
+            repetition=self._exec_ctx.repetition,
         )
 
     def _resolve_output_dir(self) -> Path:
@@ -187,6 +191,8 @@ class DfaasConfigExecutor:
         outputs_provider: Callable[[], list[str]],
         tags_provider: Callable[[str], dict[str, str]],
         replicas_provider: Callable[[list[str]], dict[str, int]],
+        scheduler: ConfigScheduler | None = None,
+        memory_engine: MemoryEngine | None = None,
     ) -> None:
         self._config = config
         self._k6_runner = k6_runner
@@ -198,12 +204,27 @@ class DfaasConfigExecutor:
         self._outputs_provider = outputs_provider
         self._tags_provider = tags_provider
         self._replicas_provider = replicas_provider
+        self._scheduler = scheduler or CartesianScheduler()
+        self._memory_engine = memory_engine
 
     def execute(self, ctx: DfaasRunContext) -> None:
-        total_configs = max(1, len(ctx.configs))
+        seen_keys = set(ctx.existing_index)
+        if self._memory_engine is not None:
+            self._memory_engine.startup()
+            for cfg in ctx.configs:
+                key = config_key(cfg)
+                if self._memory_engine.is_seen(key):
+                    seen_keys.add(key)
+
+        selected_configs = self._scheduler.propose_batch(
+            candidates=ctx.configs,
+            seen_keys=seen_keys,
+            desired_size=max(1, len(ctx.configs)),
+        )
+        total_configs = max(1, len(selected_configs))
         total_iterations = max(1, self._config.iterations)
 
-        for idx, config_pairs in enumerate(ctx.configs, start=1):
+        for idx, config_pairs in enumerate(selected_configs, start=1):
             self._execute_single_config(
                 ctx, config_pairs, idx, total_configs, total_iterations
             )
@@ -342,7 +363,52 @@ class DfaasConfigExecutor:
         self._append_iteration_entries(
             ctx, cfg_id, iteration, summary_data, metrics, row
         )
+        self._ingest_memory_event(
+            ctx=ctx,
+            config_pairs=config_pairs,
+            cfg_id=cfg_id,
+            iteration=iteration,
+            start_time=start_time,
+            end_time=end_time,
+            row=row,
+            metrics=metrics,
+            summary_data=summary_data,
+        )
         return overloaded
+
+    def _ingest_memory_event(
+        self,
+        *,
+        ctx: DfaasRunContext,
+        config_pairs: list[tuple[str, int]],
+        cfg_id: str,
+        iteration: int,
+        start_time: float,
+        end_time: float,
+        row: dict[str, Any],
+        metrics: dict[str, Any],
+        summary_data: dict[str, Any],
+    ) -> None:
+        if self._memory_engine is None:
+            return
+        event = ExecutionEvent(
+            run_id=ctx.run_id,
+            config_id=cfg_id,
+            iteration=iteration,
+            repetition=ctx.repetition,
+            config_pairs=list(config_pairs),
+            config_key=config_key(config_pairs),
+            started_at=start_time,
+            ended_at=end_time,
+            result_row=row,
+            metrics=metrics,
+            summary=summary_data,
+            output_dir=ctx.output_dir,
+        )
+        try:
+            self._memory_engine.ingest_event(event)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.warning("Memory ingest failed for %s: %s", cfg_id, exc)
 
     @staticmethod
     def _build_iteration_message(
