@@ -1,6 +1,6 @@
 ---
 # Centralized k6 installation variables for DFaaS plugin.
-# Used by: setup_global.yml, setup_k6.yml
+# Used by: setup_plugin.yml, setup_k6.yml
 # Required by: tasks/install_k6.yml
 
 # Workspace configuration

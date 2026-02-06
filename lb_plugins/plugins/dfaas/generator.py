@@ -114,7 +114,7 @@ class DfaasGenerator(BaseGenerator):
         configured_path = Path(self.config.k6_ssh_key).expanduser()
         if configured_path.exists():
             return True
-        # Fallback: check standard path where setup_global.yml copies the key
+        # Fallback: check standard path where setup_plugin.yml copies the key
         fallback_path = Path.home() / ".ssh" / "dfaas_k6_key"
         if fallback_path.exists():
             logger.info(

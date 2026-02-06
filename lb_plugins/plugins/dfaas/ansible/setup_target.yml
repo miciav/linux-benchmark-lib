@@ -1,7 +1,7 @@
 ---
 # Standalone playbook to setup benchmark target with k3s, OpenFaaS, Prometheus, and exporters.
 # Can be run independently or used as reference.
-# For orchestrated setup, use setup_global.yml instead.
+# For orchestrated setup, use setup_plugin.yml instead.
 
 - name: Install k3s, OpenFaaS, Prometheus, and exporters
   hosts: all

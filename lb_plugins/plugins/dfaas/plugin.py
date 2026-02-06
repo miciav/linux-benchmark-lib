@@ -20,7 +20,7 @@ class DfaasPlugin(SimpleWorkloadPlugin):
     DESCRIPTION = "DFaaS k6 + OpenFaaS workload"
     CONFIG_CLS = DfaasConfig
     GENERATOR_CLS = DfaasGenerator
-    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_global.yml"
+    SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     COLLECT_PRE_PLAYBOOK = Path(__file__).parent / "ansible" / "collect" / "pre.yml"
     COLLECT_POST_PLAYBOOK = Path(__file__).parent / "ansible" / "collect" / "post.yml"
     GRAFANA_ASSETS = GRAFANA_ASSETS

@@ -3,7 +3,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from lb_plugins.plugins.peva_faas.config import DfaasConfig
+from lb_plugins.plugins.peva_faas.config import (
+    DfaasConfig,
+    _looks_like_default_queries_path,
+)
 
 pytestmark = [pytest.mark.unit_plugins]
 
@@ -78,3 +81,27 @@ def test_default_queries_path_is_absolute() -> None:
     assert path.is_absolute()
     assert path.name == "queries.yml"
     assert path.exists()
+
+
+def test_legacy_dfaas_queries_path_not_considered_default() -> None:
+    assert (
+        _looks_like_default_queries_path(Path("lb_plugins/plugins/dfaas/queries.yml"))
+        is False
+    )
+
+
+def test_config_path_ignores_legacy_dfaas_plugin_section(tmp_path: Path) -> None:
+    config_path = tmp_path / "peva_faas_config.yml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "plugins:",
+                "  dfaas:",
+                '    k3s_host: "10.0.0.50"',
+            ]
+        )
+    )
+
+    config = DfaasConfig(config_path=config_path)
+
+    assert config.k3s_host == "127.0.0.1"

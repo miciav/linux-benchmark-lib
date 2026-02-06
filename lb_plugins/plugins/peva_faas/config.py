@@ -98,15 +98,6 @@ def _load_config_data(config_path: Path) -> dict[str, Any]:
     common = data.get("common", {}) or {}
     plugin_section = data.get("plugins", {}) or {}
     plugin_data = plugin_section.get("peva_faas", {})
-    if not plugin_data:
-        plugin_data = plugin_section.get("dfaas", {}) or {}
-        if plugin_data:
-            warnings.warn(
-                "Config section 'plugins.dfaas' is deprecated. "
-                "Use 'plugins.peva_faas'.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
     if not isinstance(common, dict) or not isinstance(plugin_data, dict):
         raise ValueError(
             "Config sections 'common' and 'plugins.peva_faas' must be mappings."
@@ -118,13 +109,7 @@ def _looks_like_default_queries_path(path: Path) -> bool:
     """Return True if the path matches the default repo layout."""
     normalized = tuple(part.lower() for part in path.parts)
     tail_peva = ("lb_plugins", "plugins", "peva_faas", "queries.yml")
-    tail_dfaas = ("lb_plugins", "plugins", "dfaas", "queries.yml")
-    if len(normalized) >= len(tail_peva) and normalized[-len(tail_peva) :] == tail_peva:
-        return True
-    return (
-        len(normalized) >= len(tail_dfaas)
-        and normalized[-len(tail_dfaas) :] == tail_dfaas
-    )
+    return len(normalized) >= len(tail_peva) and normalized[-len(tail_peva) :] == tail_peva
 
 
 class DfaasFunctionConfig(BaseModel):

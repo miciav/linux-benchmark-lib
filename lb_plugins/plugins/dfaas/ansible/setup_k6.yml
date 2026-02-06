@@ -1,7 +1,7 @@
 ---
 # Standalone playbook to install k6 load testing tool.
 # Can be run independently or used as reference.
-# For orchestrated setup, use setup_global.yml instead.
+# For orchestrated setup, use setup_plugin.yml instead.
 
 - name: Install k6 and prepare workspace
   hosts: all

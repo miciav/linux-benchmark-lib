@@ -295,7 +295,7 @@ def test_vars_k6_yml_defines_required_variables() -> None:
     """Verify vars/k6.yml defines all variables required by install_k6.yml.
 
     This test prevents regression of the bug where k6 variables were
-    accidentally removed from setup_global.yml, causing Ansible failures.
+    accidentally removed from setup_plugin.yml, causing Ansible failures.
     """
     vars_data = _load_vars_file("k6.yml")
     defined_vars = set(vars_data.keys())
@@ -319,13 +319,13 @@ def test_vars_target_yml_defines_required_variables() -> None:
     )
 
 
-def test_setup_global_yml_has_vars_files_for_k6() -> None:
-    """Verify setup_global.yml includes vars/k6.yml for the k6 generator play.
+def test_setup_plugin_yml_has_vars_files_for_k6() -> None:
+    """Verify setup_plugin.yml includes vars/k6.yml for the k6 generator play.
 
-    This test prevents regression of the bug where setup_global.yml
+    This test prevents regression of the bug where setup_plugin.yml
     imported tasks/install_k6.yml without defining the required variables.
     """
-    playbook = _load_playbook("setup_global.yml")
+    playbook = _load_playbook("setup_plugin.yml")
 
     # Find the "Configure K6 Generator" play (not "Register K6 Generator Host from Config")
     k6_play = None
@@ -342,14 +342,14 @@ def test_setup_global_yml_has_vars_files_for_k6() -> None:
     has_k6_vars = any("k6.yml" in str(vf) for vf in vars_files)
 
     assert has_k6_vars, (
-        "setup_global.yml 'Configure K6 Generator' play must include vars/k6.yml\n"
+        "setup_plugin.yml 'Configure K6 Generator' play must include vars/k6.yml\n"
         "Without this, tasks/install_k6.yml will fail due to undefined variables"
     )
 
 
-def test_setup_global_yml_has_vars_files_for_target() -> None:
-    """Verify setup_global.yml includes vars/target.yml for the target play."""
-    playbook = _load_playbook("setup_global.yml")
+def test_setup_plugin_yml_has_vars_files_for_target() -> None:
+    """Verify setup_plugin.yml includes vars/target.yml for the target play."""
+    playbook = _load_playbook("setup_plugin.yml")
 
     # Find the "Configure Benchmark Targets" play
     target_play = None
@@ -368,6 +368,6 @@ def test_setup_global_yml_has_vars_files_for_target() -> None:
     has_target_vars = any("target.yml" in str(vf) for vf in vars_files)
 
     assert has_target_vars, (
-        "setup_global.yml 'Configure Benchmark Targets' play must include vars/target.yml\n"
+        "setup_plugin.yml 'Configure Benchmark Targets' play must include vars/target.yml\n"
         "Without this, tasks/setup_target_tasks.yml will fail due to undefined variables"
     )
