@@ -142,7 +142,7 @@ class DfaasGenerator(BaseGenerator):
         return True
 
     def _stop_workload(self) -> None:
-        return None
+        self._k6_runner.stop_current_run()
 
     def _run_command(self) -> None:
         """Execute PEVA-faas benchmark run."""
@@ -150,9 +150,13 @@ class DfaasGenerator(BaseGenerator):
         self._annotations.annotate_run_start(ctx.run_id)
         try:
             self._config_executor.execute(ctx)
+            self._result = self._result_writer.build(ctx)
         finally:
+            try:
+                self._memory_engine.checkpoint()
+            except Exception as exc:  # pragma: no cover - defensive guard
+                logger.warning("Memory checkpoint failed: %s", exc)
             self._annotations.annotate_run_end(ctx.run_id)
-        self._result = self._result_writer.build(ctx)
 
     def _get_local_ip(self) -> str:
         """Resolve the primary local IP address."""

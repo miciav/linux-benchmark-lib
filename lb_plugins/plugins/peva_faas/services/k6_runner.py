@@ -56,6 +56,7 @@ class K6Runner:
         self.log_stream_enabled = log_stream_enabled
         self._log_callback = log_callback
         self._log_to_logger = log_to_logger
+        self._active_process: subprocess.Popen[str] | None = None
 
     def build_script(
         self,
@@ -121,6 +122,7 @@ class K6Runner:
                 stderr=subprocess.STDOUT,
                 text=True,
             )
+            self._active_process = proc
         except Exception as exc:
             raise K6ExecutionError(
                 config_id=config_id,
@@ -130,14 +132,17 @@ class K6Runner:
             ) from exc
 
         stdout_chunks: list[str] = []
-        with log_path.open("w") as log_handle:
-            if proc.stdout:
-                for line in proc.stdout:
-                    stdout_chunks.append(line)
-                    log_handle.write(line)
-                    if self.log_stream_enabled:
-                        self._stream_handler(line)
-            exit_code = proc.wait()
+        try:
+            with log_path.open("w") as log_handle:
+                if proc.stdout:
+                    for line in proc.stdout:
+                        stdout_chunks.append(line)
+                        log_handle.write(line)
+                        if self.log_stream_enabled:
+                            self._stream_handler(line)
+                exit_code = proc.wait()
+        finally:
+            self._active_process = None
 
         stdout = "".join(stdout_chunks)
         if exit_code != 0:
@@ -164,6 +169,18 @@ class K6Runner:
             duration_seconds=end_time - start_time,
             metric_ids=metric_ids,
         )
+
+    def stop_current_run(self) -> None:
+        """Stop the currently running k6 process, if any."""
+        proc = self._active_process
+        if proc is None or proc.poll() is not None:
+            return
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
 
     def _stream_handler(self, data: str) -> None:
         if not self.log_stream_enabled:

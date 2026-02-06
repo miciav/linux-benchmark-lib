@@ -362,3 +362,34 @@ def test_validate_environment_fails_when_duckdb_missing(
         raising=False,
     )
     assert generator._validate_environment() is False
+
+
+def test_stop_workload_stops_active_k6_run() -> None:
+    generator = DfaasGenerator(DfaasConfig())
+    stop_mock = Mock()
+    generator._k6_runner = types.SimpleNamespace(stop_current_run=stop_mock)
+
+    generator._stop_workload()
+
+    stop_mock.assert_called_once_with()
+
+
+def test_run_command_checkpoints_memory_engine_on_execution_error() -> None:
+    generator = DfaasGenerator(DfaasConfig())
+    ctx = types.SimpleNamespace(run_id="run-1")
+    checkpoint_mock = Mock()
+    generator._run_planner = types.SimpleNamespace(prepare=Mock(return_value=ctx))
+    generator._config_executor = types.SimpleNamespace(
+        execute=Mock(side_effect=RuntimeError("boom"))
+    )
+    generator._memory_engine = types.SimpleNamespace(checkpoint=checkpoint_mock)
+    generator._annotations = types.SimpleNamespace(
+        annotate_run_start=Mock(),
+        annotate_run_end=Mock(),
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        generator._run_command()
+
+    checkpoint_mock.assert_called_once_with()
+    generator._annotations.annotate_run_end.assert_called_once_with("run-1")
