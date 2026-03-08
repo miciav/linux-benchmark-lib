@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import importlib
 import sys
 from pathlib import Path
@@ -26,6 +27,25 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 def _ensure_workload_enabled(cfg: BenchmarkConfig, name: str) -> None:
     if name not in cfg.workloads:
         cfg.workloads[name] = WorkloadConfig(plugin=name, options={})
+
+
+@pytest.mark.unit_ui
+def test_resume_cli_uses_app_api_for_run_catalog_service() -> None:
+    module_path = Path("lb_ui/cli/commands/resume.py")
+    tree = ast.parse(module_path.read_text(), filename=str(module_path))
+
+    assert any(
+        isinstance(node, ast.ImportFrom)
+        and node.module == "lb_app.api"
+        and any(alias.name == "RunCatalogService" for alias in node.names)
+        for node in tree.body
+    )
+    assert not any(
+        isinstance(node, ast.ImportFrom)
+        and node.module == "lb_controller.api"
+        and any(alias.name == "RunCatalogService" for alias in node.names)
+        for node in tree.body
+    )
 
 
 @pytest.mark.unit_ui

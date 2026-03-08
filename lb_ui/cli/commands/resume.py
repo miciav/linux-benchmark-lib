@@ -9,8 +9,13 @@ import typer
 import json
 from datetime import datetime
 
-from lb_app.api import RunJournal, RunRequest, RunStatus, results_exist_for_run
-from lb_controller.api import RunCatalogService
+from lb_app.api import (
+    RunCatalogService,
+    RunJournal,
+    RunRequest,
+    RunStatus,
+    results_exist_for_run,
+)
 from lb_common.api import RunInfo
 from lb_ui.presenters.plan import build_run_plan_table
 from lb_ui.cli.commands.run_helpers import print_run_journal_summary, resolve_stop_file
