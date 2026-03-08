@@ -1,5 +1,6 @@
 """Unit tests for StopToken."""
 
+import signal
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -157,3 +158,17 @@ class TestStopTokenRestore:
         token.restore()
 
         assert token._prev_handlers == {}
+
+
+class TestStopTokenSignals:
+    """Tests for signal delegation behavior."""
+
+    def test_handle_signal_delegates_to_previous_handler_after_stop_requested(self) -> None:
+        prev_handler = MagicMock()
+        token = StopToken(enable_signals=False)
+        token._prev_handlers[signal.SIGINT] = prev_handler
+        token.request_stop()
+
+        token._handle_signal(signal.SIGINT, None)
+
+        prev_handler.assert_called_once_with(signal.SIGINT, None)

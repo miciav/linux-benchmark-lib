@@ -4,7 +4,19 @@ from __future__ import annotations
 
 import signal
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from types import FrameType, TracebackType
+from typing import Callable, Optional
+
+SignalHandler = int | Callable[[int, FrameType | None], object]
+
+
+def _as_callable_handler(
+    handler: SignalHandler | None,
+) -> Callable[[int, FrameType | None], object] | None:
+    """Return the previous signal handler when it is callable."""
+    if callable(handler):
+        return handler
+    return None
 
 
 class StopToken:
@@ -25,7 +37,7 @@ class StopToken:
         self.stop_file = stop_file
         self._on_stop = on_stop
         self._stop_requested = False
-        self._prev_handlers: Dict[int, Callable] = {}
+        self._prev_handlers: dict[int, SignalHandler | None] = {}
         if enable_signals:
             self._install_signal_handlers()
 
@@ -34,24 +46,26 @@ class StopToken:
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
                 self._prev_handlers[sig] = signal.getsignal(sig)
-                signal.signal(sig, self._handle_signal)  # type: ignore[arg-type]
+                signal.signal(sig, self._handle_signal)
             except Exception:
                 # Best effort; if signals cannot be set, continue without.
                 continue
 
-    def _handle_signal(self, signum: int, frame) -> None:  # type: ignore[override]
+    def _handle_signal(self, signum: int, frame: FrameType | None) -> None:
         if self._stop_requested:
             prev_handler = self._prev_handlers.get(signum)
-            if prev_handler in (signal.SIG_IGN, None):
+            if prev_handler is None or prev_handler == signal.SIG_IGN:
                 return
             if prev_handler == signal.SIG_DFL:
                 signal.default_int_handler(signum, frame)
-            else:
-                try:
-                    prev_handler(signum, frame)
-                except Exception:
-                    # Fall back to default if the previous handler misbehaves.
-                    signal.default_int_handler(signum, frame)
+            callable_handler = _as_callable_handler(prev_handler)
+            if callable_handler is None:
+                signal.default_int_handler(signum, frame)
+            try:
+                callable_handler(signum, frame)
+            except Exception:
+                # Fall back to default if the previous handler misbehaves.
+                signal.default_int_handler(signum, frame)
             return
         self.request_stop()
 
@@ -83,8 +97,10 @@ class StopToken:
     def restore(self) -> None:
         """Restore original signal handlers."""
         for sig, handler in self._prev_handlers.items():
+            if handler is None:
+                continue
             try:
-                signal.signal(sig, handler)  # type: ignore[arg-type]
+                signal.signal(sig, handler)
             except Exception:
                 continue
         self._prev_handlers.clear()
@@ -92,5 +108,10 @@ class StopToken:
     def __enter__(self) -> "StopToken":
         return self
 
-    def __exit__(self, _exc_type, _exc, _tb) -> None:
+    def __exit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _tb: TracebackType | None,
+    ) -> None:
         self.restore()

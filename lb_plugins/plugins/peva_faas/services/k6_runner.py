@@ -370,6 +370,9 @@ class K6Runner:
         if missing:
             return None, missing
 
+        assert success_rate is not None
+        assert latency_avg is not None
+        assert request_count is not None
         return (
             {
                 "success_rate": success_rate,

@@ -84,12 +84,9 @@ class DfaasLogManager:
     def _emit_event(self, message: str, level: str) -> bool:
         if not self.exec_ctx.event_logging_enabled:
             return False
-        root_logger = logging.getLogger()
-        if any(
-            isinstance(handler, LBEventLogHandler) for handler in root_logger.handlers
-        ):
-            return False
         if self._event_run_id is None:
+            return False
+        if self._has_matching_root_handler():
             return False
         event = RunEvent(
             run_id=self._event_run_id,
@@ -105,6 +102,19 @@ class DfaasLogManager:
         )
         self.event_emitter.emit(event)
         return True
+
+    def _has_matching_root_handler(self) -> bool:
+        for handler in logging.getLogger().handlers:
+            if not isinstance(handler, LBEventLogHandler):
+                continue
+            if (
+                handler.run_id == self._event_run_id
+                and handler.host == self.exec_ctx.host
+                and handler.workload == "peva_faas"
+                and handler.repetition == self.exec_ctx.repetition
+            ):
+                return True
+        return False
 
     @staticmethod
     def _log_to_logger(logger: logging.Logger, message: str, level: str) -> None:

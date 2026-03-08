@@ -10,13 +10,21 @@ import shutil
 import subprocess
 import sys
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol, cast
 
 from lb_controller.models.types import ExecutionResult, InventorySpec
 from lb_runner.api import StopToken
 
 logger = logging.getLogger(__name__)
+
+
+class ReadableTextStream(Protocol):
+    """Minimal protocol for text streams used by the selector loop."""
+
+    def readline(self) -> str:
+        """Read the next available line."""
 
 
 class InventoryWriter:
@@ -26,12 +34,13 @@ class InventoryWriter:
         self._private_data_dir = private_data_dir
 
     def prepare(self, inventory: InventorySpec) -> Path:
-        if inventory.inventory_path:
-            if not inventory.inventory_path.exists():
+        inventory_path = inventory.inventory_path
+        if inventory_path:
+            if not inventory_path.exists():
                 raise FileNotFoundError(
-                    f"Inventory file not found: {inventory.inventory_path}"
+                    f"Inventory file not found: {inventory_path}"
                 )
-            return inventory.inventory_path
+            return inventory_path
 
         inventory_dir = self._private_data_dir / "inventory"
         inventory_dir.mkdir(parents=True, exist_ok=True)
@@ -153,10 +162,13 @@ class ProcessStopController:
         self._interrupt_flag.clear()
 
     def should_stop(self, cancellable: bool) -> bool:
-        return cancellable and (
-            self._interrupt_flag.is_set()
-            or (self._stop_token and self._stop_token.should_stop())
-        )
+        if not cancellable:
+            return False
+        if self._interrupt_flag.is_set():
+            return True
+        if self._stop_token is None:
+            return False
+        return bool(self._stop_token.should_stop())
 
     def interrupt(self) -> None:
         self._interrupt_flag.set()
@@ -205,9 +217,11 @@ class ProcessOutputStreamer:
         terminate: Callable[[], None],
     ) -> bool:
         assert proc.stdout is not None
+        stdout = proc.stdout
+        readable_stdout = cast(ReadableTextStream, stdout)
         stop_requested = False
         selector = selectors.DefaultSelector()
-        selector.register(proc.stdout, selectors.EVENT_READ)
+        selector.register(stdout, selectors.EVENT_READ)
         try:
             while True:
                 if self._should_terminate(should_stop, terminate):
@@ -215,7 +229,7 @@ class ProcessOutputStreamer:
                     break
                 if proc.poll() is not None:
                     break
-                if self._drain_ready_lines(selector):
+                if self._drain_ready_lines(selector, readable_stdout):
                     break
         finally:
             selector.close()
@@ -236,12 +250,16 @@ class ProcessOutputStreamer:
         terminate()
         return True
 
-    def _drain_ready_lines(self, selector: selectors.BaseSelector) -> bool:
+    def _drain_ready_lines(
+        self,
+        selector: selectors.BaseSelector,
+        stdout: ReadableTextStream,
+    ) -> bool:
         events = selector.select(timeout=0.1)
         if not events:
             return False
         for key, _mask in events:
-            line = key.fileobj.readline()
+            line = cast(ReadableTextStream, key.fileobj).readline()
             if not line:
                 return True
             self.emit_line(line)

@@ -56,7 +56,10 @@ def resolve_duration(config: Any, generator: Any, logger: logging.Logger) -> int
 
 
 def prepare_generator(
-    generator: Any, warmup_seconds: int, logger: logging.Logger
+    generator: Any,
+    warmup_seconds: int,
+    logger: logging.Logger,
+    stop_token: StopToken | None = None,
 ) -> None:
     """Prepare the generator and optionally sleep for warmup."""
     try:
@@ -66,7 +69,25 @@ def prepare_generator(
         raise
     if warmup_seconds > 0:
         logger.info("Warmup period: %s seconds", warmup_seconds)
-        time.sleep(warmup_seconds)
+        if not sleep_with_stop_checks(warmup_seconds, stop_token):
+            raise StopRequested("Stopped by user")
+
+
+def sleep_with_stop_checks(
+    total_seconds: float,
+    stop_token: StopToken | None,
+    *,
+    interval_seconds: float = 0.1,
+) -> bool:
+    """Sleep in short intervals so stop requests can be observed promptly."""
+    remaining = max(0.0, float(total_seconds))
+    while remaining > 0:
+        if should_stop(stop_token):
+            return False
+        step = min(interval_seconds, remaining)
+        time.sleep(step)
+        remaining -= step
+    return not should_stop(stop_token)
 
 
 def start_collectors(collectors: list[Any], logger: logging.Logger) -> None:

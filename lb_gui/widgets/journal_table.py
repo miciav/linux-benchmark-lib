@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem, QWidget
 
 
 class JournalTable(QTableWidget):
@@ -23,7 +23,7 @@ class JournalTable(QTableWidget):
 
     STATUS_COLUMN = 3
 
-    def __init__(self, parent: object | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setColumnCount(len(self.HEADERS))
         self.setHorizontalHeaderLabels(self.HEADERS)

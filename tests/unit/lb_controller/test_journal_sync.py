@@ -1,6 +1,8 @@
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from lb_controller.api import backfill_timings_from_results
+from lb_controller.services.journal_sync import update_all_reps
 from lb_controller.api import RunJournal, RunStatus
 from lb_runner.api import BenchmarkConfig, WorkloadConfig, RemoteHostConfig
 
@@ -66,6 +68,23 @@ def test_backfill_marks_failed_on_error(tmp_path: Path):
     assert "boom" in task.error
     assert "returncode=2" in task.error
     assert "cmd=cmd" in task.error
+
+
+def test_update_all_reps_saves_once(tmp_path: Path):
+    journal, cfg = _journal_for()
+    journal.save = MagicMock()
+
+    backfill_path = tmp_path / "journal.json"
+    update_all_reps(
+        repetitions=3,
+        journal=journal,
+        journal_path=backfill_path,
+        hosts=cfg.remote_hosts,
+        workload="stress_ng",
+        status=RunStatus.SKIPPED,
+    )
+
+    assert journal.save.call_count == 1
 
 
 def json_dumps(payload):

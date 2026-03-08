@@ -8,7 +8,12 @@ from pathlib import Path
 
 from lb_app.services.config_service import ConfigService
 from lb_controller.api import GrafanaPlatformConfig, LokiConfig
-from lb_plugins.api import GrafanaAssets, collect_grafana_assets, create_registry
+from lb_plugins.api import (
+    GrafanaAssets,
+    PluginRegistry,
+    collect_grafana_assets,
+    create_registry,
+)
 from lb_provisioner.api import (
     GrafanaConfigSummary,
     check_grafana_ready,
@@ -174,7 +179,7 @@ class ProvisionService:
         )
         return ProvisionConfigSummary.from_grafana(summary, warnings=tuple(warnings))
 
-    def _enabled_plugin_map(self, registry) -> dict[str, bool]:
+    def _enabled_plugin_map(self, registry: PluginRegistry) -> dict[str, bool]:
         platform_cfg, _, _ = self._config_service.load_platform_config()
         return {
             name: platform_cfg.is_plugin_enabled(name)
@@ -193,7 +198,7 @@ class ProvisionService:
 
     def _collect_grafana_assets(
         self,
-        registry,
+        registry: PluginRegistry,
         enabled_map: dict[str, bool],
         config_path: Path | None,
     ) -> tuple[GrafanaAssets, list[str]]:

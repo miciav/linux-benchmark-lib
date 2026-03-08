@@ -7,7 +7,7 @@ import queue
 import threading
 import time
 from dataclasses import dataclass
-from typing import Callable, Mapping
+from typing import Callable, Mapping, cast
 
 from lb_common.logs.handlers.loki_types import LokiLogEntry
 
@@ -75,7 +75,7 @@ class LokiWorker:
         except queue.Empty:
             return None
         self.queue.task_done()
-        return entry
+        return cast(LokiLogEntry, entry)
 
     def _flush_if_ready(self, pending: list[LokiLogEntry], next_flush: float) -> float:
         now = time.monotonic()
@@ -115,8 +115,6 @@ def _merge_static_labels(
     labels: dict[str, str], static_labels: Mapping[str, str]
 ) -> None:
     for key, value in static_labels.items():
-        if value is None:
-            continue
         labels[str(key)] = str(value)
 
 

@@ -10,7 +10,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Literal, Optional, Sequence, TYPE_CHECKING
+from typing import Any, List, Literal, Optional, Sequence, TYPE_CHECKING, cast
 
 from lb_common.api import RunInfo
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 AnalyticsKind = Literal["aggregate"]
 
 if TYPE_CHECKING:
-    from lb_analytics.engine.aggregators.data_handler import DataHandler
+    from lb_analytics.engine.aggregators.data_handler import DataHandler, TestResult
 
 
 @dataclass(frozen=True)
@@ -40,8 +40,7 @@ class AnalyticsService:
             return self._run_aggregate(request)
         raise ValueError(f"Unsupported analytics kind: {request.kind}")
 
-    @staticmethod
-    def _load_results(results_file: Path) -> Optional[List[dict]]:
+    def _load_results(self, results_file: Path) -> Optional[List["TestResult"]]:
         try:
             results = json.loads(results_file.read_text())
         except Exception as exc:
@@ -49,7 +48,13 @@ class AnalyticsService:
             return None
         if not isinstance(results, list):
             return None
-        return results
+        return self._coerce_test_results(results)
+
+    @staticmethod
+    def _coerce_test_results(results: list[Any]) -> Optional[List["TestResult"]]:
+        if not all(isinstance(item, dict) for item in results):
+            return None
+        return cast(List["TestResult"], results)
 
     def _process_workload(
         self,
@@ -91,7 +96,7 @@ class AnalyticsService:
 
     def _run_aggregate(self, request: AnalyticsRequest) -> List[Path]:
         try:
-            from lb_analytics.engine.aggregators.data_handler import (  # type: ignore
+            from lb_analytics.engine.aggregators.data_handler import (
                 DataHandler,
             )
         except Exception as exc:

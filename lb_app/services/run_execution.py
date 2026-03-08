@@ -6,7 +6,12 @@ import logging
 import platform
 from typing import Any, Callable
 
-from lb_controller.api import BenchmarkController, RunEvent, StopToken
+from lb_controller.api import (
+    BenchmarkController,
+    RunEvent,
+    RunExecutionSummary,
+    StopToken,
+)
 
 from lb_app.services.execution_loop import RunExecutionLoop
 from lb_app.services.remote_run_coordinator import RemoteRunCoordinator
@@ -21,8 +26,10 @@ from lb_app.services.run_pipeline import (
     pipeline_output_callback,
 )
 from lb_app.services.run_types import (
+    OutputCallback,
     RunContext,
     RunResult,
+    StopAnnouncer,
     _EventDedupe,
     _EventPipeline,
     _RemoteSession,
@@ -110,7 +117,7 @@ class RunExecutionCoordinator:
         self,
         context: RunContext,
         run_id: str | None,
-        output_callback: Callable[[str, str], None],
+        output_callback: OutputCallback,
         formatter: AnsibleOutputFormatter | None,
         ui_adapter: UIAdapter | None,
         *,
@@ -173,7 +180,7 @@ class RunExecutionCoordinator:
         context: RunContext,
         session: _RemoteSession,
         formatter: AnsibleOutputFormatter | None,
-        output_callback: Callable[[str, str], None],
+        output_callback: OutputCallback,
         ui_adapter: UIAdapter | None,
         emit_timing: bool,
     ) -> _EventPipeline:
@@ -191,8 +198,8 @@ class RunExecutionCoordinator:
                 formatter.process_timing(line, log_sink=_timing_sink)
 
             timing_handler = _timing_handler
-        announce_stop = announce_stop_factory(session, ui_adapter)
-        session.stop_token._on_stop = announce_stop  # type: ignore[attr-defined]
+        announce_stop: StopAnnouncer = announce_stop_factory(session, ui_adapter)
+        session.stop_token._on_stop = announce_stop
 
         controller_ref: dict[str, BenchmarkController | None] = {"controller": None}
         dedupe = _EventDedupe()
@@ -238,7 +245,7 @@ class RunExecutionCoordinator:
         session: _RemoteSession,
         pipeline: _EventPipeline,
         ui_adapter: UIAdapter | None,
-    ):
+    ) -> RunExecutionSummary | None:
         return self._execution_loop.run_loop(
             controller, context, session, pipeline, ui_adapter
         )

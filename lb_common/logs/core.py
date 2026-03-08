@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Mapping, Any
+from typing import Any, Callable, Mapping, MutableMapping, Sequence, cast
 
 import structlog
 
@@ -338,7 +338,15 @@ def _make_structlog_formatter(
 
     return structlog.stdlib.ProcessorFormatter(
         processor=renderer,
-        foreign_pre_chain=pre_chain,
+        foreign_pre_chain=cast(
+            Sequence[
+                Callable[
+                    [Any, str, MutableMapping[str, Any]],
+                    Mapping[str, Any] | str | bytes | bytearray | tuple[Any, ...],
+                ]
+            ],
+            pre_chain,
+        ),
     )
 
 

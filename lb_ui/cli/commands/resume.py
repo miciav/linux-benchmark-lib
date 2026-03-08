@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import Any, Optional, Sequence, Tuple
 
 import typer
 
@@ -10,6 +10,7 @@ import json
 from datetime import datetime
 
 from lb_app.api import RunJournal, RunRequest, RunStatus, results_exist_for_run
+from lb_controller.api import RunCatalogService
 from lb_common.api import RunInfo
 from lb_ui.presenters.plan import build_run_plan_table
 from lb_ui.cli.commands.run_helpers import print_run_journal_summary, resolve_stop_file
@@ -20,7 +21,7 @@ from lb_ui.wiring.dependencies import UIContext
 def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
     """Register the resume command on the given Typer app."""
 
-    def _load_config(config_path: Optional[Path]):
+    def _load_config(config_path: Optional[Path]) -> Any:
         cfg, resolved, stale = ctx.config_service.load_for_read(config_path)
         if stale:
             ctx.ui.present.warning(f"Saved default config not found: {stale}")
@@ -30,111 +31,11 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
             ctx.ui.present.warning("No config file found; using built-in defaults.")
         return cfg
 
-    def _load_journal(journal_path: Path) -> RunJournal | None:
-        if not journal_path.exists():
-            return None
-        try:
-            return RunJournal.load(journal_path)
-        except Exception:
-            return None
-
-    def _load_journal_data(journal_path: Path) -> dict:
-        if not journal_path.exists():
-            return {}
-        try:
-            return json.loads(journal_path.read_text())
-        except Exception:
-            return {}
-
-    def _extract_created_at(journal_data: dict) -> Optional[datetime]:
-        if not isinstance(journal_data, dict):
-            return None
-        metadata = journal_data.get("metadata", journal_data)
-        created_raw = metadata.get("created_at")
-        if not isinstance(created_raw, str):
-            return None
-        try:
-            return datetime.fromisoformat(created_raw)
-        except Exception:
-            return None
-
-    def _extract_hosts_workloads(journal_data: dict) -> tuple[set[str], set[str]]:
-        hosts: set[str] = set()
-        workloads: set[str] = set()
-        tasks = journal_data.get("tasks") if isinstance(journal_data, dict) else None
-        if not isinstance(tasks, list):
-            return hosts, workloads
-        for task in tasks:
-            if not isinstance(task, dict):
-                continue
-            host = task.get("host")
-            workload = task.get("workload")
-            if isinstance(host, str):
-                hosts.add(host)
-            if isinstance(workload, str):
-                workloads.add(workload)
-        return hosts, workloads
-
-    def _fallback_hosts(output_root: Path) -> set[str]:
-        return {entry.name for entry in output_root.iterdir() if entry.is_dir()}
-
-    def _fallback_workloads(output_root: Path, hosts: set[str]) -> set[str]:
-        if not hosts:
-            return set()
-        first_host = next(iter(hosts))
-        host_root = output_root / first_host
-        if not host_root.exists():
-            return set()
-        return {
-            entry.name
-            for entry in host_root.iterdir()
-            if entry.is_dir() and not entry.name.startswith("_")
-        }
-
-    def _build_run_info(output_root: Path) -> RunInfo:
-        journal_path = output_root / "run_journal.json"
-        journal = _load_journal(journal_path)
-        if journal:
-            created_at = _extract_created_at(
-                journal.metadata if journal.metadata else {}
-            )
-            hosts = {task.host for task in journal.tasks.values()}
-            workloads = {task.workload for task in journal.tasks.values()}
-        else:
-            journal_data = _load_journal_data(journal_path)
-            created_at = _extract_created_at(journal_data)
-            hosts, workloads = _extract_hosts_workloads(journal_data)
-        if not hosts:
-            hosts = _fallback_hosts(output_root)
-        if not workloads and hosts:
-            workloads = _fallback_workloads(output_root, hosts)
-        return RunInfo(
-            run_id=output_root.name,
-            output_root=output_root,
-            report_root=None,
-            data_export_root=None,
-            hosts=sorted(hosts),
-            workloads=sorted(workloads),
-            created_at=created_at,
-            journal_path=journal_path if journal_path.exists() else None,
-        )
+    def _catalog(output_root: Path) -> RunCatalogService:
+        return RunCatalogService(output_dir=output_root)
 
     def _discover_runs(output_root: Path) -> list[RunInfo]:
-        if not output_root.exists():
-            return []
-        runs: list[RunInfo] = []
-        for entry in output_root.iterdir():
-            if entry.is_dir() and entry.name.startswith("run-"):
-                runs.append(_build_run_info(entry))
-        runs.sort(
-            key=lambda r: (
-                r.created_at.timestamp()
-                if r.created_at
-                else r.output_root.stat().st_mtime
-            ),
-            reverse=True,
-        )
-        return runs
+        return _catalog(output_root).list_runs()
 
     def _journal_status(run_info: RunInfo) -> Tuple[str, bool, str, Sequence[str]]:
         journal_path = run_info.journal_path or (
@@ -492,10 +393,10 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
                 def on_warning(self, message: str, ttl: float = 10.0) -> None:
                     ctx.ui_adapter.show_warning(message)
 
-                def on_event(self, event) -> None:
+                def on_event(self, event: Any) -> None:
                     pass
 
-                def on_journal(self, journal) -> None:
+                def on_journal(self, journal: Any) -> None:
                     pass
 
             run_result = ctx.app_client.start_run(request, _Hooks())

@@ -13,7 +13,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 
 from pydantic import Field
 
@@ -106,12 +106,14 @@ class SysbenchGenerator(StdoutCommandGenerator):
             command_builder=self._command_builder,
             result_parser=self._result_parser,
         )
+        self.config: SysbenchConfig = config
 
     def _build_command(self) -> List[str]:
+        assert self._command_builder is not None
         return self._command_builder.build(self.config).cmd
 
     def _timeout_seconds(self) -> Optional[int]:
-        return max(self.config.time, 0) + self.config.timeout_buffer
+        return max(int(self.config.time), 0) + int(self.config.timeout_buffer)
 
     def _validate_environment(self) -> bool:
         if shutil.which("sysbench") is None:
@@ -141,10 +143,14 @@ class SysbenchPlugin(SimpleWorkloadPlugin):
     REQUIRED_LOCAL_TOOLS = ["sysbench"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
-    def create_generator(self, config: SysbenchConfig | dict) -> SysbenchGenerator:
+    def create_generator(
+        self, config: BasePluginConfig | dict[str, Any]
+    ) -> SysbenchGenerator:
+        if isinstance(config, SysbenchConfig):
+            return SysbenchGenerator(config)
         if isinstance(config, dict):
-            config = SysbenchConfig(**config)
-        return SysbenchGenerator(config)
+            return SysbenchGenerator(SysbenchConfig(**config))
+        return SysbenchGenerator(SysbenchConfig(**config.model_dump()))
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[SysbenchConfig]:
         cpu_count = os.cpu_count() or 2

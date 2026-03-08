@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Sequence, cast
 
 from lb_ui.tui.core.capabilities import is_tty_available
 from lb_ui.tui.screens.picker_screen import PickerScreen
@@ -26,7 +26,7 @@ class PowerPicker(Picker):
             multi_select=False,
             query_hint=query_hint,
         )
-        return screen.run()
+        return cast(PickItem | None, screen.run())
 
     def pick_many(
         self,
@@ -45,7 +45,7 @@ class PowerPicker(Picker):
             multi_select=True,
             query_hint=query_hint,
         )
-        return screen.run()
+        return cast(list[PickItem] | None, screen.run())
 
 
 class PowerHierarchicalPicker(HierarchicalPicker):
@@ -58,4 +58,4 @@ class PowerHierarchicalPicker(HierarchicalPicker):
         if not is_tty_available():
             return None
         screen = PickerScreen(title=title, root=root)
-        return screen.run()
+        return cast(SelectionNode | None, screen.run())

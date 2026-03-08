@@ -32,13 +32,7 @@ def _apply_intensity_override(cfg: BenchmarkConfig, intensity: str) -> None:
 
 def _apply_debug_override(cfg: BenchmarkConfig) -> None:
     for workload in cfg.workloads.values():
-        if isinstance(workload.options, dict):
-            workload.options["debug"] = True
-            continue
-        try:
-            setattr(workload.options, "debug", True)
-        except Exception:
-            pass
+        workload.options["debug"] = True
 
 
 def resolve_target_tests(

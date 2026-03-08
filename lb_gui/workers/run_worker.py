@@ -117,7 +117,8 @@ class RunWorker(QObject):
         """Clean up the thread after completion."""
         if self._thread is not None:
             self._thread.quit()
-            self._thread.wait()
+            if QThread.currentThread() is not self._thread:
+                self._thread.wait()
             self._thread.deleteLater()
             self._thread = None
 

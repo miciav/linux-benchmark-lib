@@ -10,7 +10,7 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
-from typing import List
+from typing import Callable, Iterable, List, cast
 
 from lb_common.api import RemoteHostSpec
 
@@ -52,24 +52,8 @@ class MultipassProvisioner:
             vm_name = names[idx] if names else f"lb-worker-{uuid.uuid4().hex[:8]}"
             key_path = state_root / f"{vm_name}_id_rsa"
             pub_path = state_root / f"{vm_name}_id_rsa.pub"
-            self._generate_ephemeral_keys(key_path)
-            self._launch_vm(vm_name, request.multipass_image)
-            ip = self._get_ip_address(vm_name)
-            self._inject_ssh_key(vm_name, pub_path)
-            host = RemoteHostSpec(
-                name=vm_name,
-                address=ip,
-                user="ubuntu",
-                become=True,
-                vars={
-                    "ansible_ssh_private_key_file": str(key_path.absolute()),
-                    "ansible_ssh_common_args": (
-                        "-o StrictHostKeyChecking=no "
-                        "-o UserKnownHostsFile=/dev/null"
-                    ),
-                    "ansible_python_interpreter": "/usr/bin/python3",
-                },
-            )
+            resource_started = False
+
             def _destroy(
                 name: str = vm_name,
                 kp: Path = key_path,
@@ -77,12 +61,34 @@ class MultipassProvisioner:
             ) -> None:
                 self._destroy_vm(name, kp, pp)
 
-            nodes.append(
-                ProvisionedNode(
-                    host=host,
-                    destroy=_destroy,
+            try:
+                self._generate_ephemeral_keys(key_path)
+                self._launch_vm(vm_name, request.multipass_image)
+                resource_started = True
+                ip = self._get_ip_address(vm_name)
+                self._inject_ssh_key(vm_name, pub_path)
+                host = RemoteHostSpec(
+                    name=vm_name,
+                    address=ip,
+                    user="ubuntu",
+                    become=True,
+                    vars={
+                        "ansible_ssh_private_key_file": str(key_path.absolute()),
+                        "ansible_ssh_common_args": (
+                            "-o StrictHostKeyChecking=no "
+                            "-o UserKnownHostsFile=/dev/null"
+                        ),
+                        "ansible_python_interpreter": "/usr/bin/python3",
+                    },
                 )
-            )
+                nodes.append(ProvisionedNode(host=host, destroy=_destroy))
+            except Exception:
+                if resource_started:
+                    _best_effort_destroy(_destroy)
+                else:
+                    _best_effort_remove_paths((key_path, pub_path))
+                _rollback_nodes(nodes)
+                raise
         return nodes
 
     def _generate_ephemeral_keys(self, key_path: Path) -> None:
@@ -158,7 +164,7 @@ class MultipassProvisioner:
                 info = json.loads(result.stdout)
                 ipv4_list = info.get("info", {}).get(vm_name, {}).get("ipv4", [])
                 if ipv4_list:
-                    return ipv4_list[0]
+                    return cast(str, ipv4_list[0])
             except Exception:
                 time.sleep(2)
                 continue
@@ -200,9 +206,25 @@ class MultipassProvisioner:
         except Exception:
             logger.debug("Best-effort cleanup failed for VM %s", vm_name)
 
-        for path in (key_path, pub_path):
-            try:
-                if path.exists():
-                    path.unlink()
-            except Exception:
-                logger.debug("Failed to remove %s", path)
+        _best_effort_remove_paths((key_path, pub_path))
+
+
+def _rollback_nodes(nodes: List[ProvisionedNode]) -> None:
+    for node in reversed(nodes):
+        _best_effort_destroy(node.teardown)
+
+
+def _best_effort_destroy(destroy: Callable[[], None]) -> None:
+    try:
+        destroy()
+    except Exception:
+        logger.debug("Best-effort rollback failed", exc_info=True)
+
+
+def _best_effort_remove_paths(paths: Iterable[Path]) -> None:
+    for path in paths:
+        try:
+            if path.exists():
+                path.unlink()
+        except Exception:
+            logger.debug("Failed to remove %s", path)

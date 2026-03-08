@@ -144,6 +144,28 @@ def test_emit_log_skips_lb_event_when_root_handler_present() -> None:
     manager.logger.log.assert_called_once()
 
 
+def test_emit_log_keeps_lb_event_when_root_handler_belongs_to_other_run() -> None:
+    manager = _make_manager(event_logging_enabled=True)
+    manager.set_run_id("run-2")
+
+    root_logger = logging.getLogger()
+    foreign_handler = LBEventLogHandler(
+        run_id="run-foreign",
+        host="node-9",
+        workload="other",
+        repetition=99,
+        total_repetitions=99,
+    )
+    root_logger.addHandler(foreign_handler)
+    try:
+        manager.emit_log("hello")
+    finally:
+        root_logger.removeHandler(foreign_handler)
+
+    manager.event_emitter.emit.assert_called_once()
+    manager.logger.log.assert_not_called()
+
+
 def test_log_to_logger_uses_info_level_for_unknown_name() -> None:
     logger = Mock(spec=logging.Logger)
 

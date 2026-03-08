@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Pattern, cast
 
 from rich.markup import escape
 
@@ -30,23 +30,23 @@ from .run_output_timing import TaskTimer
 class AnsibleOutputFormatter:
     """Parses raw Ansible output stream and prints user-friendly status updates."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Greedy match so nested brackets in task names (e.g., role prefix + [run:...])
         # are captured in full.
-        self.task_pattern = re.compile(r"TASK \[(.*)\]")
-        self.bench_pattern = re.compile(r"Running benchmark: (.*)")
-        self.current_phase = "Initializing"  # Default phase
-        self.suppress_progress = False
+        self.task_pattern: Pattern[str] = re.compile(r"TASK \[(.*)\]")
+        self.bench_pattern: Pattern[str] = re.compile(r"Running benchmark: (.*)")
+        self.current_phase: str = "Initializing"
+        self.suppress_progress: bool = False
         self.host_label: str = ""
-        self.emit_task_timings = False
-        self.emit_task_starts = False
+        self.emit_task_timings: bool = False
+        self.emit_task_starts: bool = False
         self._task_timer = TaskTimer()
         self._last_timing_line: str | None = None
-        self._always_show_tasks = (
+        self._always_show_tasks: tuple[str, ...] = (
             "workload_runner : Build repetitions list",
             "workload_runner : Run benchmark via local runner (per repetition)",
         )
-        self._suppress_task_names = {
+        self._suppress_task_names: set[str] = {
             "Skip polling if already finished",
             "Poll LB_EVENT stream",
             "Streaming indicator",
@@ -61,12 +61,13 @@ class AnsibleOutputFormatter:
             "workload_runner : Initialize polling status",
         }
 
-    def set_phase(self, phase: str):
+    def set_phase(self, phase: str) -> None:
         self.current_phase = phase
 
     def process(
         self, text: str, end: str = "", log_sink: Callable[[str], None] | None = None
-    ):
+    ) -> None:
+        _ = end
         if not text:
             return
 
@@ -108,23 +109,25 @@ class AnsibleOutputFormatter:
 
     @staticmethod
     def _slug_phase(phase: str) -> str:
-        return _slug_phase_label(phase)
+        return str(_slug_phase_label(phase))
 
     def _should_skip_timing(self, rendered: str) -> bool:
         if " done in " not in rendered:
             return False
         return rendered == self._last_timing_line
 
-    def _handle_line(self, line: str, log_sink: Callable[[str], None] | None = None):
-        line = normalize_line(line)
-        if line is None:
+    def _handle_line(
+        self, line: str, log_sink: Callable[[str], None] | None = None
+    ) -> None:
+        normalized_line = normalize_line(line)
+        if normalized_line is None:
             return
-        if self._handle_early_line(line, log_sink):
+        if self._handle_early_line(normalized_line, log_sink):
             return
-        self._maybe_flush_task_timing(line, log_sink)
-        if self._handle_late_line(line, log_sink):
+        self._maybe_flush_task_timing(normalized_line, log_sink)
+        if self._handle_late_line(normalized_line, log_sink):
             return
-        self._emit(line, log_sink)
+        self._emit(normalized_line, log_sink)
 
     def _handle_early_line(
         self, line: str, log_sink: Callable[[str], None] | None
@@ -155,11 +158,11 @@ class AnsibleOutputFormatter:
     def _handle_timing_line(
         self, line: str, log_sink: Callable[[str], None] | None = None
     ) -> None:
-        line = normalize_line(line)
-        if line is None:
+        normalized_line = normalize_line(line)
+        if normalized_line is None:
             return
-        self._maybe_flush_task_timing(line, log_sink)
-        parsed = self._parse_task_line(line)
+        self._maybe_flush_task_timing(normalized_line, log_sink)
+        parsed = self._parse_task_line(normalized_line)
         if not parsed:
             return
         phase, message = parsed

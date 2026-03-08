@@ -186,3 +186,56 @@ def test_collect_system_info_writes_json_and_csv(monkeypatch, tmp_path):
     assert "TestOS" in summary
     assert "CPU" in summary
     assert "RAM" in summary
+
+
+def test_collect_disks_preserves_size_bytes_from_lsblk_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        collectors,
+        "_json_output",
+        lambda *_args, **_kwargs: {
+            "blockdevices": [
+                {
+                    "name": "nvme0n1",
+                    "size": "1G",
+                    "bytes": 1073741824,
+                    "rota": False,
+                }
+            ]
+        },
+    )
+
+    disks = collectors._collect_disks()
+
+    assert len(disks) == 1
+    assert disks[0].size_bytes == 1073741824
+
+
+def test_collect_nics_reads_mac_from_psutil_link_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        collectors,
+        "psutil",
+        types.SimpleNamespace(
+            AF_LINK="AF_LINK",
+            net_if_stats=lambda: {
+                "eth0": types.SimpleNamespace(isup=True, speed=1000),
+            },
+            net_if_addrs=lambda: {
+                "eth0": [
+                    types.SimpleNamespace(
+                        family="AF_LINK",
+                        address="aa:bb:cc:dd:ee:ff",
+                    )
+                ]
+            },
+        ),
+    )
+    monkeypatch.setattr(collectors.Path, "exists", lambda self: False, raising=False)
+
+    nics = collectors._collect_nics()
+
+    assert len(nics) == 1
+    assert nics[0].mac == "aa:bb:cc:dd:ee:ff"

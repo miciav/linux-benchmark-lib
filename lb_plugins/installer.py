@@ -8,7 +8,7 @@ import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Optional, Union, cast
 
 from lb_plugins.discovery import resolve_user_plugin_dir
 
@@ -146,7 +146,7 @@ class PluginInstaller:
 
     @staticmethod
     def _package_tar(source_dir: Path, archive_path: Path, mode: str) -> None:
-        with tarfile.open(archive_path, mode) as tar_ref:
+        with tarfile.open(archive_path, cast(Any, mode)) as tar_ref:
             tar_ref.add(source_dir, arcname=source_dir.name)
 
     @staticmethod

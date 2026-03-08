@@ -18,6 +18,7 @@ from lb_plugins.plugins.dfaas.services.plan_builder import (
     generate_configurations,
     generate_rates_list,
 )
+from lb_plugins.plugins._faas_shared import plan_builder as shared_plan_builder
 from lb_plugins.plugins.dfaas.config import (
     DfaasCombinationConfig,
     DfaasConfig,
@@ -78,6 +79,28 @@ def test_plan_builder_generates_deterministic_configs() -> None:
         [("b", 0)],
         [("b", 10)],
     ]
+
+
+def test_dfaas_plan_builder_delegates_configuration_building_to_shared_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = DfaasConfig(
+        functions=[DfaasFunctionConfig(name="a", method="GET", body="")],
+        rate_strategy=LinearRateStrategy(min_rate=0, max_rate=10, step=10),
+        combinations=DfaasCombinationConfig(min_functions=1, max_functions=2),
+    )
+    builder = DfaasPlanBuilder(config)
+    sentinel = [[("shared", 99)]]
+
+    monkeypatch.setattr(
+        shared_plan_builder,
+        "generate_configurations",
+        lambda *args, **kwargs: sentinel,
+    )
+
+    configs = builder.build_configurations(["a"], [0, 10], rates_by_function=None)
+
+    assert configs is sentinel
 
 
 def test_dominates_checks_per_function() -> None:

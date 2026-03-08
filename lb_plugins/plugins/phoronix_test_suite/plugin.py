@@ -322,6 +322,8 @@ class PtsResultParser:
 class PhoronixGenerator(CommandGenerator):
     """Workload generator that runs a single PTS test-profile or test-suite."""
 
+    _process: subprocess.Popen[str] | None
+
     def __init__(
         self,
         *,
@@ -341,7 +343,7 @@ class PhoronixGenerator(CommandGenerator):
         self.profile_args = profile_args
         self.system_packages = system_packages
         self.expected_runtime_seconds = expected_runtime_seconds
-        self._result_parser = PtsResultParser(self.profile)
+        self._pts_result_parser = PtsResultParser(self.profile)
 
     def _validate_environment(self) -> bool:
         return shutil.which(self.binary) is not None
@@ -499,25 +501,25 @@ class PhoronixGenerator(CommandGenerator):
             env, pts_user_path = self._prepare_env()
             self._ensure_profile_ready(env)
             results_root = pts_user_path / "test-results"
-            before = self._result_parser.snapshot_results(results_root)
+            before = self._pts_result_parser.snapshot_results(results_root)
             rc, out = self._run_pts_process(cmd, env, start)
-            rc = self._result_parser.normalize_returncode(rc, out)
-            pts_result_dir, pts_result_id = self._result_parser.select_result_dir(
+            rc = self._pts_result_parser.normalize_returncode(rc, out)
+            pts_result_dir, pts_result_id = self._pts_result_parser.select_result_dir(
                 results_root, before
             )
-            self._result = self._result_parser.build_success_result(
+            self._result = self._pts_result_parser.build_success_result(
                 cmd, rc, out, pts_result_dir, pts_result_id, start
             )
         except subprocess.TimeoutExpired:
             self._stop_workload()
-            self._result = self._result_parser.build_error_result(
+            self._result = self._pts_result_parser.build_error_result(
                 cmd,
                 "timeout",
                 f"Timeout after {self.config.timeout_seconds}s",
                 start,
             )
         except Exception as exc:
-            self._result = self._result_parser.build_error_result(
+            self._result = self._pts_result_parser.build_error_result(
                 cmd, "error", str(exc), start
             )
         finally:
@@ -541,16 +543,18 @@ class PhoronixGenerator(CommandGenerator):
             env=env,
             start_new_session=True,
         )
-        assert self._process.stdout is not None
-        assert self._process.stdin is not None
+        proc = self._process
+        assert proc is not None
+        assert proc.stdout is not None
+        assert proc.stdin is not None
         deadline = self._build_deadline(start)
         output_lines = self._collect_process_output(cmd, deadline)
-        rc = self._process.wait()
+        rc = proc.wait()
         return rc, "".join(output_lines)
 
     def _build_deadline(self, start: float) -> float | None:
         if self.config.timeout_seconds:
-            return start + self.config.timeout_seconds
+            return start + float(self.config.timeout_seconds)
         return None
 
     def _collect_process_output(
@@ -558,12 +562,15 @@ class PhoronixGenerator(CommandGenerator):
         cmd: List[str],
         deadline: float | None,
     ) -> List[str]:
+        proc = self._process
+        assert proc is not None
+        assert proc.stdout is not None
         output_lines: List[str] = []
         menu_responses = 0
         while True:
             self._raise_on_timeout(cmd, deadline)
-            line = self._process.stdout.readline()
-            if not line and self._process.poll() is not None:
+            line = proc.stdout.readline()
+            if not line and proc.poll() is not None:
                 break
             if line:
                 self._emit_pts_output(line, output_lines)
@@ -586,7 +593,7 @@ class PhoronixGenerator(CommandGenerator):
         return responses
 
     def _respond_to_menu_prompt(self, attempts: int) -> None:
-        if not self._process or not self._process.stdin or attempts >= 3:
+        if self._process is None or self._process.stdin is None or attempts >= 3:
             return
         try:
             self._process.stdin.write("1\n")
@@ -596,7 +603,7 @@ class PhoronixGenerator(CommandGenerator):
 
     def _stop_workload(self) -> None:
         proc = self._process
-        if not proc or proc.poll() is not None:
+        if proc is None or proc.poll() is not None:
             return
         if not self._terminate_process(proc):
             return

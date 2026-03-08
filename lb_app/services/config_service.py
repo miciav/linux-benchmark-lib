@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
@@ -49,7 +50,7 @@ class ConfigService:
             raise EnvironmentError(f"Set $EDITOR or open the file manually: {resolved}")
 
         try:
-            subprocess.run([editor, str(resolved)], check=False)
+            subprocess.run([*shlex.split(editor), str(resolved)], check=False)
         except Exception as exc:
             raise RuntimeError(f"Failed to launch editor: {exc}") from exc
 

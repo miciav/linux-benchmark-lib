@@ -90,9 +90,11 @@ def _parse_json_candidates(raw: str) -> dict[str, Any] | None:
     )
     for candidate in candidates:
         try:
-            return json.loads(candidate)
+            parsed = json.loads(candidate)
         except Exception:
             continue
+        if isinstance(parsed, dict):
+            return parsed
     return None
 
 

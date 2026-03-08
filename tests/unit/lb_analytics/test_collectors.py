@@ -54,3 +54,45 @@ def test_aggregate_cli_numeric_columns():
     assert result["foo_avg"] == 2.0
     assert result["foo_max"] == 3
     assert result["bar_avg"] == 6.0
+
+
+def test_aggregate_psutil_preserves_partial_disk_metrics():
+    data = [
+        {
+            "timestamp": "2024-01-01T00:00:00",
+            "disk_read_bytes": 0,
+        },
+        {
+            "timestamp": "2024-01-01T00:00:01",
+            "disk_read_bytes": 2048,
+        },
+    ]
+    df = pd.DataFrame(data).set_index(
+        pd.to_datetime([row["timestamp"] for row in data])
+    )
+
+    result = aggregate_psutil(df)
+
+    assert result["disk_read_mbps_avg"] > 0
+    assert "disk_write_mbps_avg" not in result
+
+
+def test_aggregate_psutil_preserves_partial_network_metrics():
+    data = [
+        {
+            "timestamp": "2024-01-01T00:00:00",
+            "net_bytes_recv": 0,
+        },
+        {
+            "timestamp": "2024-01-01T00:00:01",
+            "net_bytes_recv": 4096,
+        },
+    ]
+    df = pd.DataFrame(data).set_index(
+        pd.to_datetime([row["timestamp"] for row in data])
+    )
+
+    result = aggregate_psutil(df)
+
+    assert result["network_recv_mbps_avg"] > 0
+    assert "network_sent_mbps_avg" not in result

@@ -19,7 +19,13 @@ class _RichPresenterSink(PresenterSink):
         title: str | None,
         border_style: str | None,
     ) -> None:
-        self._console.print(Panel(message, title=title, border_style=border_style))
+        self._console.print(
+            Panel(
+                message,
+                title=title,
+                border_style=border_style or theme.RICH_BORDER_STYLE,
+            )
+        )
 
     def emit_rule(self, title: str) -> None:
         self._console.print(Rule(title))

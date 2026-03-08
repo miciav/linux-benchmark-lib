@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import typer
 
@@ -249,10 +249,10 @@ def register_run_command(
                 def on_warning(self, message: str, ttl: float = 10.0) -> None:
                     ctx.ui_adapter.show_warning(message)
 
-                def on_event(self, event) -> None:
+                def on_event(self, event: Any) -> None:
                     pass
 
-                def on_journal(self, journal) -> None:
+                def on_journal(self, journal: Any) -> None:
                     pass
 
             run_result = ctx.app_client.start_run(run_request, _Hooks())

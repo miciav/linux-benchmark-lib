@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -99,10 +100,7 @@ class ResultsViewModel(QObject):
         try:
             self._runs = self._run_catalog.list_runs()
             # Sort by created_at descending (newest first)
-            self._runs.sort(
-                key=lambda r: r.created_at or 0,  # type: ignore
-                reverse=True,
-            )
+            self._runs.sort(key=_run_sort_key, reverse=True)
             self.runs_changed.emit(self._runs)
         except Exception as e:
             self.error_occurred.emit(f"Failed to list runs: {e}")
@@ -159,3 +157,7 @@ class ResultsViewModel(QObject):
         if self._selected_run is None:
             return None
         return self._selected_run.report_root
+
+
+def _run_sort_key(run: "RunInfo") -> datetime:
+    return run.created_at or datetime.min

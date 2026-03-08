@@ -5,7 +5,7 @@ import logging
 import json
 import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, cast
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
@@ -182,4 +182,4 @@ class PrometheusQueryRunner:
         query_string = urlencode(params)
         request = Request(f"{url}?{query_string}")
         with urlopen(request, timeout=self._timeout_seconds) as response:  # nosec B310
-            return json.loads(response.read().decode("utf-8"))
+            return cast(dict[str, Any], json.loads(response.read().decode("utf-8")))

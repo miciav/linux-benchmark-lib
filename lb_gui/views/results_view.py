@@ -168,7 +168,10 @@ class ResultsView(QWidget):
         selected = self._run_table.selectedItems()
         if selected:
             row = selected[0].row()
-            run_id = self._run_table.item(row, 0).text()
+            item = self._run_table.item(row, 0)
+            if item is None:
+                return
+            run_id = item.text()
             self._vm.select_run(run_id)
         else:
             self._vm.select_run(None)

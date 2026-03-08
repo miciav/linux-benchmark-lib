@@ -91,7 +91,11 @@ class GrafanaClient:
             expected_statuses={200, 201},
         )
         if isinstance(data, dict):
-            return data.get("datasource", {}).get("id")
+            datasource = data.get("datasource", {})
+            if isinstance(datasource, dict):
+                datasource_id = datasource.get("id")
+                if isinstance(datasource_id, int):
+                    return datasource_id
         return None
 
     def import_dashboard(
@@ -213,7 +217,7 @@ class GrafanaClient:
                 expected_statuses={200, 201},
             )
         token = data.get("key") if isinstance(data, dict) else None
-        if not token:
+        if not isinstance(token, str) or not token:
             raise RuntimeError("Grafana API key creation failed.")
         return token
 
@@ -339,7 +343,7 @@ class GrafanaClient:
         headers: Mapping[str, str],
         data: bytes | None,
     ) -> tuple[int, str]:
-        req = request.Request(url, data=data, headers=headers, method=method)
+        req = request.Request(url, data=data, headers=dict(headers), method=method)
         with request.urlopen(req, timeout=self.timeout_seconds) as resp:  # nosec B310
             status = resp.status
             body = resp.read().decode("utf-8") if resp is not None else ""

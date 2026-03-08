@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import IO, List
 
@@ -52,10 +53,10 @@ class RichDashboard(Dashboard):
         self._warning_expires_at: float | None = None
 
     @contextmanager
-    def live(self):
+    def live(self) -> Iterator[None]:
         """Context manager that drives Live updates."""
         if self._live is not None:
-            yield self
+            yield None
             return
         with Live(
             self.render(),
@@ -65,7 +66,7 @@ class RichDashboard(Dashboard):
         ) as live:
             self._live = live
             try:
-                yield self
+                yield None
             finally:
                 self._live = None
 

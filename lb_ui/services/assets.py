@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import logging
 import os
 from pathlib import Path
+from typing import Any
+
+Image: Any | None = None
 
 try:
-    from PIL import Image
+    Image = importlib.import_module("PIL.Image")
 except ImportError:
-    Image = None
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +52,7 @@ def _generate_optimized_icon(source: Path, dest: Path) -> None:
         return
 
     try:
-        img = Image.open(source)
+        img: Any = Image.open(source)
         if img.mode != "RGBA":
             img = img.convert("RGBA")
 
@@ -65,7 +69,7 @@ def _generate_optimized_icon(source: Path, dest: Path) -> None:
         ratio = target_h / height
         new_size = (int(width * ratio), target_h)
 
-        resized = img.resize(new_size, resample=Image.Resampling.LANCZOS)
+        resized: Any = img.resize(new_size, resample=Image.Resampling.LANCZOS)
         resized.save(dest, "PNG")
     except Exception as exc:
         logger.debug(f"Failed to generate icon: {exc}")
@@ -90,7 +94,7 @@ def resolve_icon_path() -> str | None:
         # 1. Find source
         current_file = Path(__file__)
         project_root = current_file.parents[2]
-        source_path = None
+        source_path: Path | None = None
         for logo_name in ["logo_sys2.png", "logo_sys.png", "lb_mark.png"]:
             candidate = project_root / "docs" / "img" / logo_name
             if candidate.exists():

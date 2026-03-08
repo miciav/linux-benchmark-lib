@@ -27,6 +27,12 @@ class SupportsWorkloads(Protocol):
     workloads: Dict[str, Any]
 
 
+class SupportsPluginSettingsAndWorkloads(
+    SupportsPluginSettings, SupportsWorkloads, Protocol
+):
+    """Combined interface for configs that expose settings and workloads."""
+
+
 class WorkloadFactory(Protocol):
     """Factory for workload config objects."""
 
@@ -84,7 +90,7 @@ def populate_default_plugin_settings(
 
 
 def ensure_workloads_from_plugin_settings(
-    config: SupportsPluginSettings & SupportsWorkloads,
+    config: SupportsPluginSettingsAndWorkloads,
     workload_factory: WorkloadFactory,
     dump_mode: str | None = None,
     convert_dataclasses: bool = False,
@@ -105,7 +111,7 @@ def ensure_workloads_from_plugin_settings(
 
 
 def apply_plugin_settings_defaults(
-    config: SupportsPluginSettings & SupportsWorkloads,
+    config: SupportsPluginSettingsAndWorkloads,
     registry: PluginRegistry | None = None,
     load_entrypoints: bool = False,
     workload_factory: WorkloadFactory | None = None,
@@ -197,7 +203,6 @@ def _try_instantiate_default(
         logger.debug("Skipping default config for plugin '%s': %s", name, exc)
         return False
 
-
 def _settings_to_options(
     settings: Any,
     *,
@@ -208,13 +213,13 @@ def _settings_to_options(
         if dump_mode:
             return settings.model_dump(mode=dump_mode)
         return settings.model_dump()
-    if convert_dataclasses and is_dataclass(settings):
+    if convert_dataclasses and not isinstance(settings, type) and is_dataclass(settings):
         return asdict(settings)
     return settings
 
 
 def _ensure_workload_entry(
-    config: SupportsPluginSettings & SupportsWorkloads,
+    config: SupportsPluginSettingsAndWorkloads,
     name: str,
     settings: Any,
     workload_factory: WorkloadFactory,

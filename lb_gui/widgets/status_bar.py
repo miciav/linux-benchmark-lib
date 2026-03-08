@@ -10,7 +10,7 @@ from lb_gui.utils import set_widget_role
 class RunStatusBar(QWidget):
     """Widget showing run progress summary counts."""
 
-    def __init__(self, parent: object | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

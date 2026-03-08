@@ -14,7 +14,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 
 from pydantic import Field
 
@@ -88,6 +88,8 @@ class YabsGenerator(CommandGenerator):
 
     def __init__(self, config: YabsConfig):
         super().__init__("YabsGenerator", config)
+        self.config: YabsConfig = config
+        self._result: dict[str, Any] | None = None
         self._current_args: list[str] = []
         self._env: dict[str, str] = {}
         self._log_path: Optional[Path] = None
@@ -142,7 +144,7 @@ class YabsGenerator(CommandGenerator):
         return spec
 
     def _timeout_seconds(self) -> Optional[int]:
-        return self.config.expected_runtime_seconds + self.config.timeout_buffer
+        return int(self.config.expected_runtime_seconds) + int(self.config.timeout_buffer)
 
     def _log_command(self, cmd: list[str]) -> None:
         if self.config.debug:
@@ -163,6 +165,8 @@ class YabsGenerator(CommandGenerator):
             self._log_path.write_text((stdout or "") + "\n" + (stderr or ""))
         except Exception as exc:  # pragma: no cover - best effort
             logger.debug("Failed to write yabs log: %s", exc)
+        if self._result is None:
+            self._result = {}
         self._result["log_path"] = str(self._log_path)
 
     def _should_retry_without_cleanup(self) -> bool:
@@ -204,7 +208,8 @@ class YabsGenerator(CommandGenerator):
     def _run_command(self) -> None:
         """Download and execute yabs.sh with configured flags."""
         if not self._validate_environment():
-            self._result = {"error": "Environment validation failed"}
+            startup_failure: dict[str, Any] = {"error": "Environment validation failed"}
+            self._result = startup_failure
             self._is_running = False
             return
 
@@ -215,7 +220,8 @@ class YabsGenerator(CommandGenerator):
             self._execute_with_retry()
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("YABS execution error: %s", exc)
-            self._result = {"error": str(exc), "returncode": -2}
+            exec_failure: dict[str, Any] = {"error": str(exc), "returncode": -2}
+            self._result = exec_failure
         finally:
             self._cleanup_script(script_path)
             self._is_running = False
@@ -330,7 +336,7 @@ class YabsPlugin(SimpleWorkloadPlugin):
             if not isinstance(stdout, str):
                 stdout = ""
             rows.append(
-                self._build_export_row(
+                self._build_yabs_export_row(
                     entry,
                     gen_result,
                     stdout,
@@ -347,7 +353,7 @@ class YabsPlugin(SimpleWorkloadPlugin):
         pd.DataFrame(rows).to_csv(csv_path, index=False)
         return [csv_path]
 
-    def _build_export_row(
+    def _build_yabs_export_row(
         self,
         entry: dict[str, Any],
         gen_result: dict[str, Any],

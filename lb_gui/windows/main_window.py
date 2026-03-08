@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QActionGroup
+from PySide6.QtGui import QAction, QActionGroup, QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -30,6 +30,15 @@ from lb_gui.resources.theme import (
 
 if TYPE_CHECKING:
     from lb_gui.app import ServiceContainer
+    from lb_gui.viewmodels import (
+        AnalyticsViewModel,
+        ConfigViewModel,
+        GUIDashboardViewModel,
+        ResultsViewModel,
+        RunSetupViewModel,
+    )
+    from lb_gui.workers import RunWorker
+    from lb_app.api import RunRequest
 
 
 class PlaceholderView(QWidget):
@@ -64,6 +73,7 @@ class MainWindow(QMainWindow):
         self.services = services
         self._views: dict[str, QWidget] = {}
         self._viewmodels: dict[str, object] = {}
+        self._current_worker: "RunWorker | None" = None
         self._current_stop_file: Path | None = None
 
         self._setup_ui()
@@ -227,9 +237,9 @@ class MainWindow(QMainWindow):
                 action.setChecked(True)
             theme_group.addAction(action)
 
-        def on_theme_selected(action) -> None:  # type: ignore[no-untyped-def]
+        def on_theme_selected(action: QAction) -> None:
             app = QApplication.instance()
-            if app is None:
+            if not isinstance(app, QApplication):
                 return
             apply_theme(app, action.data(), save=True)
 
@@ -253,15 +263,19 @@ class MainWindow(QMainWindow):
                 action.setChecked(True)
             scale_group.addAction(action)
 
-        def on_scale_selected(action) -> None:  # type: ignore[no-untyped-def]
+        def on_scale_selected(action: QAction) -> None:
             app = QApplication.instance()
-            if app is None:
+            if not isinstance(app, QApplication):
                 return
             apply_theme(app, scale=action.data(), save=True)
 
         scale_group.triggered.connect(on_scale_selected)
 
-    def _connect_run_flow(self, run_setup_vm: object, dashboard_vm: object) -> None:
+    def _connect_run_flow(
+        self,
+        run_setup_vm: "RunSetupViewModel",
+        dashboard_vm: "GUIDashboardViewModel",
+    ) -> None:
         """Connect run setup to dashboard for run execution flow."""
         from lb_gui.views.run_setup_view import RunSetupView
 
@@ -269,11 +283,11 @@ class MainWindow(QMainWindow):
         if not isinstance(run_setup_view, RunSetupView):
             return
 
-        def on_start_run(request: object) -> None:
+        def on_start_run(request: "RunRequest") -> None:
             """Handle run start request."""
             # Check if a run is already in progress
-            if hasattr(self, "_current_worker") and self._current_worker is not None:
-                if self._current_worker.is_running():  # type: ignore
+            if self._current_worker is not None:
+                if self._current_worker.is_running():
                     QMessageBox.warning(
                         self,
                         "Error",
@@ -284,9 +298,9 @@ class MainWindow(QMainWindow):
             # Get the run plan for initializing dashboard
             try:
                 plan = self.services.run_controller.get_run_plan(
-                    request.config,  # type: ignore
-                    list(request.tests),  # type: ignore
-                    request.execution_mode,  # type: ignore
+                    request.config,
+                    list(request.tests),
+                    request.execution_mode,
                 )
             except Exception as e:
                 QMessageBox.warning(
@@ -298,42 +312,37 @@ class MainWindow(QMainWindow):
 
             from lb_gui.adapters.gui_ui_adapter import GuiUIAdapter
 
-            adapter = GuiUIAdapter(dashboard_vm)  # type: ignore[arg-type]
-            try:
-                request.ui_adapter = adapter  # type: ignore[attr-defined]
-            except Exception:
-                pass
+            adapter = GuiUIAdapter(dashboard_vm)
+            request.ui_adapter = adapter
             self._current_stop_file = getattr(request, "stop_file", None)
 
             # Create a minimal journal for initialization
             from lb_app.api import RunJournal
 
             journal: RunJournal = self.services.run_controller.build_journal(
-                request.run_id  # type: ignore
+                request.run_id
             )
 
             # Initialize dashboard
-            dashboard_vm.initialize(plan, journal)  # type: ignore
+            dashboard_vm.initialize(plan, journal)
 
             # Switch to dashboard view
             self.select_section("dashboard")
 
             # Create and start worker
-            worker = self.services.run_controller.create_worker(request)  # type: ignore
+            worker = self.services.run_controller.create_worker(request)
 
             # Connect worker signals to dashboard
-            worker.signals.log_line.connect(dashboard_vm.on_log_line)  # type: ignore
-            worker.signals.status_line.connect(dashboard_vm.on_status)  # type: ignore
-            worker.signals.warning.connect(dashboard_vm.on_warning)  # type: ignore
-            worker.signals.journal_update.connect(  # type: ignore
+            worker.signals.log_line.connect(dashboard_vm.on_log_line)
+            worker.signals.status_line.connect(dashboard_vm.on_status)
+            worker.signals.warning.connect(dashboard_vm.on_warning)
+            worker.signals.journal_update.connect(
                 dashboard_vm.on_journal_update
             )
-            worker.signals.finished.connect(  # type: ignore
-                dashboard_vm.on_run_finished
-            )
+            worker.signals.finished.connect(dashboard_vm.on_run_finished)
 
             # Connect worker signals to main window for cleanup
-            worker.signals.finished.connect(self._on_run_finished)  # type: ignore
+            worker.signals.finished.connect(self._on_run_finished)
 
             # Store worker reference to prevent garbage collection
             self._current_worker = worker
@@ -345,13 +354,8 @@ class MainWindow(QMainWindow):
     def _set_ui_busy(self, busy: bool) -> None:
         """Enable or disable UI interaction during run."""
         self._sidebar.setEnabled(not busy)
-        if hasattr(self, "_stop_button"):
-            is_running = bool(
-                busy
-                and getattr(self, "_current_worker", None)
-                and self._current_worker.is_running()  # type: ignore[attr-defined]
-            )
-            self._stop_button.setEnabled(is_running)
+        is_running = bool(busy and self._current_worker and self._current_worker.is_running())
+        self._stop_button.setEnabled(is_running)
         if busy:
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         else:
@@ -403,11 +407,10 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_stop_button"):
             self._stop_button.setEnabled(False)
 
-    def closeEvent(self, event: object) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Handle window close request."""
-        # Use getattr to check existence safely
-        worker = getattr(self, "_current_worker", None)
-        if worker is not None and worker.is_running():  # type: ignore
+        worker = self._current_worker
+        if worker is not None and worker.is_running():
             reply = QMessageBox.question(
                 self,
                 "Benchmark Running",
@@ -417,60 +420,55 @@ class MainWindow(QMainWindow):
                 QMessageBox.StandardButton.No,
             )
             if reply == QMessageBox.StandardButton.No:
-                event.ignore()  # type: ignore
+                event.ignore()
                 return
 
-        event.accept()  # type: ignore
+        event.accept()
 
     def _connect_config_flow(
         self,
-        config_vm: object,
-        run_setup_vm: object,
-        results_vm: object,
-        analytics_vm: object,
+        config_vm: "ConfigViewModel",
+        run_setup_vm: "RunSetupViewModel",
+        results_vm: "ResultsViewModel",
+        analytics_vm: "AnalyticsViewModel",
     ) -> None:
         """Connect config changes to dependent views."""
-        try:
-            config_loaded = config_vm.config_loaded  # type: ignore[attr-defined]
-        except Exception:
-            return
-
         def on_config_loaded(_: object) -> None:
             self._sync_config_to_views(
                 config_vm, run_setup_vm, results_vm, analytics_vm
             )
 
-        config_loaded.connect(on_config_loaded)
+        config_vm.config_loaded.connect(on_config_loaded)
 
     def _sync_config_to_views(
         self,
-        config_vm: object,
-        run_setup_vm: object,
-        results_vm: object,
-        analytics_vm: object,
+        config_vm: "ConfigViewModel",
+        run_setup_vm: "RunSetupViewModel",
+        results_vm: "ResultsViewModel",
+        analytics_vm: "AnalyticsViewModel",
     ) -> None:
         """Apply the loaded config to views that depend on it."""
         config_path = getattr(config_vm, "config_path", None)
         config_obj = getattr(config_vm, "config", None)
 
-        if config_obj is not None and hasattr(run_setup_vm, "set_config"):
+        if config_obj is not None:
             run_setup_vm.set_config(config_obj)
             run_setup_vm.refresh_workloads()
-        elif hasattr(run_setup_vm, "load_config"):
+        elif config_path is not None:
             run_setup_vm.load_config(config_path)
             run_setup_vm.refresh_workloads()
 
-        if config_obj is not None and hasattr(results_vm, "configure_with_config"):
+        if config_obj is not None:
             results_vm.configure_with_config(config_obj)
             results_vm.refresh_runs()
-        elif hasattr(results_vm, "configure"):
+        elif config_path is not None:
             if results_vm.configure(config_path):
                 results_vm.refresh_runs()
 
-        if config_obj is not None and hasattr(analytics_vm, "configure_with_config"):
+        if config_obj is not None:
             analytics_vm.configure_with_config(config_obj)
             analytics_vm.refresh_runs()
-        elif hasattr(analytics_vm, "configure"):
+        elif config_path is not None:
             if analytics_vm.configure(config_path):
                 analytics_vm.refresh_runs()
 

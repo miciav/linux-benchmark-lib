@@ -267,11 +267,11 @@ class TestAnalyticsServiceWrapper:
         assert result == expected_paths
 
     def test_get_available_kinds(self) -> None:
-        """Test that get_available_kinds returns all AnalyticsKind values."""
+        """Test that get_available_kinds returns runtime kind strings."""
         from lb_gui.services.analytics_service import AnalyticsServiceWrapper
-        from lb_app.api import AnalyticsKind
 
         service = AnalyticsServiceWrapper()
         kinds = service.get_available_kinds()
 
-        assert kinds == list(AnalyticsKind)
+        assert kinds == ["aggregate"]
+        assert all(isinstance(kind, str) for kind in kinds)

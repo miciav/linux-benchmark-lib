@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
 
 from lb_controller.adapters.ansible_helpers import (
     AnsibleEnvBuilder,
@@ -55,6 +55,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         # host-level permission issues.
         self.local_tmp = self.private_data_dir / "tmp"
         self.local_tmp.mkdir(parents=True, exist_ok=True)
+        self.output_callback: Callable[[str, str], None] | None
         if stream_output and output_callback is None:
             # Default to streaming to stdout when caller requests streaming but
             # doesn't provide a handler.
@@ -141,7 +142,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                 "ansible-runner is required for remote execution. "
                 "Install it with `uv pip install ansible-runner`."
             ) from exc
-        return ansible_runner.run
+        return cast(Callable[..., Any], ansible_runner.run)
 
     def _run_subprocess_playbook(
         self,
@@ -187,11 +188,11 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         return self._active_label is not None
 
     @property
-    def _active_process(self):  # type: ignore[override]
+    def _active_process(self) -> Any:
         return self._process_runner.get_active_process()
 
     @_active_process.setter
-    def _active_process(self, proc):  # type: ignore[override]
+    def _active_process(self, proc: Any) -> None:
         self._process_runner.set_active_process(proc)
 
     def _maybe_stop(self, cancellable: bool) -> ExecutionResult | None:

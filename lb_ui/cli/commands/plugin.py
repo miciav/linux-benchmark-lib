@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import typer
 
+from typing import Any
+
 from lb_app.api import build_plugin_table, create_registry
 from lb_ui.wiring.dependencies import UIContext
 from lb_ui.tui.system.models import TableModel
@@ -15,7 +17,7 @@ def create_plugin_app(ctx: UIContext) -> typer.Typer:
         help="Inspect and manage workload plugins.", no_args_is_help=False
     )
 
-    def _load_platform():
+    def _load_platform() -> Any:
         cfg, resolved, exists = ctx.config_service.load_platform_config()
         if not exists:
             ctx.ui.present.warning("No platform config found; using defaults.")
@@ -23,7 +25,7 @@ def create_plugin_app(ctx: UIContext) -> typer.Typer:
         ctx.ui.present.success(f"Loaded platform config: {resolved}")
         return cfg
 
-    def _ensure_registry():
+    def _ensure_registry() -> Any | None:
         registry = create_registry()
         if not registry.available():
             ctx.ui.present.warning("No workload plugins registered.")

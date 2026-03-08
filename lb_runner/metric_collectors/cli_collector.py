@@ -9,7 +9,7 @@ import logging
 import subprocess
 import shlex
 import jc
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 from ._base_collector import BaseCollector
 
@@ -24,8 +24,8 @@ class CLICollector(BaseCollector):
         self,
         name: str = "CLICollector",
         interval_seconds: float = 5.0,
-        commands: List[str] = None,
-    ):
+        commands: list[str] | None = None,
+    ) -> None:
         """
         Initialize the CLI collector.
 
@@ -35,7 +35,7 @@ class CLICollector(BaseCollector):
             commands: List of CLI commands to run
         """
         super().__init__(name, interval_seconds)
-        self.commands = commands if commands else []
+        self.commands: list[str] = list(commands or [])
         self._failed_commands: set[str] = set()
 
     def _collect_metrics(self) -> Dict[str, Any]:
@@ -64,7 +64,7 @@ class CLICollector(BaseCollector):
                 output = result.stdout.strip()
 
                 tool_name = shlex.split(command)[0]
-                parsed = None
+                parsed: Any = None
 
                 # Special-case sar: jc may not ship a parser; fall back to manual
                 # parsing.

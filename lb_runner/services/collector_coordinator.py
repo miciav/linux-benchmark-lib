@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from lb_common.api import MetricCollectionError, error_to_payload
 from lb_runner.services.results import collect_metrics
@@ -17,7 +17,7 @@ class CollectorCoordinator:
         self._registry = registry
 
     def create_collectors(self, config: Any) -> list[Any]:
-        return self._registry.create_collectors(config)
+        return cast(list[Any], self._registry.create_collectors(config))
 
     def start(self, collectors: list[Any], logger: logging.Logger) -> None:
         errors: list[MetricCollectionError] = []

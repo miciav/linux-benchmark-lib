@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
-from typing import Any, Sequence
+from typing import Any, ContextManager, Sequence
 
 from PySide6.QtCore import QObject
 
@@ -54,7 +54,7 @@ class GuiUIAdapter(QObject):
     ) -> None:
         _ = (title, columns, rows)
 
-    def status(self, message: str):
+    def status(self, message: str) -> ContextManager[None]:
         self._vm.on_status(message)
         return nullcontext()
 

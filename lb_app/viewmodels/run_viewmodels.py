@@ -62,12 +62,12 @@ def plan_rows(plan: Iterable[dict]) -> list[list[str]]:
     """Transform plan entries into table rows."""
     return [
         [
-            item.get("name"),
-            item.get("plugin"),
-            item.get("intensity"),
-            item.get("details"),
-            item.get("repetitions", ""),
-            item.get("status"),
+            str(item.get("name") or ""),
+            str(item.get("plugin") or ""),
+            str(item.get("intensity") or ""),
+            str(item.get("details") or ""),
+            str(item.get("repetitions", "")),
+            str(item.get("status") or ""),
         ]
         for item in plan
     ]

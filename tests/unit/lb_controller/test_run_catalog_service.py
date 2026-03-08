@@ -45,3 +45,20 @@ def test_get_run_falls_back_to_directories(tmp_path: Path):
     assert info is not None
     assert info.hosts == ["host1"]
     assert info.workloads == ["workload1"]
+
+
+def test_get_run_omits_missing_report_and_export_dirs(tmp_path: Path):
+    output_dir = tmp_path / "benchmark_results"
+    run_dir = output_dir / "run-3"
+    run_dir.mkdir(parents=True)
+    _write_journal(run_dir / "run_journal.json", [{"host": "hostA", "workload": "wl1"}])
+
+    report_dir = tmp_path / "reports"
+    export_dir = tmp_path / "data_exports"
+
+    svc = RunCatalogService(output_dir, report_dir, export_dir)
+    info = svc.get_run("run-3")
+
+    assert info is not None
+    assert info.report_root is None
+    assert info.data_export_root is None

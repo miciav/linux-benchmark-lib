@@ -40,8 +40,9 @@ class PSUtilCollector(BaseCollector):
             metrics["cpu_percent"] = psutil.cpu_percent(interval=None)
             metrics["memory_usage"] = psutil.virtual_memory().percent
             disk_io = psutil.disk_io_counters()
-            metrics["disk_read_bytes"] = disk_io.read_bytes
-            metrics["disk_write_bytes"] = disk_io.write_bytes
+            if disk_io is not None:
+                metrics["disk_read_bytes"] = disk_io.read_bytes
+                metrics["disk_write_bytes"] = disk_io.write_bytes
             net_io = psutil.net_io_counters()
             metrics["net_bytes_sent"] = net_io.bytes_sent
             metrics["net_bytes_recv"] = net_io.bytes_recv

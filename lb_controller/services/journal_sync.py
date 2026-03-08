@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any
 
 from lb_runner.api import RemoteHostConfig
 
-from lb_controller.services.journal import RunJournal, RunStatus
+from lb_controller.services.journal import RunJournal, RunStatus, TaskState
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +19,15 @@ logger = logging.getLogger(__name__)
 def update_journal_tasks(
     journal: RunJournal,
     journal_path: Path,
-    hosts: List[RemoteHostConfig],
+    hosts: list[RemoteHostConfig],
     workload: str,
     repetition: int,
     status: str,
-    action: Optional[str] = None,
-    error: Optional[str] = None,
-    refresh: Optional[callable] = None,
+    action: str | None = None,
+    error: str | None = None,
+    refresh: Callable[[], None] | None = None,
+    *,
+    persist: bool = True,
 ) -> None:
     """Update journal entries for each host and persist."""
     for host in hosts:
@@ -33,23 +36,24 @@ def update_journal_tasks(
             workload,
             repetition,
             status,
-            action=action,
+            action=action or "",
             error=error,
         )
-    journal.save(journal_path)
-    _refresh_journal(refresh)
+    if persist:
+        journal.save(journal_path)
+        _refresh_journal(refresh)
 
 
 def update_all_reps(
     repetitions: int,
     journal: RunJournal,
     journal_path: Path,
-    hosts: List[RemoteHostConfig],
+    hosts: list[RemoteHostConfig],
     workload: str,
     status: str,
-    action: Optional[str] = None,
-    error: Optional[str] = None,
-    refresh: Optional[callable] = None,
+    action: str | None = None,
+    error: str | None = None,
+    refresh: Callable[[], None] | None = None,
 ) -> None:
     """Update journal for all repetitions of a workload."""
     if not journal:
@@ -64,17 +68,20 @@ def update_all_reps(
             status,
             action=action,
             error=error,
-            refresh=refresh,
+            refresh=None,
+            persist=False,
         )
+    journal.save(journal_path)
+    _refresh_journal(refresh)
 
 
 def backfill_timings_from_results(
     journal: RunJournal,
     journal_path: Path,
-    hosts: List[RemoteHostConfig],
+    hosts: list[RemoteHostConfig],
     workload: str,
-    per_host_output: Dict[str, Path],
-    refresh: Optional[callable] = None,
+    per_host_output: dict[str, Path],
+    refresh: Callable[[], None] | None = None,
 ) -> None:
     """Backfill per-repetition timing data from all *_results.json artifacts."""
     updated = False
@@ -87,13 +94,13 @@ def backfill_timings_from_results(
         _refresh_journal(refresh)
 
 
-def _refresh_journal(refresh: Optional[callable]) -> None:
+def _refresh_journal(refresh: Callable[[], None] | None) -> None:
     """Trigger UI refresh when a journal update occurs."""
     if refresh:
         refresh()
 
 
-def _collect_results(host_dir: Optional[Path], workload: str) -> List[Dict]:
+def _collect_results(host_dir: Path | None, workload: str) -> list[dict[str, Any]]:
     """Return parsed results entries for a host/workload."""
     if not host_dir:
         return []
@@ -102,7 +109,7 @@ def _collect_results(host_dir: Optional[Path], workload: str) -> List[Dict]:
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
-    entries: List[Dict] = []
+    entries: list[dict[str, Any]] = []
     for results_file in candidates:
         try:
             loaded = json.loads(results_file.read_text()) or []
@@ -110,12 +117,12 @@ def _collect_results(host_dir: Optional[Path], workload: str) -> List[Dict]:
             logger.debug("Failed to parse results at %s: %s", results_file, exc)
             continue
         if isinstance(loaded, list):
-            entries.extend(loaded)
+            entries.extend(item for item in loaded if isinstance(item, dict))
     return entries
 
 
 def _apply_result_entry(
-    journal: RunJournal, host: str, workload: str, entry: Dict
+    journal: RunJournal, host: str, workload: str, entry: dict[str, Any]
 ) -> bool:
     """Update a journal task from a single results entry."""
     rep = entry.get("repetition")
@@ -130,7 +137,7 @@ def _apply_result_entry(
     return True
 
 
-def _update_task_timings(task, entry: Dict) -> None:
+def _update_task_timings(task: TaskState, entry: dict[str, Any]) -> None:
     start_str = entry.get("start_time")
     end_str = entry.get("end_time")
     if start_str:
@@ -144,7 +151,7 @@ def _update_task_timings(task, entry: Dict) -> None:
         task.duration_seconds = max(0.0, task.finished_at - task.started_at)
 
 
-def _update_task_status(task, entry: Dict) -> None:
+def _update_task_status(task: TaskState, entry: dict[str, Any]) -> None:
     gen_result = entry.get("generator_result") or {}
     gen_error = gen_result.get("error")
     gen_rc = gen_result.get("returncode")
@@ -168,7 +175,7 @@ def _update_task_status(task, entry: Dict) -> None:
 
 
 def _format_error_message(
-    gen_error: Optional[str], gen_rc: Optional[int], gen_result: Dict
+    gen_error: str | None, gen_rc: int | None, gen_result: dict[str, Any]
 ) -> str:
     err_parts = []
     if gen_error:

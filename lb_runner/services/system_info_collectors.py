@@ -6,6 +6,7 @@ import hashlib
 import json
 import platform
 import shutil
+import socket
 import subprocess
 import sys
 from dataclasses import asdict
@@ -23,10 +24,13 @@ from lb_runner.services.system_info_types import (
     SystemService,
 )
 
+psutil: Any
 try:
-    import psutil  # type: ignore
+    import psutil as _psutil
 except ImportError:  # pragma: no cover - defensive
     psutil = None
+else:
+    psutil = _psutil
 
 
 def _run(cmd: list[str], timeout: float = 5.0) -> str:
@@ -128,13 +132,16 @@ def _collect_memory() -> dict[str, Any]:
 
 def _collect_disks() -> list[DiskInfo]:
     disks: list[DiskInfo] = []
-    lsblk = _json_output(["lsblk", "-J", "-O"])
+    lsblk = _json_output(["lsblk", "-J", "-b", "-O"])
     if lsblk and isinstance(lsblk, dict):
         for block in lsblk.get("blockdevices", []):
             name = block.get("name")
             if not name:
                 continue
             size = block.get("size")
+            size_bytes = _coerce_int(block.get("bytes"))
+            if size_bytes is None:
+                size_bytes = _coerce_int(size)
             model = block.get("model")
             rota = block.get("rota")
             transport = block.get("tran")
@@ -142,11 +149,7 @@ def _collect_disks() -> list[DiskInfo]:
             disks.append(
                 DiskInfo(
                     name=str(name),
-                    size_bytes=(
-                        int(size)
-                        if isinstance(size, (int, float, str)) and str(size).isdigit()
-                        else None
-                    ),
+                    size_bytes=size_bytes,
                     rotational=bool(rota) if rota is not None else None,
                     model=model,
                     transport=transport,
@@ -181,9 +184,7 @@ def _collect_nics() -> list[NicInfo]:
                     continue
                 mac = None
                 for addr in addrs.get(name, []):
-                    if getattr(addr, "family", None) == getattr(
-                        getattr(psutil, "AF_LINK", None), "__class__", None
-                    ):
+                    if _is_link_layer_family(getattr(addr, "family", None)):
                         mac = addr.address
                 nics.append(
                     NicInfo(
@@ -215,6 +216,24 @@ def _collect_nics() -> list[NicInfo]:
                 pass
             nics.append(NicInfo(name=path.name, speed_mbps=speed, mac=mac))
     return nics
+
+
+def _coerce_int(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
+def _is_link_layer_family(family: Any) -> bool:
+    candidates = [
+        getattr(psutil, "AF_LINK", None) if psutil else None,
+        getattr(socket, "AF_PACKET", None),
+    ]
+    return any(candidate is not None and family == candidate for candidate in candidates)
 
 
 def _collect_pci() -> list[PciDevice]:

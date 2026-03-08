@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
 import multiprocessing
-from typing import Optional
+from multiprocessing.process import BaseProcess
+from typing import Any
+
+Image: Any | None = None
+pystray: Any | None = None
 
 try:
-    from PIL import Image
-    import pystray
+    Image = importlib.import_module("PIL.Image")
+    pystray = importlib.import_module("pystray")
 except ImportError:
-    Image = None
-    pystray = None
+    pass
 
 from lb_ui.services.assets import resolve_icon_path
 
@@ -50,7 +54,7 @@ class TrayManager:
     """Manages the lifecycle of the system tray icon process."""
 
     def __init__(self) -> None:
-        self._process: Optional[multiprocessing.Process] = None
+        self._process: BaseProcess | None = None
 
     def start(self) -> None:
         """Start the tray icon in a separate process."""

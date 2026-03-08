@@ -154,7 +154,7 @@ class DfaasGenerator(BaseGenerator):
         try:
             # doesn't even have to be reachable
             s.connect(("10.255.255.255", 1))
-            ip_address = s.getsockname()[0]
+            ip_address = str(s.getsockname()[0])
         except Exception:
             ip_address = "127.0.0.1"
         finally:
@@ -204,8 +204,6 @@ class DfaasGenerator(BaseGenerator):
         """
         outputs: list[str] = []
         for output in self.config.k6_outputs:
-            if output is None:
-                continue
             cleaned = str(output).strip()
             if cleaned:
                 outputs.append(cleaned)

@@ -128,8 +128,6 @@ class SessionManager:
     def _populate_journal_metadata(
         self, journal: RunJournal, context: RunContext
     ) -> None:
-        if journal.metadata is None:
-            return
         journal.metadata.setdefault("execution_mode", context.execution_mode)
         node_count = self._resolve_node_count(context)
         journal.metadata.setdefault("node_count", node_count)

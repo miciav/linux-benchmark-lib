@@ -11,7 +11,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, TYPE_CHECKING
+from typing import Any, Callable, Iterable, Mapping, TYPE_CHECKING, cast
 
 from fabric import Connection
 from invoke.exceptions import UnexpectedExit
@@ -149,69 +149,24 @@ class K6Runner:
         """Execute k6 script via Fabric/SSH."""
         conn = self._get_connection()
         start_time = time.time()
-
-        workspace = f"{self.k6_workspace_root}/{target_name}/{run_id}/{config_id}"
-        script_path = f"{workspace}/script.js"
-        summary_path = f"{workspace}/summary.json"
-        log_path = f"{workspace}/k6.log"
+        workspace, script_path, summary_path, log_path = self._build_paths(
+            target_name, run_id, config_id
+        )
 
         try:
-            if self.log_stream_enabled and not self._stream_started:
-                self._log("k6[stream] log stream started")
-                self._stream_started = True
-            conn.run(f"mkdir -p {workspace}", hide=True, in_stream=False)
-
-            with tempfile.NamedTemporaryFile("w", delete=False) as f:
-                f.write(script)
-                local_tmp = f.name
-
-            try:
-                conn.put(local_tmp, script_path)
-            finally:
-                os.unlink(local_tmp)
-
-            k6_cmd = self._build_k6_command(script_path, summary_path, outputs, tags)
-            self._log(f"Running k6 for config {config_id}...")
-
-            full_cmd = f"{k6_cmd} 2>&1 | tee {log_path}"
-
-            try:
-                out_writer = (
-                    _StreamWriter(self._stream_handler)
-                    if self.log_stream_enabled
-                    else None
-                )
-                result = conn.run(
-                    full_cmd,
-                    hide=True,
-                    out_stream=out_writer,
-                    warn=True,
-                    in_stream=False,  # Disable stdin to avoid pytest capture issues
-                )
-            except UnexpectedExit as e:
-                raise K6ExecutionError(
-                    config_id=config_id,
-                    message=f"k6 ssh execution failed: {e}",
-                    stdout=str(e),
-                    stderr="",
-                )
-
-            if result.failed:
-                raise K6ExecutionError(
-                    config_id=config_id,
-                    message=f"k6 failed with exit code {result.exited}",
-                    stdout=result.stdout,
-                    stderr=result.stderr,
-                )
-
-            with tempfile.NamedTemporaryFile("w", delete=False) as f:
-                local_summary = f.name
-
-            try:
-                conn.get(summary_path, local_summary)
-                summary_data = json.loads(Path(local_summary).read_text())
-            finally:
-                os.unlink(local_summary)
+            self._ensure_log_stream_started()
+            self._prepare_workspace(conn, workspace)
+            self._upload_script(conn, script, script_path)
+            self._run_k6(
+                conn,
+                config_id=config_id,
+                script_path=script_path,
+                summary_path=summary_path,
+                log_path=log_path,
+                outputs=outputs,
+                tags=tags,
+            )
+            summary_data = self._fetch_summary(conn, summary_path)
 
             end_time = time.time()
             return K6RunResult(
@@ -403,7 +358,11 @@ class K6Runner:
 
     @staticmethod
     def _prepare_workspace(conn: Connection, workspace: str) -> None:
-        conn.run(f"mkdir -p {workspace}", hide=True, in_stream=False)
+        conn.run(
+            f"mkdir -p {shlex.quote(workspace)}",
+            hide=True,
+            in_stream=False,
+        )
 
     @staticmethod
     def _upload_script(conn: Connection, script: str, script_path: str) -> None:
@@ -429,7 +388,7 @@ class K6Runner:
     ) -> None:
         k6_cmd = self._build_k6_command(script_path, summary_path, outputs, tags)
         self._log(f"Running k6 for config {config_id}...")
-        full_cmd = f"{k6_cmd} 2>&1 | tee {log_path}"
+        full_cmd = self._build_remote_run_command(k6_cmd, log_path)
 
         try:
             out_writer = (
@@ -459,13 +418,32 @@ class K6Runner:
             )
 
     @staticmethod
+    def _build_remote_run_command(k6_cmd: str, log_path: str) -> str:
+        shell_cmd = (
+            f"set -o pipefail; {k6_cmd} 2>&1 | tee {shlex.quote(log_path)}"
+        )
+        return "bash -lc " + shlex.quote(shell_cmd)
+
+    def _build_remote_exec_command(
+        self,
+        script_path: str,
+        summary_path: str,
+        log_path: str,
+        *,
+        outputs: Iterable[str] | None,
+        tags: Mapping[str, str] | None,
+    ) -> str:
+        k6_cmd = self._build_k6_command(script_path, summary_path, outputs, tags)
+        return self._build_remote_run_command(k6_cmd, log_path)
+
+    @staticmethod
     def _fetch_summary(conn: Connection, summary_path: str) -> dict[str, Any]:
         with tempfile.NamedTemporaryFile("w", delete=False) as handle:
             local_summary = handle.name
 
         try:
             conn.get(summary_path, local_summary)
-            return json.loads(Path(local_summary).read_text())
+            return cast(dict[str, Any], json.loads(Path(local_summary).read_text()))
         finally:
             os.unlink(local_summary)
 
@@ -507,6 +485,9 @@ class K6Runner:
         if missing:
             return None, missing
 
+        assert success_rate is not None
+        assert latency_avg is not None
+        assert request_count is not None
         return (
             {
                 "success_rate": success_rate,

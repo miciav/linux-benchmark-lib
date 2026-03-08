@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import logging
 import shutil
-import subprocess
 import socket
+import subprocess
 import time
 import uuid
-from typing import List
 from pathlib import Path
+from typing import Callable, Iterable, List, cast
 
 from lb_common.api import RemoteHostSpec
 
@@ -38,37 +38,17 @@ class DockerProvisioner:
         else:
             names = []
             count = max(1, min(request.count, MAX_NODES))
+
         state_root = request.state_dir or Path("/tmp/lb_docker_keys")
         state_root.mkdir(parents=True, exist_ok=True)
         nodes: List[ProvisionedNode] = []
+
         for idx in range(count):
-            if names:
-                name = names[idx]
-            else:
-                name = f"lb-docker-{uuid.uuid4().hex[:8]}-{idx}"
+            name = names[idx] if names else f"lb-docker-{uuid.uuid4().hex[:8]}-{idx}"
             key_path = state_root / f"{name}_id_rsa"
             pub_path = state_root / f"{name}_id_rsa.pub"
-            self._generate_ssh_keypair(key_path)
-            port = self._find_free_port()
-            self._run_container(engine, request.docker_image, name, port)
-            self._inject_ssh_key(engine, name, pub_path)
-            self._wait_for_ssh(engine, name, port, key_path)
-            host = RemoteHostSpec(
-                name=name,
-                address="127.0.0.1",
-                user="root",
-                become=True,
-                port=port,
-                vars={
-                    "ansible_ssh_private_key_file": str(key_path),
-                    "ansible_ssh_common_args": (
-                        "-o StrictHostKeyChecking=no "
-                        "-o UserKnownHostsFile=/dev/null"
-                    ),
-                    "ansible_python_interpreter": "/usr/bin/python3",
-                    "lb_is_container": True,
-                },
-            )
+            resource_started = False
+
             def _destroy(
                 eng: str = engine,
                 cname: str = name,
@@ -77,12 +57,38 @@ class DockerProvisioner:
             ) -> None:
                 self._destroy_container(eng, cname, kp, pp)
 
-            nodes.append(
-                ProvisionedNode(
-                    host=host,
-                    destroy=_destroy,
+            try:
+                self._generate_ssh_keypair(key_path)
+                port = self._find_free_port()
+                self._run_container(engine, request.docker_image, name, port)
+                resource_started = True
+                self._inject_ssh_key(engine, name, pub_path)
+                self._wait_for_ssh(engine, name, port, key_path)
+                host = RemoteHostSpec(
+                    name=name,
+                    address="127.0.0.1",
+                    user="root",
+                    become=True,
+                    port=port,
+                    vars={
+                        "ansible_ssh_private_key_file": str(key_path),
+                        "ansible_ssh_common_args": (
+                            "-o StrictHostKeyChecking=no "
+                            "-o UserKnownHostsFile=/dev/null"
+                        ),
+                        "ansible_python_interpreter": "/usr/bin/python3",
+                        "lb_is_container": True,
+                    },
                 )
-            )
+                nodes.append(ProvisionedNode(host=host, destroy=_destroy))
+            except Exception:
+                if resource_started:
+                    _best_effort_destroy(_destroy)
+                else:
+                    _best_effort_remove_paths((key_path, pub_path))
+                _rollback_nodes(nodes)
+                raise
+
         return nodes
 
     def _generate_ssh_keypair(self, key_path: Path) -> None:
@@ -114,7 +120,7 @@ class DockerProvisioner:
         """Return an available host port."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.bind(("", 0))
-            return sock.getsockname()[1]
+            return cast(int, sock.getsockname()[1])
 
     def _run_container(
         self, engine: str, image: str, name: str, host_port: int
@@ -202,9 +208,8 @@ class DockerProvisioner:
             "root@127.0.0.1",
             "true",
         ]
-        # Give the SSH daemon a brief head-start before polling.
         time.sleep(1.5)
-        for attempt in range(retries):
+        for _attempt in range(retries):
             if not self._container_running(engine, name):
                 logs = self._container_logs(engine, name)
                 raise ProvisioningError(
@@ -251,9 +256,25 @@ class DockerProvisioner:
             )
         except Exception:
             logger.debug("Best-effort cleanup failed for container %s", name)
-        for path in (key_path, pub_path):
-            try:
-                if path.exists():
-                    path.unlink()
-            except Exception:
-                logger.debug("Failed to remove %s", path)
+        _best_effort_remove_paths((key_path, pub_path))
+
+
+def _rollback_nodes(nodes: List[ProvisionedNode]) -> None:
+    for node in reversed(nodes):
+        _best_effort_destroy(node.teardown)
+
+
+def _best_effort_destroy(destroy: Callable[[], None]) -> None:
+    try:
+        destroy()
+    except Exception:
+        logger.debug("Best-effort rollback failed", exc_info=True)
+
+
+def _best_effort_remove_paths(paths: Iterable[Path]) -> None:
+    for path in paths:
+        try:
+            if path.exists():
+                path.unlink()
+        except Exception:
+            logger.debug("Failed to remove %s", path)

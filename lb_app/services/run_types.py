@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections import deque
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from pathlib import Path
 import queue
 import threading
-from typing import IO, TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import IO, TYPE_CHECKING, Any, Callable, Dict, Optional, Protocol
 
 from lb_controller.api import (
     ControllerStateMachine,
@@ -21,6 +22,30 @@ from lb_plugins.api import PluginRegistry
 
 if TYPE_CHECKING:
     from lb_controller.api import BenchmarkController, RunExecutionSummary
+
+
+class OutputCallback(Protocol):
+    """Callback receiving streamed output fragments."""
+
+    def __call__(self, text: str, end: str = "") -> None:
+        """Consume a text fragment and trailing delimiter."""
+
+
+class EventIngestCallback(Protocol):
+    """Callback receiving normalized run events."""
+
+    def __call__(self, event: RunEvent, source: str = "unknown") -> None:
+        """Consume a run event and its source channel."""
+
+
+class StopAnnouncer(Protocol):
+    """Callback used to surface a confirmed stop request."""
+
+    def __call__(
+        self,
+        msg: str = "Stop confirmed; initiating teardown and aborting the run.",
+    ) -> None:
+        """Announce that stop has been confirmed."""
 
 
 @dataclass
@@ -72,9 +97,9 @@ class _RemoteSession:
 class _EventPipeline:
     """Event/output wiring for a controller run."""
 
-    output_cb: Callable[[str, str], None]
-    announce_stop: Callable[[str], None]
-    ingest_event: Callable[[RunEvent, str], None]
+    output_cb: OutputCallback
+    announce_stop: StopAnnouncer
+    ingest_event: EventIngestCallback
     event_from_payload: Callable[[Dict[str, Any]], RunEvent | None]
     sink: LogSink
     controller_ref: dict[str, "BenchmarkController" | None]
@@ -126,7 +151,7 @@ class _DashboardLogProxy(DashboardHandle):
         self._inner = inner
         self._log_file = log_file
 
-    def live(self):
+    def live(self) -> AbstractContextManager[None]:
         return self._inner.live()
 
     def add_log(self, line: str) -> None:

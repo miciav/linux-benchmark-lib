@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -126,10 +127,7 @@ class AnalyticsViewModel(QObject):
                 return
         try:
             self._runs = self._run_catalog.list_runs()
-            self._runs.sort(
-                key=lambda r: r.created_at or 0,  # type: ignore
-                reverse=True,
-            )
+            self._runs.sort(key=_run_sort_key, reverse=True)
             self.runs_changed.emit(self._runs)
         except Exception as e:
             self.error_occurred.emit(f"Failed to list runs: {e}")
@@ -259,3 +257,7 @@ class AnalyticsViewModel(QObject):
                 workloads += f" (+{len(run.workloads) - 3})"
             rows.append([run.run_id, created, workloads])
         return rows
+
+
+def _run_sort_key(run: "RunInfo") -> datetime:
+    return run.created_at or datetime.min

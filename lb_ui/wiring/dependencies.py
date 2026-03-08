@@ -47,7 +47,7 @@ class UIContext:
         return self._ui
 
     @ui.setter
-    def ui(self, value: UI):
+    def ui(self, value: UI) -> None:
         self._ui = value
 
     @property
@@ -57,7 +57,7 @@ class UIContext:
         return self._ui_adapter
 
     @ui_adapter.setter
-    def ui_adapter(self, value: UIAdapter):
+    def ui_adapter(self, value: UIAdapter) -> None:
         self._ui_adapter = value
 
     @property
@@ -67,7 +67,7 @@ class UIContext:
         return self._config_service
 
     @config_service.setter
-    def config_service(self, value: ConfigService):
+    def config_service(self, value: ConfigService) -> None:
         self._config_service = value
 
     @property
@@ -77,7 +77,7 @@ class UIContext:
         return self._doctor_service
 
     @doctor_service.setter
-    def doctor_service(self, value: DoctorService):
+    def doctor_service(self, value: DoctorService) -> None:
         self._doctor_service = value
 
     @property
@@ -87,7 +87,7 @@ class UIContext:
         return self._test_service
 
     @test_service.setter
-    def test_service(self, value: TestService):
+    def test_service(self, value: TestService) -> None:
         self._test_service = value
 
     @property
@@ -97,7 +97,7 @@ class UIContext:
         return self._analytics_service
 
     @analytics_service.setter
-    def analytics_service(self, value: AnalyticsService):
+    def analytics_service(self, value: AnalyticsService) -> None:
         self._analytics_service = value
 
     @property
@@ -107,7 +107,7 @@ class UIContext:
         return self._app_client
 
     @app_client.setter
-    def app_client(self, value: ApplicationClient):
+    def app_client(self, value: ApplicationClient) -> None:
         self._app_client = value
 
 

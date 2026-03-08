@@ -69,7 +69,10 @@ class GrafanaDashboardAsset:
             return dict(self.dashboard)
         if not self.path:
             raise ValueError("Grafana dashboard asset missing path or inline content")
-        return json.loads(self.path.read_text())
+        loaded = json.loads(self.path.read_text())
+        if not isinstance(loaded, Mapping):
+            raise ValueError(f"Grafana dashboard at {self.path} is not a JSON object")
+        return dict(loaded)
 
 
 @dataclass(frozen=True)

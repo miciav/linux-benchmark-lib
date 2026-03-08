@@ -6,13 +6,19 @@ from datetime import UTC, datetime
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Protocol
 
 from lb_controller.api import BenchmarkConfig, workload_output_dir
 
 from lb_controller.api import RunJournal, RunStatus, TaskState
 from lb_app.services.run_config import hash_config
 from lb_app.services.run_types import RunContext
+
+
+class _HostLike(Protocol):
+    """Minimal host contract required by resume helpers."""
+
+    name: str
 
 
 def load_resume_journal(
@@ -75,6 +81,8 @@ def resolve_resume_path(context: RunContext) -> Path:
         if journal_path is None:
             raise ValueError("No previous run found to resume.")
         return journal_path
+    if context.resume_from is None:
+        raise ValueError("Resume requested without a run identifier.")
     return context.config.output_dir / context.resume_from / "run_journal.json"
 
 
@@ -91,16 +99,14 @@ def rehydrate_resume_config(context: RunContext, journal: RunJournal) -> None:
 
 
 def _select_rehydrated_config(
-    current: BenchmarkConfig | None,
+    current: BenchmarkConfig,
     rehydrated: BenchmarkConfig | None,
     meta_hash: str | None,
     cfg_hash: str | None,
-) -> BenchmarkConfig | None:
+) -> BenchmarkConfig:
     if rehydrated is None:
         return current
     if meta_hash and meta_hash != cfg_hash:
-        return rehydrated
-    if current is None:
         return rehydrated
     return current
 
@@ -122,21 +128,21 @@ def ensure_resume_tasks(context: RunContext, journal: RunJournal) -> None:
         _ensure_host_tasks(context, journal, host)
 
 
-def _resume_hosts(context: RunContext) -> list[SimpleNamespace]:
+def _resume_hosts(context: RunContext) -> list[_HostLike]:
     if getattr(context.config, "remote_hosts", None):
         return list(context.config.remote_hosts)
     return [SimpleNamespace(name="localhost")]
 
 
 def _ensure_host_tasks(
-    context: RunContext, journal: RunJournal, host: SimpleNamespace
+    context: RunContext, journal: RunJournal, host: _HostLike
 ) -> None:
     for test_name in context.target_tests:
         _ensure_test_tasks(context, journal, host, test_name)
 
 
 def _ensure_test_tasks(
-    context: RunContext, journal: RunJournal, host: SimpleNamespace, test_name: str
+    context: RunContext, journal: RunJournal, host: _HostLike, test_name: str
 ) -> None:
     if test_name not in context.config.workloads:
         return
@@ -355,11 +361,11 @@ def results_exist_for_run(run_root: Path) -> bool:
 
 
 def _resolve_host_names(context: RunContext) -> list[str]:
-    hosts = (
-        context.config.remote_hosts
-        if getattr(context.config, "remote_hosts", None)
-        else [SimpleNamespace(name="localhost")]
-    )
+    hosts: list[_HostLike]
+    if getattr(context.config, "remote_hosts", None):
+        hosts = list(context.config.remote_hosts)
+    else:
+        hosts = [SimpleNamespace(name="localhost")]
     return [host.name for host in hosts]
 
 

@@ -17,7 +17,7 @@ from lb_app.ui_interfaces import UIAdapter
 from lb_app.services.run_pipeline import parse_progress_line
 from lb_app.services.run_output import AnsibleOutputFormatter
 from lb_app.services.run_plan import build_run_plan
-from lb_app.services.run_types import RunContext, RunResult
+from lb_app.services.run_types import OutputCallback, RunContext, RunResult
 from lb_app.services.run_context_builder import (
     RunContextBuilder,
     apply_overrides,
@@ -158,7 +158,7 @@ class RunService:
         self,
         context: RunContext,
         run_id: Optional[str],
-        output_callback: Optional[Callable[[str, str], None]] = None,
+        output_callback: OutputCallback | None = None,
         ui_adapter: UIAdapter | None = None,
     ) -> RunResult:
         """Execute benchmarks using remote hosts provisioned upstream."""
@@ -171,12 +171,12 @@ class RunService:
         formatter = AnsibleOutputFormatter()
         formatter.emit_task_timings = False
         formatter.emit_task_starts = False
-        callback = output_callback
+        callback: OutputCallback | None = output_callback
         emit_timing = False
         if callback is None:
             if context.debug:
                 # In debug mode, print everything raw for troubleshooting
-                def _debug_printer(text: str, end: str = ""):
+                def _debug_printer(text: str, end: str = "") -> None:
                     print(text, end=end, flush=True)
 
                 callback = _debug_printer
@@ -197,7 +197,7 @@ class RunService:
         self,
         context: RunContext,
         run_id: Optional[str],
-        output_callback: Callable[[str, str], None],
+        output_callback: OutputCallback,
         formatter: AnsibleOutputFormatter | None,
         ui_adapter: UIAdapter | None,
         stop_token: StopToken | None = None,
@@ -249,7 +249,7 @@ class RunService:
         context: RunContext,
         session: _RemoteSession,
         formatter: AnsibleOutputFormatter | None,
-        output_callback: Callable[[str, str], None],
+        output_callback: OutputCallback,
         ui_adapter: UIAdapter | None,
         emit_timing: bool,
     ) -> _EventPipeline:

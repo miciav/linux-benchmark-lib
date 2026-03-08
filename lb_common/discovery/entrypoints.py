@@ -16,6 +16,7 @@ def discover_entrypoints(
     """Collect entry points without importing them. Loaded on demand."""
     pending: dict[str, importlib.metadata.EntryPoint] = {}
     for group in groups:
+        eps: Iterable[importlib.metadata.EntryPoint]
         try:
             eps = importlib.metadata.entry_points().select(group=group)
         except Exception as exc:
