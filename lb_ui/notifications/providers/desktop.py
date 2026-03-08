@@ -3,25 +3,32 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
 import os
 import platform
 import subprocess
 import sys
 import time
+from typing import Any, cast
 
 from lb_ui.notifications.base import NotificationProvider, NotificationContext
 
-# Optional dependencies
-try:
-    from plyer import notification
-except ImportError:
-    notification = None
+# Optional dependencies loaded lazily to keep imports soft.
+notification: Any | None = None
+DesktopNotifier: Any | None = None
 
 try:
-    from desktop_notifier import DesktopNotifier
+    notification = importlib.import_module("plyer.notification")
 except ImportError:
-    DesktopNotifier = None
+    pass
+
+try:
+    DesktopNotifier = getattr(
+        importlib.import_module("desktop_notifier"), "DesktopNotifier"
+    )
+except ImportError:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -97,13 +104,14 @@ class DesktopProvider(NotificationProvider):
         if DesktopNotifier is not None and _is_running_in_macos_app_bundle():
             try:
                 notifier = DesktopNotifier(
-                    app_name=self.app_name, app_icon=context.icon_path
+                    app_name=self.app_name,
+                    app_icon=cast(Any, context.icon_path),
                 )
                 asyncio.run(
                     notifier.send(
                         title=context.title,
                         message=context.message,
-                        icon=context.icon_path,
+                        icon=cast(Any, context.icon_path),
                     )
                 )
                 # Grace period for asset loading

@@ -53,6 +53,13 @@ def _refresh_journal(services: ControllerServices) -> None:
             logger.debug("Journal refresh callback failed: %s", exc)
 
 
+def _require_playbook_path(playbook_path: Path | None, phase: str) -> Path:
+    """Return a configured playbook path or fail fast on invalid controller config."""
+    if playbook_path is None:
+        raise ValueError(f"Missing {phase} playbook in remote_execution config")
+    return playbook_path
+
+
 def build_summary(
     services: ControllerServices,
     session: RunSession,
@@ -112,8 +119,12 @@ def run_global_setup(
     if services.output_formatter:
         services.output_formatter.set_phase("Global Setup")
     setup_logger.info("Executing global setup playbook")
-    phases["setup_global"] = services.executor.run_playbook(
+    setup_playbook = _require_playbook_path(
         services.config.remote_execution.setup_playbook,
+        "setup",
+    )
+    phases["setup_global"] = services.executor.run_playbook(
+        setup_playbook,
         inventory=session.state.inventory,
         extravars=session.state.extravars,
     )
@@ -259,8 +270,12 @@ def execute_run_playbook(
         action="Running workload...",
     )
     loop_extravars = _build_run_extravars(state, test_name, pending_reps)
-    res_run = services.executor.run_playbook(
+    run_playbook = _require_playbook_path(
         services.config.remote_execution.run_playbook,
+        "run",
+    )
+    res_run = services.executor.run_playbook(
+        run_playbook,
         inventory=state.inventory,
         extravars=loop_extravars,
     )
@@ -327,7 +342,7 @@ def _update_reps_for_run(
     state: RunState,
     pending_hosts: List[RemoteHostConfig],
     test_name: str,
-    status: RunStatus,
+    status: str,
     *,
     action: str,
     error: str | None = None,
@@ -363,7 +378,7 @@ def _run_collect_playbook(
     state: RunState,
     pending_hosts: List[RemoteHostConfig],
     test_name: str,
-    status: RunStatus,
+    status: str,
     phases: Dict[str, ExecutionResult],
     ui_log: Callable[[str], None],
 ) -> None:
@@ -378,8 +393,12 @@ def _run_collect_playbook(
         status,
         action="Collecting results",
     )
-    res_col = services.executor.run_playbook(
+    collect_playbook = _require_playbook_path(
         services.config.remote_execution.collect_playbook,
+        "collect",
+    )
+    res_col = services.executor.run_playbook(
+        collect_playbook,
         inventory=state.inventory,
         extravars=state.extravars,
     )
@@ -399,7 +418,7 @@ def _skip_collect_phase(
     state: RunState,
     pending_hosts: List[RemoteHostConfig],
     test_name: str,
-    status: RunStatus,
+    status: str,
     phases: Dict[str, ExecutionResult],
 ) -> None:
     backfill_timings_from_results(
@@ -467,8 +486,12 @@ def run_global_teardown(
         return
 
     _maybe_interrupt_teardown(services, session)
-    phases["teardown_global"] = services.executor.run_playbook(
+    teardown_playbook = _require_playbook_path(
         services.config.remote_execution.teardown_playbook,
+        "teardown",
+    )
+    phases["teardown_global"] = services.executor.run_playbook(
+        teardown_playbook,
         inventory=state.inventory,
         extravars=state.extravars,
         cancellable=False,

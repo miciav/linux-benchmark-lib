@@ -219,7 +219,7 @@ class PickerScreen:
         )
 
         root_container = Frame(inner_layout, title=title)
-        self._app = Application(
+        self._app: Application[Any] = Application(
             layout=Layout(root_container, focused_element=self.search),
             key_bindings=self._kb,
             style=_picker_style(),
@@ -483,4 +483,4 @@ def _items_for_children(
 
 
 def _picker_style() -> Style:
-    return Style.from_dict(theme.prompt_toolkit_picker_style())
+    return Style.from_dict(dict(theme.prompt_toolkit_picker_style()))

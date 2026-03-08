@@ -25,6 +25,8 @@ from lb_ui.cli.commands.test import create_test_app
 from lb_ui.cli.commands.run import register_run_command
 
 from lb_ui.wiring.dependencies import load_dev_mode, configure_logging, UIContext
+from lb_ui.tui.core.protocols import UI
+from lb_app.api import UIAdapter
 
 # Initialize global context (lazy)
 _CLI_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -32,11 +34,11 @@ ctx_store = UIContext(dev_mode=load_dev_mode(_CLI_ROOT))
 
 
 # Shortcuts for clarity in registration
-def ui_provider():
+def ui_provider() -> UI:
     return ctx_store.ui
 
 
-def ui_adapter_provider():
+def ui_adapter_provider() -> UIAdapter:
     return ctx_store.ui_adapter
 
 

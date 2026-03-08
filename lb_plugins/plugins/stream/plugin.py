@@ -15,7 +15,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 
 from pydantic import Field, model_validator
 
@@ -111,6 +111,9 @@ class StreamGenerator(CommandGenerator):
 
     def __init__(self, config: StreamConfig, name: str = "StreamGenerator") -> None:
         super().__init__(name, config)
+        self.config: StreamConfig = config
+        self._result: dict[str, Any] | None = None
+        self._process: subprocess.Popen[str] | None = None
 
         if self.config.workspace_dir:
             self.workspace = Path(self.config.workspace_dir).expanduser()
@@ -356,7 +359,10 @@ class StreamGenerator(CommandGenerator):
         multi: bool,
     ) -> Path | None:
         if compiler_bin is None:
-            self._result = {"error": f"Compiler '{compiler}' not available"}
+            missing_compiler_result: dict[str, Any] = {
+                "error": f"Compiler '{compiler}' not available"
+            }
+            self._result = missing_compiler_result
             logger.error("Compiler '%s' not available", compiler)
             return None
         try:
@@ -367,7 +373,8 @@ class StreamGenerator(CommandGenerator):
             self.working_dir = self.stream_path.parent
             return self.stream_path
         except Exception as exc:
-            self._result = {"error": str(exc), "returncode": -2}
+            compile_failure: dict[str, Any] = {"error": str(exc), "returncode": -2}
+            self._result = compile_failure
             logger.error("Failed to compile STREAM (%s): %s", compiler, exc)
             return None
 
@@ -384,13 +391,14 @@ class StreamGenerator(CommandGenerator):
             self.working_dir = self.system_stream_path.parent
             return self.stream_path
 
-        self._result = {
+        failure: dict[str, Any] = {
             "error": (
                 "stream binary missing; install stream-benchmark .deb or enable "
                 "recompilation with gcc present"
             ),
             "returncode": -1,
         }
+        self._result = failure
         logger.error(self._result["error"])
         return None
 
@@ -450,7 +458,7 @@ class StreamGenerator(CommandGenerator):
         }
 
     def _timeout_seconds(self) -> Optional[int]:
-        return self.config.expected_runtime_seconds + self.config.timeout_buffer
+        return int(self.config.expected_runtime_seconds) + int(self.config.timeout_buffer)
 
     def _build_result(
         self,
@@ -480,6 +488,8 @@ class StreamGenerator(CommandGenerator):
         stderr: str,
         returncode: int | None,
     ) -> None:
+        if self._result is None:
+            self._result = {}
         if returncode not in (None, 0) and "error" not in self._result:
             self._result["error"] = f"STREAM exited with return code {returncode}"
 
@@ -533,6 +543,9 @@ class StreamGenerator(CommandGenerator):
         )
         failed = returncode not in (None, 0)
         if failed:
+            if returncode is None:
+                result["error"] = "STREAM exited without a return code"
+                return result, True
             self._log_failure(returncode, stdout, stderr, cmd)
             if "error" not in result:
                 result["error"] = f"STREAM exited with return code {returncode}"

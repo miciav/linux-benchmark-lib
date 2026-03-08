@@ -9,6 +9,7 @@ from lb_common.errors import WorkloadError
 from lb_runner.engine.executor import RepetitionExecutor
 from lb_runner.engine.execution import StopRequested
 from lb_runner.engine.context import RunnerContext
+from lb_runner.engine.stop_token import StopToken
 
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
@@ -97,6 +98,27 @@ def test_execute_stop_requested(executor, context):
     # Cleanup should still be called
     assert metric_session.stop.called
     assert metric_session.close.called
+
+
+def test_execute_passes_stop_token_to_wait_loop(executor, context):
+    """Executor should propagate the stop token into the wait loop."""
+    generator = MagicMock()
+    generator.get_result.return_value = {"status": "ok"}
+    stop_token = StopToken(enable_signals=False)
+    context.stop_token = stop_token
+
+    metric_session = MagicMock()
+    metric_session.collectors = []
+    context.metric_manager.begin_repetition.return_value = metric_session
+    context.output_manager.workload_output_dir.return_value = MagicMock()
+
+    with patch("lb_runner.engine.executor.resolve_duration", return_value=1):
+        with patch(
+            "lb_runner.engine.executor.wait_for_generator", return_value=datetime.now()
+        ) as wait_mock:
+            executor.execute("test_workload", generator, 1, 1)
+
+    assert wait_mock.call_args.kwargs["stop_token"] is stop_token
 
 
 def test_execute_generator_failure(executor, context):

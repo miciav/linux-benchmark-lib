@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from contextlib import AbstractContextManager, contextmanager
+from collections.abc import Iterator
+from contextlib import contextmanager
 import queue
 import threading
 from typing import Any
@@ -22,10 +23,10 @@ class DashboardHandleAdapter(Dashboard):
             self._stop = threading.Event()
 
     @contextmanager
-    def live(self) -> AbstractContextManager[None]:
+    def live(self) -> Iterator[None]:
         if not self._threaded:
             with self._sink.live():
-                yield self
+                yield None
             return
         assert self._queue is not None
         assert self._stop is not None
@@ -35,7 +36,7 @@ class DashboardHandleAdapter(Dashboard):
         )
         self._thread.start()
         try:
-            yield self
+            yield None
         finally:
             self._stop.set()
             self._queue.put(None)

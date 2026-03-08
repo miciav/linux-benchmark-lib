@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from lb_app.api import DoctorService, DoctorReport, BenchmarkConfig
 
@@ -31,7 +31,10 @@ class DoctorServiceWrapper:
 
     def check_connectivity(self, config: BenchmarkConfig) -> DoctorReport:
         """Check connectivity to configured remote hosts."""
-        return self._service.check_connectivity(config)
+        legacy_check = getattr(self._service, "check_connectivity", None)
+        if callable(legacy_check):
+            return cast(DoctorReport, legacy_check(config))
+        return self._service.check_remote_hosts(config)
 
     def run_all_checks(
         self, config: BenchmarkConfig | None = None

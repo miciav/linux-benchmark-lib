@@ -10,7 +10,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import pandas as pd
 from pydantic import Field, model_validator
@@ -67,6 +67,9 @@ class HPLGenerator(CommandGenerator):
 
     def __init__(self, config: HPLConfig, name: str = "HPLGenerator") -> None:
         super().__init__(name, config)
+        self.config: HPLConfig = config
+        self._result: dict[str, Any] | None = None
+        self._process: subprocess.Popen[str] | None = None
         self.workspace = _resolve_workspace(self.config.workspace_dir)
 
         # HPL binary location in workspace
@@ -109,9 +112,10 @@ class HPLGenerator(CommandGenerator):
 
         # If neither binary exists, fail fast: remote/multipass setup must install
         # the deb.
-        self._result = {
+        failure: dict[str, Any] = {
             "error": "xhpl missing; ensure remote setup installed the HPL .deb"
         }
+        self._result = failure
         logger.error("xhpl missing; ensure remote setup installed the HPL .deb")
         return False
 
@@ -213,7 +217,7 @@ HPL.out      output file name (if any)
         }
 
     def _timeout_seconds(self) -> Optional[int]:
-        return self.config.expected_runtime_seconds + self.config.timeout_buffer
+        return int(self.config.expected_runtime_seconds) + int(self.config.timeout_buffer)
 
     def _build_result(
         self,
@@ -234,6 +238,8 @@ HPL.out      output file name (if any)
         stderr: str,
         returncode: int | None,
     ) -> None:
+        if self._result is None:
+            self._result = {}
         # Surface common failure modes even when HPL exits 0
         if stdout:
             _handle_memory_failure(stdout, self._result, self.config)

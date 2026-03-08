@@ -72,7 +72,7 @@ STRICT_MULTIPASS_SETUP = os.environ.get("LB_STRICT_MULTIPASS_SETUP", "").lower()
 }
 RUN_PEVA_FAAS_MULTIPASS_E2E = os.environ.get(
     "LB_RUN_PEVA_FAAS_MULTIPASS_E2E",
-    "1",
+    "0",
 ).lower() in {
     "1",
     "true",

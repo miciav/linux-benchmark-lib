@@ -13,7 +13,7 @@ dependencies = [
     "numpy>=1.24.0",
     "jc>=1.25.0",
     "PyYAML>=6.0",
-    "pydantic>=2.0.0", # Added pydantic
+    "pydantic>=2.11.4",
     "structlog>=24.2.0",
     "plyer>=2.1.0",
     "pystray>=0.19.5",
@@ -43,6 +43,10 @@ controller = [
     "seaborn>=0.12.0",
 ]
 dev = [
+    "fabric>=3.2.2",
+    "invoke>=2.2.1",
+    "duckdb>=1.1.0",
+    "pyarrow>=17.0.0",
     "rich>=13.7.0",
     "typer>=0.12.5",
     "rapidfuzz>=3.0.0",
@@ -168,6 +172,7 @@ python_functions = "test_*"
 
 [tool.mypy]
 python_version = "3.12"
+plugins = ["pydantic.mypy"]
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -180,7 +185,60 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
-exclude = "^molecule/"
+exclude = '''(?x)(
+    ^molecule/
+  | ^lb_controller/ansible/collections/ansible_collections/
+  | ^lb_plugins/plugins/_user/
+  | (^|.*/)__pycache__/
+)'''
+
+[[tool.mypy.overrides]]
+module = [
+    "ansible",
+    "ansible.*",
+    "duckdb",
+    "duckdb.*",
+    "fabric",
+    "fabric.*",
+    "invoke",
+    "invoke.*",
+    "matplotlib",
+    "matplotlib.*",
+    "pandas",
+    "pandas.*",
+    "pyarrow",
+    "pyarrow.*",
+    "psutil",
+    "psutil.*",
+    "seaborn",
+    "seaborn.*",
+    "yaml",
+    "yaml.*",
+    "plyer",
+    "plyer.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "lb_controller.ansible.callback_plugins.lb_events",
+]
+disable_error_code = ["import-not-found"]
+
+[[tool.mypy.overrides]]
+module = [
+    "lb_plugins.plugins.peva_faas.services.memory_checkpoint",
+    "lb_plugins.plugins.peva_faas.services.memory_store",
+    "lb_plugins.plugins.dfaas.services.k6_runner",
+]
+disable_error_code = ["import-not-found"]
+
+[[tool.mypy.overrides]]
+module = [
+    "lb_ui.services.tray",
+    "lb_ui.notifications.providers.desktop",
+]
+disable_error_code = ["import-untyped"]
 
 [tool.pydocstyle]
 inherit = false
@@ -193,6 +251,11 @@ dev = [
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
     "psutil>=7.0.0",
+    "fabric>=3.2.2",
+    "invoke>=2.2.1",
+    "duckdb>=1.1.0",
+    "pyarrow>=17.0.0",
+    "pandas-stubs>=2.2.0.240218",
     "rich>=13.7.0",
     "typer>=0.12.5",
     "rapidfuzz>=3.0.0",
@@ -221,6 +284,9 @@ dev = [
     "bandit>=1.9.2",
     "semgrep>=1.86.0",
     "tenacity>=9.1.2",
+    "types-PyYAML>=6.0.12.20250822",
+    "types-psutil>=7.0.0.20250601",
+    "types-seaborn>=0.13.2.20250914",
 ]
 
 [tool.deptry]

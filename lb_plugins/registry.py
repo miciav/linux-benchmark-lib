@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional, cast
 
 from lb_plugins import discovery as discovery_module
 from .base_generator import BaseGenerator
@@ -49,7 +49,7 @@ class PluginRegistry:
         return self._workloads[name]
 
     def create_generator(
-        self, plugin_name: str, options: Optional[Dict[str, Any]] = None
+        self, plugin_name: str, options: Any = None
     ) -> BaseGenerator:
         plugin = self.get(plugin_name)
 
@@ -62,11 +62,11 @@ class PluginRegistry:
 
         # If options is already the config object, pass it
         if isinstance(options, plugin.config_cls):
-            return plugin.create_generator(options)
+            return cast(BaseGenerator, plugin.create_generator(options))
 
         # Otherwise instantiate from dict
         config_obj = plugin.config_cls(**options)
-        return plugin.create_generator(config_obj)
+        return cast(BaseGenerator, plugin.create_generator(config_obj))
 
     def available(self, load_entrypoints: bool = False) -> Dict[str, Any]:
         """

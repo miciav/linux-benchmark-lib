@@ -96,7 +96,9 @@ class TestService:
 
         interactive = force_interactive or (sys.stdin.isatty() and sys.stdout.isatty())
         if interactive:
-            choice = self.ui.prompt_multipass_scenario(options, default_level)
+            choice: tuple[str, str] | None = self.ui.prompt_multipass_scenario(
+                options, default_level
+            )
             if choice is not None:
                 return choice
 
@@ -116,7 +118,7 @@ class TestService:
         env_vars = {"LB_MULTIPASS_WORKLOADS": selection}
 
         # Helper to build specific rows
-        def row_stress_ng():
+        def row_stress_ng() -> tuple[str, str, str, str, str]:
             return (
                 "stress_ng",
                 f"{intensity['stress']}s",
@@ -125,7 +127,7 @@ class TestService:
                 f"timeout={intensity['stress']}s, cpu_workers=1",
             )
 
-        def row_dd():
+        def row_dd() -> tuple[str, str, str, str, str]:
             return (
                 "dd",
                 f"approx {intensity['dd_count']}MiB",
@@ -134,7 +136,7 @@ class TestService:
                 f"bs=1M, count={intensity['dd_count']}",
             )
 
-        def row_fio():
+        def row_fio() -> tuple[str, str, str, str, str]:
             return (
                 "fio",
                 f"{intensity['fio_runtime']}s",

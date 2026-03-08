@@ -6,10 +6,14 @@ import os
 import sys
 import threading
 import time
+from unittest.mock import MagicMock
 
 import pytest
 
-from lb_controller.adapters.ansible_helpers import PlaybookProcessRunner
+from lb_controller.adapters.ansible_helpers import (
+    PlaybookProcessRunner,
+    ProcessStopController,
+)
 from lb_runner.api import StopToken
 
 
@@ -63,3 +67,15 @@ def test_playbook_process_runner_interrupt_stops(tmp_path) -> None:
     result = result_holder.get("result")
     assert result is not None
     assert result.status == "stopped"
+
+
+def test_process_stop_controller_should_stop_returns_strict_bool() -> None:
+    stop_token = MagicMock()
+    stop_token.should_stop.return_value = True
+    controller = ProcessStopController(stop_token=stop_token)
+
+    assert controller.should_stop(cancellable=True) is True
+
+    stop_token.should_stop.return_value = False
+    assert controller.should_stop(cancellable=True) is False
+    assert controller.should_stop(cancellable=False) is False

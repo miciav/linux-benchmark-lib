@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from logging import Handler
-    from lb_app.services.run_types import RunContext, _RemoteSession, _EventPipeline
+    from lb_app.services.run_types import (
+        OutputCallback,
+        RunContext,
+        RunResult,
+        _EventPipeline,
+        _RemoteSession,
+    )
     from lb_app.services.run_output import AnsibleOutputFormatter
     from lb_app.ui_interfaces import UIAdapter
+    from lb_controller.api import BenchmarkController, RunExecutionSummary
     from lb_controller.api import StopToken
-    from lb_app.services.run_types import RunResult
 
 
 class IRunService(Protocol):
@@ -36,10 +42,19 @@ class IRunService(Protocol):
         context: RunContext,
         session: _RemoteSession,
         formatter: AnsibleOutputFormatter | None,
-        output_callback: Callable[[str, str], None],
+        output_callback: OutputCallback,
         ui_adapter: UIAdapter | None,
         emit_timing: bool,
     ) -> _EventPipeline: ...
+
+    def _run_controller_loop(
+        self,
+        controller: BenchmarkController,
+        context: RunContext,
+        session: _RemoteSession,
+        pipeline: _EventPipeline,
+        ui_adapter: UIAdapter | None,
+    ) -> RunExecutionSummary | None: ...
 
     def _attach_controller_jsonl(
         self, context: RunContext, session: _RemoteSession

@@ -49,4 +49,4 @@ class RunCatalogServiceWrapper:
         """Get the results directory from config."""
         if self._config is None:
             return None
-        return Path(self._config.results_base_dir)
+        return Path(self._config.output_dir)

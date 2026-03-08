@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 
 from pydantic import Field
 
@@ -59,15 +59,17 @@ class UnixBenchGenerator(StdoutCommandGenerator):
     def __init__(self, config: UnixBenchConfig, name: str = "UnixBenchGenerator"):
         self._command_builder = _UnixBenchCommandBuilder()
         super().__init__(name, config, command_builder=self._command_builder)
+        self.config: UnixBenchConfig = config
 
     def _build_command(self) -> List[str]:
+        assert self._command_builder is not None
         return self._command_builder.build(self.config).cmd
 
     def _command_workdir(self) -> Path | None:
         return self.config.workdir
 
     def _timeout_seconds(self) -> Optional[int]:
-        return self.config.timeout_buffer + max(120, 60 * self.config.iterations)
+        return int(self.config.timeout_buffer) + max(120, 60 * int(self.config.iterations))
 
     def _log_command(self, cmd: list[str]) -> None:
         logger.info("Running UnixBench in %s: %s", self.config.workdir, " ".join(cmd))
@@ -100,10 +102,14 @@ class UnixBenchPlugin(SimpleWorkloadPlugin):
     REQUIRED_LOCAL_TOOLS = ["make", "gcc", "wget"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
-    def create_generator(self, config: UnixBenchConfig | dict) -> UnixBenchGenerator:
+    def create_generator(
+        self, config: BasePluginConfig | dict[str, Any]
+    ) -> UnixBenchGenerator:
+        if isinstance(config, UnixBenchConfig):
+            return UnixBenchGenerator(config)
         if isinstance(config, dict):
-            config = UnixBenchConfig(**config)
-        return UnixBenchGenerator(config)
+            return UnixBenchGenerator(UnixBenchConfig(**config))
+        return UnixBenchGenerator(UnixBenchConfig(**config.model_dump()))
 
     def get_preset_config(self, level: WorkloadIntensity) -> Optional[UnixBenchConfig]:
         cpu_count = os.cpu_count() or 2

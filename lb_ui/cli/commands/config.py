@@ -85,7 +85,7 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         target = (
             Path(config_path).expanduser()
             if config_path
-            else ctx.config_service.default_target
+            else ctx.config_service.load_for_write(None, allow_create=True)[1]
         )
         target.parent.mkdir(parents=True, exist_ok=True)
 

@@ -10,15 +10,16 @@ class RichForm(Form):
     def ask(
         self, prompt: str, default: str | None = None, password: bool = False
     ) -> str:
-        # rich.Prompt.ask uses default=... but it prints it differently.
-        # It's close enough.
-        kwargs = {}
         if default is not None:
-            kwargs["default"] = default
-        if password:
-            kwargs["password"] = True
-
-        return Prompt.ask(prompt, console=self._console, **kwargs)
+            return str(
+                Prompt.ask(
+                    prompt,
+                    console=self._console,
+                    default=default,
+                    password=password,
+                )
+            )
+        return str(Prompt.ask(prompt, console=self._console, password=password))
 
     def confirm(self, prompt: str, default: bool = True) -> bool:
         return Confirm.ask(prompt, console=self._console, default=default)

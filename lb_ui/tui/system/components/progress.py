@@ -1,4 +1,4 @@
-from typing import ContextManager
+from typing import ContextManager, cast
 from rich.console import Console
 from lb_ui.tui.core.protocols import Progress
 
@@ -8,4 +8,4 @@ class RichProgress(Progress):
         self._console = console
 
     def status(self, message: str) -> ContextManager[None]:
-        return self._console.status(message)
+        return cast(ContextManager[None], self._console.status(message))

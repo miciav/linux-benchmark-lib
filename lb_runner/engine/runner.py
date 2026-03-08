@@ -11,7 +11,7 @@ import os
 import logging
 import platform
 import time
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional, Protocol
 
 from lb_common.api import LBError
 from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
@@ -31,8 +31,24 @@ from lb_runner.services.result_persister import ResultPersister
 from lb_runner.engine.stop_context import should_stop, stop_context
 from lb_runner.engine.stop_token import StopToken
 from lb_runner.engine.metrics import MetricManager
+from lb_runner.engine.execution import sleep_with_stop_checks
 
 logger = logging.getLogger(__name__)
+
+
+class RunnerRegistryLike(Protocol):
+    """Minimal registry contract required by LocalRunner."""
+
+    def get(self, name: str) -> Any:
+        """Return the workload plugin registered under ``name``."""
+
+    def create_generator(
+        self, plugin_name: str, options: Dict[str, Any] | None = None
+    ) -> Any:
+        """Create a workload generator instance."""
+
+    def create_collectors(self, config: BenchmarkConfig) -> list[Any]:
+        """Create metric collectors for the benchmark config."""
 
 
 class LocalRunner:
@@ -41,7 +57,7 @@ class LocalRunner:
     def __init__(
         self,
         config: BenchmarkConfig,
-        registry: PluginRegistry | RunnerRegistry,
+        registry: PluginRegistry | RunnerRegistryLike,
         progress_callback: Optional[Callable[[RunEvent], None]] = None,
         host_name: str | None = None,
         stop_token: StopToken | None = None,
@@ -97,12 +113,10 @@ class LocalRunner:
 
     @staticmethod
     def _resolve_registry(
-        registry: PluginRegistry | RunnerRegistry,
+        registry: PluginRegistry | RunnerRegistryLike,
         collector_registry: CollectorRegistry | None,
-    ) -> RunnerRegistry | Any:
-        if hasattr(registry, "create_collectors") and hasattr(
-            registry, "create_generator"
-        ):
+    ) -> RunnerRegistryLike:
+        if not isinstance(registry, PluginRegistry):
             return registry
         collectors = collector_registry or CollectorRegistry(builtin_collectors())
         return RunnerRegistry(registry, collectors)
@@ -166,7 +180,12 @@ class LocalRunner:
                     logger.info(
                         "Cooldown period: %s seconds", self.config.cooldown_seconds
                     )
-                    time.sleep(self.config.cooldown_seconds)
+                    if not sleep_with_stop_checks(
+                        self.config.cooldown_seconds,
+                        self._stop_token,
+                        interval_seconds=0.1,
+                    ):
+                        break
 
                 if should_stop(self._stop_token):
                     break

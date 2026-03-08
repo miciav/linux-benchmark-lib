@@ -6,7 +6,7 @@ import logging
 from typing import IO, Callable
 
 from lb_controller.api import ControllerState
-from lb_app.services.run_types import _RemoteSession
+from lb_app.services.run_types import StopAnnouncer, _RemoteSession
 from lb_app.ui_interfaces import DashboardHandle, UIAdapter
 
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ def announce_stop_factory(
     session: _RemoteSession,
     ui_adapter: UIAdapter | None,
     hint_factory: Callable[[str], tuple[str, str]] = controller_stop_hint,
-) -> Callable[[str], None]:
+) -> StopAnnouncer:
     """Create a stop announcer that logs to UI/dashboard."""
     stop_announced = {"value": False}
 

@@ -136,9 +136,6 @@ class RunJournal:
     def save(self, path: Path) -> None:
         """Persist journal to disk."""
         data = asdict(self)
-        # Ensure path exists
-        if isinstance(path, str):
-            path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         serialized = data.copy()
@@ -213,6 +210,9 @@ class LogSink:
             "done": RunStatus.COMPLETED,
             "failed": RunStatus.FAILED,
             "skipped": RunStatus.SKIPPED,
+            "stopped": RunStatus.SKIPPED,
+            "cancelled": RunStatus.SKIPPED,
+            "unreachable": RunStatus.FAILED,
         }
         mapped = status_map.get(event.status.lower(), RunStatus.RUNNING)
         self.journal.update_task(
@@ -243,13 +243,18 @@ def _config_dump(config: Any) -> Dict[str, Any]:
     """Return a JSON-friendly dump of the config."""
     try:
         if hasattr(config, "model_dump"):
-            return config.model_dump(mode="json")
+            dumped = config.model_dump(mode="json")
+            if isinstance(dumped, dict):
+                return dumped
     except Exception:
         pass
     try:
-        return json.loads(json.dumps(config, default=str))
+        parsed = json.loads(json.dumps(config, default=str))
     except Exception:
         return {}
+    if isinstance(parsed, dict):
+        return parsed
+    return {}
 
 
 def _config_hash(cfg_dump: Dict[str, Any]) -> str:

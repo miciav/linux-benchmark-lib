@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+import importlib
 import sys
 from typing import Any
 
-try:
-    from rapidfuzz import fuzz as _fuzz
-    from rapidfuzz import process as _process
+_fuzz: Any | None = None
+_process: Any | None = None
 
+try:
+    _fuzz = importlib.import_module("rapidfuzz.fuzz")
+    _process = importlib.import_module("rapidfuzz.process")
     _HAS_RAPIDFUZZ = True
 except Exception:  # pragma: no cover - optional dependency
-    _fuzz = None
-    _process = None
     _HAS_RAPIDFUZZ = False
 
 
@@ -27,6 +28,6 @@ def has_fuzzy_search() -> bool:
 
 
 def fuzzy_matcher() -> tuple[Any, Any] | None:
-    if not _HAS_RAPIDFUZZ:
+    if not _HAS_RAPIDFUZZ or _process is None or _fuzz is None:
         return None
     return _process, _fuzz.WRatio

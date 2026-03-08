@@ -31,7 +31,7 @@ def aggregate_psutil(df: pd.DataFrame | None) -> Dict[str, float]:
         summary["memory_usage_percent_avg"] = df["memory_usage"].mean()
         summary["memory_usage_percent_max"] = df["memory_usage"].max()
 
-    if "disk_read_bytes" in df.columns and len(df) > 0:
+    if {"disk_read_bytes", "disk_write_bytes"}.issubset(df.columns) and len(df) > 0:
         time_diff = (df.index[-1] - df.index[0]).total_seconds() if len(df) > 1 else 1
         if time_diff <= 0:
             time_diff = 1
@@ -42,7 +42,7 @@ def aggregate_psutil(df: pd.DataFrame | None) -> Dict[str, float]:
         summary["disk_read_mbps_avg"] = (read_diff / time_diff) / (1024 * 1024)
         summary["disk_write_mbps_avg"] = (write_diff / time_diff) / (1024 * 1024)
 
-    if "net_bytes_sent" in df.columns and len(df) > 0:
+    if {"net_bytes_sent", "net_bytes_recv"}.issubset(df.columns) and len(df) > 0:
         time_diff = (df.index[-1] - df.index[0]).total_seconds() if len(df) > 1 else 1
         if time_diff <= 0:
             time_diff = 1

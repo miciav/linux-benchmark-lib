@@ -11,6 +11,7 @@ import threading
 import time
 import logging
 from pathlib import Path
+from types import TracebackType
 import pandas as pd
 
 from lb_common.api import MetricCollectionError
@@ -215,11 +216,16 @@ class BaseCollector(ABC):
 
         return stats
 
-    def __enter__(self):
+    def __enter__(self) -> "BaseCollector":
         """Context manager entry."""
         self.start()
         return self
 
-    def __exit__(self, *_args):
+    def __exit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _tb: TracebackType | None,
+    ) -> None:
         """Context manager exit."""
         self.stop()

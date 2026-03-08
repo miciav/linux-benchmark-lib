@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
 from typing import IO, Any, Sequence
 
@@ -107,7 +108,11 @@ class _NoOpProgressHandle(ProgressHandle):
 
 class _NoOpDashboardHandle(DashboardHandle):
     def live(self) -> AbstractContextManager[None]:
-        return contextmanager(lambda: (yield))()
+        @contextmanager
+        def _live() -> Iterator[None]:
+            yield None
+
+        return _live()
 
     def add_log(self, line: str) -> None:
         pass

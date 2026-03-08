@@ -1,8 +1,18 @@
-"""Unit tests for stop protocol logic."""
+"""Unit tests for stop protocol logic and stop-state journaling."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from lb_controller.api import (
+    BenchmarkConfig,
+    LogSink,
+    RemoteHostConfig,
+    RunEvent,
+    RunJournal,
+    RunStatus,
+    WorkloadConfig,
+)
 from lb_controller.engine.stops import StopState
 from lb_controller.models.types import ExecutionResult
 from lb_controller.engine.stop_logic import handle_stop_protocol
@@ -31,6 +41,13 @@ def session():
     sess.coordinator = MagicMock()
     sess.coordinator.state = StopState.IDLE
     return sess
+
+
+def _journal_for_stop_events() -> RunJournal:
+    cfg = BenchmarkConfig()
+    cfg.workloads["stress_ng"] = WorkloadConfig(plugin="stress_ng")
+    cfg.remote_hosts = [RemoteHostConfig(name="host1", address="1.2.3.4")]
+    return RunJournal.initialize("run-1", cfg, ["stress_ng"])
 
 
 def test_handle_stop_protocol_success(services, session, mock_executor):
@@ -110,3 +127,23 @@ def test_handle_stop_protocol_playbook_failure(services, session, mock_executor)
     # It should still proceed to wait
     assert result is True
     log_fn.assert_any_call("Failed to send stop signal (playbook failure).")
+
+
+def test_log_sink_maps_stopped_event_to_terminal_state(tmp_path: Path) -> None:
+    journal = _journal_for_stop_events()
+    sink = LogSink(journal, tmp_path / "run_journal.json")
+
+    sink.emit(
+        RunEvent(
+            run_id="run-1",
+            host="host1",
+            workload="stress_ng",
+            repetition=1,
+            total_repetitions=1,
+            status="stopped",
+        )
+    )
+
+    task = journal.get_task("host1", "stress_ng", 1)
+    assert task is not None
+    assert task.status == RunStatus.SKIPPED

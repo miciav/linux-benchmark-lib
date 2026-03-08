@@ -14,6 +14,7 @@ import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List
+from typing import cast
 
 try:
     from ansible.plugins.callback import CallbackBase
@@ -40,6 +41,11 @@ def _extract_lb_event(text: str) -> Dict[str, Any] | None:
     return _parse_json_candidates(raw)
 
 
+def _debug_enabled() -> bool:
+    """Return whether LB_EVENT callback diagnostics are enabled."""
+    return os.getenv("LB_EVENT_DEBUG", "0").lower() in ("1", "true", "yes")
+
+
 class CallbackModule(CallbackBase):
     """
     Write LB_EVENT payloads to a JSONL file for consumption by the controller.
@@ -56,9 +62,7 @@ class CallbackModule(CallbackBase):
         self.log_path = Path(log_path).expanduser()
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._task_start_times: Dict[str, float] = {}
-        # Debug mode: write diagnostic info to separate file
-        # Temporarily enabled by default for diagnostics
-        self._debug = os.getenv("LB_EVENT_DEBUG", "1").lower() in ("1", "true", "yes")
+        self._debug = _debug_enabled()
         self._debug_path = (
             self.log_path.parent / "lb_events.debug.log" if self._debug else None
         )
@@ -68,21 +72,23 @@ class CallbackModule(CallbackBase):
                 f"log_path={self.log_path}\n"
             )
 
-    def v2_runner_on_ok(self, result, **kwargs):  # type: ignore[override]
+    def v2_runner_on_ok(self, result: Any, **kwargs: Any) -> None:
         self._handle_result(result, status_override=None)
 
-    def v2_runner_on_failed(self, result, **kwargs):  # type: ignore[override]
+    def v2_runner_on_failed(self, result: Any, **kwargs: Any) -> None:
         self._handle_result(result, status_override="failed")
 
-    def v2_runner_on_unreachable(self, result, **kwargs):  # type: ignore[override]
+    def v2_runner_on_unreachable(self, result: Any, **kwargs: Any) -> None:
         self._handle_result(result, status_override="unreachable")
 
-    def v2_runner_on_skipped(self, result, **kwargs):  # type: ignore[override]
+    def v2_runner_on_skipped(self, result: Any, **kwargs: Any) -> None:
         self._handle_result(result, status_override="skipped")
 
     def v2_playbook_on_task_start(
-        self, task, is_conditional: bool = False
-    ):  # type: ignore[override]
+        self,
+        task: Any,
+        is_conditional: bool = False,
+    ) -> None:
         _ = is_conditional
         task_id = getattr(task, "_uuid", None)
         if task_id is None:
@@ -203,14 +209,15 @@ def _parse_json_candidates(raw: str) -> Dict[str, Any] | None:
     )
     for candidate in candidates:
         try:
-            return json.loads(candidate)
+            return cast(Dict[str, Any], json.loads(candidate))
         except Exception:
             continue
     return None
 
 
 def _host_name(result: Any) -> str:
-    return getattr(result._host, "get_name", lambda: "")()  # type: ignore[attr-defined]
+    host = getattr(result, "_host", None)
+    return getattr(host, "get_name", lambda: "")()
 
 
 def _task_name(result: Any) -> str:

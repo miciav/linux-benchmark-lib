@@ -94,7 +94,14 @@ class RepetitionExecutor:
                 raise StopRequested("Stopped by user")
 
             try:
-                prepare_generator(generator, self.context.config.warmup_seconds, logger)
+                prepare_generator(
+                    generator,
+                    self.context.config.warmup_seconds,
+                    logger,
+                    stop_token=self.context.stop_token,
+                )
+            except StopRequested:
+                raise
             except Exception as exc:
                 raise WorkloadError(
                     "Generator setup failed",
@@ -130,6 +137,7 @@ class RepetitionExecutor:
                     test_name,
                     repetition,
                     logger=logger,
+                    stop_token=self.context.stop_token,
                 )
             except StopRequested:
                 raise

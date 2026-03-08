@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence, cast
 
 from lb_app.interfaces import UIHooks, RunRequest
 from lb_app.services.config_service import ConfigService
@@ -16,11 +16,14 @@ from lb_controller.api import (
     BenchmarkConfig,
     ConnectivityService,
     RemoteHostConfig,
+    RunCatalogService,
+    RunInfo,
     RunJournal,
     WorkloadConfig,
 )
 from lb_app.services.run_service import RunService
 from lb_app.services.run_service import RunResult
+from lb_app.services.run_types import OutputCallback
 from lb_common.api import RemoteHostSpec, configure_logging
 from lb_provisioner.api import (
     ProvisioningService,
@@ -52,15 +55,18 @@ class ApplicationClient:
         config.save(path)
         self._config_service.write_saved_config_path(path)
 
-    def list_runs(self, config: BenchmarkConfig) -> Iterable[RunJournal]:
-        return RunJournal.list_runs(config.output_dir)
+    def list_runs(self, config: BenchmarkConfig) -> Iterable[RunInfo]:
+        return cast(
+            Iterable[RunInfo],
+            RunCatalogService(output_dir=config.output_dir).list_runs(),
+        )
 
     def get_run_plan(
         self,
         config: BenchmarkConfig,
         tests: Sequence[str],
         execution_mode: str = "remote",
-    ):
+    ) -> list[dict[str, Any]]:
         platform_cfg, _, _ = self._config_service.load_platform_config()
         return self._run_service.get_run_plan(
             config,
@@ -77,7 +83,7 @@ class ApplicationClient:
         *,
         docker_engine: str | None = None,
         resume: str | None = None,
-    ):
+    ) -> tuple[BenchmarkConfig, ProvisioningResult]:
         """Provision nodes according to execution mode.
 
         Returns updated config and provisioner result.
@@ -308,7 +314,7 @@ class ApplicationClient:
     @staticmethod
     def _make_output_callback(
         request: RunRequest, hooks: UIHooks
-    ) -> Callable[[str, str], None] | None:
+    ) -> OutputCallback | None:
         if request.ui_adapter is not None:
             return None
 

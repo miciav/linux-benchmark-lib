@@ -8,8 +8,18 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from enum import Enum
-from types import FrameType
-from typing import Any
+from types import FrameType, TracebackType
+
+SignalHandler = int | Callable[[int, FrameType | None], object]
+
+
+def _as_callable_handler(
+    handler: SignalHandler | None,
+) -> Callable[[int, FrameType | None], object] | None:
+    """Return the previous signal handler when it is callable."""
+    if callable(handler):
+        return handler
+    return None
 
 
 class RunInterruptState(str, Enum):
@@ -82,29 +92,35 @@ class SigintDoublePressHandler(AbstractContextManager["SigintDoublePressHandler"
         self._run_active = run_active
         self._on_first = on_first_sigint
         self._on_confirmed = on_confirmed_sigint
-        self._prev_handler: Any = None
+        self._prev_handler: SignalHandler | None = None
 
     def __enter__(self) -> "SigintDoublePressHandler":
         if threading.current_thread() is not threading.main_thread():
             return self
         self._prev_handler = signal.getsignal(signal.SIGINT)
-        signal.signal(signal.SIGINT, self._handle_sigint)  # type: ignore[arg-type]
+        signal.signal(signal.SIGINT, self._handle_sigint)
         return self
 
-    def __exit__(self, _exc_type, _exc, _tb) -> None:
+    def __exit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _tb: TracebackType | None,
+    ) -> None:
         if self._prev_handler is not None:
-            signal.signal(signal.SIGINT, self._prev_handler)  # type: ignore[arg-type]
+            signal.signal(signal.SIGINT, self._prev_handler)
         self._sm.mark_finished()
 
     def _delegate(self, signum: int, frame: FrameType | None) -> None:
         prev = self._prev_handler
-        if prev in (signal.SIG_IGN, None):
+        if prev is None or prev == signal.SIG_IGN:
             return
         if prev == signal.SIG_DFL:
             signal.default_int_handler(signum, frame)
-            return
-        if callable(prev):
-            prev(signum, frame)
+        callable_handler = _as_callable_handler(prev)
+        if callable_handler is None:
+            signal.default_int_handler(signum, frame)
+        callable_handler(signum, frame)
 
     def _handle_sigint(self, signum: int, frame: FrameType | None) -> None:
         decision = self._sm.on_sigint(run_active=self._run_active())

@@ -20,7 +20,7 @@ import tarfile
 import tempfile
 import time
 from urllib.parse import urlparse
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, cast
 
 from pydantic import Field
 
@@ -224,10 +224,14 @@ def _load_geekbench_payload(json_path: Path) -> dict[str, Any] | None:
     try:
         import pandas as pd
 
-        return pd.read_json(json_path, typ="series").to_dict()  # type: ignore[arg-type]
+        payload = pd.read_json(json_path, typ="series").to_dict()
+        return {str(key): value for key, value in payload.items()}
     except Exception:
         try:
-            return json.loads(json_path.read_text())
+            payload = json.loads(json_path.read_text())
+            if not isinstance(payload, dict):
+                return None
+            return {str(key): value for key, value in payload.items()}
         except Exception:
             return None
 
@@ -497,6 +501,9 @@ class GeekbenchGenerator(CommandGenerator):
             config,
             command_builder=self._command_builder,
         )
+        self.config: GeekbenchConfig = config
+        self._result: dict[str, Any] | None = None
+        self._process: subprocess.Popen[str] | None = None
         self._download_ready: bool = False
         self._download_error: Optional[str] = None
         self._export_supported: bool = True
@@ -531,6 +538,7 @@ class GeekbenchGenerator(CommandGenerator):
         return True
 
     def _build_command(self) -> list[str]:
+        assert self._command_builder is not None
         return self._command_builder.build(self.config).cmd
 
     def _popen_kwargs(self) -> dict[str, Any]:
@@ -581,7 +589,8 @@ class GeekbenchGenerator(CommandGenerator):
     def _run_command(self) -> None:
         """Download and execute Geekbench."""
         if not self._validate_environment():
-            self._result = {"error": "Environment validation failed"}
+            failure: dict[str, Any] = {"error": "Environment validation failed"}
+            self._result = failure
             self._is_running = False
             return
 
@@ -597,7 +606,8 @@ class GeekbenchGenerator(CommandGenerator):
             self._run_with_export_fallback()
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Geekbench execution error: %s", exc)
-            self._result = {"error": str(exc)}
+            failure: dict[str, Any] = {"error": str(exc)}
+            self._result = failure
             self._download_error = str(exc)
         return archive_path, extract_dir
 
@@ -655,7 +665,7 @@ class GeekbenchGenerator(CommandGenerator):
     def _should_retry_without_export(self) -> tuple[bool, Optional[int]]:
         if not self._use_export_flag:
             return False, None
-        first_result = self._result if isinstance(self._result, dict) else {}
+        first_result: dict[str, Any] = self._result if isinstance(self._result, dict) else {}
         export_failed = bool(self._export_path and not self._export_path.exists())
         stderr_value = first_result.get("stderr") or ""
         stderr_lower = stderr_value.lower() if isinstance(stderr_value, str) else ""
@@ -763,7 +773,7 @@ class GeekbenchPlugin(SimpleWorkloadPlugin):
         if parsing fails.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
-        parser = GeekbenchResultParser(output_dir, self.config_cls().version)
+        parser = GeekbenchResultParser(output_dir, GeekbenchConfig().version)
         summary_rows, subtest_rows = parser.collect_rows(
             results,
             run_id,

@@ -68,8 +68,7 @@ def summarize_system_info(path: Path) -> str | None:
     cpu_part = format_cpu_summary(data)
     mem_part = format_memory_summary(data)
     disk_part = format_disk_summary(data)
-    parts = [os_part, cpu_part, mem_part, disk_part]
-    parts = [part for part in parts if part]
+    parts = [part for part in (os_part, cpu_part, mem_part, disk_part) if part]
     return " | ".join(parts) if parts else None
 
 

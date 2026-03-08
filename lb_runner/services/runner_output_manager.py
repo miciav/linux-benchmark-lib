@@ -58,7 +58,7 @@ class RunnerOutputManager:
     def process_results(
         self,
         *,
-        plugin,
+        plugin: Any,
         results: list[dict[str, Any]],
         target_root: Path,
         test_name: str,

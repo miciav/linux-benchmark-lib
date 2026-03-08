@@ -13,7 +13,7 @@ class FilePicker(QWidget):
 
     def __init__(
         self,
-        parent: object | None = None,
+        parent: QWidget | None = None,
         *,
         placeholder: str = "",
         dialog_title: str = "Select file",

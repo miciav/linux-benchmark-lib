@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Sequence, cast, get_args
 
 from lb_app.api import AnalyticsService, AnalyticsRequest, AnalyticsKind, RunInfo
 
@@ -50,4 +50,4 @@ class AnalyticsServiceWrapper:
 
     def get_available_kinds(self) -> list[AnalyticsKind]:
         """Get list of available analytics kinds."""
-        return list(AnalyticsKind)
+        return [cast(AnalyticsKind, kind) for kind in get_args(AnalyticsKind)]

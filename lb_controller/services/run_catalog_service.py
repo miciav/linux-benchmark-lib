@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any, Dict, Iterable, List, Optional, Set, cast
 
 from lb_common.api import RunInfo
 
@@ -88,16 +88,19 @@ class RunCatalogService:
     def _existing_or_none(root: Optional[Path]) -> Optional[Path]:
         if root and root.exists():
             return root
-        return root
+        return None
 
     @staticmethod
     def _load_journal(journal_path: Path) -> Dict[str, Any]:
         if not journal_path.exists():
             return {}
         try:
-            return json.loads(journal_path.read_text())
+            parsed = json.loads(journal_path.read_text())
         except Exception:
             return {}
+        if isinstance(parsed, dict):
+            return cast(Dict[str, Any], parsed)
+        return {}
 
     @staticmethod
     def _extract_created_at(journal_data: Dict[str, Any]) -> Optional[datetime]:

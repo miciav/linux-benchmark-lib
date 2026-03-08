@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
-from typing import Any
+from typing import Any, cast
 
 from lb_controller.api import BenchmarkConfig, PlatformConfig
 from lb_plugins.api import PluginRegistry, WorkloadIntensity
@@ -51,7 +51,7 @@ def build_plan_item(
     return item
 
 
-def safe_get_plugin(registry: PluginRegistry, plugin_name: str):
+def safe_get_plugin(registry: PluginRegistry, plugin_name: str) -> Any | None:
     """Return plugin from registry or None on error."""
     try:
         return registry.get(plugin_name)
@@ -89,7 +89,7 @@ def format_plan_details(config_obj: Any | None) -> str:
 def config_to_dict(config_obj: Any) -> dict[str, Any]:
     """Convert config object to a dictionary when possible."""
     if isinstance(config_obj, dict):
-        return config_obj
+        return cast(dict[str, Any], config_obj)
     try:
         from pydantic import BaseModel
 
@@ -98,7 +98,7 @@ def config_to_dict(config_obj: Any) -> dict[str, Any]:
     except Exception:
         pass
     try:
-        if is_dataclass(config_obj):
+        if not isinstance(config_obj, type) and is_dataclass(config_obj):
             return asdict(config_obj)
     except Exception:
         pass

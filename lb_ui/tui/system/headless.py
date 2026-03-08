@@ -40,7 +40,7 @@ class HeadlessUI(UI):
     next_form_response: str = "default"
     next_confirm_response: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.picker = _HeadlessPicker(self)
         self.hierarchical_picker = _HeadlessHierarchicalPicker(self)
         self.tables = _HeadlessTablePresenter(self)

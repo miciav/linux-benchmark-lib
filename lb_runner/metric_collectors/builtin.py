@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import importlib
 import logging
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, cast
 
+from lb_runner.metric_collectors._base_collector import BaseCollector
 from lb_runner.metric_collectors.registry import CollectorPlugin
 from lb_runner.models.config import BenchmarkConfig
 
@@ -37,21 +38,27 @@ CLI_AGGREGATOR, _ = _safe_import(
 )
 
 
-def _create_psutil(config: BenchmarkConfig) -> PSUtilCollector:
+def _create_psutil(config: BenchmarkConfig) -> BaseCollector:
     if PSUtilCollector is None:
         raise RuntimeError(f"PSUtilCollector unavailable: {PSUTIL_IMPORT_ERROR}")
-    return PSUtilCollector(
-        interval_seconds=config.collectors.psutil_interval
-        or config.metrics_interval_seconds
+    return cast(
+        BaseCollector,
+        PSUtilCollector(
+            interval_seconds=config.collectors.psutil_interval
+            or config.metrics_interval_seconds
+        ),
     )
 
 
-def _create_cli(config: BenchmarkConfig) -> CLICollector:
+def _create_cli(config: BenchmarkConfig) -> BaseCollector:
     if CLICollector is None:
         raise RuntimeError(f"CLICollector unavailable: {CLI_IMPORT_ERROR}")
-    return CLICollector(
-        interval_seconds=config.metrics_interval_seconds,
-        commands=config.collectors.cli_commands,
+    return cast(
+        BaseCollector,
+        CLICollector(
+            interval_seconds=config.metrics_interval_seconds,
+            commands=config.collectors.cli_commands,
+        ),
     )
 
 

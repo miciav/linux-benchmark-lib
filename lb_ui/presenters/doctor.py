@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import List
 from lb_app.api import DoctorReport
+from lb_ui.tui.core.protocols import UI
 from lb_ui.tui.system.models import TableModel
 
 
@@ -22,7 +23,7 @@ def build_doctor_tables(report: DoctorReport) -> List[TableModel]:
     return tables
 
 
-def render_doctor_report(ui, report: DoctorReport) -> bool:
+def render_doctor_report(ui: UI, report: DoctorReport) -> bool:
     """
     Render a doctor report to the provided UI.
 

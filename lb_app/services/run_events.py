@@ -7,10 +7,16 @@ import os
 import threading
 import time
 from pathlib import Path
+from typing import cast
 from typing import Any, Callable
 
-# Debug logging for event tailer diagnostics
-_DEBUG = os.getenv("LB_EVENT_DEBUG", "1").lower() in ("1", "true", "yes")
+
+def _debug_enabled() -> bool:
+    """Return whether LB_EVENT sidecar debug logging is enabled."""
+    return os.getenv("LB_EVENT_DEBUG", "0").lower() in ("1", "true", "yes")
+
+
+_DEBUG = _debug_enabled()
 
 
 class JsonEventTailer:
@@ -79,7 +85,7 @@ class JsonEventTailer:
 
     def _parse_json(self, line: str, debug_path: Path | None) -> dict[str, Any] | None:
         try:
-            return json.loads(line)
+            return cast(dict[str, Any], json.loads(line))
         except Exception:
             self._write_debug(debug_path, f"JSON parse error: {line[:100]!r}")
             return None

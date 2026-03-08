@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 
 import pandas as pd
 from pydantic import Field
@@ -142,8 +142,10 @@ class DDGenerator(ProcessCommandGenerator):
         """
         self._command_builder = _DDCommandBuilder()
         super().__init__(name, config, command_builder=self._command_builder)
+        self.config: DDConfig = config
 
     def _build_command(self) -> List[str]:
+        assert self._command_builder is not None
         return self._command_builder.build(self.config).cmd
 
     def _popen_kwargs(self) -> dict[str, Any]:

@@ -9,7 +9,7 @@ import logging
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import pandas as pd
 from pydantic import Field
@@ -72,6 +72,7 @@ class FIOGenerator(CommandGenerator):
             name: Name of the generator
         """
         super().__init__(name, config)
+        self.config: FIOConfig = config
         self._debug_enabled = bool(config.debug)
         self._setup_debug_logging()
 
@@ -157,7 +158,7 @@ class FIOGenerator(CommandGenerator):
             return False
 
     def _timeout_seconds(self) -> Optional[int]:
-        return self.config.runtime + self.config.timeout_buffer
+        return int(self.config.runtime) + int(self.config.timeout_buffer)
 
     def _parse_json_output(self, output: str) -> dict[str, Any]:
         """

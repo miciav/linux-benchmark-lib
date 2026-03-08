@@ -14,7 +14,13 @@ from lb_app.services.run_output import (
     _extract_lb_event_data,
     format_bullet_line,
 )
-from lb_app.services.run_types import RunContext, _EventDedupe, _RemoteSession
+from lb_app.services.run_types import (
+    EventIngestCallback,
+    OutputCallback,
+    RunContext,
+    _EventDedupe,
+    _RemoteSession,
+)
 from lb_app.ui_interfaces import DashboardHandle
 from lb_controller.api import RunEvent
 
@@ -22,15 +28,15 @@ from lb_controller.api import RunEvent
 def pipeline_output_callback(
     dashboard: DashboardHandle | None,
     formatter: AnsibleOutputFormatter | None,
-    output_callback: Callable[[str, str], None],
-) -> Callable[[str, str], None]:
+    output_callback: OutputCallback,
+) -> OutputCallback:
     """Fan-out formatter output to dashboard when available."""
     if not dashboard or output_callback is None:
         return output_callback
 
     last_refresh = {"ts": 0.0}
 
-    def _dashboard_callback(text: str, end: str = ""):
+    def _dashboard_callback(text: str, end: str = "") -> None:
         _emit_pipeline_output(text, end, formatter, output_callback, dashboard)
         _maybe_refresh_dashboard(dashboard, last_refresh)
 
@@ -42,7 +48,7 @@ def make_ingest_event(
     dashboard: DashboardHandle | None,
     controller_ref: dict[str, Any],
     dedupe: _EventDedupe,
-) -> Callable[[RunEvent, str], None]:
+) -> EventIngestCallback:
     """Return an ingest function that updates journal, controller, and dashboard."""
 
     def _ingest(event: RunEvent, source: str = "unknown") -> None:
@@ -105,7 +111,7 @@ def event_from_payload_data(
 def make_progress_handler(
     session: _RemoteSession,
     context: RunContext,
-    ingest_event: Callable[[RunEvent, str], None],
+    ingest_event: EventIngestCallback,
     progress_token: str,
 ) -> Callable[[str], None]:
     """Return a handler that converts stdout markers into RunEvents."""
@@ -136,10 +142,10 @@ def make_progress_handler(
 
 def make_output_tee(
     session: _RemoteSession,
-    downstream: Callable[[str, str], None] | None,
+    downstream: OutputCallback | None,
     progress_handler: Callable[[str], None],
     timing_handler: Callable[[str], None] | None = None,
-) -> Callable[[str, str], None]:
+) -> OutputCallback:
     """Return an output callback that logs progress/timing and tees downstream."""
 
     def _tee_output(text: str, end: str = "") -> None:
@@ -154,7 +160,7 @@ def make_output_tee(
 def maybe_start_event_tailer(
     controller: Any,
     event_from_payload: Callable[[Dict[str, Any]], RunEvent | None],
-    ingest_event: Callable[[RunEvent, str], None],
+    ingest_event: EventIngestCallback,
     formatter: AnsibleOutputFormatter | None,
 ) -> JsonEventTailer | None:
     """Start a callback tailer when the controller provides an event log path."""
@@ -203,7 +209,7 @@ def _emit_pipeline_output(
     text: str,
     end: str,
     formatter: AnsibleOutputFormatter | None,
-    output_callback: Callable[[str, str], None],
+    output_callback: OutputCallback,
     dashboard: DashboardHandle,
 ) -> None:
     if formatter and output_callback == formatter.process:
@@ -242,7 +248,7 @@ def _emit_progress_lines(
 
 
 def _emit_downstream(
-    downstream: Callable[[str, str], None] | None,
+    downstream: OutputCallback | None,
     text: str,
     end: str,
 ) -> None:

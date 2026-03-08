@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 import socket
 import subprocess
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import ParseResult, urlparse, urlunparse
 
 from .config import DfaasConfig
 from .context import ExecutionContext
@@ -164,7 +164,7 @@ class DfaasGenerator(BaseGenerator):
         try:
             # doesn't even have to be reachable
             s.connect(("10.255.255.255", 1))
-            ip_address = s.getsockname()[0]
+            ip_address = str(s.getsockname()[0])
         except Exception:
             ip_address = "127.0.0.1"
         finally:
@@ -185,7 +185,9 @@ class DfaasGenerator(BaseGenerator):
         replacement = self._resolve_host_address(target_name)
         return url.replace("{host.address}", replacement)
 
-    def _replace_localhost(self, parsed, url: str, target_name: str | None) -> str:
+    def _replace_localhost(
+        self, parsed: ParseResult, url: str, target_name: str | None
+    ) -> str:
         # Fallback for localhost replacement logic
         host = parsed.hostname
         if host not in {"127.0.0.1", "localhost", "0.0.0.0"}:
@@ -199,9 +201,9 @@ class DfaasGenerator(BaseGenerator):
 
     def _resolve_host_address(self, target_name: str | None = None) -> str:
         if self.config.k3s_host:
-            return self.config.k3s_host
+            return str(self.config.k3s_host)
         if self._exec_ctx.host_address:
-            return self._exec_ctx.host_address
+            return str(self._exec_ctx.host_address)
         if target_name:
             return target_name
         return self._get_local_ip()
@@ -226,8 +228,6 @@ class DfaasGenerator(BaseGenerator):
         """
         outputs: list[str] = []
         for output in self.config.k6_outputs:
-            if output is None:
-                continue
             cleaned = str(output).strip()
             if cleaned:
                 outputs.append(cleaned)

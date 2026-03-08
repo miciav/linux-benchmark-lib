@@ -12,9 +12,10 @@ from lb_ui.tui.adapters.tui_adapter import TUIAdapter
 from lb_ui.tui.system.components.dashboard import RichDashboard
 from lb_ui.tui.system.headless import HeadlessUI
 from lb_ui.tui.system.models import PickItem, SelectionNode
+from typing import Any
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     return getattr(_cli, name)
 
 

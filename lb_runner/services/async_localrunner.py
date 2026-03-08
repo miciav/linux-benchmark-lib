@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Mapping
 from lb_plugins.api import (
     create_registry,
     ensure_workloads_from_plugin_settings,
@@ -84,11 +85,11 @@ def _write_status(path: Path | None, rc: int) -> None:
     path.write_text(json.dumps(payload))
 
 
-def _maybe_daemonize(env: dict[str, str]) -> int | None:
+def _maybe_daemonize(env: Mapping[str, str]) -> int | None:
     if env.get("LB_RUN_DAEMONIZE") != "1":
         return None
     pid_path = Path(_env("LB_RUN_PID_PATH"))
-    child_env = env.copy()
+    child_env = dict(env)
     child_env.pop("LB_RUN_DAEMONIZE", None)
     proc = subprocess.Popen(
         [sys.executable, "-m", "lb_runner.services.async_localrunner"],

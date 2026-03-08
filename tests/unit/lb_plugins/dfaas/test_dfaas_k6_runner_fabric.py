@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from unittest.mock import MagicMock, patch, ANY
 
 import pytest
@@ -87,8 +88,9 @@ class TestK6RunnerFabric:
 
         # 3. Verify Execution
         expected_cmd = (
-            f"k6 run --summary-export {remote_ws}/summary.json "
-            f"{remote_ws}/script.js 2>&1 | tee {remote_ws}/k6.log"
+            "bash -lc "
+            f"'set -o pipefail; k6 run --summary-export {remote_ws}/summary.json "
+            f"{remote_ws}/script.js 2>&1 | tee {remote_ws}/k6.log'"
         )
         # out_stream is a _StreamWriter wrapper, so we use ANY
         mock_conn.run.assert_any_call(
@@ -112,6 +114,58 @@ class TestK6RunnerFabric:
         assert result.summary == {"metrics": {"http_reqs": 100}}
         assert result.config_id == "cfg1"
         assert result.metric_ids == test_metric_ids
+
+    def test_build_remote_run_command_uses_pipefail_and_quotes_paths(self, k6_runner):
+        script_path = "/tmp/k6 target/script.js"
+        summary_path = "/tmp/k6 target/summary.json"
+        log_path = "/tmp/k6 target/k6.log"
+        k6_cmd = k6_runner._build_k6_command(
+            script_path,
+            summary_path,
+            outputs=None,
+            tags=None,
+        )
+
+        command = k6_runner._build_remote_run_command(k6_cmd, log_path)
+
+        assert command.startswith("bash -lc ")
+        assert "set -o pipefail;" in command
+        assert shlex.quote(script_path) in command
+        assert shlex.quote(summary_path) in command
+        assert shlex.quote(log_path) in command
+
+    @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
+    @patch("tempfile.NamedTemporaryFile")
+    @patch("pathlib.Path.read_text")
+    @patch("os.unlink")
+    def test_execute_quotes_workspace_paths(
+        self, mock_unlink, mock_read_text, mock_tempfile, mock_conn_cls, k6_runner
+    ):
+        mock_conn = mock_conn_cls.return_value
+        mock_run_result = MagicMock()
+        mock_run_result.failed = False
+        mock_run_result.exited = 0
+        mock_conn.run.return_value = mock_run_result
+
+        mock_file = MagicMock()
+        mock_file.name = "/tmp/local_script.js"
+        mock_tempfile.return_value.__enter__.return_value = mock_file
+        mock_read_text.return_value = json.dumps({"metrics": {"http_reqs": 100}})
+
+        k6_runner.execute(
+            config_id="cfg1",
+            script="import k6...",
+            target_name="target 1",
+            run_id="run1",
+            metric_ids={"fn1": "fn_1"},
+        )
+
+        remote_ws = "/home/test/.dfaas-k6/target 1/run1/cfg1"
+        mock_conn.run.assert_any_call(
+            f"mkdir -p {shlex.quote(remote_ws)}",
+            hide=True,
+            in_stream=False,
+        )
 
     @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
     @patch("tempfile.NamedTemporaryFile")
@@ -170,6 +224,39 @@ class TestK6RunnerFabric:
         # We rely on "k6 ssh execution failed" which we added explicitly.
         mock_conn.close.assert_called()
 
+    @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
+    @patch("tempfile.NamedTemporaryFile")
+    @patch("pathlib.Path.read_text")
+    @patch("os.unlink")
+    def test_execute_quotes_workspace_with_spaces(
+        self, mock_unlink, mock_read_text, mock_tempfile, mock_conn_cls, k6_runner
+    ):
+        """Remote shell commands should quote paths containing spaces."""
+        mock_conn = mock_conn_cls.return_value
+        mock_run_result = MagicMock(failed=False, exited=0)
+        mock_conn.run.return_value = mock_run_result
+        mock_file = MagicMock()
+        mock_file.name = "/tmp/local_script.js"
+        mock_tempfile.return_value.__enter__.return_value = mock_file
+        mock_read_text.return_value = json.dumps({"metrics": {"http_reqs": 100}})
+
+        k6_runner.execute(
+            config_id="cfg1",
+            script="import k6...",
+            target_name="target 1",
+            run_id="run1",
+            metric_ids={"fn1": "fn_1"},
+        )
+
+        mkdir_call = mock_conn.run.call_args_list[0]
+        exec_call = mock_conn.run.call_args_list[1]
+
+        assert mkdir_call.args[0] == "mkdir -p '/home/test/.dfaas-k6/target 1/run1/cfg1'"
+        assert "set -o pipefail;" in exec_call.args[0]
+        assert "'/home/test/.dfaas-k6/target 1/run1/cfg1/summary.json'" in exec_call.args[0]
+        assert "'/home/test/.dfaas-k6/target 1/run1/cfg1/script.js'" in exec_call.args[0]
+        assert "'/home/test/.dfaas-k6/target 1/run1/cfg1/k6.log'" in exec_call.args[0]
+
     def test_stream_handler(self, k6_runner):
         """Test log streaming callback."""
         mock_callback = MagicMock()
@@ -181,3 +268,36 @@ class TestK6RunnerFabric:
         assert mock_callback.call_count == 2
         mock_callback.assert_any_call("k6 remote: Line 1")
         mock_callback.assert_any_call("k6 remote: Line 2")
+
+    @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
+    @patch("tempfile.NamedTemporaryFile")
+    @patch("pathlib.Path.read_text")
+    @patch("os.unlink")
+    def test_execute_quotes_remote_paths_with_spaces(
+        self, mock_unlink, mock_read_text, mock_tempfile, mock_conn_cls, k6_runner
+    ):
+        """Remote shell commands should quote workspace-derived paths safely."""
+        mock_conn = mock_conn_cls.return_value
+        mock_run_result = MagicMock()
+        mock_run_result.failed = False
+        mock_run_result.exited = 0
+        mock_conn.run.return_value = mock_run_result
+
+        mock_file = MagicMock()
+        mock_file.name = "/tmp/local_script.js"
+        mock_tempfile.return_value.__enter__.return_value = mock_file
+        mock_read_text.return_value = json.dumps({"metrics": {"http_reqs": 1}})
+
+        k6_runner.execute(
+            config_id="cfg one",
+            script="import k6...",
+            target_name="target one",
+            run_id="run one",
+            metric_ids={"fn1": "fn_1"},
+        )
+
+        mkdir_cmd = mock_conn.run.call_args_list[0].args[0]
+        exec_cmd = mock_conn.run.call_args_list[1].args[0]
+
+        assert "mkdir -p '/home/test/.dfaas-k6/target one/run one/cfg one'" == mkdir_cmd
+        assert "'/home/test/.dfaas-k6/target one/run one/cfg one/k6.log'" in exec_cmd

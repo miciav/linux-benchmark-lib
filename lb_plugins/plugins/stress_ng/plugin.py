@@ -1,7 +1,7 @@
 """Stress-ng workload generator implementation."""
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from pydantic import Field
 
@@ -58,8 +58,10 @@ class StressNGGenerator(StdoutCommandGenerator):
     def __init__(self, config: StressNGConfig, name: str = "StressNGGenerator"):
         self._command_builder = _StressNGCommandBuilder()
         super().__init__(name, config, command_builder=self._command_builder)
+        self.config: StressNGConfig = config
 
     def _build_command(self) -> List[str]:
+        assert self._command_builder is not None
         return self._command_builder.build(self.config).cmd
 
 

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Callable
+from types import TracebackType
+from typing import TYPE_CHECKING
 
 from lb_controller.api import (
     BenchmarkController,
@@ -15,7 +16,12 @@ from lb_controller.api import (
 from lb_plugins.api import apply_plugin_assets
 
 from lb_app.services.run_pipeline import maybe_start_event_tailer
-from lb_app.services.run_types import RunContext, RunResult, _RemoteSession
+from lb_app.services.run_types import (
+    OutputCallback,
+    RunContext,
+    RunResult,
+    _RemoteSession,
+)
 from lb_app.services.run_output import AnsibleOutputFormatter
 from lb_app.ui_interfaces import UIAdapter
 
@@ -44,7 +50,12 @@ class ControllerLogHandlers:
         self._handlers = [jsonl_handler, loki_handler]
         return self
 
-    def __exit__(self, _exc_type, _exc, _tb) -> None:
+    def __exit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _tb: TracebackType | None,
+    ) -> None:
         for handler in self._handlers:
             if not handler:
                 continue
@@ -66,7 +77,7 @@ class RemoteRunCoordinator:
         self,
         context: RunContext,
         run_id: str | None,
-        output_callback: Callable[[str, str], None],
+        output_callback: OutputCallback,
         formatter: AnsibleOutputFormatter | None,
         ui_adapter: UIAdapter | None,
         *,

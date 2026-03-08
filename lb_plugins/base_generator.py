@@ -227,9 +227,9 @@ class CommandGenerator(BaseGenerator):
         if self._active_timeout is not None:
             return self._active_timeout
         timeout = getattr(self.config, "timeout", None)
-        if timeout is None:
+        if not isinstance(timeout, (int, float)):
             return None
-        return timeout + int(getattr(self.config, "timeout_buffer", 0))
+        return int(timeout) + int(getattr(self.config, "timeout_buffer", 0))
 
     def _log_command(self, cmd: list[str]) -> None:
         logger.info("Running command: %s", " ".join(cmd))

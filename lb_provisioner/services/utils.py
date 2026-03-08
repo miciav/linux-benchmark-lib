@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from typing import Any
+
 from lb_provisioner.models.types import ProvisioningResult
 
 
 def cleanup_provisioned_nodes(
-    provisioning_result: ProvisioningResult, result, presenter
+    provisioning_result: ProvisioningResult, result: Any, presenter: Any
 ) -> None:
     """
     Apply cleanup policy using controller authorization.

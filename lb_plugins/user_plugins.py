@@ -94,12 +94,18 @@ def _load_toml_data(toml_path: Path) -> dict[str, Any]:
 
 def _iter_entrypoint_targets(root: Path, data: dict[str, Any]) -> Iterable[Path]:
     project = data.get("project", {})
-    yield _resolve_project_entrypoint(root, project)
-    yield _resolve_project_name(root, project)
+    project_entrypoint = _resolve_project_entrypoint(root, project)
+    if project_entrypoint is not None:
+        yield project_entrypoint
+    project_name = _resolve_project_name(root, project)
+    if project_name is not None:
+        yield project_name
 
     tool = data.get("tool", {})
     poetry = tool.get("poetry") if isinstance(tool, dict) else None
-    yield _resolve_poetry_entrypoint(root, poetry)
+    poetry_entrypoint = _resolve_poetry_entrypoint(root, poetry)
+    if poetry_entrypoint is not None:
+        yield poetry_entrypoint
 
 
 def _resolve_project_entrypoint(root: Path, project: Any) -> Optional[Path]:
@@ -382,8 +388,12 @@ def _exec_module(
     module: types.ModuleType,
     path: Path,
 ) -> bool:
+    loader = spec.loader
+    if loader is None:
+        logger.error("Error executing module %s: missing loader", path)
+        return False
     try:
-        spec.loader.exec_module(module)
+        loader.exec_module(module)
         return True
     except Exception as exc:
         logger.error("Error executing module %s: %s", path, exc)

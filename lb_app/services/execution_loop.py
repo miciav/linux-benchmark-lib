@@ -109,7 +109,7 @@ class RunExecutionLoop:
     def _drive_runner(
         self,
         runner: ControllerRunner,
-        session: _SignalContext,
+        session: _RemoteSession,
         signals: _SignalContext,
         pipeline: _EventPipeline,
         ui_adapter: UIAdapter | None = None,

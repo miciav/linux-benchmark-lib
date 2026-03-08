@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 
 class TestUIHooksAdapter:
@@ -99,3 +99,22 @@ class TestRunWorkerSignals:
         assert hasattr(signals, "event_update")
         assert hasattr(signals, "journal_update")
         assert hasattr(signals, "finished")
+
+
+class TestRunWorkerLifecycle:
+    """Tests for RunWorker thread cleanup behavior."""
+
+    def test_cleanup_thread_skips_wait_from_same_thread(self) -> None:
+        from lb_gui.workers.run_worker import RunWorker
+
+        worker = RunWorker(MagicMock(), MagicMock())
+        thread = MagicMock()
+        worker._thread = thread
+
+        with patch("lb_gui.workers.run_worker.QThread.currentThread", return_value=thread):
+            worker._cleanup_thread()
+
+        thread.quit.assert_called_once()
+        thread.wait.assert_not_called()
+        thread.deleteLater.assert_called_once()
+        assert worker._thread is None

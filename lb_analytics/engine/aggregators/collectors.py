@@ -31,23 +31,30 @@ def _update_memory_metrics(summary: Dict[str, float], df: pd.DataFrame) -> None:
 
 
 def _update_disk_metrics(summary: Dict[str, float], df: pd.DataFrame) -> None:
-    if "disk_read_bytes" not in df.columns:
-        return
     time_diff = _safe_time_diff_seconds(df.index)
-    read_diff = df["disk_read_bytes"].iloc[-1] - df["disk_read_bytes"].iloc[0]
-    write_diff = df["disk_write_bytes"].iloc[-1] - df["disk_write_bytes"].iloc[0]
-    summary["disk_read_mbps_avg"] = (read_diff / time_diff) / (1024 * 1024)
-    summary["disk_write_mbps_avg"] = (write_diff / time_diff) / (1024 * 1024)
+    if "disk_read_bytes" in df.columns:
+        read_diff = df["disk_read_bytes"].iloc[-1] - df["disk_read_bytes"].iloc[0]
+        summary["disk_read_mbps_avg"] = (read_diff / time_diff) / (1024 * 1024)
+    if "disk_write_bytes" in df.columns:
+        write_diff = df["disk_write_bytes"].iloc[-1] - df["disk_write_bytes"].iloc[0]
+        summary["disk_write_mbps_avg"] = (write_diff / time_diff) / (1024 * 1024)
+    if "disk_read_mbps_avg" not in summary and "disk_write_mbps_avg" not in summary:
+        return
 
 
 def _update_network_metrics(summary: Dict[str, float], df: pd.DataFrame) -> None:
-    if "net_bytes_sent" not in df.columns:
-        return
     time_diff = _safe_time_diff_seconds(df.index)
-    sent_diff = df["net_bytes_sent"].iloc[-1] - df["net_bytes_sent"].iloc[0]
-    recv_diff = df["net_bytes_recv"].iloc[-1] - df["net_bytes_recv"].iloc[0]
-    summary["network_sent_mbps_avg"] = (sent_diff / time_diff) / (1024 * 1024)
-    summary["network_recv_mbps_avg"] = (recv_diff / time_diff) / (1024 * 1024)
+    if "net_bytes_sent" in df.columns:
+        sent_diff = df["net_bytes_sent"].iloc[-1] - df["net_bytes_sent"].iloc[0]
+        summary["network_sent_mbps_avg"] = (sent_diff / time_diff) / (1024 * 1024)
+    if "net_bytes_recv" in df.columns:
+        recv_diff = df["net_bytes_recv"].iloc[-1] - df["net_bytes_recv"].iloc[0]
+        summary["network_recv_mbps_avg"] = (recv_diff / time_diff) / (1024 * 1024)
+    if (
+        "network_sent_mbps_avg" not in summary
+        and "network_recv_mbps_avg" not in summary
+    ):
+        return
 
 
 def aggregate_psutil(df: pd.DataFrame) -> Dict[str, float]:
@@ -55,7 +62,7 @@ def aggregate_psutil(df: pd.DataFrame) -> Dict[str, float]:
     if df.empty:
         return {}
 
-    summary = {}
+    summary: Dict[str, float] = {}
     _update_cpu_metrics(summary, df)
     _update_memory_metrics(summary, df)
     _update_disk_metrics(summary, df)
@@ -66,7 +73,7 @@ def aggregate_psutil(df: pd.DataFrame) -> Dict[str, float]:
 
 def aggregate_cli(df: pd.DataFrame) -> Dict[str, float]:
     """Aggregate CLI collector data."""
-    summary = {}
+    summary: Dict[str, float] = {}
 
     # Example: compute averages for numerical columns
     for col in df.columns:

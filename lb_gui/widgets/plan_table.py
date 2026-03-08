@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QWidget
 
 
 class PlanTable(QTableWidget):
@@ -12,7 +12,7 @@ class PlanTable(QTableWidget):
 
     HEADERS = ["Workload", "Config"]
 
-    def __init__(self, parent: object | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setColumnCount(len(self.HEADERS))
         self.setHorizontalHeaderLabels(self.HEADERS)

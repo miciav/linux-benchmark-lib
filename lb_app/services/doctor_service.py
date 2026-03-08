@@ -5,15 +5,17 @@ Service for performing environment health checks (doctor).
 import importlib
 import platform
 import shutil
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 from lb_app.services.doctor_types import DoctorCheckGroup, DoctorCheckItem, DoctorReport
 from lb_app.services.config_service import ConfigService
 from lb_controller.api import (
     BenchmarkConfig,
+    ConnectivityReport,
     ConnectivityService,
+    RemoteHostConfig,
 )
-from lb_plugins.api import create_registry
+from lb_plugins.api import PluginRegistry, create_registry
 
 
 class DoctorService:
@@ -101,7 +103,9 @@ class DoctorService:
             for tool in common_tools
         ]
 
-    def _plugin_tool_items(self, registry) -> List[Tuple[str, bool, bool]]:
+    def _plugin_tool_items(
+        self, registry: PluginRegistry
+    ) -> List[Tuple[str, bool, bool]]:
         items: List[Tuple[str, bool, bool]] = []
         for plugin in registry.available(load_entrypoints=True).values():
             if not hasattr(plugin, "get_required_local_tools"):
@@ -174,12 +178,14 @@ class DoctorService:
         cfg, _, _ = self.config_service.load_for_read(None)
         return cfg
 
-    def _check_connectivity(self, hosts, timeout_seconds: int):
+    def _check_connectivity(
+        self, hosts: list[RemoteHostConfig], timeout_seconds: int
+    ) -> ConnectivityReport:
         connectivity_service = ConnectivityService(timeout_seconds=timeout_seconds)
         return connectivity_service.check_hosts(hosts, timeout_seconds)
 
     @staticmethod
-    def _connectivity_items(report) -> List[Tuple[str, bool, bool]]:
+    def _connectivity_items(report: ConnectivityReport) -> List[Tuple[str, bool, bool]]:
         items: List[Tuple[str, bool, bool]] = []
         for result in report.results:
             label = f"{result.name} ({result.address})"
@@ -191,7 +197,9 @@ class DoctorService:
         return items
 
     @staticmethod
-    def _connectivity_messages(report, timeout_seconds: int) -> List[str]:
+    def _connectivity_messages(
+        report: ConnectivityReport, timeout_seconds: int
+    ) -> List[str]:
         messages = [
             f"Checked {report.total_count} host(s) with {timeout_seconds}s timeout"
         ]

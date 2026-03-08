@@ -182,10 +182,7 @@ def merge_plugin_assets(
     merged_assets = dict(config.plugin_assets)
     for name, user_asset in existing_assets.items():
         default_asset = merged_assets.get(name)
-        if not isinstance(user_asset, PluginAssetConfig):
-            merged_assets[name] = user_asset
-            continue
-        if not isinstance(default_asset, PluginAssetConfig):
+        if default_asset is None:
             merged_assets[name] = user_asset
             continue
 

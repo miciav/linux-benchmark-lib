@@ -109,7 +109,15 @@ class DataHandler:
             )
             return {}
         try:
-            return aggregator(df)
+            result = aggregator(df)
+            if not isinstance(result, dict):
+                logger.warning(
+                    "Aggregator for collector '%s' returned %s instead of dict; skipping.",
+                    collector_name,
+                    type(result).__name__,
+                )
+                return {}
+            return {str(key): value for key, value in result.items()}
         except Exception as exc:
             logger.error(
                 "Aggregation failed for collector '%s': %s",

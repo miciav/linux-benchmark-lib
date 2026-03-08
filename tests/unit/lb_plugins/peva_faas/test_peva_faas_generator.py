@@ -21,6 +21,7 @@ from lb_plugins.plugins.peva_faas.services.plan_builder import (
     generate_configurations,
     generate_rates_list,
 )
+from lb_plugins.plugins._faas_shared import plan_builder as shared_plan_builder
 from lb_plugins.plugins.peva_faas.config import (
     DfaasCombinationConfig,
     DfaasConfig,
@@ -81,6 +82,37 @@ def test_plan_builder_generates_deterministic_configs() -> None:
         [("b", 0)],
         [("b", 10)],
     ]
+
+
+def test_peva_faas_plan_builder_uses_shared_count_for_runtime_estimate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = DfaasConfig(
+        duration="2s",
+        iterations=3,
+        functions=[
+            DfaasFunctionConfig(name="b", method="GET", body=""),
+            DfaasFunctionConfig(name="a", method="GET", body=""),
+        ],
+        rate_strategy=LinearRateStrategy(min_rate=0, max_rate=10, step=10),
+        combinations=DfaasCombinationConfig(min_functions=1, max_functions=2),
+    )
+    builder = DfaasPlanBuilder(config)
+
+    monkeypatch.setattr(
+        shared_plan_builder,
+        "count_configurations",
+        lambda *args, **kwargs: 7,
+    )
+    monkeypatch.setattr(
+        shared_plan_builder,
+        "generate_configurations",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("runtime estimate must not materialize configs")
+        ),
+    )
+
+    assert builder.estimate_runtime_seconds() == 42
 
 
 def test_dominates_checks_per_function() -> None:
