@@ -48,7 +48,7 @@ class RichDashboard(Dashboard):
         self.event_source: str = "waiting"
         self.last_event_ts: float | None = None
         self.ui_log_file = ui_log_file
-        self.controller_state: str = "init"
+        self.controller_state: str = "starting\u2026"
         self._warning_message: str | None = None
         self._warning_expires_at: float | None = None
 
@@ -140,7 +140,7 @@ class RichDashboard(Dashboard):
         table.add_column("Workload", width=10)
         table.add_column("Intensity", width=10)
         table.add_column("Status", justify="center", width=10)
-        table.add_column("Progress", justify="center", width=10)
+        table.add_column("Progress", justify="center", width=18)
         table.add_column("Current Action", style=theme.DASHBOARD_ACTION_STYLE)
         table.add_column("Last Rep Time", justify="right", width=12)
 
@@ -150,15 +150,15 @@ class RichDashboard(Dashboard):
                 row.workload,
                 str(row.intensity),
                 dashboard_helpers.style_status(row.status),
-                row.progress,
-                row.current_action,
+                dashboard_helpers.render_progress(row.progress),
+                row.current_action or "[bright_black]\u2014[/bright_black]",
                 row.last_rep_time,
             )
 
         return Panel(
             table,
-            title=theme.panel_title(f"Run Journal (ID: {snapshot.run_id})"),
-            border_style=theme.RICH_BORDER_STYLE,
+            title=theme.panel_title(f"Run Journal \u00b7 {snapshot.run_id}"),
+            border_style=theme.RICH_BORDER_STYLE_ACTIVE,
         )
 
     def add_log(self, message: str) -> None:
