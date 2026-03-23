@@ -6,7 +6,22 @@ from lb_ui.tui.core import theme
 
 
 def style_status(status: str) -> str:
-    return theme.status_text(status)
+    return theme.status_badge(status)
+
+
+def render_progress(progress_str: str) -> str:
+    """Parse 'done/total' string and render as a Unicode progress bar."""
+    if not progress_str:
+        return "—"
+    if "/" not in progress_str:
+        return progress_str
+    try:
+        done_s, total_s = progress_str.split("/", 1)
+        done = int(done_s.strip())
+        total = int(total_s.strip())
+        return theme.progress_bar(done, total)
+    except (ValueError, AttributeError):
+        return progress_str
 
 
 def computed_journal_height(row_count: int, term_height: int) -> int:
