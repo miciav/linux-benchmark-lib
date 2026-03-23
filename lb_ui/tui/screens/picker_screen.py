@@ -187,6 +187,7 @@ class PickerScreen:
         )
 
         self._path_control = FormattedTextControl(self._render_path)
+        self._footer_control = FormattedTextControl(self._render_footer)
         self._kb = self._bindings()
 
         def right_pane() -> AnyContainer:
@@ -215,6 +216,8 @@ class PickerScreen:
                     ],
                     padding=1,
                 ),
+                Window(height=1, char="-", style="class:separator"),
+                Window(self._footer_control, height=1, style="class:footer"),
             ]
         )
 
@@ -270,6 +273,31 @@ class PickerScreen:
         if self._selection and self._selection.is_selected(item) and not is_selected:
             style = "class:checked"
         return style, f" {prefix} {item.title}{suffix}"
+
+    def _render_footer(self) -> list[tuple[str, str]]:
+        """Render context-sensitive keybinding hints."""
+        if self._show_variants:
+            raw = theme.PICKER_KEYBINDINGS_VARIANTS
+        elif self._hierarchy:
+            raw = theme.PICKER_KEYBINDINGS_HIERARCHICAL
+        elif self._multi_select:
+            raw = theme.PICKER_KEYBINDINGS_FLAT_MULTI
+        else:
+            raw = theme.PICKER_KEYBINDINGS_FLAT_SINGLE
+
+        frags: list[tuple[str, str]] = [("class:footer", "  ")]
+        for segment in raw.split("  "):
+            segment = segment.strip()
+            if not segment:
+                continue
+            if ":" in segment:
+                key, desc = segment.split(":", 1)
+                frags.append(("class:footer.key", key))
+                frags.append(("class:footer", f":{desc}"))
+            else:
+                frags.append(("class:footer", segment))
+            frags.append(("class:footer", "   "))
+        return frags
 
     def _render_variants(self) -> list[tuple[str, str]]:
         item = self._current_item()

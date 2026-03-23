@@ -1,6 +1,6 @@
 import pytest
 
-from lb_ui.tui.screens.picker_screen import HierarchyState, PickerSelectionState
+from lb_ui.tui.screens.picker_screen import HierarchyState, PickerScreen, PickerSelectionState
 from lb_ui.tui.system.models import PickItem, SelectionNode
 
 pytestmark = pytest.mark.unit_ui
@@ -46,3 +46,29 @@ def test_hierarchy_state_navigation() -> None:
     assert state.descend(leaf) is False
     assert state.ascend() is True
     assert state.breadcrumb() == "Root"
+
+
+def test_picker_screen_render_footer_flat_single() -> None:
+    items = [PickItem(id="a", title="Alpha"), PickItem(id="b", title="Beta")]
+    screen = PickerScreen(title="Test", items=items, multi_select=False)
+    footer = screen._render_footer()
+    full_text = "".join(t for _, t in footer)
+    assert "Enter" in full_text
+    assert "Esc" in full_text
+
+
+def test_picker_screen_render_footer_flat_multi() -> None:
+    items = [PickItem(id="a", title="Alpha")]
+    screen = PickerScreen(title="Test", items=items, multi_select=True)
+    footer = screen._render_footer()
+    full_text = "".join(t for _, t in footer)
+    assert "Space" in full_text
+    assert "toggle" in full_text
+
+
+def test_picker_screen_render_footer_hierarchical() -> None:
+    root = SelectionNode(id="root", label="Root", kind="root")
+    screen = PickerScreen(title="Test", root=root)
+    footer = screen._render_footer()
+    full_text = "".join(t for _, t in footer)
+    assert "back" in full_text
