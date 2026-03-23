@@ -173,13 +173,7 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
             )
             raise typer.Exit(1)
 
-        selected_kind = kind
-        if not selected_kind:
-            k_items = [PickItem(id="aggregate", title="aggregate")]
-            k_sel = ctx.ui.picker.pick_one(
-                k_items, title="Select analytics type", query_hint="aggregate"
-            )
-            selected_kind = k_sel.id if k_sel else "aggregate"
+        selected_kind = kind or "aggregate"
 
         if selected_kind != "aggregate":
             ctx.ui.present.error(f"Unsupported analytics kind: {selected_kind}")
