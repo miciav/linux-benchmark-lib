@@ -576,9 +576,7 @@ class DfaasConfigExecutor:
         message = (
             f"Cooldown timeout after {exc.waited_seconds}s (max {exc.max_seconds}s)"
         )
-        self._annotations.annotate_error(ctx.run_id, cfg_id, message)
-        ctx.failed_configs += 1
-        self._append_skipped_row(ctx, config_pairs)
+        self._record_operational_failure(ctx, config_pairs, cfg_id, message)
 
     def _handle_k6_error(
         self,
@@ -590,13 +588,12 @@ class DfaasConfigExecutor:
         logger.error("Config %s failed: k6 execution error: %s", cfg_id, exc)
         if exc.stderr:
             logger.debug("k6 stderr: %s", exc.stderr)
-        self._annotations.annotate_error(
-            ctx.run_id,
+        self._record_operational_failure(
+            ctx,
+            config_pairs,
             cfg_id,
             f"k6 execution error: {exc}",
         )
-        ctx.failed_configs += 1
-        self._append_skipped_row(ctx, config_pairs)
 
     def _handle_execution_error(
         self,
@@ -606,11 +603,21 @@ class DfaasConfigExecutor:
         exc: Exception,
     ) -> None:
         logger.error("Config %s failed: %s: %s", cfg_id, type(exc).__name__, exc)
-        self._annotations.annotate_error(
-            ctx.run_id,
+        self._record_operational_failure(
+            ctx,
+            config_pairs,
             cfg_id,
             f"{type(exc).__name__}: {exc}",
         )
+
+    def _record_operational_failure(
+        self,
+        ctx: DfaasRunContext,
+        config_pairs: list[tuple[str, int]],
+        cfg_id: str,
+        message: str,
+    ) -> None:
+        self._annotations.annotate_error(ctx.run_id, cfg_id, message)
         ctx.failed_configs += 1
         self._append_skipped_row(ctx, config_pairs)
 
