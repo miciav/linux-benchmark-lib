@@ -10,7 +10,6 @@ def style_status(status: str) -> str:
 
 
 def render_progress(progress_str: str) -> str:
-    """Parse 'done/total' string and render as a Unicode progress bar."""
     if not progress_str:
         return "—"
     if "/" not in progress_str:

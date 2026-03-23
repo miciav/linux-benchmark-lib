@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import List, Optional
 
 import typer
 
@@ -15,20 +15,11 @@ from lb_ui.wiring.dependencies import UIContext
 def _show_run_details(
     ctx: "UIContext",
     run_id: str,
-    output_root: "Path",
-    cfg: Any,
+    catalog: RunCatalogService,
 ) -> None:
-    """Display details for a single run. Shared by show command and list navigation."""
-    from lb_app.api import RunCatalogService
-
-    catalog = RunCatalogService(
-        output_dir=output_root,
-        report_dir=cfg.report_dir,
-        data_export_dir=cfg.data_export_dir,
-    )
     run = catalog.get_run(run_id)
     if not run:
-        ctx.ui.present.error(f"Run '{run_id}' not found under {output_root}")
+        ctx.ui.present.error(f"Run '{run_id}' not found")
         return
     rows = [
         ["Run ID",    run.run_id],
@@ -126,7 +117,7 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
             return
 
         if action.id == "show":
-            _show_run_details(ctx, selected.id, output_root, cfg)
+            _show_run_details(ctx, selected.id, catalog)
         elif action.id == "analyze":
             ctx.ui.present.info(f"Run: lb runs analyze {selected.id}")
 
@@ -149,7 +140,12 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
         """Show details for a single run."""
         cfg, _, _ = ctx.config_service.load_for_read(config)
         output_root = root or cfg.output_dir
-        _show_run_details(ctx, run_id, output_root, cfg)
+        catalog = RunCatalogService(
+            output_dir=output_root,
+            report_dir=cfg.report_dir,
+            data_export_dir=cfg.data_export_dir,
+        )
+        _show_run_details(ctx, run_id, catalog)
 
     @app.command("analyze")
     def analyze(
