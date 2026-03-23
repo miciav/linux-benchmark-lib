@@ -43,6 +43,7 @@ class DfaasRunContext:
     metrics_entries: list[dict[str, Any]] = field(default_factory=list)
     script_entries: list[dict[str, Any]] = field(default_factory=list)
     overloaded_configs: list[list[tuple[str, int]]] = field(default_factory=list)
+    failed_configs: int = 0
 
 
 class DfaasRunPlanner:
@@ -113,18 +114,34 @@ class DfaasRunPlanner:
         return Path.cwd() / "benchmark_results" / "dfaas"
 
     def _load_output_dir_from_generated(self) -> Path | None:
+        data = self._load_generated_config_data()
+        if not data:
+            return None
+        try:
+            output_root = Path(data.get("output_dir", "."))
+            workloads = data.get("workloads", {})
+            if not isinstance(workloads, dict):
+                logger.debug("Generated config workloads must be a mapping")
+                return None
+            workload_name = self._find_workload_name(workloads)
+            return output_root / workload_name
+        except (TypeError, KeyError) as exc:
+            logger.debug("Could not parse generated config data: %s", exc)
+            return None
+
+    def _load_generated_config_data(self) -> dict[str, Any] | None:
         cfg_path = Path("benchmark_config.generated.json")
         if not cfg_path.exists():
             return None
         try:
             data = json.loads(cfg_path.read_text())
-            output_root = Path(data.get("output_dir", "."))
-            workloads = data.get("workloads", {})
-            workload_name = self._find_workload_name(workloads)
-            return output_root / workload_name
-        except (json.JSONDecodeError, OSError, TypeError, KeyError) as exc:
+        except (json.JSONDecodeError, OSError, TypeError) as exc:
             logger.debug("Could not parse config file %s: %s", cfg_path, exc)
             return None
+        if not isinstance(data, dict):
+            logger.debug("Generated config %s must contain a mapping", cfg_path)
+            return None
+        return data
 
     @staticmethod
     def _find_workload_name(workloads: dict[str, Any]) -> str:
@@ -158,14 +175,14 @@ class DfaasRunPlanner:
     def _resolve_run_id(self) -> str:
         if self._config.run_id:
             return self._config.run_id
-        cfg_path = Path("benchmark_config.generated.json")
-        if cfg_path.exists():
-            try:
-                data = json.loads(cfg_path.read_text())
-                output_dir = Path(data.get("output_dir", "."))
-                return output_dir.parent.name
-            except (json.JSONDecodeError, OSError, TypeError) as exc:
-                logger.debug("Could not parse config for run_id: %s", exc)
+        data = self._load_generated_config_data()
+        if data:
+            output_dir = data.get("output_dir")
+            if output_dir:
+                try:
+                    return Path(output_dir).expanduser().name
+                except (OSError, TypeError, ValueError) as exc:
+                    logger.debug("Could not derive run_id from output_dir: %s", exc)
         return f"run-{int(time.time())}"
 
 
@@ -552,6 +569,7 @@ class DfaasConfigExecutor:
             f"Cooldown timeout after {exc.waited_seconds}s (max {exc.max_seconds}s)"
         )
         self._annotations.annotate_error(ctx.run_id, cfg_id, message)
+        ctx.failed_configs += 1
         self._append_skipped_row(ctx, config_pairs)
 
     def _handle_k6_error(
@@ -569,6 +587,7 @@ class DfaasConfigExecutor:
             cfg_id,
             f"k6 execution error: {exc}",
         )
+        ctx.failed_configs += 1
         self._append_skipped_row(ctx, config_pairs)
 
     def _handle_execution_error(
@@ -584,6 +603,7 @@ class DfaasConfigExecutor:
             cfg_id,
             f"{type(exc).__name__}: {exc}",
         )
+        ctx.failed_configs += 1
         self._append_skipped_row(ctx, config_pairs)
 
 
@@ -597,10 +617,12 @@ class DfaasResultWriter:
         function_names = getattr(ctx, "function_names", None)
         if not function_names:
             function_names = sorted(fn.name for fn in self._config.functions)
+        failed_configs = getattr(ctx, "failed_configs", 0)
+        success = failed_configs == 0
 
         return {
-            "returncode": 0,
-            "success": True,
+            "returncode": 0 if success else 1,
+            "success": success,
             "dfaas_functions": function_names,
             "dfaas_results": ctx.results_rows,
             "dfaas_skipped": ctx.skipped_rows,
