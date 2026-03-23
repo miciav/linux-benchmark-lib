@@ -72,3 +72,41 @@ def test_picker_screen_render_footer_hierarchical() -> None:
     footer = screen._render_footer()
     full_text = "".join(t for _, t in footer)
     assert "back" in full_text
+
+
+def test_picker_row_shows_arrow_for_item_with_variants_single_select() -> None:
+    variants = [PickItem(id="low", title="low"), PickItem(id="high", title="high")]
+    items = [
+        PickItem(id="plain", title="Plain"),
+        PickItem(id="with_var", title="WithVariants", variants=variants),
+    ]
+    screen = PickerScreen(title="Test", items=items, multi_select=False)
+    _, text = screen._render_row(items[1], is_selected=False)
+    assert "\u25b8" in text  # ▸
+
+
+def test_picker_row_no_arrow_for_plain_item_single_select() -> None:
+    items = [PickItem(id="plain", title="Plain")]
+    screen = PickerScreen(title="Test", items=items, multi_select=False)
+    _, text = screen._render_row(items[0], is_selected=False)
+    assert "\u25b8" not in text  # no ▸
+
+
+def test_picker_row_shows_arrow_for_unselected_item_with_variants_multi_select() -> None:
+    variants = [PickItem(id="low", title="low"), PickItem(id="high", title="high")]
+    items = [PickItem(id="stress", title="Stress", variants=variants)]
+    screen = PickerScreen(title="Test", items=items, multi_select=True)
+    _, text = screen._render_row(items[0], is_selected=False)
+    assert "\u25b8" in text  # ▸
+
+
+def test_picker_row_shows_variant_label_not_arrow_when_selected_with_variant() -> None:
+    variants = [PickItem(id="low", title="low"), PickItem(id="high", title="high")]
+    items = [PickItem(id="stress", title="Stress", variants=variants)]
+    screen = PickerScreen(title="Test", items=items, multi_select=True)
+    assert screen._selection is not None
+    screen._selection.toggle_item(items[0])  # selects with default variant
+    _, text = screen._render_row(items[0], is_selected=False)
+    assert "[x]" in text
+    # After selection the variant label appears, not a bare ▸ without context
+    assert "\u25b8" not in text or "low" in text or "medium" in text

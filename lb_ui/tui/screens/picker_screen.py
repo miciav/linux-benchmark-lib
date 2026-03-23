@@ -258,7 +258,8 @@ class PickerScreen:
             style = "class:disabled"
 
         if not self._multi_select:
-            return style, f"   {item.title}"
+            suffix = " \u25b8" if item.variants else ""
+            return style, f"   {item.title}{suffix}"
 
         prefix = "[ ]"
         suffix = ""
@@ -268,8 +269,9 @@ class PickerScreen:
             prefix = "[x]"
             if item.variants:
                 variant_label = self._selection.selected_variant_title(item)
-                if variant_label:
-                    suffix = f" [{variant_label}]"
+                suffix = f" [{variant_label}]" if variant_label else " \u25b8"
+        elif item.variants:
+            suffix = " \u25b8"
         if self._selection and self._selection.is_selected(item) and not is_selected:
             style = "class:checked"
         return style, f" {prefix} {item.title}{suffix}"
