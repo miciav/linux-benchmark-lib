@@ -132,6 +132,41 @@ def test_handle_execution_error_marks_failure_and_skips_row() -> None:
     annotations.annotate_error.assert_called_once()
 
 
+def test_execute_public_path_marks_final_payload_failed() -> None:
+    config = DfaasConfig(
+        functions=[DfaasFunctionConfig(name="figlet")],
+        iterations=1,
+    )
+    result_builder = MagicMock()
+    result_builder.build_skipped_row.return_value = {"skipped": True}
+    annotations = MagicMock(spec=DfaasAnnotationService)
+    executor = DfaasConfigExecutor(
+        config=config,
+        k6_runner=MagicMock(),
+        metrics_collector=MagicMock(),
+        result_builder=result_builder,
+        annotations=annotations,
+        log_manager=MagicMock(spec=DfaasLogManager),
+        duration_seconds=30,
+        outputs_provider=lambda: [],
+        tags_provider=lambda run_id: {"run_id": run_id},
+        replicas_provider=lambda names: {name: 0 for name in names},
+    )
+    ctx = _make_context(function_names=["figlet"])
+    ctx.configs = [[("figlet", 10)]]
+    executor._k6_runner.build_script.return_value = ("script", {"figlet": "fn_1"})
+    executor._perform_cooldown = MagicMock(return_value=(MagicMock(), 0))  # type: ignore[method-assign]
+    executor._run_k6_iteration = MagicMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError("boom")
+    )
+
+    executor.execute(ctx)
+    payload = DfaasResultWriter(config).build(ctx)
+
+    assert payload["success"] is False
+    assert payload["returncode"] != 0
+
+
 def test_resolve_run_id_uses_output_dir_name(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
