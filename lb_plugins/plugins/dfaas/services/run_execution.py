@@ -180,10 +180,18 @@ class DfaasRunPlanner:
             output_dir = data.get("output_dir")
             if output_dir:
                 try:
-                    return Path(output_dir).expanduser().name
+                    return self._derive_run_id_from_output_dir(
+                        Path(output_dir).expanduser()
+                    )
                 except (OSError, TypeError, ValueError) as exc:
                     logger.debug("Could not derive run_id from output_dir: %s", exc)
         return f"run-{int(time.time())}"
+
+    def _derive_run_id_from_output_dir(self, output_dir: Path) -> str:
+        """Derive the run id from a generated output directory."""
+        if output_dir.name in {self._exec_ctx.host, self._exec_ctx.host_address}:
+            return output_dir.parent.name
+        return output_dir.name
 
 
 class DfaasConfigExecutor:

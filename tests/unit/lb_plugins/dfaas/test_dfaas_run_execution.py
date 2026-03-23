@@ -167,7 +167,31 @@ def test_execute_public_path_marks_final_payload_failed() -> None:
     assert payload["returncode"] != 0
 
 
-def test_resolve_run_id_uses_output_dir_name(
+def test_resolve_run_id_uses_parent_for_host_scoped_output_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    generated_config = tmp_path / "benchmark_config.generated.json"
+    generated_config.write_text(
+        json.dumps(
+            {
+                "output_dir": str(
+                    tmp_path / "benchmark_results" / "run-2026-03-23" / "node-1"
+                ),
+                "workloads": {"dfaas": {"plugin": "dfaas"}},
+            }
+        )
+    )
+    monkeypatch.chdir(tmp_path)
+
+    config = DfaasConfig(functions=[DfaasFunctionConfig(name="figlet")])
+    planner = _make_planner(config)
+
+    run_id = planner._resolve_run_id()
+
+    assert run_id == "run-2026-03-23"
+
+
+def test_resolve_run_id_uses_output_dir_name_for_local_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     generated_config = tmp_path / "benchmark_config.generated.json"
