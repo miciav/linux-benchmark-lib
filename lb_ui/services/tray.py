@@ -38,7 +38,7 @@ def _run_tray_icon() -> None:
         # Define a simple menu
         menu = pystray.Menu(
             pystray.MenuItem("Linux Benchmark Lib", lambda: None, enabled=False),
-            pystray.MenuItem("Benchmark in corso...", lambda: None, enabled=False),
+            pystray.MenuItem("Benchmark running...", lambda: None, enabled=False),
         )
 
         icon = pystray.Icon(
