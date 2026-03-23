@@ -21,7 +21,7 @@ queries:
     enabled_if: scaphandre
 
   - name: ram_usage_function
-    query: 'avg_over_time(container_memory_usage_bytes{id=~"^/kubepods.*", container_label_io_kubernetes_container_name="{function_name}"}[{time_span}])'
+    query: 'sum(avg_over_time(container_memory_usage_bytes{id=~"^/kubepods.*", container_label_io_kubernetes_container_name="{function_name}"}[{time_span}]))'
     range: true
     step: "10s"
 

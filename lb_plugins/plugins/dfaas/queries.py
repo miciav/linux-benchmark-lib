@@ -86,21 +86,50 @@ def parse_instant_value(payload: dict[str, Any]) -> float:
     result = payload.get("data", {}).get("result", [])
     if not result:
         raise PrometheusQueryError("Empty instant query result.")
-    value = result[0].get("value")
-    if not value or len(value) < 2:
+    values = _extract_instant_values(result)
+    if not values:
         raise PrometheusQueryError("Malformed instant query result.")
-    return float(value[1])
+    return sum(values)
 
 
 def parse_range_average(payload: dict[str, Any]) -> float:
     result = payload.get("data", {}).get("result", [])
     if not result:
         raise PrometheusQueryError("Empty range query result.")
-    values = result[0].get("values", [])
-    if not values:
+    totals = _extract_range_totals(result)
+    if not totals:
         raise PrometheusQueryError("Malformed range query result.")
-    total = sum(float(item[1]) for item in values)
-    return total / len(values)
+    return sum(totals) / len(totals)
+
+
+def _extract_instant_values(result: list[dict[str, Any]]) -> list[float]:
+    values: list[float] = []
+    for series in result:
+        value = series.get("value")
+        if not value or len(value) < 2:
+            raise PrometheusQueryError("Malformed instant query result.")
+        values.append(float(value[1]))
+    return values
+
+
+def _extract_range_totals(result: list[dict[str, Any]]) -> list[float]:
+    series_samples: list[list[float]] = []
+    expected_length: int | None = None
+    for series in result:
+        raw_values = series.get("values", [])
+        if not raw_values:
+            raise PrometheusQueryError("Malformed range query result.")
+        current_values: list[float] = []
+        for item in raw_values:
+            if not item or len(item) < 2:
+                raise PrometheusQueryError("Malformed range query result.")
+            current_values.append(float(item[1]))
+        if expected_length is None:
+            expected_length = len(current_values)
+        elif len(current_values) != expected_length:
+            raise PrometheusQueryError("Malformed range query result.")
+        series_samples.append(current_values)
+    return [sum(samples) for samples in zip(*series_samples)]
 
 
 class PrometheusQueryRunner:

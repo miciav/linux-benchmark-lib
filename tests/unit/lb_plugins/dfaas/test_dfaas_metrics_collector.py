@@ -18,7 +18,6 @@ from lb_plugins.plugins.dfaas.queries import PrometheusQueryError
 
 pytestmark = [pytest.mark.unit_plugins]
 
-
 @pytest.fixture
 def queries_path(tmp_path: Path) -> Path:
     """Create a temporary queries YAML file."""
@@ -269,6 +268,77 @@ class TestGetFunctionMetrics:
             assert math.isnan(metrics.cpu)
             assert math.isnan(metrics.ram)
             assert math.isnan(metrics.power)
+
+    def test_get_function_metrics_aggregates_ram_across_multiple_series(
+        self, queries_path: Path
+    ) -> None:
+        collector = MetricsCollector(
+            prometheus_url="http://localhost:9090",
+            queries_path=queries_path,
+            duration="30s",
+            scaphandre_enabled=False,
+        )
+
+        def fake_request_json(url: str, params: dict[str, str]) -> dict[str, object]:
+            assert url.endswith("/api/v1/query")
+            if "container_cpu_usage_seconds_total" in params["query"]:
+                return {"data": {"result": [{"value": [123, "5.0"]}]}}
+            if "container_memory_usage_bytes" in params["query"]:
+                assert "sum(" in params["query"]
+                assert "my-function" in params["query"]
+                return {
+                    "data": {
+                        "result": [
+                            {"value": [123, "128.0"]},
+                            {"value": [123, "256.0"]},
+                        ]
+                    }
+                }
+            raise AssertionError(f"Unexpected query: {params['query']}")
+
+        with patch.object(
+            collector._runner, "_request_json", side_effect=fake_request_json
+        ):
+            metrics = collector.get_function_metrics("my-function")
+
+        assert metrics.cpu == 5.0
+        assert metrics.ram == 384.0
+
+    def test_range_ram_query_aggregates_across_series(self, queries_path: Path) -> None:
+        collector = MetricsCollector(
+            prometheus_url="http://localhost:9090",
+            queries_path=queries_path,
+            duration="30s",
+            scaphandre_enabled=False,
+        )
+        query = collector._queries["ram_usage_function"]
+
+        def fake_request_json(url: str, params: dict[str, str]) -> dict[str, object]:
+            assert url.endswith("/api/v1/query_range")
+            assert "sum(" in params["query"]
+            assert "container_memory_usage_bytes" in params["query"]
+            assert "my-function" in params["query"]
+            return {
+                "data": {
+                    "result": [
+                        {"values": [[1, "128.0"], [2, "128.0"]]},
+                        {"values": [[1, "256.0"], [2, "256.0"]]},
+                    ]
+                }
+            }
+
+        with patch.object(
+            collector._runner, "_request_json", side_effect=fake_request_json
+        ):
+            value = collector._runner.execute(
+                query,
+                time_span="30s",
+                start_time=1000.0,
+                end_time=1060.0,
+                function_name="my-function",
+            )
+
+        assert value == 384.0
 
 
 class TestCollectAllMetrics:
