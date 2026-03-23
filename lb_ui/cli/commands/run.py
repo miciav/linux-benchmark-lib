@@ -238,6 +238,7 @@ def register_run_command(
                 cfg, selected_tests, execution_mode=execution_mode
             )
             ctx.ui.tables.show(build_run_plan_table(plan))
+            ctx.ui.present.rule("Benchmark starting")
 
             class _Hooks:
                 def on_log(self, line: str) -> None:
