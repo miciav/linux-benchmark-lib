@@ -98,7 +98,9 @@ def event_status_waiting() -> str:
 
 
 def event_status_live(event_source: str, freshness: str) -> str:
-    return f"[cyan]● Event stream: live[/cyan] [bright_black]({event_source}, {freshness})[/bright_black]"
+    live = "[cyan]● Event stream: live[/cyan]"
+    meta = f"[bright_black]({event_source}, {freshness})[/bright_black]"
+    return f"{live} {meta}"
 
 
 def controller_state_line(state: str) -> str:
