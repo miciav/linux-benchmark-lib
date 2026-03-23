@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import typer
 
@@ -10,6 +10,39 @@ from lb_ui.tui.system.models import PickItem, TableModel
 
 
 from lb_ui.wiring.dependencies import UIContext
+
+
+def _show_run_details(
+    ctx: "UIContext",
+    run_id: str,
+    output_root: "Path",
+    cfg: Any,
+) -> None:
+    """Display details for a single run. Shared by show command and list navigation."""
+    from lb_app.api import RunCatalogService
+
+    catalog = RunCatalogService(
+        output_dir=output_root,
+        report_dir=cfg.report_dir,
+        data_export_dir=cfg.data_export_dir,
+    )
+    run = catalog.get_run(run_id)
+    if not run:
+        ctx.ui.present.error(f"Run '{run_id}' not found under {output_root}")
+        return
+    rows = [
+        ["Run ID",    run.run_id],
+        ["Output",    str(run.output_root)],
+        ["Reports",   str(run.report_root or "-")],
+        ["Exports",   str(run.data_export_root or "-")],
+        ["Created",   run.created_at.isoformat() if run.created_at else "-"],
+        ["Hosts",     ", ".join(run.hosts) if run.hosts else "-"],
+        ["Workloads", ", ".join(run.workloads) if run.workloads else "-"],
+        ["Journal",   str(run.journal_path or "-")],
+    ]
+    ctx.ui.tables.show(
+        TableModel(title="Run Details", columns=["Field", "Value"], rows=rows)
+    )
 
 
 def create_runs_app(ctx: UIContext) -> typer.Typer:
@@ -29,6 +62,11 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
             "--config",
             "-c",
             help="Config file to infer output/report/export roots.",
+        ),
+        interactive: bool = typer.Option(
+            True,
+            "--interactive/--no-interactive",
+            help="After listing, offer interactive run navigation (requires TTY).",
         ),
     ) -> None:
         """List available benchmark runs."""
@@ -57,6 +95,41 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
             )
         )
 
+        # Interactive navigation — only when TTY is available
+        if not interactive or ctx.headless:
+            return
+        from lb_ui.tui.core.capabilities import is_tty_available
+        if not is_tty_available():
+            return
+
+        run_items = [
+            PickItem(
+                id=run.run_id,
+                title=run.run_id,
+                description=(
+                    f"Created: {run.created_at.isoformat() if run.created_at else '-'}"
+                    f"  Hosts: {', '.join(run.hosts) if run.hosts else '-'}"
+                ),
+            )
+            for run in runs
+        ]
+        selected = ctx.ui.picker.pick_one(run_items, title="Select a run to inspect")
+        if selected is None:
+            return
+
+        actions = [
+            PickItem(id="show", title="Show details"),
+            PickItem(id="analyze", title="Analyze"),
+        ]
+        action = ctx.ui.picker.pick_one(actions, title=f"Action for {selected.id}")
+        if action is None:
+            return
+
+        if action.id == "show":
+            _show_run_details(ctx, selected.id, output_root, cfg)
+        elif action.id == "analyze":
+            ctx.ui.present.info(f"Run: lb runs analyze {selected.id}")
+
     @app.command("show")
     def runs_show(
         run_id: str = typer.Argument(..., help="Run identifier (folder name)."),
@@ -76,28 +149,7 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
         """Show details for a single run."""
         cfg, _, _ = ctx.config_service.load_for_read(config)
         output_root = root or cfg.output_dir
-        catalog = RunCatalogService(
-            output_dir=output_root,
-            report_dir=cfg.report_dir,
-            data_export_dir=cfg.data_export_dir,
-        )
-        run = catalog.get_run(run_id)
-        if not run:
-            ctx.ui.present.error(f"Run '{run_id}' not found under {output_root}")
-            raise typer.Exit(1)
-        rows = [
-            ["Run ID", run.run_id],
-            ["Output", str(run.output_root)],
-            ["Reports", str(run.report_root or "-")],
-            ["Exports", str(run.data_export_root or "-")],
-            ["Created", run.created_at.isoformat() if run.created_at else "-"],
-            ["Hosts", ", ".join(run.hosts) if run.hosts else "-"],
-            ["Workloads", ", ".join(run.workloads) if run.workloads else "-"],
-            ["Journal", str(run.journal_path or "-")],
-        ]
-        ctx.ui.tables.show(
-            TableModel(title="Run Details", columns=["Field", "Value"], rows=rows)
-        )
+        _show_run_details(ctx, run_id, output_root, cfg)
 
     @app.command("analyze")
     def analyze(

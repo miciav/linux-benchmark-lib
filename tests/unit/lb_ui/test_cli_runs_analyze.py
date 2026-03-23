@@ -82,3 +82,26 @@ def test_cli_runs_list_and_analyze(
         / "stress_ng_aggregated.csv"
     )
     assert out_csv.exists()
+
+
+def test_runs_list_no_interactive_flag_exits_after_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With --no-interactive the command exits after printing the table."""
+    runner = CliRunner()
+    import lb_ui.api as cli
+
+    monkeypatch.setattr(
+        cli.ctx_store,
+        "config_service",
+        ConfigService(config_home=tmp_path / "config"),
+    )
+    output_root = tmp_path / "benchmark_results"
+    (output_root / "run-ABC" / "host1" / "stress_ng").mkdir(parents=True)
+
+    res = runner.invoke(
+        app,
+        ["runs", "list", "--root", str(output_root), "--no-interactive"],
+    )
+    assert res.exit_code == 0
+    assert "run-ABC" in res.output
