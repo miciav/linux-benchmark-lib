@@ -112,11 +112,13 @@ class CooldownManager:
                     iterations=iterations,
                 )
 
-            time.sleep(self.sleep_step_seconds)
-            waited += self.sleep_step_seconds
-
-            if waited > self.max_wait_seconds:
+            remaining = self.max_wait_seconds - waited
+            if remaining <= 0:
                 raise CooldownTimeoutError(waited, self.max_wait_seconds)
+
+            sleep_seconds = min(self.sleep_step_seconds, remaining)
+            time.sleep(sleep_seconds)
+            waited += sleep_seconds
 
     def _is_idle(
         self,

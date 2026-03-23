@@ -123,7 +123,7 @@ class DfaasResultBuilder:
             f"power_usage_function_{name}": self._format_float(power),
             f"replica_{name}": replica,
             f"overloaded_function_{name}": int(overloaded),
-            f"medium_latency_function_{name}": int(latency),
+            f"medium_latency_function_{name}": self._format_float(latency),
         }
         return row, success, bool(overloaded)
 
