@@ -187,7 +187,7 @@ class MainWindow(QMainWindow):
 
         # Add views to stack in order
         for _, key in self.SECTIONS:
-            view = views[key]  # KeyError if a section is missing a view — explicit failure
+            view = views[key]  # KeyError here is intentional — explicit failure
             self._views[key] = view
             self._stack.addWidget(view)
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
@@ -13,9 +13,6 @@ from lb_app.api import (
     build_dashboard_viewmodel,
     RunJournal,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 class GUIDashboardViewModel(QObject):
