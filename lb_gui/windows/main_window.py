@@ -10,7 +10,6 @@ from PySide6.QtGui import QAction, QActionGroup, QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
-    QLabel,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -40,17 +39,6 @@ if TYPE_CHECKING:
     from lb_gui.workers import RunWorker
     from lb_app.api import RunRequest
     from lb_gui.services.run_orchestrator import RunOrchestrator
-
-
-class PlaceholderView(QWidget):
-    """Temporary placeholder for views not yet implemented."""
-
-    def __init__(self, name: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        label = QLabel(f"{name}\n\n(Not yet implemented)")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
 
 
 class MainWindow(QMainWindow):
@@ -199,14 +187,9 @@ class MainWindow(QMainWindow):
 
         # Add views to stack in order
         for _, key in self.SECTIONS:
-            view = views.get(key)
-            if view:
-                self._views[key] = view
-                self._stack.addWidget(view)
-            else:
-                placeholder = PlaceholderView(key)
-                self._views[key] = placeholder
-                self._stack.addWidget(placeholder)
+            view = views[key]  # KeyError if a section is missing a view — explicit failure
+            self._views[key] = view
+            self._stack.addWidget(view)
 
         # Select first item by default
         self._sidebar.setCurrentRow(0)
