@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem, QWidget
 
 
@@ -47,11 +46,8 @@ class JournalTable(QTableWidget):
                 self.setItem(i, j, item)
 
     def _apply_status_style(self, item: QTableWidgetItem, status: str) -> None:
-        """Apply foreground colors based on status text."""
-        value = status.strip().lower()
-        if value == "completed":
-            item.setForeground(Qt.GlobalColor.darkGreen)
-        elif value == "running":
-            item.setForeground(Qt.GlobalColor.blue)
-        elif value == "failed":
-            item.setForeground(Qt.GlobalColor.red)
+        """Apply foreground color based on status text."""
+        from lb_gui.utils.qt import status_color
+        color = status_color(status)
+        if color is not None:
+            item.setForeground(color)
