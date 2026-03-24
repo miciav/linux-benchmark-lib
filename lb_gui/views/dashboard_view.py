@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -108,6 +108,9 @@ class DashboardView(QWidget):
         self._warning_label.setWordWrap(True)
         self._warning_label.hide()
         layout.addWidget(self._warning_label)
+        self._warning_timer = QTimer(self)
+        self._warning_timer.setSingleShot(True)
+        self._warning_timer.timeout.connect(self._warning_label.hide)
 
     def _connect_signals(self) -> None:
         """Connect viewmodel signals."""
@@ -158,11 +161,11 @@ class DashboardView(QWidget):
             set_widget_role(self._status_label, "status-info")
 
     def _on_warning(self, message: str, ttl: float) -> None:
-        """Handle warning message."""
+        """Handle warning message — auto-hides after ttl seconds."""
         self._warning_label.setText(message)
         self._warning_label.show()
-        # Auto-hide after TTL (simplified - in real implementation use QTimer)
-        # For now, just show it
+        self._warning_timer.stop()
+        self._warning_timer.start(int(ttl * 1000))
 
     def _on_run_finished(self, success: bool, error: str) -> None:
         """Handle run completion."""
@@ -175,6 +178,7 @@ class DashboardView(QWidget):
 
     def clear(self) -> None:
         """Clear the dashboard display."""
+        self._warning_timer.stop()
         self._run_id_label.setText("")
         self._status_label.setText("No run active")
         set_widget_role(self._status_label, "muted")

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -20,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from lb_gui.utils import set_widget_role
+from lb_gui.utils.qt import status_color
 
 if TYPE_CHECKING:
     from lb_gui.viewmodels.doctor_vm import DoctorViewModel
@@ -168,11 +168,9 @@ class DoctorView(QWidget):
 
                 # Color-code status
                 if header == "Status":
-                    if value == "Pass":
-                        item.setForeground(Qt.GlobalColor.darkGreen)
-                    else:
-                        item.setForeground(Qt.GlobalColor.red)
-                        item.setBackground(Qt.GlobalColor.yellow)
+                    color = status_color(value)
+                    if color is not None:
+                        item.setForeground(color)
 
                 self._table.setItem(i, j, item)
 

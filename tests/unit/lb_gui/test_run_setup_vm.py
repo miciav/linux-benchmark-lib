@@ -275,3 +275,45 @@ class TestRunSetupViewModel:
 
         assert "stress_ng" in vm.available_workloads
         assert "fio" not in vm.available_workloads  # Disabled
+
+
+@pytest.mark.unit
+def test_refresh_workloads_logs_warning_on_failure(caplog):
+    """refresh_workloads logs a warning when an exception is raised."""
+    import logging
+    from lb_gui.viewmodels.run_setup_vm import RunSetupViewModel
+    from unittest.mock import MagicMock
+
+    plugin_service = MagicMock()
+    config_service = MagicMock()
+    config_service.load_platform_config.side_effect = RuntimeError("registry unavailable")
+    vm = RunSetupViewModel(plugin_service, config_service)
+
+    with caplog.at_level(logging.WARNING, logger="lb_gui.viewmodels.run_setup_vm"):
+        vm.refresh_workloads()
+
+    assert any("registry unavailable" in r.message for r in caplog.records), \
+        f"Expected warning log, got: {[r.message for r in caplog.records]}"
+    assert vm.available_workloads == []
+
+
+@pytest.mark.unit
+def test_load_config_logs_warning_on_failure(caplog):
+    """load_config logs a warning when an exception is raised."""
+    import logging
+    from pathlib import Path
+    from lb_gui.viewmodels.run_setup_vm import RunSetupViewModel
+    from unittest.mock import MagicMock
+
+    plugin_service = MagicMock()
+    config_service = MagicMock()
+    config_service.load_config.side_effect = FileNotFoundError("no such file")
+    config_service.get_current_config.return_value = (None, None)
+    vm = RunSetupViewModel(plugin_service, config_service)
+
+    with caplog.at_level(logging.WARNING, logger="lb_gui.viewmodels.run_setup_vm"):
+        result = vm.load_config(Path("/non/existent.yaml"))
+
+    assert result is False
+    assert any("no such file" in r.message for r in caplog.records), \
+        f"Expected warning log, got: {[r.message for r in caplog.records]}"

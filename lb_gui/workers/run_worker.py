@@ -36,23 +36,18 @@ class UIHooksAdapter:
         self._signals = signals
 
     def on_log(self, line: str) -> None:
-        """Forward log line to Qt signal."""
         self._signals.log_line.emit(line)
 
     def on_status(self, controller_state: str) -> None:
-        """Forward status update to Qt signal."""
         self._signals.status_line.emit(controller_state)
 
     def on_warning(self, message: str, ttl: float = 10.0) -> None:
-        """Forward warning to Qt signal with TTL."""
         self._signals.warning.emit(message, ttl)
 
     def on_event(self, event: "RunEvent") -> None:
-        """Forward event to Qt signal."""
         self._signals.event_update.emit(event)
 
     def on_journal(self, journal: "RunJournal") -> None:
-        """Forward journal update to Qt signal."""
         self._signals.journal_update.emit(journal)
 
 
@@ -94,6 +89,7 @@ class RunWorker(QObject):
         self._thread = QThread()
         self.moveToThread(self._thread)
         self._thread.started.connect(self._run)
+        self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
 
     def _run(self) -> None:
@@ -111,20 +107,13 @@ class RunWorker(QObject):
         except Exception as e:
             self.signals.finished.emit(False, str(e))
         finally:
-            self._cleanup_thread()
-
-    def _cleanup_thread(self) -> None:
-        """Clean up the thread after completion."""
-        if self._thread is not None:
-            self._thread.quit()
-            if QThread.currentThread() is not self._thread:
-                self._thread.wait()
-            self._thread.deleteLater()
-            self._thread = None
+            thread, self._thread = self._thread, None
+            if thread is not None:
+                thread.quit()
 
     def is_running(self) -> bool:
         """Check if the worker is currently running."""
-        return self._thread is not None and self._thread.isRunning()
+        return self._thread is not None
 
     def wait(self, timeout_ms: int = -1) -> bool:
         """Wait for the worker to finish.

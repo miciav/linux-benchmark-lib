@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+_log = logging.getLogger(__name__)
 
 from PySide6.QtCore import QObject, Signal
 
@@ -159,7 +162,8 @@ class RunSetupViewModel(QObject):
             self._config_service.set_current_config(config, resolved_path)
             self.set_config(config)
             return True
-        except Exception:
+        except Exception as exc:
+            _log.warning("Failed to load config from %s: %s", path, exc)
             self._config = None
             self.config_changed.emit(None)
             self._emit_validation()
@@ -228,7 +232,8 @@ class RunSetupViewModel(QObject):
 
             self.workloads_changed.emit(self._available_workloads)
             self._emit_validation()
-        except Exception:
+        except Exception as exc:
+            _log.warning("Failed to refresh workloads: %s", exc)
             self._available_workloads = []
             self.workloads_changed.emit([])
             self._emit_validation()

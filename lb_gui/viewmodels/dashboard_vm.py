@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
@@ -13,9 +13,6 @@ from lb_app.api import (
     build_dashboard_viewmodel,
     RunJournal,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 class GUIDashboardViewModel(QObject):
@@ -30,19 +27,6 @@ class GUIDashboardViewModel(QObject):
     status_changed = Signal(str)
     warning_received = Signal(str, float)  # message, ttl
     run_finished = Signal(bool, str)  # success, error_message
-
-    # Table column headers
-    JOURNAL_HEADERS = [
-        "Host",
-        "Workload",
-        "Intensity",
-        "Status",
-        "Progress",
-        "Current Action",
-        "Last Rep Time",
-    ]
-
-    PLAN_HEADERS = ["Workload", "Config"]
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)

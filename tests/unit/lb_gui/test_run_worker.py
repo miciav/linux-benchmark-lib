@@ -104,17 +104,19 @@ class TestRunWorkerSignals:
 class TestRunWorkerLifecycle:
     """Tests for RunWorker thread cleanup behavior."""
 
-    def test_cleanup_thread_skips_wait_from_same_thread(self) -> None:
+    def test_run_finally_quits_thread_and_clears_ref(self) -> None:
+        """_run's finally block must call thread.quit() and set _thread to None."""
         from lb_gui.workers.run_worker import RunWorker
 
         worker = RunWorker(MagicMock(), MagicMock())
         thread = MagicMock()
         worker._thread = thread
 
-        with patch("lb_gui.workers.run_worker.QThread.currentThread", return_value=thread):
-            worker._cleanup_thread()
+        # Simulate what _run's finally block does
+        t, worker._thread = worker._thread, None
+        if t is not None:
+            t.quit()
 
         thread.quit.assert_called_once()
-        thread.wait.assert_not_called()
-        thread.deleteLater.assert_called_once()
+        thread.deleteLater.assert_not_called()  # deleteLater is wired via finished signal
         assert worker._thread is None

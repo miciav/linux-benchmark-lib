@@ -10,7 +10,6 @@ from PySide6.QtGui import QAction, QActionGroup, QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
-    QLabel,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -39,17 +38,7 @@ if TYPE_CHECKING:
     )
     from lb_gui.workers import RunWorker
     from lb_app.api import RunRequest
-
-
-class PlaceholderView(QWidget):
-    """Temporary placeholder for views not yet implemented."""
-
-    def __init__(self, name: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        label = QLabel(f"{name}\n\n(Not yet implemented)")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
+    from lb_gui.services.run_orchestrator import RunOrchestrator
 
 
 class MainWindow(QMainWindow):
@@ -75,6 +64,7 @@ class MainWindow(QMainWindow):
         self._viewmodels: dict[str, object] = {}
         self._current_worker: "RunWorker | None" = None
         self._current_stop_file: Path | None = None
+        self._orchestrator: "RunOrchestrator | None" = None
 
         self._setup_ui()
         self._setup_views()
@@ -197,14 +187,9 @@ class MainWindow(QMainWindow):
 
         # Add views to stack in order
         for _, key in self.SECTIONS:
-            view = views.get(key)
-            if view:
-                self._views[key] = view
-                self._stack.addWidget(view)
-            else:
-                placeholder = PlaceholderView(key)
-                self._views[key] = placeholder
-                self._stack.addWidget(placeholder)
+            view = views[key]  # KeyError here is intentional — explicit failure
+            self._views[key] = view
+            self._stack.addWidget(view)
 
         # Select first item by default
         self._sidebar.setCurrentRow(0)
@@ -277,76 +262,31 @@ class MainWindow(QMainWindow):
         dashboard_vm: "GUIDashboardViewModel",
     ) -> None:
         """Connect run setup to dashboard for run execution flow."""
+        from lb_gui.services.run_orchestrator import RunOrchestrator
         from lb_gui.views.run_setup_view import RunSetupView
 
         run_setup_view = self._views.get("run_setup")
         if not isinstance(run_setup_view, RunSetupView):
             return
 
-        def on_start_run(request: "RunRequest") -> None:
-            """Handle run start request."""
-            # Check if a run is already in progress
-            if self._current_worker is not None:
-                if self._current_worker.is_running():
-                    QMessageBox.warning(
-                        self,
-                        "Error",
-                        "A run is already in progress. Please wait for it to finish.",
-                    )
-                    return
+        self._orchestrator = RunOrchestrator(self.services.run_controller, dashboard_vm)
 
-            # Get the run plan for initializing dashboard
+        def on_start_run(request: "RunRequest") -> None:
             try:
-                plan = self.services.run_controller.get_run_plan(
-                    request.config,
-                    list(request.tests),
-                    request.execution_mode,
-                )
-            except Exception as e:
-                QMessageBox.warning(
-                    self,
-                    "Error",
-                    f"Failed to get run plan: {e}",
-                )
+                worker = self._orchestrator.start_run(request)
+            except RuntimeError as exc:
+                QMessageBox.warning(self, "Run In Progress", str(exc))
+                return
+            except Exception as exc:
+                QMessageBox.warning(self, "Error", f"Failed to get run plan:\n{exc}")
                 return
 
-            from lb_gui.adapters.gui_ui_adapter import GuiUIAdapter
-
-            adapter = GuiUIAdapter(dashboard_vm)
-            request.ui_adapter = adapter
+            self._current_worker = worker
             self._current_stop_file = getattr(request, "stop_file", None)
-
-            # Create a minimal journal for initialization
-            from lb_app.api import RunJournal
-
-            journal: RunJournal = self.services.run_controller.build_journal(
-                request.run_id
-            )
-
-            # Initialize dashboard
-            dashboard_vm.initialize(plan, journal)
-
-            # Switch to dashboard view
-            self.select_section("dashboard")
-
-            # Create and start worker
-            worker = self.services.run_controller.create_worker(request)
-
-            # Connect worker signals to dashboard
-            worker.signals.log_line.connect(dashboard_vm.on_log_line)
-            worker.signals.status_line.connect(dashboard_vm.on_status)
-            worker.signals.warning.connect(dashboard_vm.on_warning)
-            worker.signals.journal_update.connect(
-                dashboard_vm.on_journal_update
-            )
-            worker.signals.finished.connect(dashboard_vm.on_run_finished)
-
-            # Connect worker signals to main window for cleanup
             worker.signals.finished.connect(self._on_run_finished)
 
-            # Store worker reference to prevent garbage collection
-            self._current_worker = worker
-            worker.start()
+            self.select_section("dashboard")
+            # Only set busy after successful start to avoid orphaned wait-cursor state
             self._set_ui_busy(True)
 
         run_setup_view.start_run_requested.connect(on_start_run)
@@ -404,8 +344,7 @@ class MainWindow(QMainWindow):
                 f"Failed to write stop file:\n{exc}",
             )
             return
-        if hasattr(self, "_stop_button"):
-            self._stop_button.setEnabled(False)
+        self._stop_button.setEnabled(False)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Handle window close request."""
@@ -458,19 +397,22 @@ class MainWindow(QMainWindow):
             run_setup_vm.load_config(config_path)
             run_setup_vm.refresh_workloads()
 
-        if config_obj is not None:
-            results_vm.configure_with_config(config_obj)
-            results_vm.refresh_runs()
-        elif config_path is not None:
-            if results_vm.configure(config_path):
-                results_vm.refresh_runs()
+        self._apply_config_to_catalog_vm(results_vm, config_obj, config_path)
+        self._apply_config_to_catalog_vm(analytics_vm, config_obj, config_path)
 
+    def _apply_config_to_catalog_vm(
+        self,
+        vm: object,
+        config_obj: object | None,
+        config_path: object | None,
+    ) -> None:
+        """Apply config to a ResultsViewModel or AnalyticsViewModel."""
         if config_obj is not None:
-            analytics_vm.configure_with_config(config_obj)
-            analytics_vm.refresh_runs()
+            vm.configure_with_config(config_obj)  # type: ignore[union-attr]
+            vm.refresh_runs()  # type: ignore[union-attr]
         elif config_path is not None:
-            if analytics_vm.configure(config_path):
-                analytics_vm.refresh_runs()
+            if vm.configure(config_path):  # type: ignore[union-attr]
+                vm.refresh_runs()  # type: ignore[union-attr]
 
     def _connect_signals(self) -> None:
         """Connect UI signals."""
