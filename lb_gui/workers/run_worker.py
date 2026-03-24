@@ -36,23 +36,18 @@ class UIHooksAdapter:
         self._signals = signals
 
     def on_log(self, line: str) -> None:
-        """Forward log line to Qt signal."""
         self._signals.log_line.emit(line)
 
     def on_status(self, controller_state: str) -> None:
-        """Forward status update to Qt signal."""
         self._signals.status_line.emit(controller_state)
 
     def on_warning(self, message: str, ttl: float = 10.0) -> None:
-        """Forward warning to Qt signal with TTL."""
         self._signals.warning.emit(message, ttl)
 
     def on_event(self, event: "RunEvent") -> None:
-        """Forward event to Qt signal."""
         self._signals.event_update.emit(event)
 
     def on_journal(self, journal: "RunJournal") -> None:
-        """Forward journal update to Qt signal."""
         self._signals.journal_update.emit(journal)
 
 

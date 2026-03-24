@@ -6,6 +6,8 @@ from typing import Sequence
 
 from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem, QWidget
 
+from lb_gui.utils.qt import status_color
+
 
 class JournalTable(QTableWidget):
     """Table for displaying run journal progress."""
@@ -47,7 +49,6 @@ class JournalTable(QTableWidget):
 
     def _apply_status_style(self, item: QTableWidgetItem, status: str) -> None:
         """Apply foreground color based on status text."""
-        from lb_gui.utils.qt import status_color
         color = status_color(status)
         if color is not None:
             item.setForeground(color)

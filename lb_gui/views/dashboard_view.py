@@ -108,7 +108,9 @@ class DashboardView(QWidget):
         self._warning_label.setWordWrap(True)
         self._warning_label.hide()
         layout.addWidget(self._warning_label)
-        self._warning_timer: QTimer | None = None
+        self._warning_timer = QTimer(self)
+        self._warning_timer.setSingleShot(True)
+        self._warning_timer.timeout.connect(self._warning_label.hide)
 
     def _connect_signals(self) -> None:
         """Connect viewmodel signals."""
@@ -162,15 +164,8 @@ class DashboardView(QWidget):
         """Handle warning message — auto-hides after ttl seconds."""
         self._warning_label.setText(message)
         self._warning_label.show()
-
-        if self._warning_timer is not None:
-            self._warning_timer.stop()
-
-        timer = QTimer(self)
-        timer.setSingleShot(True)
-        timer.timeout.connect(self._warning_label.hide)
-        timer.start(int(ttl * 1000))
-        self._warning_timer = timer
+        self._warning_timer.stop()
+        self._warning_timer.start(int(ttl * 1000))
 
     def _on_run_finished(self, success: bool, error: str) -> None:
         """Handle run completion."""
@@ -183,9 +178,7 @@ class DashboardView(QWidget):
 
     def clear(self) -> None:
         """Clear the dashboard display."""
-        if self._warning_timer is not None:
-            self._warning_timer.stop()
-            self._warning_timer = None
+        self._warning_timer.stop()
         self._run_id_label.setText("")
         self._status_label.setText("No run active")
         set_widget_role(self._status_label, "muted")

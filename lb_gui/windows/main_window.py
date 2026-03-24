@@ -286,10 +286,7 @@ class MainWindow(QMainWindow):
             worker.signals.finished.connect(self._on_run_finished)
 
             self.select_section("dashboard")
-            # _set_ui_busy(True) is called AFTER orchestrator.start_run() returns
-            # successfully. If start_run() raises, the except blocks above return
-            # early before reaching this line, so the cursor is never set and no
-            # cleanup is needed.
+            # Only set busy after successful start to avoid orphaned wait-cursor state
             self._set_ui_busy(True)
 
         run_setup_view.start_run_requested.connect(on_start_run)
@@ -347,8 +344,7 @@ class MainWindow(QMainWindow):
                 f"Failed to write stop file:\n{exc}",
             )
             return
-        if hasattr(self, "_stop_button"):
-            self._stop_button.setEnabled(False)
+        self._stop_button.setEnabled(False)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Handle window close request."""
