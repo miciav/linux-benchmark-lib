@@ -31,19 +31,6 @@ class GUIDashboardViewModel(QObject):
     warning_received = Signal(str, float)  # message, ttl
     run_finished = Signal(bool, str)  # success, error_message
 
-    # Table column headers
-    JOURNAL_HEADERS = [
-        "Host",
-        "Workload",
-        "Intensity",
-        "Status",
-        "Progress",
-        "Current Action",
-        "Last Rep Time",
-    ]
-
-    PLAN_HEADERS = ["Workload", "Config"]
-
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._app_vm: AppDashboardViewModel | None = None
