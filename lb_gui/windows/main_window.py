@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     )
     from lb_gui.workers import RunWorker
     from lb_app.api import RunRequest
+    from lb_gui.services.run_orchestrator import RunOrchestrator
 
 
 class PlaceholderView(QWidget):
@@ -75,6 +76,7 @@ class MainWindow(QMainWindow):
         self._viewmodels: dict[str, object] = {}
         self._current_worker: "RunWorker | None" = None
         self._current_stop_file: Path | None = None
+        self._orchestrator: "RunOrchestrator | None" = None
 
         self._setup_ui()
         self._setup_views()
@@ -277,86 +279,35 @@ class MainWindow(QMainWindow):
         dashboard_vm: "GUIDashboardViewModel",
     ) -> None:
         """Connect run setup to dashboard for run execution flow."""
+        from lb_gui.services.run_orchestrator import RunOrchestrator
         from lb_gui.views.run_setup_view import RunSetupView
 
         run_setup_view = self._views.get("run_setup")
         if not isinstance(run_setup_view, RunSetupView):
             return
 
-        def on_start_run(request: "RunRequest") -> None:
-            """Handle run start request."""
-            # Check if a run is already in progress
-            if self._current_worker is not None:
-                if self._current_worker.is_running():
-                    QMessageBox.warning(
-                        self,
-                        "Error",
-                        "A run is already in progress. Please wait for it to finish.",
-                    )
-                    return
+        self._orchestrator = RunOrchestrator(self.services.run_controller, dashboard_vm)
 
-            # Get the run plan for initializing dashboard
+        def on_start_run(request: "RunRequest") -> None:
             try:
-                plan = self.services.run_controller.get_run_plan(
-                    request.config,
-                    list(request.tests),
-                    request.execution_mode,
-                )
-            except Exception as e:
-                QMessageBox.warning(
-                    self,
-                    "Error",
-                    f"Failed to get run plan: {e}",
-                )
+                worker = self._orchestrator.start_run(request)
+            except RuntimeError as exc:
+                QMessageBox.warning(self, "Run In Progress", str(exc))
+                return
+            except Exception as exc:
+                QMessageBox.warning(self, "Error", f"Failed to get run plan:\n{exc}")
                 return
 
-            from lb_gui.adapters.gui_ui_adapter import GuiUIAdapter
-
-            adapter = GuiUIAdapter(dashboard_vm)
-            request.ui_adapter = adapter
+            self._current_worker = worker
             self._current_stop_file = getattr(request, "stop_file", None)
-
-            # Create a minimal journal for initialization
-            from lb_app.api import RunJournal
-
-            journal: RunJournal = self.services.run_controller.build_journal(
-                request.run_id
-            )
-
-            # Initialize dashboard
-            dashboard_vm.initialize(plan, journal)
-
-            # Switch to dashboard view
-            self.select_section("dashboard")
-
-            # Create and start worker
-            worker = self.services.run_controller.create_worker(request)
-
-            # Connect worker signals to dashboard
-            worker.signals.log_line.connect(dashboard_vm.on_log_line)
-            worker.signals.status_line.connect(dashboard_vm.on_status)
-            worker.signals.warning.connect(dashboard_vm.on_warning)
-            worker.signals.journal_update.connect(
-                dashboard_vm.on_journal_update
-            )
-            worker.signals.finished.connect(dashboard_vm.on_run_finished)
-
-            # Connect worker signals to main window for cleanup
             worker.signals.finished.connect(self._on_run_finished)
 
-            # Store worker reference to prevent garbage collection
-            self._current_worker = worker
+            self.select_section("dashboard")
+            # _set_ui_busy(True) is called AFTER orchestrator.start_run() returns
+            # successfully. If start_run() raises, the except blocks above return
+            # early before reaching this line, so the cursor is never set and no
+            # cleanup is needed.
             self._set_ui_busy(True)
-            try:
-                worker.start()
-            except Exception as exc:
-                self._set_ui_busy(False)
-                self._current_worker = None
-                QMessageBox.critical(
-                    self,
-                    "Start Failed",
-                    f"Failed to start benchmark worker:\n{exc}",
-                )
 
         run_setup_view.start_run_requested.connect(on_start_run)
 
