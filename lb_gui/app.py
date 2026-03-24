@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import cached_property
+
 from lb_gui.services.app_client import AppClientService
 from lb_gui.services.config_service import GUIConfigService
 from lb_gui.services.plugin_service import PluginService
@@ -13,58 +15,35 @@ from lb_gui.windows.main_window import MainWindow
 
 
 class ServiceContainer:
-    """Container for all GUI services (dependency injection)."""
+    """Container for all GUI services (lazy dependency injection)."""
 
-    def __init__(self) -> None:
-        self._app_client: AppClientService | None = None
-        self._config_service: GUIConfigService | None = None
-        self._plugin_service: PluginService | None = None
-        self._run_catalog: RunCatalogServiceWrapper | None = None
-        self._analytics_service: AnalyticsServiceWrapper | None = None
-        self._doctor_service: DoctorServiceWrapper | None = None
-        self._run_controller: RunControllerService | None = None
-
-    @property
+    @cached_property
     def app_client(self) -> AppClientService:
-        if self._app_client is None:
-            self._app_client = AppClientService()
-        return self._app_client
+        return AppClientService()
 
-    @property
+    @cached_property
     def config_service(self) -> GUIConfigService:
-        if self._config_service is None:
-            self._config_service = GUIConfigService()
-        return self._config_service
+        return GUIConfigService()
 
-    @property
+    @cached_property
     def plugin_service(self) -> PluginService:
-        if self._plugin_service is None:
-            self._plugin_service = PluginService()
-        return self._plugin_service
+        return PluginService()
 
-    @property
+    @cached_property
     def run_catalog(self) -> RunCatalogServiceWrapper:
-        if self._run_catalog is None:
-            self._run_catalog = RunCatalogServiceWrapper()
-        return self._run_catalog
+        return RunCatalogServiceWrapper()
 
-    @property
+    @cached_property
     def analytics_service(self) -> AnalyticsServiceWrapper:
-        if self._analytics_service is None:
-            self._analytics_service = AnalyticsServiceWrapper()
-        return self._analytics_service
+        return AnalyticsServiceWrapper()
 
-    @property
+    @cached_property
     def doctor_service(self) -> DoctorServiceWrapper:
-        if self._doctor_service is None:
-            self._doctor_service = DoctorServiceWrapper()
-        return self._doctor_service
+        return DoctorServiceWrapper()
 
-    @property
+    @cached_property
     def run_controller(self) -> RunControllerService:
-        if self._run_controller is None:
-            self._run_controller = RunControllerService(self.app_client)
-        return self._run_controller
+        return RunControllerService(self.app_client)
 
 
 def create_app() -> MainWindow:
