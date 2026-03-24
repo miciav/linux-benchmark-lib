@@ -89,8 +89,16 @@ class RunWorker(QObject):
         self._thread = QThread()
         self.moveToThread(self._thread)
         self._thread.started.connect(self._run)
-        self._thread.finished.connect(self._thread.deleteLater)
+        self._thread.finished.connect(self._clear_thread)
         self._thread.start()
+
+    def _clear_thread(self) -> None:
+        """Release the thread reference once the thread has fully stopped.
+
+        Connected to thread.finished so the Python QThread wrapper is not GC'd
+        while the C++ thread is still running.
+        """
+        self._thread = None
 
     def _run(self) -> None:
         """Execute the benchmark run (called in worker thread)."""
@@ -107,9 +115,7 @@ class RunWorker(QObject):
         except Exception as e:
             self.signals.finished.emit(False, str(e))
         finally:
-            thread, self._thread = self._thread, None
-            if thread is not None:
-                thread.quit()
+            QThread.currentThread().quit()
 
     def is_running(self) -> bool:
         """Check if the worker is currently running."""

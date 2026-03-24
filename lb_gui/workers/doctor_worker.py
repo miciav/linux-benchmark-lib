@@ -42,8 +42,12 @@ class DoctorWorker(QObject):
         self._thread = QThread()
         self.moveToThread(self._thread)
         self._thread.started.connect(self._run)
-        self._thread.finished.connect(self._thread.deleteLater)
+        self._thread.finished.connect(self._clear_thread)
         self._thread.start()
+
+    def _clear_thread(self) -> None:
+        """Release the thread reference once the thread has fully stopped."""
+        self._thread = None
 
     def _run(self) -> None:
         """Execute doctor checks in the worker thread."""
@@ -64,9 +68,7 @@ class DoctorWorker(QObject):
         except Exception as exc:
             self.signals.failed.emit(str(exc))
         finally:
-            thread, self._thread = self._thread, None
-            if thread is not None:
-                thread.quit()
+            QThread.currentThread().quit()
 
     def is_running(self) -> bool:
         """Check if the worker is currently running."""
