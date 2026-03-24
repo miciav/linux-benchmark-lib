@@ -346,8 +346,17 @@ class MainWindow(QMainWindow):
 
             # Store worker reference to prevent garbage collection
             self._current_worker = worker
-            worker.start()
             self._set_ui_busy(True)
+            try:
+                worker.start()
+            except Exception as exc:
+                self._set_ui_busy(False)
+                self._current_worker = None
+                QMessageBox.critical(
+                    self,
+                    "Start Failed",
+                    f"Failed to start benchmark worker:\n{exc}",
+                )
 
         run_setup_view.start_run_requested.connect(on_start_run)
 
