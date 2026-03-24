@@ -418,19 +418,22 @@ class MainWindow(QMainWindow):
             run_setup_vm.load_config(config_path)
             run_setup_vm.refresh_workloads()
 
-        if config_obj is not None:
-            results_vm.configure_with_config(config_obj)
-            results_vm.refresh_runs()
-        elif config_path is not None:
-            if results_vm.configure(config_path):
-                results_vm.refresh_runs()
+        self._apply_config_to_catalog_vm(results_vm, config_obj, config_path)
+        self._apply_config_to_catalog_vm(analytics_vm, config_obj, config_path)
 
+    def _apply_config_to_catalog_vm(
+        self,
+        vm: object,
+        config_obj: object | None,
+        config_path: object | None,
+    ) -> None:
+        """Apply config to a ResultsViewModel or AnalyticsViewModel."""
         if config_obj is not None:
-            analytics_vm.configure_with_config(config_obj)
-            analytics_vm.refresh_runs()
+            vm.configure_with_config(config_obj)  # type: ignore[union-attr]
+            vm.refresh_runs()  # type: ignore[union-attr]
         elif config_path is not None:
-            if analytics_vm.configure(config_path):
-                analytics_vm.refresh_runs()
+            if vm.configure(config_path):  # type: ignore[union-attr]
+                vm.refresh_runs()  # type: ignore[union-attr]
 
     def _connect_signals(self) -> None:
         """Connect UI signals."""
