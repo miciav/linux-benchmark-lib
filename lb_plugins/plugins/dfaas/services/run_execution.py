@@ -118,7 +118,7 @@ class DfaasRunPlanner:
         if not data:
             return None
         try:
-            output_root = Path(data.get("output_dir", "."))
+            output_root = Path(data.get("output_dir", ".")).expanduser()
             workloads = data.get("workloads", {})
             if not isinstance(workloads, dict):
                 logger.debug("Generated config workloads must be a mapping")
@@ -188,7 +188,6 @@ class DfaasRunPlanner:
         return f"run-{int(time.time())}"
 
     def _derive_run_id_from_output_dir(self, output_dir: Path) -> str:
-        """Derive the run id from a generated output directory."""
         if output_dir.name in {self._exec_ctx.host, self._exec_ctx.host_address}:
             return output_dir.parent.name
         return output_dir.name
@@ -632,8 +631,7 @@ class DfaasResultWriter:
         function_names = getattr(ctx, "function_names", None)
         if not function_names:
             function_names = sorted(fn.name for fn in self._config.functions)
-        failed_configs = getattr(ctx, "failed_configs", 0)
-        success = failed_configs == 0
+        success = ctx.failed_configs == 0
 
         return {
             "returncode": 0 if success else 1,
