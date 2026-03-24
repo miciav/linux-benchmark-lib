@@ -35,6 +35,32 @@ def test_parse_instant_value() -> None:
     assert parse_instant_value(payload) == 4.5
 
 
+def test_parse_instant_value_aggregates_multiple_series() -> None:
+    payload = {
+        "data": {
+            "result": [
+                {"value": [123, "4.5"]},
+                {"value": [123, "1.5"]},
+            ]
+        }
+    }
+
+    assert parse_instant_value(payload) == 6.0
+
+
 def test_parse_range_average() -> None:
     payload = {"data": {"result": [{"values": [[1, "2"], [2, "4"]]}]}}
     assert parse_range_average(payload) == 3.0
+
+
+def test_parse_range_average_aggregates_multiple_series() -> None:
+    payload = {
+        "data": {
+            "result": [
+                {"values": [[1, "2"], [2, "4"]]},
+                {"values": [[1, "6"], [2, "8"]]},
+            ]
+        }
+    }
+
+    assert parse_range_average(payload) == 10.0

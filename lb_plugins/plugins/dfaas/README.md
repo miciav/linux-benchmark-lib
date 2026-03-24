@@ -415,6 +415,12 @@ The generator emits results into the DFaaS output directory, resolved as:
 | `metrics/*.csv` | Metrics snapshot per config |
 | `k6_scripts/*.js` | Generated k6 scripts |
 
+### Run outcome semantics
+
+- `success=true` and `returncode=0` when a run only contains resume or dominance skips.
+- `success=false` and `returncode=1` when an operational failure occurs during cooldown, k6 execution, or runtime processing.
+- Failed configs are still exported to `skipped.csv` so resume logic can continue to work.
+
 ### Column conventions in `results.csv`
 
 **Per-function columns**:
@@ -426,7 +432,7 @@ The generator emits results into the DFaaS output directory, resolved as:
 - `power_usage_function_<name>`: power from Scaphandre (if enabled)
 - `replica_<name>`: replica count
 - `overloaded_function_<name>`: 0 or 1
-- `medium_latency_function_<name>`: average latency in ms
+- `medium_latency_function_<name>`: average latency in ms, formatted with 3 decimal places like the other numeric exports
 
 **Node columns**:
 - `cpu_usage_idle_node`: baseline CPU
@@ -446,6 +452,7 @@ Prometheus queries are defined in `queries.yml` and include:
 - Node CPU usage (from node-exporter)
 - Node RAM usage (from node-exporter)
 - Function CPU and RAM usage (from cAdvisor)
+- Function RAM is aggregated across replicas before export, so multi-series Prometheus responses collapse into one per-function value.
 - Power metrics if Scaphandre is enabled
 
 If a query fails, the metric is recorded as `nan`.

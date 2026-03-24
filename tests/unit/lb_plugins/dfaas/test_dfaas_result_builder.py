@@ -42,6 +42,36 @@ def test_build_result_row_flags_overload() -> None:
     assert row["success_rate_function_figlet"] == "0.500"
 
 
+def test_build_result_row_preserves_latency_precision() -> None:
+    builder = DfaasResultBuilder(DfaasOverloadConfig())
+    all_functions = ["figlet"]
+    config_pairs = [("figlet", 10)]
+    summary_metrics = {
+        "figlet": {"success_rate": 1.0, "avg_latency": 12.345, "request_count": 5}
+    }
+    replicas = {"figlet": 1}
+    metrics = {
+        "cpu_usage_node": 10.0,
+        "ram_usage_node": 256.0,
+        "ram_usage_node_pct": 50.0,
+        "power_usage_node": 5.0,
+        "functions": {"figlet": {"cpu": 1.0, "ram": 2.0, "power": 3.0}},
+    }
+    idle = MetricsSnapshot(cpu=1.0, ram=2.0, ram_pct=3.0, power=4.0)
+
+    row, _ = builder.build_result_row(
+        all_functions,
+        config_pairs,
+        summary_metrics,
+        replicas,
+        metrics,
+        idle,
+        rest_seconds=5,
+    )
+
+    assert row["medium_latency_function_figlet"] == "12.345"
+
+
 def test_build_skipped_row_includes_only_config_functions() -> None:
     builder = DfaasResultBuilder(DfaasOverloadConfig())
     row = builder.build_skipped_row(["figlet", "other"], [("figlet", 0)])

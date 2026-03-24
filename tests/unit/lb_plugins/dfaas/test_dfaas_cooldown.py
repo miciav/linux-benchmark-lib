@@ -143,8 +143,13 @@ class TestCooldownManager:
         baseline = MetricsSnapshot(cpu=10.0, ram=1000.0, ram_pct=50.0, power=100.0)
         high_cpu = MetricsSnapshot(cpu=50.0, ram=1000.0, ram_pct=50.0, power=100.0)
 
+        sleep_calls: list[int] = []
+
+        def fake_sleep(seconds: int) -> None:
+            sleep_calls.append(seconds)
+
         monkeypatch.setattr(
-            "lb_plugins.plugins.dfaas.services.cooldown.time.sleep", lambda _: None
+            "lb_plugins.plugins.dfaas.services.cooldown.time.sleep", fake_sleep
         )
 
         manager = CooldownManager(
@@ -158,8 +163,35 @@ class TestCooldownManager:
         with pytest.raises(CooldownTimeoutError) as exc_info:
             manager.wait_for_idle(baseline, ["func1"])
 
-        assert exc_info.value.waited_seconds > 10
+        assert exc_info.value.waited_seconds == 10
         assert exc_info.value.max_seconds == 10
+        assert sleep_calls == [5, 5]
+
+    def test_timeout_stops_at_exact_boundary(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        baseline = MetricsSnapshot(cpu=10.0, ram=1000.0, ram_pct=50.0, power=100.0)
+        high_cpu = MetricsSnapshot(cpu=50.0, ram=1000.0, ram_pct=50.0, power=100.0)
+        sleep_calls: list[int] = []
+
+        def fake_sleep(seconds: int) -> None:
+            sleep_calls.append(seconds)
+
+        monkeypatch.setattr(
+            "lb_plugins.plugins.dfaas.services.cooldown.time.sleep", fake_sleep
+        )
+
+        manager = CooldownManager(
+            max_wait_seconds=5,
+            sleep_step_seconds=5,
+            idle_threshold_pct=10.0,
+            metrics_provider=lambda: high_cpu,
+            replicas_provider=lambda _: {"func1": 0},
+        )
+
+        with pytest.raises(CooldownTimeoutError) as exc_info:
+            manager.wait_for_idle(baseline, ["func1"])
+
+        assert exc_info.value.waited_seconds == 5
+        assert sleep_calls == [5]
 
     def test_nan_power_treated_as_idle(self) -> None:
         baseline = MetricsSnapshot(
