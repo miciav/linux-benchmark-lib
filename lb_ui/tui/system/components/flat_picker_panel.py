@@ -43,7 +43,7 @@ class FlatPickerPanel:
         row_renderer: RowRenderer,
         preview_renderer: PreviewRenderer | None = None,
         fallback_preview_renderer: PreviewRenderer | None = None,
-        search_prompt: str = "Search: ",
+        search_prompt: str = "Filter › ",
         search_style: str = "class:search",
         config: FlatPickerPanelConfig | None = None,
     ) -> None:

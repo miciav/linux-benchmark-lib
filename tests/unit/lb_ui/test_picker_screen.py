@@ -74,6 +74,13 @@ def test_picker_screen_render_footer_hierarchical() -> None:
     assert "back" in full_text
 
 
+def test_picker_screen_render_path_uses_browse_copy() -> None:
+    leaf = SelectionNode(id="leaf", label="Leaf", kind="leaf")
+    root = SelectionNode(id="root", label="Root", kind="root", children=[leaf])
+    screen = PickerScreen(title="Test", root=root)
+    assert "Browse" in screen._render_path()
+
+
 def test_picker_row_shows_arrow_for_item_with_variants_single_select() -> None:
     variants = [PickItem(id="low", title="low"), PickItem(id="high", title="high")]
     items = [
@@ -83,6 +90,7 @@ def test_picker_row_shows_arrow_for_item_with_variants_single_select() -> None:
     screen = PickerScreen(title="Test", items=items, multi_select=False)
     _, text = screen._render_row(items[1], is_selected=False)
     assert "\u25b8" in text  # ▸
+    assert "options" in text
 
 
 def test_picker_row_no_arrow_for_plain_item_single_select() -> None:

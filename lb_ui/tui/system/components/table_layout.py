@@ -34,6 +34,7 @@ def build_rich_table(
     header_style: str | None = None,
     title_style: str | None = None,
     box_style: box.Box = box.ROUNDED,
+    row_styles: list[str] | None = None,
 ) -> Table:
     """
     Build a Rich Table from a TableModel that fits the current terminal width.
@@ -62,6 +63,7 @@ def build_rich_table(
         border_style=border_style or theme.RICH_BORDER_STYLE,
         header_style=header_style or theme.RICH_ACCENT_BOLD,
         title_style=title_style or theme.RICH_ACCENT_BOLD,
+        row_styles=row_styles or [],
     )
 
     def _cell_width(value: str) -> int:

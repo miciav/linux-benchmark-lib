@@ -35,15 +35,17 @@ def _emit_ui_message(
     dashboard_warning: bool = False,
     ttl: float = 10.0,
 ) -> None:
-    if _emit_via_ui(ui_adapter, level, message):
-        return
-    if _emit_via_dashboard(
+    ui_emitted = _emit_via_ui(ui_adapter, level, message)
+    dashboard_emitted = False
+    if dashboard_warning or not ui_emitted:
+        dashboard_emitted = _emit_via_dashboard(
         dashboard,
         message,
         dashboard_message=dashboard_message,
         dashboard_warning=dashboard_warning,
         ttl=ttl,
-    ):
+    )
+    if ui_emitted or dashboard_emitted:
         return
     print(message)
 

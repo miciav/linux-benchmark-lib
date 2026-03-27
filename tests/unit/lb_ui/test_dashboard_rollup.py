@@ -28,3 +28,15 @@ def test_polling_rollup_ignores_failed_tasks() -> None:
 
     assert helper.maybe_rollup("• [run dummy] Poll LB_EVENT stream failed") is False
     assert log_buffer == []
+
+
+def test_polling_rollup_keeps_only_latest_run_status_per_host() -> None:
+    log_buffer: list[str] = []
+    helper = PollingRollupHelper(log_buffer, summary_only=True)
+
+    assert helper.maybe_rollup("• [run fio] (host1) 1/3 running")
+    assert helper.maybe_rollup("• [run fio] (host1) 2/3 running")
+
+    assert len(log_buffer) == 1
+    assert "2/3 running" in log_buffer[0]
+    assert "1/3 running" not in log_buffer[0]

@@ -172,7 +172,7 @@ class RunExecutionLoop:
         ui_adapter: UIAdapter | None,
     ) -> None:
         """Emit and schedule clearance for the first Ctrl+C warning."""
-        msg = "Press Ctrl+C again to stop the execution"
+        msg = "Graceful stop requested. Press Ctrl+C again within 10s to force stop."
         emit_warning(
             msg,
             dashboard=session.dashboard,

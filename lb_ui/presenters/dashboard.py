@@ -18,10 +18,16 @@ def event_status_line(
 ) -> str:
     from lb_ui.tui.core import theme
 
-    status, detail = _event_status_line(event_source, last_event_ts, now=now)
+    status, detail = event_status_parts(event_source, last_event_ts, now=now)
     if status == "waiting":
         return theme.event_status_waiting()
     return theme.event_status_live(event_source, detail)
+
+
+def event_status_parts(
+    event_source: str, last_event_ts: float | None, *, now: float | None = None
+) -> tuple[str, str]:
+    return _event_status_line(event_source, last_event_ts, now=now)
 
 
 __all__ = [
@@ -31,5 +37,6 @@ __all__ = [
     "DashboardStatusSummary",
     "DashboardViewModel",
     "build_dashboard_viewmodel",
+    "event_status_parts",
     "event_status_line",
 ]
