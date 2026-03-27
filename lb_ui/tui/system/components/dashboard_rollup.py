@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Dict, Tuple
 
 from rich.markup import escape
@@ -31,6 +32,8 @@ class PollingRollupHelper:
         if not parsed:
             return False
         phase, host, task_message = parsed
+        if self._maybe_rollup_run_status(phase, host, task_message):
+            return True
         base = task_message
         if base.startswith("workload_runner : "):
             base = base.split(" : ", 1)[1].strip()
@@ -90,6 +93,25 @@ class PollingRollupHelper:
         self._log_buffer.append(display_line)
         return True
 
+    def _maybe_rollup_run_status(self, phase: str, host: str, message: str) -> bool:
+        if not phase.startswith("run "):
+            return False
+        if not self._is_run_status_message(message):
+            return False
+        host_prefix = f"({host}) " if host else ""
+        display_line = escape(f"• [{phase}] {host_prefix}{message}")
+        search_prefix = f"• [{phase}] {host_prefix}"
+        for idx in range(len(self._log_buffer) - 1, -1, -1):
+            existing = self._normalize_log_line(self._log_buffer[idx])
+            if not existing.startswith(search_prefix):
+                continue
+            existing_message = existing[len(search_prefix) :].strip()
+            if self._is_run_status_message(existing_message):
+                self._log_buffer[idx] = display_line
+                return True
+        self._log_buffer.append(display_line)
+        return True
+
     def _update_polling_summary(self, phase: str, host: str) -> None:
         poll_key = (phase, host, "Poll LB_EVENT stream", "done")
         delay_key = (phase, host, "Delay", "done")
@@ -128,6 +150,10 @@ class PollingRollupHelper:
     @staticmethod
     def _normalize_log_line(line: str) -> str:
         return line.replace("\\[", "[").replace("\\]", "]")
+
+    @staticmethod
+    def _is_run_status_message(message: str) -> bool:
+        return re.match(r"^\d+/\d+\s+\w+", message) is not None
 
     @staticmethod
     def _parse_bullet_line(line: str) -> tuple[str, str, str] | None:

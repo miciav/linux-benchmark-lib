@@ -162,3 +162,20 @@ def test_dashboard_logs_toggle_to_all_mode_shows_raw_lines() -> None:
 
     assert "mode: all" in rendered
     assert "Poll LB_EVENT stream" in rendered
+
+
+def test_dashboard_logs_summary_compresses_run_status_updates() -> None:
+    dash = _make_dashboard()
+    dash.add_log("• [run fio] (host1) 1/3 running")
+    dash.add_log("• [run fio] (host1) 2/3 running")
+    snapshot = dash.viewmodel.snapshot.return_value
+
+    rendered = _render_logs_to_str(dash, snapshot)
+
+    assert "2/3 running" in rendered
+    assert "1/3 running" not in rendered
+
+    dash._toggle_log_mode()
+    rendered_all = _render_logs_to_str(dash, snapshot)
+    assert "1/3 running" in rendered_all
+    assert "2/3 running" in rendered_all
