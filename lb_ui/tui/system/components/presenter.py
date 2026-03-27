@@ -19,16 +19,23 @@ class _RichPresenterSink(PresenterSink):
         title: str | None,
         border_style: str | None,
     ) -> None:
+        styled_title = theme.panel_title(title, active=False) if title else None
         self._console.print(
             Panel(
                 message,
-                title=title,
+                title=styled_title,
                 border_style=border_style or theme.RICH_BORDER_STYLE,
             )
         )
 
     def emit_rule(self, title: str) -> None:
-        self._console.print(Rule(title))
+        self._console.print(
+            Rule(
+                theme.panel_title(title, active=False),
+                style=theme.RICH_BORDER_STYLE,
+                characters="─",
+            )
+        )
 
 
 class RichPresenter(Presenter):

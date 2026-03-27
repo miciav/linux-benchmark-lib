@@ -32,6 +32,13 @@ def test_theme_panel_title_wraps_accent() -> None:
     assert theme.RICH_ACCENT_BOLD in title
 
 
+def test_theme_panel_title_supports_secondary_meta() -> None:
+    title = theme.panel_title("Activity Log", meta="latest events", active=False)
+    assert "Activity Log" in title
+    assert "latest events" in title
+    assert "bright_black" in title
+
+
 def test_theme_accent_is_cyan() -> None:
     assert theme.RICH_ACCENT == "cyan"
 
@@ -72,3 +79,9 @@ def test_theme_picker_style_has_footer_keys() -> None:
     styles = theme.prompt_toolkit_picker_style()
     assert "footer" in styles
     assert "footer.key" in styles
+
+
+def test_theme_picker_style_uses_graphite_teal_palette() -> None:
+    styles = theme.prompt_toolkit_picker_style()
+    assert styles["frame.border"] == "fg:#3c464d"
+    assert styles["footer.key"] == "fg:#7fe3d4 bold"

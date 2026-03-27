@@ -244,7 +244,7 @@ class PickerScreen:
     def _render_path(self) -> str:
         if not self._hierarchy:
             return ""
-        return f"Path: {self._hierarchy.breadcrumb()}"
+        return f"Browse • {self._hierarchy.breadcrumb()}"
 
     def _render_row(self, item: PickItem, is_selected: bool) -> tuple[str, str]:
         if self._hierarchy:
@@ -258,7 +258,7 @@ class PickerScreen:
             style = "class:disabled"
 
         if not self._multi_select:
-            suffix = " \u25b8" if item.variants else ""
+            suffix = "  · options \u25b8" if item.variants else ""
             return style, f"   {item.title}{suffix}"
 
         prefix = "[ ]"
@@ -269,9 +269,9 @@ class PickerScreen:
             prefix = "[x]"
             if item.variants:
                 variant_label = self._selection.selected_variant_title(item)
-                suffix = f" [{variant_label}]" if variant_label else " \u25b8"
+                suffix = f"  · {variant_label}" if variant_label else "  · selected"
         elif item.variants:
-            suffix = " \u25b8"
+            suffix = "  · options \u25b8"
         if self._selection and self._selection.is_selected(item) and not is_selected:
             style = "class:checked"
         return style, f" {prefix} {item.title}{suffix}"
@@ -287,7 +287,7 @@ class PickerScreen:
         else:
             raw = theme.PICKER_KEYBINDINGS_FLAT_SINGLE
 
-        frags: list[tuple[str, str]] = [("class:footer", "  ")]
+        frags: list[tuple[str, str]] = [("class:footer", "  Hints "), ("class:footer", "•   ")]
         for segment in raw.split("  "):
             segment = segment.strip()
             if not segment:
@@ -304,9 +304,9 @@ class PickerScreen:
     def _render_variants(self) -> list[tuple[str, str]]:
         item = self._current_item()
         if not item or not item.variants:
-            return [("", "No options available")]
+            return [("class:disabled", "No options available")]
         fragments: list[tuple[str, str]] = []
-        fragments.append(("class:title", f"Select Option for {item.title}:\n\n"))
+        fragments.append(("class:title", f"Options • {item.title}\n\n"))
         for idx, variant in enumerate(item.variants):
             style = ""
             if idx == self._variant_index:

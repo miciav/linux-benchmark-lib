@@ -7,6 +7,9 @@ RICH_ACCENT = "cyan"
 RICH_ACCENT_BOLD = f"bold {RICH_ACCENT}"
 RICH_BORDER_STYLE = "bright_black"        # subtle grey — secondary panels
 RICH_BORDER_STYLE_ACTIVE = RICH_ACCENT    # cyan — primary/active panels
+RICH_TITLE_SECONDARY = "bold white"
+RICH_META_MUTED = "bright_black"
+RICH_EMPTY_TEXT = "italic bright_black"
 
 # ── Status colours (kept for backward compat with status_text()) ─────────────
 RICH_STATUS_COLORS: dict[str, str] = {
@@ -38,8 +41,16 @@ PRESENTER_TEMPLATES: dict[str, str] = {
 
 # ── Dashboard styles ──────────────────────────────────────────────────────────
 DASHBOARD_HOST_STYLE = "bold white"
-DASHBOARD_ACTION_STYLE = "white"        # was "dim italic" — now legible
+DASHBOARD_ACTION_STYLE = "white"
+DASHBOARD_HEADER_STYLE = "bold white"
+TABLE_ROW_STYLES = ["none", "dim"]
 LOG_TIMING_STYLE = "bright_black"
+ACTION_PHASE_STYLES: dict[str, str] = {
+    "SET": "black on #7fe3d4",
+    "RUN": "black on #5cc8ff",
+    "COL": "black on #b8f28f",
+    "END": "black on #f2c078",
+}
 
 # ── Picker keybinding hint strings ────────────────────────────────────────────
 PICKER_KEYBINDINGS_FLAT_SINGLE = (
@@ -58,8 +69,37 @@ PICKER_KEYBINDINGS_VARIANTS = (
 
 # ── Public helpers ────────────────────────────────────────────────────────────
 
-def panel_title(text: str) -> str:
-    return f"[{RICH_ACCENT_BOLD}]{text}[/{RICH_ACCENT_BOLD}]"
+def panel_title(
+    text: str, meta: str | None = None, *, active: bool = True
+) -> str:
+    title_style = RICH_ACCENT_BOLD if active else RICH_TITLE_SECONDARY
+    if not meta:
+        return f"[{title_style}]{text}[/{title_style}]"
+    meta_style = RICH_ACCENT if active else RICH_META_MUTED
+    return (
+        f"[{title_style}]{text}[/{title_style}] "
+        f"[{RICH_META_MUTED}]•[/{RICH_META_MUTED}] "
+        f"[{meta_style}]{meta}[/{meta_style}]"
+    )
+
+
+def muted(text: str) -> str:
+    return f"[{RICH_META_MUTED}]{text}[/{RICH_META_MUTED}]"
+
+
+def empty_state(text: str) -> str:
+    return f"[{RICH_EMPTY_TEXT}]{text}[/{RICH_EMPTY_TEXT}]"
+
+
+def form_prompt(text: str) -> str:
+    return f"[{RICH_TITLE_SECONDARY}]{text}[/{RICH_TITLE_SECONDARY}]"
+
+
+def action_phase_badge(label: str) -> str:
+    style = ACTION_PHASE_STYLES.get(label)
+    if not style:
+        return label
+    return f"[{style}] {label} [/{style}]"
 
 
 def status_text(status: str) -> str:
@@ -104,7 +144,7 @@ def event_status_live(event_source: str, freshness: str) -> str:
 
 
 def controller_state_line(state: str) -> str:
-    return f"[cyan]Controller:[/cyan] {state}"
+    return f"[{RICH_TITLE_SECONDARY}]Controller[/{RICH_TITLE_SECONDARY}] {muted('•')} {state}"
 
 
 def warning_banner(message: str) -> str:
@@ -113,16 +153,16 @@ def warning_banner(message: str) -> str:
 
 def prompt_toolkit_picker_style() -> Mapping[str, str]:
     return {
-        "selected":         "bg:#006080 fg:white bold",
-        "checked":          "fg:#00cc88 bold",
-        "separator":        "fg:#444444",
-        "frame.border":     "fg:#444444",
-        "frame.label":      "fg:#00aacc bold",
-        "search":           "bg:#1a1a2e fg:#00ccff",
-        "variant-selected": "bg:#004433 fg:#00ff88 bold",
-        "disabled":         "fg:#664444",
-        "path":             "fg:#00aacc bold underline",
-        "title":            "bold",
-        "footer":           "bg:#111111 fg:#666666",
-        "footer.key":       "fg:#00aacc bold",
+        "selected":         "bg:#14323a fg:#eafffb bold",
+        "checked":          "fg:#67d6c3 bold",
+        "separator":        "fg:#3c464d",
+        "frame.border":     "fg:#3c464d",
+        "frame.label":      "fg:#7fe3d4 bold",
+        "search":           "bg:#171c20 fg:#dffcf7",
+        "variant-selected": "bg:#163b38 fg:#effffb bold",
+        "disabled":         "fg:#66727a",
+        "path":             "fg:#7fe3d4 bold",
+        "title":            "fg:#f4fffd bold",
+        "footer":           "bg:#101316 fg:#73818a",
+        "footer.key":       "fg:#7fe3d4 bold",
     }

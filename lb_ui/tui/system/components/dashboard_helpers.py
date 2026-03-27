@@ -23,6 +23,35 @@ def render_progress(progress_str: str) -> str:
         return progress_str
 
 
+def _action_phase_label(action: str) -> str | None:
+    normalized = action.strip().lower().replace("_", " ")
+    if not normalized:
+        return None
+    if any(token in normalized for token in ("setup", "install", "bootstrap", "prepare", "provision", "init")):
+        return "SET"
+    if any(token in normalized for token in ("collect", "metric", "parse", "export")):
+        return "COL"
+    if any(token in normalized for token in ("teardown", "cleanup", "final", "stop", "close")):
+        return "END"
+    if any(token in normalized for token in ("run", "exec", "benchmark", "stress", "fio", "workload")):
+        return "RUN"
+    return None
+
+
+def render_action(action: str, last_rep_time: str) -> str:
+    if not action:
+        return theme.empty_state("idle")
+
+    parts: list[str] = []
+    phase = _action_phase_label(action)
+    if phase:
+        parts.append(theme.action_phase_badge(phase))
+    parts.append(action)
+    if last_rep_time:
+        parts.append(theme.muted(f"• {last_rep_time}"))
+    return " ".join(parts)
+
+
 def computed_journal_height(row_count: int, term_height: int) -> int:
     """Pick a journal height that leaves room for logs."""
     min_height = min(30, max(10, row_count + 5))
