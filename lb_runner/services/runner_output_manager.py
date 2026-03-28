@@ -62,10 +62,12 @@ class RunnerOutputManager:
         results: list[dict[str, Any]],
         target_root: Path,
         test_name: str,
+        export_results: bool = True,
     ) -> None:
         self.persister.process_results(
             plugin=plugin,
             results=results,
             target_root=target_root,
             test_name=test_name,
+            export_results=export_results,
         )

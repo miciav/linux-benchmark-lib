@@ -40,6 +40,7 @@ class BaseCollector(ABC):
         self._start_time: Optional[datetime] = None
         self._stop_time: Optional[datetime] = None
         self._errors: list[MetricCollectionError] = []
+        self.max_error_records = 100
 
     @abstractmethod
     def _collect_metrics(self) -> Dict[str, Any]:
@@ -100,9 +101,9 @@ class BaseCollector(ABC):
     def _collection_loop(self) -> None:
         """Main collection loop that runs in a background thread."""
         while self._is_running:
+            start = time.time()
+            failed = False
             try:
-                start = time.time()
-
                 # Collect metrics
                 metrics = self._collect_metrics()
 
@@ -114,21 +115,35 @@ class BaseCollector(ABC):
                 with self._lock:
                     self._data.append(metrics)
 
-                # Sleep for the remaining interval time
-                elapsed = time.time() - start
-                sleep_time = max(0, self.interval_seconds - elapsed)
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
-
             except Exception as e:
+                failed = True
                 error = MetricCollectionError(
                     f"{self.name} collector failed to collect metrics",
                     context={"collector": self.name},
                     cause=e,
                 )
-                self._errors.append(error)
+                self._record_error(error)
                 logger.error("Error in %s collector: %s", self.name, e, exc_info=True)
-                # Continue collecting even on error
+            self._sleep_remaining(start, failed=failed)
+
+    def _record_error(self, error: MetricCollectionError) -> None:
+        """Store only the most recent collector errors."""
+        self._errors.append(error)
+        overflow = len(self._errors) - self.max_error_records
+        if overflow > 0:
+            del self._errors[:overflow]
+
+    def _sleep_remaining(self, start_time: float, *, failed: bool) -> None:
+        """Sleep to preserve the configured interval after each iteration."""
+        if not self._is_running:
+            return
+        elapsed = time.time() - start_time
+        if failed:
+            sleep_time = self.interval_seconds
+        else:
+            sleep_time = max(0.0, self.interval_seconds - elapsed)
+        if sleep_time > 0:
+            time.sleep(sleep_time)
 
     def get_data(self) -> List[Dict[str, Any]]:
         """

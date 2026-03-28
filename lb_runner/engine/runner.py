@@ -166,30 +166,32 @@ class LocalRunner:
             plugin: WorkloadPlugin = self.plugin_registry.get(workload_cfg.plugin)
 
             success_overall = True
-            for idx, rep in enumerate(reps):
-                success = self._run_single_repetition(
-                    test_type=test_type,
-                    workload_cfg=workload_cfg,
-                    plugin=plugin,
-                    repetition=rep,
-                    total_reps=total_reps,
-                )
-                success_overall = success_overall and success
-
-                if idx < len(reps) - 1 and self.config.cooldown_seconds > 0:
-                    logger.info(
-                        "Cooldown period: %s seconds", self.config.cooldown_seconds
+            try:
+                for idx, rep in enumerate(reps):
+                    success = self._run_single_repetition(
+                        test_type=test_type,
+                        workload_cfg=workload_cfg,
+                        plugin=plugin,
+                        repetition=rep,
+                        total_reps=total_reps,
                     )
-                    if not sleep_with_stop_checks(
-                        self.config.cooldown_seconds,
-                        self._stop_token,
-                        interval_seconds=0.1,
-                    ):
+                    success_overall = success_overall and success
+
+                    if idx < len(reps) - 1 and self.config.cooldown_seconds > 0:
+                        logger.info(
+                            "Cooldown period: %s seconds", self.config.cooldown_seconds
+                        )
+                        if not sleep_with_stop_checks(
+                            self.config.cooldown_seconds,
+                            self._stop_token,
+                            interval_seconds=0.1,
+                        ):
+                            break
+
+                    if should_stop(self._stop_token):
                         break
-
-                if should_stop(self._stop_token):
-                    break
-
+            finally:
+                self._finalize_workload_results(test_type, plugin)
             logger.info(f"Completed benchmark: {test_type}")
             return success_overall
 
@@ -320,6 +322,21 @@ class LocalRunner:
             message=message,
             error_type=error_type,
             error_context=error_context,
+        )
+
+    def _finalize_workload_results(
+        self,
+        test_name: str,
+        plugin: WorkloadPlugin | None,
+    ) -> None:
+        """Flush deferred workload results into the aggregated JSON/exports."""
+        target_root = self._output_manager.workload_output_dir(test_name)
+        self._output_manager.process_results(
+            plugin=plugin,
+            results=[],
+            target_root=target_root,
+            test_name=test_name,
+            export_results=True,
         )
 
     def run_all_benchmarks(self) -> None:

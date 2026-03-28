@@ -151,14 +151,25 @@ def merge_results(
         except Exception:
             merged = []
 
+    return merge_result_entries(merged, new_results)
+
+
+def merge_result_entries(
+    existing_results: list[dict[str, Any]],
+    new_results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Merge repetition-keyed result entries, preferring newer payloads."""
+
     def _rep_key(entry: dict[str, Any]) -> int | None:
         rep_val = entry.get("repetition")
         return rep_val if isinstance(rep_val, int) and rep_val > 0 else None
 
     merged_by_rep: dict[int, dict[str, Any]] = {
-        rep: entry for entry in merged if (rep := _rep_key(entry)) is not None
+        rep: entry for entry in existing_results if (rep := _rep_key(entry)) is not None
     }
-    unkeyed: list[dict[str, Any]] = [e for e in merged if _rep_key(e) is None]
+    unkeyed: list[dict[str, Any]] = [
+        entry for entry in existing_results if _rep_key(entry) is None
+    ]
     for entry in new_results:
         rep = _rep_key(entry)
         if rep is None:

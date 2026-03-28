@@ -166,7 +166,9 @@ class RichDashboard(Dashboard):
     def _supports_key_toggle(self) -> bool:
         if os.name == "nt":
             return False
-        if termios is None or tty is None:
+        if getattr(termios, "tcgetattr", None) is None:
+            return False
+        if getattr(tty, "setcbreak", None) is None:
             return False
         try:
             return sys.stdin.isatty()
@@ -174,10 +176,15 @@ class RichDashboard(Dashboard):
             return False
 
     def _key_listener_loop(self) -> None:
-        fd = sys.stdin.fileno()
-        old_attrs = termios.tcgetattr(fd)
         try:
-            tty.setcbreak(fd)
+            import termios as termios_module
+            import tty as tty_module
+        except ImportError:
+            return
+        fd = sys.stdin.fileno()
+        old_attrs = termios_module.tcgetattr(fd)
+        try:
+            tty_module.setcbreak(fd)
             while not self._key_listener_stop.is_set():
                 ready, _, _ = select.select([fd], [], [], 0.1)
                 if not ready:
@@ -189,7 +196,7 @@ class RichDashboard(Dashboard):
             return
         finally:
             try:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
+                termios_module.tcsetattr(fd, termios_module.TCSADRAIN, old_attrs)
             except Exception:
                 pass
 

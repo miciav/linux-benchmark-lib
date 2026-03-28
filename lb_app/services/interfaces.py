@@ -14,6 +14,7 @@ if TYPE_CHECKING:
         _RemoteSession,
     )
     from lb_app.services.run_output import AnsibleOutputFormatter
+    from lb_app.services.run_execution import AttachedHandler
     from lb_app.ui_interfaces import UIAdapter
     from lb_controller.api import BenchmarkController, RunExecutionSummary
     from lb_controller.api import StopToken
@@ -58,8 +59,8 @@ class IRunService(Protocol):
 
     def _attach_controller_jsonl(
         self, context: RunContext, session: _RemoteSession
-    ) -> Handler: ...
+    ) -> AttachedHandler: ...
 
     def _attach_controller_loki(
         self, context: RunContext, session: _RemoteSession
-    ) -> Handler | None: ...
+    ) -> AttachedHandler | None: ...
