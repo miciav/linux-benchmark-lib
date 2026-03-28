@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from types import TracebackType
 from typing import TYPE_CHECKING
 
@@ -27,6 +26,7 @@ from lb_app.ui_interfaces import UIAdapter
 
 if TYPE_CHECKING:
     from lb_app.services.interfaces import IRunService
+    from lb_app.services.run_execution import AttachedHandler
 
 
 class ControllerLogHandlers:
@@ -38,7 +38,7 @@ class ControllerLogHandlers:
         self._service = service
         self._context = context
         self._session = session
-        self._handlers: list[logging.Handler | None] = []
+        self._handlers: list[AttachedHandler | None] = []
 
     def __enter__(self) -> "ControllerLogHandlers":
         jsonl_handler = self._service._attach_controller_jsonl(
@@ -56,12 +56,12 @@ class ControllerLogHandlers:
         _exc: BaseException | None,
         _tb: TracebackType | None,
     ) -> None:
-        for handler in self._handlers:
-            if not handler:
+        for attached in self._handlers:
+            if not attached:
                 continue
-            logging.getLogger().removeHandler(handler)
+            attached.logger.removeHandler(attached.handler)
             try:
-                handler.close()
+                attached.handler.close()
             except Exception:
                 pass
         self._handlers = []
@@ -90,64 +90,91 @@ class RemoteRunCoordinator:
         session = self._service._prepare_remote_session(
             context, run_id, ui_adapter, stop_token
         )
+        tailer = None
 
-        with ControllerLogHandlers(self._service, context, session):
-            if not session.stop_token.should_stop() and not pending_exists(
-                session.journal,
-                context.target_tests,
-                context.config.remote_hosts or [],
-                context.config.repetitions,
-                allow_skipped=session.resume_requested,
-            ):
-                return self._service._short_circuit_empty_run(
-                    context, session, ui_adapter
+        try:
+            with ControllerLogHandlers(self._service, context, session):
+                if not session.stop_token.should_stop() and not pending_exists(
+                    session.journal,
+                    context.target_tests,
+                    context.config.remote_hosts or [],
+                    context.config.repetitions,
+                    allow_skipped=session.resume_requested,
+                ):
+                    return self._service._short_circuit_empty_run(
+                        context, session, ui_adapter
+                    )
+
+                pipeline = self._service._build_event_pipeline(
+                    context, session, formatter, output_callback, ui_adapter, emit_timing
                 )
 
-            pipeline = self._service._build_event_pipeline(
-                context, session, formatter, output_callback, ui_adapter, emit_timing
-            )
-
-            controller = BenchmarkController(
-                context.config,
-                ControllerOptions(
-                    output_callback=pipeline.output_cb,
-                    output_formatter=formatter,
-                    journal_refresh=(
-                        session.dashboard.refresh if session.dashboard else None
+                controller = BenchmarkController(
+                    context.config,
+                    ControllerOptions(
+                        output_callback=pipeline.output_cb,
+                        output_formatter=formatter,
+                        journal_refresh=(
+                            session.dashboard.refresh if session.dashboard else None
+                        ),
+                        stop_token=session.stop_token,
+                        state_machine=session.controller_state,
                     ),
-                    stop_token=session.stop_token,
-                    state_machine=session.controller_state,
-                ),
-            )
-            pipeline.controller_ref["controller"] = controller
-            if formatter:
-                formatter.host_label = ",".join(
-                    h.name for h in context.config.remote_hosts
+                )
+                pipeline.controller_ref["controller"] = controller
+                if formatter:
+                    formatter.host_label = ",".join(
+                        h.name for h in context.config.remote_hosts
+                    )
+
+                tailer = maybe_start_event_tailer(
+                    controller,
+                    pipeline.event_from_payload,
+                    pipeline.ingest_event,
+                    formatter,
                 )
 
-            tailer = maybe_start_event_tailer(
-                controller,
-                pipeline.event_from_payload,
-                pipeline.ingest_event,
-                formatter,
-            )
+                summary = self._service._run_controller_loop(
+                    controller=controller,
+                    context=context,
+                    session=session,
+                    pipeline=pipeline,
+                    ui_adapter=ui_adapter,
+                )
+                return RunResult(
+                    context=context,
+                    summary=summary,
+                    journal_path=session.journal_path,
+                    log_path=session.log_path,
+                    ui_log_path=session.ui_stream_log_path,
+                )
+        finally:
+            self._cleanup_session(session, tailer)
 
-            summary = self._service._run_controller_loop(
-                controller=controller,
-                context=context,
-                session=session,
-                pipeline=pipeline,
-                ui_adapter=ui_adapter,
-            )
-
-            if tailer:
-                tailer.stop()
+    @staticmethod
+    def _cleanup_session(session: _RemoteSession, tailer: object | None) -> None:
+        if tailer is not None:
+            try:
+                stop = getattr(tailer, "stop", None)
+                if callable(stop):
+                    stop()
+            except Exception:
+                pass
+        try:
             session.sink.close()
+        except Exception:
+            pass
+        try:
+            session.log_file.close()
+        except Exception:
+            pass
+        ui_stream_log_file = session.ui_stream_log_file
+        if ui_stream_log_file is not None:
+            try:
+                ui_stream_log_file.close()
+            except Exception:
+                pass
+        try:
             session.stop_token.restore()
-            return RunResult(
-                context=context,
-                summary=summary,
-                journal_path=session.journal_path,
-                log_path=session.log_path,
-                ui_log_path=session.ui_stream_log_path,
-            )
+        except Exception:
+            pass

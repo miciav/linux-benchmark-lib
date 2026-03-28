@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import platform
 from typing import Any, Callable
@@ -39,15 +40,23 @@ from lb_app.ui_interfaces import UIAdapter
 from lb_common.api import JsonlLogFormatter, attach_jsonl_handler, attach_loki_handler
 
 
+@dataclass(frozen=True)
+class AttachedHandler:
+    """Handler paired with the logger that owns it."""
+
+    logger: logging.Logger
+    handler: logging.Handler
+
+
 class ControllerLogAttachmentService:
     """Attach structured logging handlers for the controller."""
 
     @staticmethod
-    def attach_jsonl(context: RunContext, session: _RemoteSession) -> logging.Handler:
+    def attach_jsonl(context: RunContext, session: _RemoteSession) -> AttachedHandler:
         _ = context
         controller_logger = logging.getLogger("lb_controller")
         controller_logger.setLevel(logging.INFO)
-        return attach_jsonl_handler(
+        handler = attach_jsonl_handler(
             controller_logger,
             output_dir=session.journal_path.parent,
             component="controller",
@@ -57,11 +66,12 @@ class ControllerLogAttachmentService:
             package="lb_controller",
             repetition=1,
         )
+        return AttachedHandler(logger=controller_logger, handler=handler)
 
     @staticmethod
     def attach_loki(
         context: RunContext, session: _RemoteSession
-    ) -> logging.Handler | None:
+    ) -> AttachedHandler | None:
         loki_cfg = context.config.loki
         handler = attach_loki_handler(
             logging.getLogger(),
@@ -93,7 +103,8 @@ class ControllerLogAttachmentService:
                     repetition=1,
                 )
             )
-        return handler
+            return AttachedHandler(logger=logging.getLogger(), handler=handler)
+        return None
 
 
 class RunExecutionCoordinator:
@@ -154,19 +165,8 @@ class RunExecutionCoordinator:
             session.log_file.flush()
         except Exception:
             pass
-        session.sink.close()
-        try:
-            session.log_file.close()
-        except Exception:
-            pass
-        if session.ui_stream_log_file:
-            try:
-                session.ui_stream_log_file.close()
-            except Exception:
-                pass
         if ui_adapter:
             ui_adapter.show_info(msg)
-        session.stop_token.restore()
         return RunResult(
             context=context,
             summary=None,
@@ -252,12 +252,12 @@ class RunExecutionCoordinator:
 
     def _attach_controller_jsonl(
         self, context: RunContext, session: _RemoteSession
-    ) -> logging.Handler:
+    ) -> AttachedHandler:
         return self._log_attachment_service.attach_jsonl(context, session)
 
     def _attach_controller_loki(
         self, context: RunContext, session: _RemoteSession
-    ) -> logging.Handler | None:
+    ) -> AttachedHandler | None:
         return self._log_attachment_service.attach_loki(context, session)
 
     def _parse_progress_line(self, line: str) -> dict[str, Any] | None:

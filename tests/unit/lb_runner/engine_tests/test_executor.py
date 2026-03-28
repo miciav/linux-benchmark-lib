@@ -154,3 +154,20 @@ def test_run_attempt_handles_lb_error(executor, context, tmp_path):
     assert outcome.status == "failed"
     assert context.output_manager.persist_rep_result.called
     assert context.output_manager.process_results.called
+
+
+def test_run_attempt_defers_export_until_last_repetition(executor, context, tmp_path):
+    generator = MagicMock()
+    result = {"success": True, "repetition": 1}
+    context.output_manager.workload_output_dir.return_value = tmp_path / "workload"
+
+    with patch.object(executor, "execute", return_value=result):
+        outcome = executor.run_attempt(
+            test_name="test_workload",
+            generator=generator,
+            repetition=1,
+            total_repetitions=3,
+        )
+
+    assert outcome.success is True
+    assert context.output_manager.process_results.call_args.kwargs["export_results"] is False

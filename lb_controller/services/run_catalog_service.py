@@ -59,9 +59,9 @@ class RunCatalogService:
         hosts, workloads = self._extract_hosts_workloads(journal_data)
 
         if not hosts:
-            hosts = self._fallback_hosts(output_root)
-        if not workloads and hosts:
-            workloads = self._fallback_workloads(output_root, hosts)
+            hosts, workloads = self._fallback_layout_metadata(output_root)
+        elif not workloads:
+            workloads = self._fallback_remote_workloads(output_root, hosts)
 
         return RunInfo(
             run_id=run_id,
@@ -128,21 +128,59 @@ class RunCatalogService:
         }
         return hosts, workloads
 
-    @staticmethod
-    def _fallback_hosts(output_root: Path) -> Set[str]:
-        return {entry.name for entry in output_root.iterdir() if entry.is_dir()}
+    @classmethod
+    def _fallback_layout_metadata(cls, output_root: Path) -> tuple[Set[str], Set[str]]:
+        entries = cls._candidate_dirs(output_root)
+        if not entries:
+            return set(), set()
+
+        local_workloads = {
+            entry.name for entry in entries if cls._looks_like_workload_dir(entry)
+        }
+        if local_workloads and len(local_workloads) == len(entries):
+            return {"localhost"}, local_workloads
+
+        remote_hosts = {entry.name for entry in entries if cls._looks_like_host_dir(entry)}
+        if remote_hosts:
+            return remote_hosts, cls._fallback_remote_workloads(output_root, remote_hosts)
+
+        return set(), set()
+
+    @classmethod
+    def _fallback_remote_workloads(cls, output_root: Path, hosts: Set[str]) -> Set[str]:
+        workloads: set[str] = set()
+        for host in hosts:
+            host_root = output_root / host
+            if not host_root.exists():
+                continue
+            for entry in cls._candidate_dirs(host_root):
+                if cls._looks_like_workload_dir(entry):
+                    workloads.add(entry.name)
+        return workloads
 
     @staticmethod
-    def _fallback_workloads(output_root: Path, hosts: Set[str]) -> Set[str]:
-        first_host = next(iter(hosts))
-        host_root = output_root / first_host
-        if not host_root.exists():
-            return set()
-        return {
-            entry.name
-            for entry in host_root.iterdir()
-            if entry.is_dir() and not entry.name.startswith("_")
-        }
+    def _candidate_dirs(root: Path) -> list[Path]:
+        return [
+            entry
+            for entry in root.iterdir()
+            if entry.is_dir() and not entry.name.startswith("_") and entry.name != "logs"
+        ]
+
+    @classmethod
+    def _looks_like_host_dir(cls, root: Path) -> bool:
+        children = cls._candidate_dirs(root)
+        return any(cls._looks_like_workload_dir(child) for child in children)
+
+    @staticmethod
+    def _looks_like_workload_dir(root: Path) -> bool:
+        has_children = False
+        for entry in root.iterdir():
+            has_children = True
+            if entry.is_dir() and entry.name.startswith("rep"):
+                return True
+            if entry.is_file() and entry.name.endswith("_results.json"):
+                return True
+        return not has_children
 
     def _iter_run_ids(self) -> Iterable[str]:
         for item in self.output_dir.iterdir():

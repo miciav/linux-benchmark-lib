@@ -24,6 +24,7 @@ from lb_app.services.run_context_builder import (
     resolve_target_tests,
 )
 from lb_app.services.run_execution import (
+    AttachedHandler,
     ControllerLogAttachmentService,
     RunExecutionCoordinator,
 )
@@ -31,7 +32,6 @@ from lb_app.services.execution_loop import RunExecutionLoop
 from lb_app.services.session_manager import SessionManager
 
 if TYPE_CHECKING:
-    from logging import Handler
     from lb_controller.api import RunExecutionSummary
     from lb_app.services.run_types import _EventPipeline, _RemoteSession
 
@@ -216,12 +216,12 @@ class RunService:
 
     def _attach_controller_jsonl(
         self, context: RunContext, session: _RemoteSession
-    ) -> Handler:
+    ) -> AttachedHandler:
         return self._execution_coordinator._attach_controller_jsonl(context, session)
 
     def _attach_controller_loki(
         self, context: RunContext, session: _RemoteSession
-    ) -> Handler | None:
+    ) -> AttachedHandler | None:
         return self._execution_coordinator._attach_controller_loki(context, session)
 
     def _prepare_remote_session(

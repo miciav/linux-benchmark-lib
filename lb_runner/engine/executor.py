@@ -198,7 +198,12 @@ class RepetitionExecutor:
                 collectors_enabled=collectors_enabled,
             )
             self._cleanup_generator(generator, test_name, repetition)
-            self._process_results(test_name, [result], plugin=plugin)
+            self._process_results(
+                test_name,
+                [result],
+                plugin=plugin,
+                export_results=False,
+            )
             success = bool(result.get("success", True))
             message = "" if success else str(result.get("error") or "")
             return RepetitionOutcome(
@@ -341,6 +346,7 @@ class RepetitionExecutor:
         results: list[dict[str, Any]],
         *,
         plugin: WorkloadPlugin | None = None,
+        export_results: bool = True,
     ) -> None:
         target_root = self.context.output_manager.workload_output_dir(test_name)
         self.context.output_manager.process_results(
@@ -348,6 +354,7 @@ class RepetitionExecutor:
             results=results,
             target_root=target_root,
             test_name=test_name,
+            export_results=export_results,
         )
 
     def _handle_failure(
@@ -384,7 +391,12 @@ class RepetitionExecutor:
         self._cleanup_generator(generator, test_name, repetition)
         try:
             self.context.output_manager.persist_rep_result(rep_dir, result)
-            self._process_results(test_name, [result], plugin=plugin)
+            self._process_results(
+                test_name,
+                [result],
+                plugin=plugin,
+                export_results=False,
+            )
         except Exception:
             logger.exception(
                 "Failed to persist failure result for %s rep %s",
