@@ -47,8 +47,8 @@ class TestGUIDashboardViewModel:
 
     def test_refresh_snapshot_reads_real_journal(self) -> None:
         """Test refresh_snapshot builds rows from the real journal."""
-        from lb_gui.viewmodels.dashboard_vm import GUIDashboardViewModel
         from lb_controller.api import RunJournal, TaskState
+        from lb_gui.viewmodels.dashboard_vm import GUIDashboardViewModel
 
         vm = GUIDashboardViewModel()
         journal = RunJournal(run_id="run-1", tasks={})
@@ -138,8 +138,8 @@ class TestGUIDashboardViewModel:
 
     def test_get_journal_rows_converts_snapshot(self) -> None:
         """Test get_journal_rows converts DashboardRows to lists."""
-        from lb_gui.viewmodels.dashboard_vm import GUIDashboardViewModel
         from lb_app.api import DashboardRow
+        from lb_gui.viewmodels.dashboard_vm import GUIDashboardViewModel
 
         vm = GUIDashboardViewModel()
         mock_snapshot = MagicMock()

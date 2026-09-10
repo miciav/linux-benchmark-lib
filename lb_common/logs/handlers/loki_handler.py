@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import queue
 import threading
 import time
-from typing import Iterable, Mapping, Any
-from urllib import request, error
+from collections.abc import Iterable, Mapping
+from typing import Any
+from urllib import error, request
 from urllib.parse import urlparse
 
 from lb_common.logs.handlers.loki_helpers import LokiLabelBuilder, LokiWorker
@@ -135,10 +137,8 @@ class LokiPushHandler(logging.Handler):
     def close(self) -> None:
         """Flush pending records and stop the background worker."""
         self._stop_event.set()
-        try:
+        with contextlib.suppress(queue.Full):
             self._queue.put_nowait(LokiLogEntry(labels={}, timestamp_ns="0", line=""))
-        except queue.Full:
-            pass
         if self._thread.is_alive():
             self._thread.join(timeout=self._flush_interval * 2)
         super().close()

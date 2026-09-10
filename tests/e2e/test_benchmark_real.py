@@ -1,5 +1,4 @@
-"""
-Real integration tests that actually execute benchmarks.
+"""Real integration tests that actually execute benchmarks.
 
 These tests run actual benchmarks with minimal parameters to verify
 the entire system works end-to-end.
@@ -78,9 +77,9 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
 
         # Collect system info
         system_info = runner.collect_system_info()
-        self.assertIsNotNone(system_info)
-        self.assertIn("platform", system_info)
-        self.assertIn("python", system_info)
+        assert system_info is not None
+        assert "platform" in system_info
+        assert "python" in system_info
 
         # Run the benchmark
         start_time = time.time()
@@ -91,47 +90,45 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         workload_dir = output_root / "stress_ng"
         # Verify execution time is reasonable
         execution_time = end_time - start_time
-        self.assertLess(execution_time, 10)  # Should complete within 10 seconds
+        assert execution_time < 10  # Should complete within 10 seconds
 
         # Verify output files were created
         results_file = workload_dir / "stress_ng_results.json"
-        self.assertTrue(
-            results_file.exists(), f"Results file not found: {results_file}"
-        )
+        assert results_file.exists(), f"Results file not found: {results_file}"
 
         # Load and verify results
-        with open(results_file, "r") as f:
+        with Path(results_file).open() as f:
             results = json.load(f)
 
-        self.assertIsInstance(results, list)
-        self.assertEqual(len(results), 1)  # One repetition
+        assert isinstance(results, list)
+        assert len(results) == 1  # One repetition
 
         result = results[0]
-        self.assertEqual(result["test_name"], "stress_ng")
-        self.assertEqual(result["repetition"], 1)
-        self.assertIn("start_time", result)
-        self.assertIn("end_time", result)
-        self.assertIn("duration_seconds", result)
-        self.assertIn("generator_result", result)
-        self.assertIn("metrics", result)
+        assert result["test_name"] == "stress_ng"
+        assert result["repetition"] == 1
+        assert "start_time" in result
+        assert "end_time" in result
+        assert "duration_seconds" in result
+        assert "generator_result" in result
+        assert "metrics" in result
 
         # Verify metrics were collected
-        self.assertIn("PSUtilCollector", result["metrics"])
+        assert "PSUtilCollector" in result["metrics"]
         psutil_metrics = result["metrics"]["PSUtilCollector"]
-        self.assertIsInstance(psutil_metrics, list)
-        self.assertGreater(len(psutil_metrics), 0)
+        assert isinstance(psutil_metrics, list)
+        assert len(psutil_metrics) > 0
 
         # Verify metric data structure
         for metric in psutil_metrics:
-            self.assertIn("timestamp", metric)
-            self.assertIn("cpu_percent", metric)
-            self.assertIn("memory_usage", metric)
+            assert "timestamp" in metric
+            assert "cpu_percent" in metric
+            assert "memory_usage" in metric
 
         # Aggregated CSVs are no longer produced by the runner; analytics runs via UI/CLI.
 
         # Verify collector raw data files (allow nested paths or new naming)
         collector_files = list(workload_dir.rglob("*.csv"))
-        self.assertGreater(len(collector_files), 0, "No collector CSV files found")
+        assert len(collector_files) > 0, "No collector CSV files found"
 
     def test_system_info_collection(self):
         """Test system information collection."""
@@ -145,18 +142,18 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
         system_info = runner.collect_system_info()
 
         # Verify basic system info
-        self.assertIn("timestamp", system_info)
-        self.assertIn("platform", system_info)
-        self.assertIn("python", system_info)
+        assert "timestamp" in system_info
+        assert "platform" in system_info
+        assert "python" in system_info
 
         platform_info = system_info["platform"]
-        self.assertIn("system", platform_info)
-        self.assertIn("machine", platform_info)
-        self.assertIn("release", platform_info)
+        assert "system" in platform_info
+        assert "machine" in platform_info
+        assert "release" in platform_info
 
         python_info = system_info["python"]
-        self.assertIn("version", python_info)
-        self.assertIn("implementation", python_info)
+        assert "version" in python_info
+        assert "implementation" in python_info
 
     @unittest.skipUnless(
         shutil.which("stress-ng") is not None, "stress-ng not installed"
@@ -195,20 +192,20 @@ class TestRealBenchmarkIntegration(unittest.TestCase):
 
         # Load results
         results_file = workload_dir / "stress_ng_results.json"
-        with open(results_file, "r") as f:
+        with Path(results_file).open() as f:
             results = json.load(f)
 
         result = results[0]
 
         # Verify PSUtil collector ran
-        self.assertIn("PSUtilCollector", result["metrics"])
+        assert "PSUtilCollector" in result["metrics"]
 
         # Verify timing (duration is only the test execution time, not warmup/cooldown)
         duration = result["duration_seconds"]
         expected_duration = config.test_duration_seconds
         # Allow modest overhead for process startup/teardown and collector timing
-        self.assertGreaterEqual(duration, expected_duration)
-        self.assertLessEqual(duration, expected_duration + 3.0)
+        assert duration >= expected_duration
+        assert duration <= expected_duration + 3.0
 
 
 if __name__ == "__main__":

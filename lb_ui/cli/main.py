@@ -1,5 +1,4 @@
-"""
-Command-line interface for linux-benchmark-lib.
+"""Command-line interface for linux-benchmark-lib.
 
 Exposes quick commands to inspect plugins/hosts and run benchmarks via
 provisioned environments (remote, Docker, Multipass).
@@ -8,25 +7,23 @@ provisioned environments (remote, Docker, Multipass).
 from __future__ import annotations
 
 import os
-from typing import Optional
+from pathlib import Path
 
 import typer
 
-from pathlib import Path
+from lb_app.api import UIAdapter
 
 # Command modules
 from lb_ui.cli.commands.config import create_config_app
 from lb_ui.cli.commands.doctor import create_doctor_app
 from lb_ui.cli.commands.plugin import create_plugin_app
 from lb_ui.cli.commands.provision import create_provision_app
-from lb_ui.cli.commands.runs import create_runs_app
 from lb_ui.cli.commands.resume import register_resume_command
-from lb_ui.cli.commands.test import create_test_app
 from lb_ui.cli.commands.run import register_run_command
-
-from lb_ui.wiring.dependencies import load_dev_mode, configure_logging, UIContext
+from lb_ui.cli.commands.runs import create_runs_app
+from lb_ui.cli.commands.test import create_test_app
 from lb_ui.tui.core.protocols import UI
-from lb_app.api import UIAdapter
+from lb_ui.wiring.dependencies import UIContext, configure_logging, load_dev_mode
 
 # Initialize global context (lazy)
 _CLI_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -66,7 +63,7 @@ def entry(
         "--headless",
         help="Force headless output (useful in CI).",
     ),
-    config: Optional[Path] = typer.Option(
+    config: Path | None = typer.Option(
         None,
         "--config",
         "-c",

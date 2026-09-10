@@ -1,12 +1,11 @@
+from collections import defaultdict
+
 from rich.console import Console
 from rich.table import Table
-from collections import defaultdict
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
-    """
-    Custom hook to print statistics by marker at the end of the test session.
-    """
+    """Custom hook to print statistics by marker at the end of the test session."""
     _ = (exitstatus, config)  # unused in our reporting helper
     # Initialize statistics
     marker_stats = defaultdict(
@@ -49,7 +48,8 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
                 duration = getattr(report, "duration", 0.0)
                 # Check for markers
                 for marker in known_markers:
-                    # report.keywords is a dict-like object where keys are markers/keywords
+                    # report.keywords is a dict-like object where keys
+                    # are markers/keywords
                     if marker in report.keywords:
                         stats = marker_stats[marker]
                         stats[outcome] += 1
@@ -61,8 +61,6 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
 
     # Only print if we found something
     if not marker_stats:
-        # Optional: uncomment to debug if needed, but for now just silence or simple msg
-        # console.print("\n[dim]No statistics for known markers found.[/dim]")
         return
 
     table = Table(

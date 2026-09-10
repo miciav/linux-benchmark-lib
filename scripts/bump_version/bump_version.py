@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Version bump and release automation for linux-benchmark-lib.
+"""Version bump and release automation for linux-benchmark-lib.
 
 Interactive usage:
     uv run bump_version.py
@@ -65,10 +64,10 @@ def bump_version(version: str, bump_type: BumpType) -> str:
 
     if bump_type == "major":
         return f"{major + 1}.0.0"
-    elif bump_type == "minor":
+    if bump_type == "minor":
         return f"{major}.{minor + 1}.0"
-    else:  # patch
-        return f"{major}.{minor}.{patch + 1}"
+    # patch
+    return f"{major}.{minor}.{patch + 1}"
 
 
 def get_last_tag() -> str | None:
@@ -87,10 +86,7 @@ def get_last_tag() -> str | None:
 
 def get_commits_since_tag(tag: str | None) -> list[str]:
     """Get list of commits since the given tag."""
-    if tag:
-        range_spec = f"{tag}..HEAD"
-    else:
-        range_spec = "HEAD"
+    range_spec = f"{tag}..HEAD" if tag else "HEAD"
 
     try:
         result = subprocess.run(
@@ -150,7 +146,7 @@ def generate_release_notes(version: str, commits: list[str], tag: str | None) ->
 ## Highlights
 - TODO: add key features/fixes
 
-## Changes (since {tag or 'initial'})
+## Changes (since {tag or "initial"})
 {bullet_commits}
 
 ## Upgrade Notes
@@ -265,7 +261,7 @@ def interactive_mode(repo_root: Path, dry_run: bool, custom_notes: Path | None) 
     print(f"Current branch: {current_branch}")
 
     if current_branch != "main":
-        print(f"\n  Warning: You are not on 'main' branch!")
+        print("\n  Warning: You are not on 'main' branch!")
 
     if not is_working_tree_clean():
         print("\n  Error: Working tree is dirty. Commit or stash changes first.")
@@ -362,7 +358,7 @@ def non_interactive_mode(
     print(f"Current branch: {current_branch}")
 
     if current_branch != "main":
-        print(f"Warning: You are not on 'main' branch!")
+        print("Warning: You are not on 'main' branch!")
 
     if not is_working_tree_clean():
         print("Error: Working tree is dirty. Commit or stash changes first.")
@@ -441,17 +437,16 @@ def main() -> int:
         return non_interactive_mode(
             repo_root, "patch", args.dry_run, args.yes, args.notes
         )
-    elif args.minor:
+    if args.minor:
         return non_interactive_mode(
             repo_root, "minor", args.dry_run, args.yes, args.notes
         )
-    elif args.major:
+    if args.major:
         return non_interactive_mode(
             repo_root, "major", args.dry_run, args.yes, args.notes
         )
-    else:
-        # Interactive mode
-        return interactive_mode(repo_root, args.dry_run, args.notes)
+    # Interactive mode
+    return interactive_mode(repo_root, args.dry_run, args.notes)
 
 
 if __name__ == "__main__":

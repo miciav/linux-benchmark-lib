@@ -82,9 +82,9 @@ def run_single_benchmark(
     config: BenchmarkConfig, test_type: str, registry: PluginRegistry
 ) -> None:
     """Run one workload with the local runner and print status."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Running {test_type} benchmark")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     runner = LocalRunner(config, registry=registry)
     system_info = runner.collect_system_info()

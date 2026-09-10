@@ -1,16 +1,14 @@
-"""
-PSUtil collector implementation for high-level system metric collection.
+"""PSUtil collector implementation for high-level system metric collection.
 
 This module collects system metrics using the psutil library.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
 
 import psutil
 
 from ._base_collector import BaseCollector
-
 
 logger = logging.getLogger(__name__)
 
@@ -19,21 +17,21 @@ class PSUtilCollector(BaseCollector):
     """Metric collector using psutil."""
 
     def __init__(self, name: str = "PSUtilCollector", interval_seconds: float = 1.0):
-        """
-        Initialize the PSUtil collector.
+        """Initialize the PSUtil collector.
 
         Args:
             name: Name of the collector
             interval_seconds: Sampling interval in seconds
+
         """
         super().__init__(name, interval_seconds)
 
-    def _collect_metrics(self) -> Dict[str, Any]:
-        """
-        Collect metrics using psutil.
+    def _collect_metrics(self) -> dict[str, Any]:
+        """Collect metrics using psutil.
 
         Returns:
             Dictionary containing metric names and their values
+
         """
         metrics = {}
         try:
@@ -53,11 +51,11 @@ class PSUtilCollector(BaseCollector):
         return metrics
 
     def _validate_environment(self) -> bool:
-        """
-        Validate that the psutil can run in the current environment.
+        """Validate that the psutil can run in the current environment.
 
         Returns:
             True if the environment is valid, False otherwise
+
         """
         # Assume psutil is always available in Python environment
         return True

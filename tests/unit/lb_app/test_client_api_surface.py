@@ -4,7 +4,6 @@ import pytest
 
 from lb_app.api import AppClient, ApplicationClient
 
-
 pytestmark = pytest.mark.unit_ui
 
 

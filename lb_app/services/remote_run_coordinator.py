@@ -2,9 +2,19 @@
 
 from __future__ import annotations
 
+import contextlib
 from types import TracebackType
 from typing import TYPE_CHECKING
 
+from lb_app.services.run_output import AnsibleOutputFormatter
+from lb_app.services.run_pipeline import maybe_start_event_tailer
+from lb_app.services.run_types import (
+    OutputCallback,
+    RunContext,
+    RunResult,
+    _RemoteSession,
+)
+from lb_app.ui_interfaces import UIAdapter
 from lb_controller.api import (
     BenchmarkController,
     ControllerOptions,
@@ -13,16 +23,6 @@ from lb_controller.api import (
     pending_exists,
 )
 from lb_plugins.api import apply_plugin_assets
-
-from lb_app.services.run_pipeline import maybe_start_event_tailer
-from lb_app.services.run_types import (
-    OutputCallback,
-    RunContext,
-    RunResult,
-    _RemoteSession,
-)
-from lb_app.services.run_output import AnsibleOutputFormatter
-from lb_app.ui_interfaces import UIAdapter
 
 if TYPE_CHECKING:
     from lb_app.services.interfaces import IRunService
@@ -40,7 +40,7 @@ class ControllerLogHandlers:
         self._session = session
         self._handlers: list[AttachedHandler | None] = []
 
-    def __enter__(self) -> "ControllerLogHandlers":
+    def __enter__(self) -> ControllerLogHandlers:
         jsonl_handler = self._service._attach_controller_jsonl(
             self._context, self._session
         )
@@ -60,10 +60,8 @@ class ControllerLogHandlers:
             if not attached:
                 continue
             attached.logger.removeHandler(attached.handler)
-            try:
+            with contextlib.suppress(Exception):
                 attached.handler.close()
-            except Exception:
-                pass
         self._handlers = []
 
 
@@ -106,7 +104,12 @@ class RemoteRunCoordinator:
                     )
 
                 pipeline = self._service._build_event_pipeline(
-                    context, session, formatter, output_callback, ui_adapter, emit_timing
+                    context,
+                    session,
+                    formatter,
+                    output_callback,
+                    ui_adapter,
+                    emit_timing,
                 )
 
                 controller = BenchmarkController(
@@ -154,27 +157,17 @@ class RemoteRunCoordinator:
     @staticmethod
     def _cleanup_session(session: _RemoteSession, tailer: object | None) -> None:
         if tailer is not None:
-            try:
+            with contextlib.suppress(Exception):
                 stop = getattr(tailer, "stop", None)
                 if callable(stop):
                     stop()
-            except Exception:
-                pass
-        try:
+        with contextlib.suppress(Exception):
             session.sink.close()
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             session.log_file.close()
-        except Exception:
-            pass
         ui_stream_log_file = session.ui_stream_log_file
         if ui_stream_log_file is not None:
-            try:
+            with contextlib.suppress(Exception):
                 ui_stream_log_file.close()
-            except Exception:
-                pass
-        try:
+        with contextlib.suppress(Exception):
             session.stop_token.restore()
-        except Exception:
-            pass

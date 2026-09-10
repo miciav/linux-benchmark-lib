@@ -21,21 +21,18 @@ class RunOrchestrator:
 
     def __init__(
         self,
-        run_controller: "RunControllerService",
-        dashboard_vm: "GUIDashboardViewModel",
+        run_controller: RunControllerService,
+        dashboard_vm: GUIDashboardViewModel,
     ) -> None:
         self._run_ctrl = run_controller
         self._dashboard_vm = dashboard_vm
-        self._current_worker: "RunWorker | None" = None
+        self._current_worker: RunWorker | None = None
 
     def is_busy(self) -> bool:
         """Return True if a run is currently active."""
-        return (
-            self._current_worker is not None
-            and self._current_worker.is_running()
-        )
+        return self._current_worker is not None and self._current_worker.is_running()
 
-    def start_run(self, request: "RunRequest") -> "RunWorker":
+    def start_run(self, request: RunRequest) -> RunWorker:
         """Prepare and launch a benchmark run.
 
         Returns the started RunWorker on success.

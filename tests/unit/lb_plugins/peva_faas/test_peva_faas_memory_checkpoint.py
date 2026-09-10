@@ -25,7 +25,8 @@ def _insert_fixture_data(db_path: Path) -> None:
         conn.execute(
             """
             INSERT INTO k6_raw_summaries(
-                config_id, iteration, repetition, run_id, summary_json, summary_size_bytes, ingested_at
+                config_id, iteration, repetition, run_id, summary_json,
+                summary_size_bytes, ingested_at
             )
             VALUES ('cfg-1', 1, 1, 'run-1', '{}', 2, NOW())
             """
@@ -55,7 +56,9 @@ def test_preload_imports_only_core_tables(tmp_path: Path) -> None:
 
     with duckdb.connect(str(target_db)) as conn:
         core_count = conn.execute("SELECT COUNT(*) FROM execution_events").fetchone()[0]
-        debug_count = conn.execute("SELECT COUNT(*) FROM k6_raw_summaries").fetchone()[0]
+        debug_count = conn.execute("SELECT COUNT(*) FROM k6_raw_summaries").fetchone()[
+            0
+        ]
     assert core_count == 1
     assert debug_count == 0
 

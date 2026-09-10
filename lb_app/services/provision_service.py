@@ -48,7 +48,7 @@ class ProvisionConfigSummary:
         cls,
         summary: GrafanaConfigSummary,
         warnings: tuple[str, ...] = (),
-    ) -> "ProvisionConfigSummary":
+    ) -> ProvisionConfigSummary:
         return cls(
             loki_datasource_id=summary.loki_datasource_id,
             datasources_configured=summary.datasources_configured,

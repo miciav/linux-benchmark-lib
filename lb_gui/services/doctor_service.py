@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from lb_app.api import DoctorService, DoctorReport, BenchmarkConfig
+from lb_app.api import BenchmarkConfig, DoctorReport, DoctorService
 
 if TYPE_CHECKING:
     pass
@@ -46,6 +46,7 @@ class DoctorServiceWrapper:
 
         Returns:
             List of DoctorReport objects
+
         """
         reports = [
             self.check_controller(),

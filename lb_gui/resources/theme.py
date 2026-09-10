@@ -131,7 +131,7 @@ def _clamp_scale(scale: float) -> float:
 
 
 def _scale_value(value: int, scale: float) -> int:
-    return max(1, int(round(value * scale)))
+    return max(1, round(value * scale))
 
 
 def _scale_overrides(scale: float) -> str:
@@ -185,8 +185,8 @@ QListWidget::item {{
 
 __all__ = [
     "THEMES",
-    "list_themes",
-    "get_preferred_theme",
-    "get_preferred_scale",
     "apply_theme",
+    "get_preferred_scale",
+    "get_preferred_theme",
+    "list_themes",
 ]

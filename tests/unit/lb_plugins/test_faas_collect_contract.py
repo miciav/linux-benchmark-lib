@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-
 pytestmark = [pytest.mark.unit_plugins]
 
 
@@ -44,11 +43,7 @@ def test_faas_collect_pre_registers_k6_host_only_when_remote(
     assert f"{alias}_k6_is_remote" in derive_text
 
     register_task = next(
-        (
-            task
-            for task in tasks
-            if task.get("name") == "Register DFaaS k6 host"
-        ),
+        (task for task in tasks if task.get("name") == "Register DFaaS k6 host"),
         None,
     )
     assert register_task is not None

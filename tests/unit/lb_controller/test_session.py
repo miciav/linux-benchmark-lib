@@ -1,6 +1,7 @@
 """Unit tests for RunSession."""
 
 from unittest.mock import MagicMock
+
 from lb_controller.engine.session import RunSession
 from lb_controller.models.state import ControllerState, ControllerStateMachine
 

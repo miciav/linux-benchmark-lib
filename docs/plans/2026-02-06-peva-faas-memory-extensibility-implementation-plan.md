@@ -517,4 +517,3 @@ git commit -m "docs(peva_faas): document memory architecture and extension model
 3. Switch executor integration.
 4. Enable custom algorithm entrypoint.
 5. Final docs and verification.
-

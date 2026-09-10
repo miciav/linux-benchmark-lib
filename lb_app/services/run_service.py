@@ -2,22 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from lb_controller.api import (
-    BenchmarkConfig,
-    BenchmarkController,
-    PlatformConfig,
-    StopToken,
-)
-from lb_plugins.api import PluginRegistry
-
-from lb_app.ui_interfaces import UIAdapter
-from lb_app.services.run_pipeline import parse_progress_line
-from lb_app.services.run_output import AnsibleOutputFormatter
-from lb_app.services.run_plan import build_run_plan
-from lb_app.services.run_types import OutputCallback, RunContext, RunResult
+from lb_app.services.execution_loop import RunExecutionLoop
 from lb_app.services.run_context_builder import (
     RunContextBuilder,
     apply_overrides,
@@ -28,12 +17,23 @@ from lb_app.services.run_execution import (
     ControllerLogAttachmentService,
     RunExecutionCoordinator,
 )
-from lb_app.services.execution_loop import RunExecutionLoop
+from lb_app.services.run_output import AnsibleOutputFormatter
+from lb_app.services.run_pipeline import parse_progress_line
+from lb_app.services.run_plan import build_run_plan
+from lb_app.services.run_types import OutputCallback, RunContext, RunResult
 from lb_app.services.session_manager import SessionManager
+from lb_app.ui_interfaces import UIAdapter
+from lb_controller.api import (
+    BenchmarkConfig,
+    BenchmarkController,
+    PlatformConfig,
+    StopToken,
+)
+from lb_plugins.api import PluginRegistry
 
 if TYPE_CHECKING:
-    from lb_controller.api import RunExecutionSummary
     from lb_app.services.run_types import _EventPipeline, _RemoteSession
+    from lb_controller.api import RunExecutionSummary
 
 
 class RunService:
@@ -56,13 +56,12 @@ class RunService:
     def get_run_plan(
         self,
         cfg: BenchmarkConfig,
-        tests: List[str],
+        tests: list[str],
         execution_mode: str = "remote",
         registry: PluginRegistry | None = None,
         platform_config: PlatformConfig | None = None,
-    ) -> List[Dict[str, Any]]:
-        """
-        Build a detailed plan for the workloads to be run.
+    ) -> list[dict[str, Any]]:
+        """Build a detailed plan for the workloads to be run.
 
         Returns a list of dictionaries containing status, intensity, details, etc.
         """
@@ -85,11 +84,11 @@ class RunService:
     def build_context(
         self,
         cfg: BenchmarkConfig,
-        tests: Optional[List[str]],
-        config_path: Optional[Path] = None,
+        tests: list[str] | None,
+        config_path: Path | None = None,
         debug: bool = False,
-        resume: Optional[str] = None,
-        stop_file: Optional[Path] = None,
+        resume: str | None = None,
+        stop_file: Path | None = None,
         execution_mode: str = "remote",
         node_count: int | None = None,
     ) -> RunContext:
@@ -108,22 +107,21 @@ class RunService:
     def create_session(
         self,
         config_service: Any,
-        tests: Optional[List[str]] = None,
-        config_path: Optional[Path] = None,
-        run_id: Optional[str] = None,
-        resume: Optional[str] = None,
-        repetitions: Optional[int] = None,
+        tests: list[str] | None = None,
+        config_path: Path | None = None,
+        run_id: str | None = None,
+        resume: str | None = None,
+        repetitions: int | None = None,
         debug: bool = False,
-        intensity: Optional[str] = None,
+        intensity: str | None = None,
         ui_adapter: UIAdapter | None = None,
         setup: bool = True,
-        stop_file: Optional[Path] = None,
+        stop_file: Path | None = None,
         execution_mode: str = "remote",
         node_count: int | None = None,
         preloaded_config: BenchmarkConfig | None = None,
     ) -> RunContext:
-        """
-        Orchestrate the creation of a RunContext from raw inputs.
+        """Orchestrate the creation of a RunContext from raw inputs.
 
         This method consolidates configuration loading, overrides, and context building.
         """
@@ -147,17 +145,17 @@ class RunService:
     @staticmethod
     def _resolve_target_tests(
         cfg: BenchmarkConfig,
-        tests: Optional[List[str]],
+        tests: list[str] | None,
         platform_config: PlatformConfig,
         ui_adapter: UIAdapter | None,
-    ) -> List[str]:
+    ) -> list[str]:
         """Determine which workloads to run, skipping those disabled by platform."""
         return resolve_target_tests(cfg, tests, platform_config, ui_adapter)
 
     def execute(
         self,
         context: RunContext,
-        run_id: Optional[str],
+        run_id: str | None,
         output_callback: OutputCallback | None = None,
         ui_adapter: UIAdapter | None = None,
     ) -> RunResult:
@@ -196,7 +194,7 @@ class RunService:
     def _run_remote(
         self,
         context: RunContext,
-        run_id: Optional[str],
+        run_id: str | None,
         output_callback: OutputCallback,
         formatter: AnsibleOutputFormatter | None,
         ui_adapter: UIAdapter | None,
@@ -227,7 +225,7 @@ class RunService:
     def _prepare_remote_session(
         self,
         context: RunContext,
-        run_id: Optional[str],
+        run_id: str | None,
         ui_adapter: UIAdapter | None,
         stop_token: StopToken | None,
     ) -> _RemoteSession:

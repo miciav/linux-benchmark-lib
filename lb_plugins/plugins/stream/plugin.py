@@ -1,5 +1,4 @@
-"""
-STREAM (memory bandwidth) workload plugin.
+"""STREAM (memory bandwidth) workload plugin.
 
 This plugin supports compile-time tuning of STREAM via:
   - STREAM_ARRAY_SIZE
@@ -15,13 +14,17 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional, cast
+from typing import Any, ClassVar
 
 from pydantic import Field, model_validator
 
 from lb_common.api import WorkloadError
-from ...base_generator import CommandGenerator
-from ...interface import BasePluginConfig, WorkloadIntensity, SimpleWorkloadPlugin
+from lb_plugins.base_generator import CommandGenerator
+from lb_plugins.interface import (
+    BasePluginConfig,
+    SimpleWorkloadPlugin,
+    WorkloadIntensity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,12 +67,12 @@ class StreamConfig(BasePluginConfig):
         default=False,
         description="Run under numactl for more stable bandwidth measurements",
     )
-    numactl_args: List[str] = Field(
+    numactl_args: list[str] = Field(
         default_factory=lambda: ["--interleave=all"],
         description="Arguments passed to numactl when use_numactl is enabled",
     )
 
-    workspace_dir: Optional[str] = Field(
+    workspace_dir: str | None = Field(
         default=None,
         description=(
             "Custom workspace directory for tuned binaries and temporary artifacts"
@@ -80,7 +83,7 @@ class StreamConfig(BasePluginConfig):
         gt=0,
         description="Expected runtime used to derive a timeout hint",
     )
-    compilers: List[str] = Field(
+    compilers: list[str] = Field(
         default_factory=lambda: ["gcc"],
         description=("Compilers to run (e.g., ['gcc'], ['icc'], ['gcc', 'icc'])"),
     )
@@ -90,7 +93,7 @@ class StreamConfig(BasePluginConfig):
     )
 
     @model_validator(mode="after")
-    def normalize_compilers(self) -> "StreamConfig":
+    def normalize_compilers(self) -> StreamConfig:
         compilers = [
             str(item).strip().lower() for item in self.compilers if str(item).strip()
         ]
@@ -171,8 +174,7 @@ class StreamGenerator(CommandGenerator):
         for root in roots:
             for bin_dir in ("linux/bin/intel64", "linux/bin"):
                 bin_root = root / bin_dir
-                for name in preferred:
-                    candidates.append(bin_root / name)
+                candidates.extend(bin_root / name for name in preferred)
         return candidates
 
     def _resolve_compiler_binary(self, compiler: str) -> str | None:
@@ -238,7 +240,7 @@ class StreamGenerator(CommandGenerator):
         if lib_paths:
             existing = env.get("LD_LIBRARY_PATH")
             env["LD_LIBRARY_PATH"] = (
-                ":".join(lib_paths + [existing]) if existing else ":".join(lib_paths)
+                ":".join([*lib_paths, existing]) if existing else ":".join(lib_paths)
             )
         return env
 
@@ -280,11 +282,11 @@ class StreamGenerator(CommandGenerator):
         return self._needs_recompile() or multi or any(c != "gcc" for c in compilers)
 
     def _missing_compilers(self, compilers: list[str]) -> list[str]:
-        missing: list[str] = []
-        for compiler in compilers:
-            if self._resolve_compiler_binary(compiler) is None:
-                missing.append(compiler)
-        return missing
+        return [
+            compiler
+            for compiler in compilers
+            if self._resolve_compiler_binary(compiler) is None
+        ]
 
     def _prepare_workspace(self) -> bool:
         try:
@@ -430,7 +432,7 @@ class StreamGenerator(CommandGenerator):
         if lib_paths:
             existing = env.get("LD_LIBRARY_PATH")
             env["LD_LIBRARY_PATH"] = (
-                ":".join(lib_paths + [existing]) if existing else ":".join(lib_paths)
+                ":".join([*lib_paths, existing]) if existing else ":".join(lib_paths)
             )
         return env
 
@@ -457,8 +459,10 @@ class StreamGenerator(CommandGenerator):
             "env": env or self._launcher_env(),
         }
 
-    def _timeout_seconds(self) -> Optional[int]:
-        return int(self.config.expected_runtime_seconds) + int(self.config.timeout_buffer)
+    def _timeout_seconds(self) -> int | None:
+        return int(self.config.expected_runtime_seconds) + int(
+            self.config.timeout_buffer
+        )
 
     def _build_result(
         self,
@@ -739,13 +743,13 @@ class StreamPlugin(SimpleWorkloadPlugin):
     DESCRIPTION = "STREAM 5.10 memory bandwidth benchmark (OpenMP)"
     CONFIG_CLS = StreamConfig
     GENERATOR_CLS = StreamGenerator
-    REQUIRED_APT_PACKAGES = ["libgomp1", "gcc", "make", "numactl"]
-    REQUIRED_LOCAL_TOOLS = ["gcc", "numactl"]
+    REQUIRED_APT_PACKAGES: ClassVar[list[str]] = ["libgomp1", "gcc", "make", "numactl"]
+    REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["gcc", "numactl"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     TEARDOWN_PLAYBOOK = Path(__file__).parent / "ansible" / "teardown.yml"
-    PRESET_COMPILERS = ["gcc", "icc"]
+    PRESET_COMPILERS: ClassVar[list[str]] = ["gcc", "icc"]
 
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[StreamConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> StreamConfig | None:
         import multiprocessing
 
         cpu_count = multiprocessing.cpu_count()
@@ -795,11 +799,11 @@ class StreamPlugin(SimpleWorkloadPlugin):
 
     def export_results_to_csv(
         self,
-        results: List[dict[str, Any]],
+        results: list[dict[str, Any]],
         output_dir: Path,
         run_id: str,
         test_name: str,
-    ) -> List[Path]:
+    ) -> list[Path]:
         import pandas as pd
 
         rows: list[dict[str, Any]] = []

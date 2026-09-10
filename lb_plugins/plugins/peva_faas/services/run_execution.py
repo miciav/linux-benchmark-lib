@@ -5,22 +5,24 @@ import csv
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from ..config import DfaasConfig
-from ..context import ExecutionContext
-from ..exceptions import K6ExecutionError
+from lb_plugins.plugins.peva_faas.config import DfaasConfig
+from lb_plugins.plugins.peva_faas.context import ExecutionContext
+from lb_plugins.plugins.peva_faas.exceptions import K6ExecutionError
+
 from .annotation_service import DfaasAnnotationService
 from .cartesian_scheduler import CartesianScheduler
-from .cooldown import CooldownManager, CooldownTimeoutError, MetricsSnapshot
 from .contracts import ConfigScheduler, ExecutionEvent, MemoryEngine
+from .cooldown import CooldownManager, CooldownTimeoutError, MetricsSnapshot
+from .k6_runner import K6Runner
 from .log_manager import DfaasLogManager
 from .metrics_collector import MetricsCollector
 from .plan_builder import DfaasPlanBuilder, config_id, config_key, dominates
 from .result_builder import DfaasResultBuilder
-from .k6_runner import K6Runner
 
 logger = logging.getLogger(__name__)
 

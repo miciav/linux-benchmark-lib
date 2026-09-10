@@ -8,7 +8,6 @@ import pytest
 
 from lb_runner.engine.stop_token import StopToken
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
 
@@ -151,7 +150,7 @@ class TestStopTokenRestore:
     """Tests for restore method."""
 
     def test_restore_clears_handlers(self) -> None:
-        """restore should clear the prev_handlers dict."""
+        """Restore should clear the prev_handlers dict."""
         token = StopToken(enable_signals=False)
         token._prev_handlers = {1: lambda: None, 2: lambda: None}
 
@@ -163,7 +162,9 @@ class TestStopTokenRestore:
 class TestStopTokenSignals:
     """Tests for signal delegation behavior."""
 
-    def test_handle_signal_delegates_to_previous_handler_after_stop_requested(self) -> None:
+    def test_handle_signal_delegates_to_previous_handler_after_stop_requested(
+        self,
+    ) -> None:
         prev_handler = MagicMock()
         token = StopToken(enable_signals=False)
         token._prev_handlers[signal.SIGINT] = prev_handler

@@ -25,7 +25,7 @@ class ExponentialRateStrategy(RateStrategy):
     )
 
     @model_validator(mode="after")
-    def _validate_bounds(self) -> "ExponentialRateStrategy":
+    def _validate_bounds(self) -> ExponentialRateStrategy:
         if self.max_power < self.min_power:
             raise ValueError("max_power must be >= min_power")
         return self
@@ -44,6 +44,5 @@ class ExponentialRateStrategy(RateStrategy):
         """Return human-readable description."""
         cap_info = f", capped at {self.max_rate}" if self.max_rate else ""
         return (
-            f"Exponential: {self.base}^[{self.min_power}..{self.max_power}]"
-            f"{cap_info}"
+            f"Exponential: {self.base}^[{self.min_power}..{self.max_power}]{cap_info}"
         )

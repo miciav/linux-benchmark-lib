@@ -43,16 +43,10 @@ def test_run_git_commands_updates_uv_lock(monkeypatch, tmp_path: Path) -> None:
 
     monkeypatch.setattr(bump_version.subprocess, "run", fake_run)
 
-    assert bump_version.run_git_commands(
-        repo_root, "1.2.4", "notes", dry_run=False
-    )
+    assert bump_version.run_git_commands(repo_root, "1.2.4", "notes", dry_run=False)
 
     assert ["uv", "lock"] in calls
     uv_index = calls.index(["uv", "lock"])
-    add_index = next(
-        i for i, cmd in enumerate(calls) if cmd[:2] == ["git", "add"]
-    )
+    add_index = next(i for i, cmd in enumerate(calls) if cmd[:2] == ["git", "add"])
     assert uv_index < add_index
-    assert any(
-        cmd[:2] == ["git", "add"] and "uv.lock" in cmd for cmd in calls
-    )
+    assert any(cmd[:2] == ["git", "add"] and "uv.lock" in cmd for cmd in calls)

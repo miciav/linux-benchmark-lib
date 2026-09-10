@@ -29,7 +29,7 @@ class DummyResponse:
 
 
 def test_base_url_requires_http_scheme() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="must be an http"):
         GrafanaClient(base_url="file:///tmp/grafana")
 
 

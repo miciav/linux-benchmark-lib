@@ -62,13 +62,11 @@ def _find_apt_tasks(tasks: list[dict], name: str) -> bool:
         if isinstance(apt_config.get("name"), list) and name in apt_config.get("name"):
             return True
         # Check inside block structures
-        if "block" in task:
-            if _find_apt_tasks(task["block"], name):
-                return True
+        if "block" in task and _find_apt_tasks(task["block"], name):
+            return True
         # Check inside rescue structures
-        if "rescue" in task:
-            if _find_apt_tasks(task["rescue"], name):
-                return True
+        if "rescue" in task and _find_apt_tasks(task["rescue"], name):
+            return True
     return False
 
 
@@ -84,9 +82,9 @@ def _find_file_tasks(
         if file_cfg:
             path_value = str(file_cfg.get("path", ""))
             mode_value = str(file_cfg.get("mode", ""))
-            if path_contains and path_contains not in path_value:
-                pass
-            elif mode and mode_value != mode:
+            if (path_contains and path_contains not in path_value) or (
+                mode and mode_value != mode
+            ):
                 pass
             else:
                 return True
@@ -171,9 +169,9 @@ def test_install_k6_tasks_has_apt_install() -> None:
     tasks = yaml.safe_load(path.read_text())
     assert isinstance(tasks, list)
     # k6 is installed via apt with ignore_errors, falling back to tarball if APT fails
-    assert _find_apt_tasks(
-        tasks, "k6"
-    ), "k6 apt installation not found in install_k6.yml"
+    assert _find_apt_tasks(tasks, "k6"), (
+        "k6 apt installation not found in install_k6.yml"
+    )
 
 
 def test_install_k6_tasks_has_key_download_fallback() -> None:
@@ -208,12 +206,12 @@ def test_install_k6_tasks_checks_apt_availability() -> None:
     )
     tasks = yaml.safe_load(path.read_text())
     assert isinstance(tasks, list)
-    assert _find_command_tasks(
-        tasks, "apt-cache policy k6"
-    ), "k6 apt-cache check missing"
-    assert _find_set_fact_tasks(
-        tasks, "k6_apt_available"
-    ), "k6_apt_available fact missing"
+    assert _find_command_tasks(tasks, "apt-cache policy k6"), (
+        "k6 apt-cache check missing"
+    )
+    assert _find_set_fact_tasks(tasks, "k6_apt_available"), (
+        "k6_apt_available fact missing"
+    )
     assert _find_set_fact_tasks(tasks, "k6_apt_failed"), "k6_apt_failed fact missing"
 
 
@@ -363,11 +361,7 @@ def test_collect_pre_playbook_does_not_register_loopback_k6_host() -> None:
     assert "peva_faas_k6_is_remote" in derive_text
 
     register_task = next(
-        (
-            task
-            for task in tasks
-            if task.get("name") == "Register DFaaS k6 host"
-        ),
+        (task for task in tasks if task.get("name") == "Register DFaaS k6 host"),
         None,
     )
     assert register_task is not None
@@ -492,6 +486,7 @@ def test_setup_plugin_yml_has_vars_files_for_k3s() -> None:
     has_target_vars = any("target.yml" in str(vf) for vf in vars_files)
 
     assert has_target_vars, (
-        "setup_plugin.yml 'Configure K3s/OpenFaaS Node' play must include vars/target.yml\n"
+        "setup_plugin.yml 'Configure K3s/OpenFaaS Node' play must include "
+        "vars/target.yml\n"
         "Without this, tasks/setup_k3s_tasks.yml will fail due to undefined variables"
     )

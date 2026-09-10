@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lb_plugins.plugins.peva_faas.services.k6_runner import K6Runner, K6ExecutionError
 from lb_plugins.plugins.peva_faas.config import DfaasFunctionConfig
+from lb_plugins.plugins.peva_faas.services.k6_runner import K6ExecutionError, K6Runner
 
 
 @pytest.fixture

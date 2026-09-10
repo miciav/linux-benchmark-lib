@@ -1,15 +1,12 @@
-"""
-Service for managing and configuring test scenarios, specifically for
-Multipass integration.
-"""
+"""Service for managing test scenarios, specifically Multipass integration."""
 
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from lb_app.services.config_service import ConfigService
-from lb_app.ui_interfaces import UIAdapter, NoOpUIAdapter
+from lb_app.ui_interfaces import NoOpUIAdapter, UIAdapter
 
 
 @dataclass
@@ -20,8 +17,8 @@ class MultipassScenario:
     target_label: str
     workload_label: str
     duration_label: str
-    workload_rows: List[Tuple[str, str, str, str, str]]
-    env_vars: Dict[str, str]
+    workload_rows: list[tuple[str, str, str, str, str]]
+    env_vars: dict[str, str]
 
 
 class TestService:
@@ -37,12 +34,8 @@ class TestService:
         self.ui: UIAdapter = ui or NoOpUIAdapter()
         self.config_service: ConfigService = config_service or ConfigService()
 
-    def get_multipass_intensity(
-        self, force_env: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Return intensity parameters based on LB_MULTIPASS_FORCE env var or argument.
-        """
+    def get_multipass_intensity(self, force_env: str | None = None) -> dict[str, Any]:
+        """Return intensity parameters from the LB_MULTIPASS_FORCE env var."""
         level = (force_env or os.environ.get("LB_MULTIPASS_FORCE", "medium")).lower()
         normalized = {
             "bassa": "low",
@@ -92,7 +85,7 @@ class TestService:
         if not workload_names:
             return "stress_ng", default_level
 
-        options = list(dict.fromkeys(workload_names + ["multi"]))
+        options = list(dict.fromkeys([*workload_names, "multi"]))
 
         interactive = force_interactive or (sys.stdin.isatty() and sys.stdout.isatty())
         if interactive:
@@ -105,10 +98,9 @@ class TestService:
         return options[0], default_level
 
     def build_multipass_scenario(
-        self, intensity: Dict[str, Any], selection: str
+        self, intensity: dict[str, Any], selection: str
     ) -> MultipassScenario:
         """Construct the scenario details for the test plan."""
-
         # Defaults for generic single workload
         target = "tests/e2e/test_multipass_benchmark.py"
         target_label = "benchmark"

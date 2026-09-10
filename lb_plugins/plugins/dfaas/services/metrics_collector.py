@@ -7,13 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..queries import (
+from lb_plugins.plugins.dfaas.queries import (
     PrometheusQueryError,
     PrometheusQueryRunner,
     QueryDefinition,
     filter_queries,
     load_queries,
 )
+
 from .cooldown import MetricsSnapshot
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ class MetricsCollector:
             duration: Default time span for queries (e.g., "30s")
             scaphandre_enabled: Enable power metrics collection
             function_pid_regexes: Map of function name to PID regex for power queries
+
         """
         self.prometheus_url = prometheus_url
         self.duration = duration
@@ -115,6 +117,7 @@ class MetricsCollector:
 
         Returns:
             MetricsSnapshot with CPU, RAM, and power metrics
+
         """
         cpu = self._runner.execute(
             self._queries["cpu_usage_node"],
@@ -159,6 +162,7 @@ class MetricsCollector:
 
         Returns:
             FunctionMetrics with CPU, RAM, and power values
+
         """
         try:
             cpu = self._runner.execute(
@@ -210,6 +214,7 @@ class MetricsCollector:
 
         Returns:
             Dict containing node metrics and per-function metrics
+
         """
         # Determine if we need range query based on actual vs expected duration
         actual_duration = end_time - start_time

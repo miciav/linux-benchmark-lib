@@ -1,17 +1,14 @@
 """Tests for UI adapters and dashboard behaviors (non-visual)."""
 
-from contextlib import AbstractContextManager, contextmanager
 import threading
+from contextlib import AbstractContextManager, contextmanager
 from types import SimpleNamespace
 
 import pytest
 
-from lb_ui.api import RichDashboard
-from lb_ui.api import HeadlessUI
-from lb_ui.api import TUIAdapter
 from lb_app.api import RunJournal, build_dashboard_viewmodel
+from lb_ui.api import HeadlessUI, RichDashboard, TUIAdapter
 from lb_ui.tui.adapters.dashboard_handle import DashboardHandleAdapter
-
 
 pytestmark = pytest.mark.unit_ui
 
@@ -22,8 +19,7 @@ def _fake_journal():
         repetitions=1,
         workloads={"w": {}},
     )
-    journal = RunJournal.initialize("run-1", cfg, ["w"])
-    return journal
+    return RunJournal.initialize("run-1", cfg, ["w"])
 
 
 def test_dashboard_log_slicing_respects_height():

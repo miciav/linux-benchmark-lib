@@ -46,9 +46,9 @@ from .linear import LinearRateStrategy
 from .random import RandomRateStrategy
 
 __all__ = [
-    "RateStrategy",
+    "CustomRateStrategy",
+    "ExponentialRateStrategy",
     "LinearRateStrategy",
     "RandomRateStrategy",
-    "ExponentialRateStrategy",
-    "CustomRateStrategy",
+    "RateStrategy",
 ]

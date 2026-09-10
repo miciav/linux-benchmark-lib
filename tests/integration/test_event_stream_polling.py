@@ -58,11 +58,14 @@ def _tail_once(
             decoded = line.decode("utf-8", errors="ignore").rstrip("\n")
             emitted.append(decoded)
             event = _extract_lb_event(decoded)
-            if event and event.get("workload") == workload:
-                if int(event.get("repetition", 0)) == repetition:
-                    status = str(event.get("status", "")).lower()
-                    if status in ("done", "failed", "stopped"):
-                        found = True
+            if (
+                event
+                and event.get("workload") == workload
+                and int(event.get("repetition", 0)) == repetition
+            ):
+                status = str(event.get("status", "")).lower()
+                if status in ("done", "failed", "stopped"):
+                    found = True
 
     offset_path.write_text(str(offset), encoding="utf-8")
     return emitted, found

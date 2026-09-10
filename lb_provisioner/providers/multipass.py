@@ -9,11 +9,11 @@ import subprocess
 import tempfile
 import time
 import uuid
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable, Iterable, List, cast
+from typing import cast
 
 from lb_common.api import RemoteHostSpec
-
 from lb_provisioner.models.types import (
     MAX_NODES,
     ProvisionedNode,
@@ -33,7 +33,7 @@ class MultipassProvisioner:
         )
         self.base_state_dir.mkdir(parents=True, exist_ok=True)
 
-    def provision(self, request: ProvisioningRequest) -> List[ProvisionedNode]:
+    def provision(self, request: ProvisioningRequest) -> list[ProvisionedNode]:
         """Provision up to MAX_NODES Multipass instances."""
         if not shutil.which("multipass"):
             raise ProvisioningError("Multipass CLI not found in PATH")
@@ -44,7 +44,7 @@ class MultipassProvisioner:
         else:
             names = []
             count = max(1, min(request.count, MAX_NODES))
-        nodes: List[ProvisionedNode] = []
+        nodes: list[ProvisionedNode] = []
         state_root = request.state_dir or self.base_state_dir
         state_root.mkdir(parents=True, exist_ok=True)
 
@@ -209,7 +209,7 @@ class MultipassProvisioner:
         _best_effort_remove_paths((key_path, pub_path))
 
 
-def _rollback_nodes(nodes: List[ProvisionedNode]) -> None:
+def _rollback_nodes(nodes: list[ProvisionedNode]) -> None:
     for node in reversed(nodes):
         _best_effort_destroy(node.teardown)
 

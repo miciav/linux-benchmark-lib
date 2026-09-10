@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 
 
 @dataclass
@@ -17,7 +17,7 @@ class ExecutionContext:
     host_address: str | None = None
 
     @classmethod
-    def from_environment(cls) -> "ExecutionContext":
+    def from_environment(cls) -> ExecutionContext:
         """Create context from environment variables."""
         host = os.environ.get("LB_RUN_HOST") or os.uname().nodename
         host_address = os.environ.get("LB_RUN_HOST_ADDRESS")

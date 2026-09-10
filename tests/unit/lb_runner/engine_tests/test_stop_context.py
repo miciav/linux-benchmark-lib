@@ -12,7 +12,6 @@ from lb_runner.engine.stop_context import (
 )
 from lb_runner.engine.stop_token import StopToken
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
 

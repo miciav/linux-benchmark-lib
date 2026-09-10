@@ -6,7 +6,6 @@ import pytest
 
 from lb_app.api import NoOpDashboardHandle, NoOpProgressHandle, NoOpUIAdapter
 
-
 pytestmark = pytest.mark.unit_ui
 
 

@@ -16,8 +16,6 @@ from lb_plugins.plugins._faas_shared.plan_builder import (
     parse_duration_seconds,
 )
 
-from ..config import DfaasConfig
-
 
 @dataclass(frozen=True)
 class DfaasPlanBuilder(FaasPlanBuilder):

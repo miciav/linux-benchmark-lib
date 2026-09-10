@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from lb_runner.api import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 from lb_controller.api import RunJournal, RunStatus
+from lb_runner.api import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
 pytestmark = pytest.mark.unit_controller
 
@@ -53,12 +53,12 @@ def test_journal_load_rejects_config_mismatch(tmp_path: Path):
 
     altered = _base_config()
     altered.repetitions = 2
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="does not match journal repetitions"):
         RunJournal.load(journal_path, config=altered)
 
 
 def test_journal_initializes_local_host_when_none():
-    """Journal should include a localhost placeholder when no remote hosts are defined."""
+    """Journal should include a localhost placeholder when no remote hosts are defined."""  # noqa: E501
     cfg = BenchmarkConfig()
     cfg.workloads = {"stress_ng": WorkloadConfig(plugin="stress_ng")}
     journal = RunJournal.initialize("run-local", cfg, ["stress_ng"])

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any
 
 
 @dataclass
@@ -16,14 +16,14 @@ class RemoteHostSpec:
     user: str = "root"
     become: bool = True
     become_method: str = "sudo"
-    vars: Dict[str, Any] = field(default_factory=dict)
+    vars: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_object(cls, host: Any) -> "RemoteHostSpec":
+    def from_object(cls, host: Any) -> RemoteHostSpec:
         """Create a spec from any object with matching attributes."""
         return cls(
-            name=getattr(host, "name"),
-            address=getattr(host, "address"),
+            name=host.name,
+            address=host.address,
             port=getattr(host, "port", 22),
             user=getattr(host, "user", "root"),
             become=getattr(host, "become", True),

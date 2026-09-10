@@ -8,11 +8,11 @@ import socket
 import subprocess
 import time
 import uuid
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable, Iterable, List, cast
+from typing import cast
 
 from lb_common.api import RemoteHostSpec
-
 from lb_provisioner.models.types import (
     MAX_NODES,
     ProvisionedNode,
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class DockerProvisioner:
     """Create ephemeral containers and expose them as Ansible hosts."""
 
-    def provision(self, request: ProvisioningRequest) -> List[ProvisionedNode]:
+    def provision(self, request: ProvisioningRequest) -> list[ProvisionedNode]:
         """Provision up to MAX_NODES containers."""
         engine = request.docker_engine
         if not shutil.which(engine):
@@ -41,7 +41,7 @@ class DockerProvisioner:
 
         state_root = request.state_dir or Path("/tmp/lb_docker_keys")
         state_root.mkdir(parents=True, exist_ok=True)
-        nodes: List[ProvisionedNode] = []
+        nodes: list[ProvisionedNode] = []
 
         for idx in range(count):
             name = names[idx] if names else f"lb-docker-{uuid.uuid4().hex[:8]}-{idx}"
@@ -259,7 +259,7 @@ class DockerProvisioner:
         _best_effort_remove_paths((key_path, pub_path))
 
 
-def _rollback_nodes(nodes: List[ProvisionedNode]) -> None:
+def _rollback_nodes(nodes: list[ProvisionedNode]) -> None:
     for node in reversed(nodes):
         _best_effort_destroy(node.teardown)
 

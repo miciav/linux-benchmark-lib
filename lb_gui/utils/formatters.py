@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def format_duration(seconds: float | int | None) -> str:
@@ -33,7 +33,7 @@ def format_datetime(value: datetime | None, *, utc: bool = False) -> str:
     if value is None:
         return "Unknown"
     if utc:
-        value = value.astimezone(timezone.utc)
+        value = value.astimezone(UTC)
         return value.strftime("%Y-%m-%d %H:%M:%S UTC")
     return value.strftime("%Y-%m-%d %H:%M:%S")
 

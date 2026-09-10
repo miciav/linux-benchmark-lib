@@ -10,7 +10,6 @@ import pytest
 from lb_app.services.run_context_builder import RunContextBuilder, apply_overrides
 from lb_runner.api import BenchmarkConfig, PlatformConfig, WorkloadConfig
 
-
 pytestmark = pytest.mark.unit_ui
 
 

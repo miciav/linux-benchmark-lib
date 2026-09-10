@@ -8,7 +8,6 @@ import pytest
 
 from lb_app.services.run_logging import emit_warning
 
-
 pytestmark = pytest.mark.unit_ui
 
 

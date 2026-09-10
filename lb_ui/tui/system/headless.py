@@ -1,9 +1,12 @@
-from typing import IO, ContextManager, Sequence, TYPE_CHECKING
+from collections.abc import Sequence
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
-from contextlib import nullcontext
+from typing import IO, TYPE_CHECKING
 
+from lb_ui.tui.adapters.dashboard_handle import DashboardHandleAdapter
 from lb_ui.tui.core.bases import NullDashboard, Presenter
 from lb_ui.tui.core.protocols import (
+    UI,
     Dashboard,
     DashboardFactory,
     Form,
@@ -12,10 +15,8 @@ from lb_ui.tui.core.protocols import (
     PresenterSink,
     Progress,
     TablePresenter,
-    UI,
 )
-from lb_ui.tui.adapters.dashboard_handle import DashboardHandleAdapter
-from lb_ui.tui.system.models import TableModel, PickItem, SelectionNode
+from lb_ui.tui.system.models import PickItem, SelectionNode, TableModel
 
 if TYPE_CHECKING:
     from lb_app.api import DashboardViewModel
@@ -172,7 +173,7 @@ class _HeadlessProgress(Progress):
     def __init__(self, ui: HeadlessUI):
         self._ui = ui
 
-    def status(self, message: str) -> ContextManager[None]:
+    def status(self, message: str) -> AbstractContextManager[None]:
         self._ui.recorded_messages.append(f"STATUS: {message}")
         return nullcontext()
 
@@ -181,7 +182,7 @@ class _HeadlessDashboardSink(NullDashboard):
     def __init__(self, ui: HeadlessUI) -> None:
         self._ui = ui
 
-    def live(self) -> ContextManager[None]:
+    def live(self) -> AbstractContextManager[None]:
         self._ui.recorded_messages.append("DASHBOARD: live()")
         return nullcontext()
 

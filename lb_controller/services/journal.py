@@ -1,10 +1,12 @@
-import json
+import contextlib
 import hashlib
-from dataclasses import dataclass, field, asdict
-from typing import List, Optional, Dict, Any, Iterable
+import json
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 from lb_runner.api import BenchmarkConfig, RunEvent
 
@@ -19,9 +21,7 @@ class RunStatus:
 
 @dataclass
 class TaskState:
-    """
-    Represents a single atomic unit of work (Host + Workload + Repetition).
-    """
+    """Represents a single atomic unit of work (Host + Workload + Repetition)."""
 
     host: str
     workload: str
@@ -29,12 +29,12 @@ class TaskState:
     status: str = RunStatus.PENDING
     current_action: str = ""
     timestamp: float = field(default_factory=lambda: datetime.now().timestamp())
-    error: Optional[str] = None
-    error_type: Optional[str] = None
-    error_context: Optional[Dict[str, Any]] = None
-    started_at: Optional[float] = None
-    finished_at: Optional[float] = None
-    duration_seconds: Optional[float] = None
+    error: str | None = None
+    error_type: str | None = None
+    error_context: dict[str, Any] | None = None
+    started_at: float | None = None
+    finished_at: float | None = None
+    duration_seconds: float | None = None
 
     @property
     def key(self) -> str:
@@ -43,17 +43,15 @@ class TaskState:
 
 @dataclass
 class RunJournal:
-    """
-    Contains the entire execution plan and state.
-    """
+    """Contains the entire execution plan and state."""
 
     run_id: str
-    tasks: Dict[str, TaskState] = field(default_factory=dict)
-    metadata: Dict = field(default_factory=dict)
+    tasks: dict[str, TaskState] = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
 
     @classmethod
     def initialize(
-        cls, run_id: str, config: Any, test_types: List[str]
+        cls, run_id: str, config: Any, test_types: list[str]
     ) -> "RunJournal":
         """Factory to create a new journal based on configuration."""
         journal = cls(run_id=run_id)
@@ -64,13 +62,13 @@ class RunJournal:
     def add_task(self, task: TaskState) -> None:
         self.tasks[task.key] = task
 
-    def get_tasks_by_host(self, host: str) -> List[TaskState]:
+    def get_tasks_by_host(self, host: str) -> list[TaskState]:
         return sorted(
             [t for t in self.tasks.values() if t.host == host],
             key=lambda x: x.repetition,
         )
 
-    def get_task(self, host: str, workload: str, rep: int) -> Optional[TaskState]:
+    def get_task(self, host: str, workload: str, rep: int) -> TaskState | None:
         """Return a specific task or None when absent."""
         key = f"{host}::{workload}::{rep}"
         return self.tasks.get(key)
@@ -82,9 +80,9 @@ class RunJournal:
         rep: int,
         status: str,
         action: str = "",
-        error: Optional[str] = None,
-        error_type: Optional[str] = None,
-        error_context: Optional[Dict[str, Any]] = None,
+        error: str | None = None,
+        error_type: str | None = None,
+        error_context: dict[str, Any] | None = None,
     ) -> None:
         task = self.get_task(host, workload, rep)
         if not task:
@@ -110,8 +108,8 @@ class RunJournal:
         *,
         allow_skipped: bool = False,
     ) -> bool:
-        """
-        Determines if a task should be executed.
+        """Determines if a task should be executed.
+
         Returns True if task is PENDING or FAILED (and we want to retry).
         For now, we skip COMPLETED tasks.
         """
@@ -141,13 +139,13 @@ class RunJournal:
         serialized = data.copy()
         serialized["tasks"] = [asdict(task) for task in self.tasks.values()]
 
-        with open(path, "w") as f:
+        with path.open("w") as f:
             json.dump(serialized, f, indent=2, default=str)
 
     @classmethod
     def load(cls, path: Path, config: Any | None = None) -> "RunJournal":
         """Load journal from disk, optionally validating against a config."""
-        with open(path, "r") as f:
+        with path.open() as f:
             data = json.load(f)
 
         metadata = data.get("metadata", {}) or {}
@@ -160,9 +158,7 @@ class RunJournal:
         return journal
 
     def rehydrate_config(self) -> BenchmarkConfig | None:
-        """
-        Return a BenchmarkConfig reconstructed from the stored config_dump.
-        """
+        """Return a BenchmarkConfig reconstructed from the stored config_dump."""
         cfg_dump = (self.metadata or {}).get("config_dump")
         if not cfg_dump:
             return None
@@ -197,10 +193,8 @@ class LogSink:
 
     def close(self) -> None:
         if self._log_handle:
-            try:
+            with contextlib.suppress(Exception):
                 self._log_handle.close()
-            except Exception:
-                pass
             self._log_handle = None
 
     def _update_journal(self, event: RunEvent) -> None:
@@ -239,7 +233,7 @@ class LogSink:
             pass
 
 
-def _config_dump(config: Any) -> Dict[str, Any]:
+def _config_dump(config: Any) -> dict[str, Any]:
     """Return a JSON-friendly dump of the config."""
     try:
         if hasattr(config, "model_dump"):
@@ -257,7 +251,7 @@ def _config_dump(config: Any) -> Dict[str, Any]:
     return {}
 
 
-def _config_hash(cfg_dump: Dict[str, Any]) -> str:
+def _config_hash(cfg_dump: dict[str, Any]) -> str:
     """Stable hash for config dumps."""
     try:
         payload = json.dumps(cfg_dump, sort_keys=True, default=str).encode("utf-8")
@@ -266,7 +260,7 @@ def _config_hash(cfg_dump: Dict[str, Any]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _build_metadata(config: Any) -> Dict[str, Any]:
+def _build_metadata(config: Any) -> dict[str, Any]:
     cfg_dump = _config_dump(config)
     return {
         "created_at": datetime.now().isoformat(),
@@ -278,7 +272,7 @@ def _build_metadata(config: Any) -> Dict[str, Any]:
     }
 
 
-def _resolve_hosts(config: Any) -> List[Any]:
+def _resolve_hosts(config: Any) -> list[Any]:
     return (
         config.remote_hosts
         if getattr(config, "remote_hosts", None)
@@ -286,14 +280,14 @@ def _resolve_hosts(config: Any) -> List[Any]:
     )
 
 
-def _populate_tasks(journal: RunJournal, config: Any, test_types: List[str]) -> None:
+def _populate_tasks(journal: RunJournal, config: Any, test_types: list[str]) -> None:
     hosts = _resolve_hosts(config)
     for task in _iter_task_specs(config, test_types, hosts):
         journal.add_task(task)
 
 
 def _iter_task_specs(
-    config: Any, test_types: List[str], hosts: List[Any]
+    config: Any, test_types: list[str], hosts: list[Any]
 ) -> Iterable[TaskState]:
     reps = range(1, config.repetitions + 1)
     return (
@@ -309,11 +303,11 @@ def _iter_task_specs(
     )
 
 
-def _valid_test_names(config: Any, test_types: List[str]) -> Iterable[str]:
+def _valid_test_names(config: Any, test_types: list[str]) -> Iterable[str]:
     return (name for name in test_types if name in config.workloads)
 
 
-def _validate_config(metadata: Dict[str, Any], config: Any | None) -> None:
+def _validate_config(metadata: dict[str, Any], config: Any | None) -> None:
     if config is None:
         return
     expected_reps = metadata.get("repetitions")
@@ -331,8 +325,8 @@ def _validate_config(metadata: Dict[str, Any], config: Any | None) -> None:
             )
 
 
-def _load_tasks(tasks_data: Iterable[Dict[str, Any]]) -> Dict[str, TaskState]:
-    tasks: Dict[str, TaskState] = {}
+def _load_tasks(tasks_data: Iterable[dict[str, Any]]) -> dict[str, TaskState]:
+    tasks: dict[str, TaskState] = {}
     for task_data in tasks_data:
         task = TaskState(**task_data)
         tasks[task.key] = task

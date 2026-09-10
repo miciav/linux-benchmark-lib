@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from PySide6.QtCore import QObject, Signal
 
 from lb_gui.utils import format_datetime, format_optional
 
 if TYPE_CHECKING:
-    from lb_common.api import RunInfo
-    from lb_gui.services import RunCatalogServiceWrapper, GUIConfigService
     from lb_app.api import BenchmarkConfig
+    from lb_common.api import RunInfo
+    from lb_gui.services import GUIConfigService, RunCatalogServiceWrapper
 
 
 class ResultsViewModel(QObject):
@@ -28,12 +28,12 @@ class ResultsViewModel(QObject):
     error_occurred = Signal(str)  # error message
 
     # Table headers for run list
-    RUN_HEADERS = ["Run ID", "Created", "Hosts", "Workloads"]
+    RUN_HEADERS: ClassVar[list[str]] = ["Run ID", "Created", "Hosts", "Workloads"]
 
     def __init__(
         self,
-        run_catalog: "RunCatalogServiceWrapper",
-        config_service: "GUIConfigService",
+        run_catalog: RunCatalogServiceWrapper,
+        config_service: GUIConfigService,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -41,17 +41,17 @@ class ResultsViewModel(QObject):
         self._config_service = config_service
 
         # State
-        self._runs: list["RunInfo"] = []
-        self._selected_run: "RunInfo | None" = None
+        self._runs: list[RunInfo] = []
+        self._selected_run: RunInfo | None = None
         self._is_configured: bool = False
 
     @property
-    def runs(self) -> list["RunInfo"]:
+    def runs(self) -> list[RunInfo]:
         """List of available runs."""
         return self._runs
 
     @property
-    def selected_run(self) -> "RunInfo | None":
+    def selected_run(self) -> RunInfo | None:
         """Currently selected run."""
         return self._selected_run
 
@@ -86,7 +86,7 @@ class ResultsViewModel(QObject):
             self._is_configured = False
             return False
 
-    def configure_with_config(self, config: "BenchmarkConfig") -> None:
+    def configure_with_config(self, config: BenchmarkConfig) -> None:
         """Configure the service with a preloaded config."""
         self._run_catalog.configure(config)
         self._is_configured = True
@@ -128,13 +128,13 @@ class ResultsViewModel(QObject):
             rows.append([run.run_id, created, hosts, workloads])
         return rows
 
-    def get_run_details(self, run: "RunInfo | None" = None) -> dict[str, str]:
+    def get_run_details(self, run: RunInfo | None = None) -> dict[str, str]:
         """Get details for a run as key-value pairs."""
         run = run or self._selected_run
         if run is None:
             return {}
 
-        details = {
+        return {
             "Run ID": run.run_id,
             "Output Directory": format_optional(run.output_root),
             "Report Directory": format_optional(run.report_root),
@@ -144,7 +144,6 @@ class ResultsViewModel(QObject):
             "Workloads": ", ".join(run.workloads) if run.workloads else "-",
             "Created": format_datetime(run.created_at),
         }
-        return details
 
     def open_output_directory(self) -> Path | None:
         """Get the output directory path for the selected run."""
@@ -159,5 +158,5 @@ class ResultsViewModel(QObject):
         return self._selected_run.report_root
 
 
-def _run_sort_key(run: "RunInfo") -> datetime:
+def _run_sort_key(run: RunInfo) -> datetime:
     return run.created_at or datetime.min

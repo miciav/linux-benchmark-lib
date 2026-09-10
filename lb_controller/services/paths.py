@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, Iterable
 
 from lb_runner.api import BenchmarkConfig, RemoteHostConfig
 
@@ -42,9 +42,9 @@ def prepare_per_host_dirs(
     remote_hosts: Iterable[RemoteHostConfig],
     output_root: Path,
     report_root: Path,
-) -> Dict[str, Path]:
+) -> dict[str, Path]:
     """Prepare output/report directories per host."""
-    per_host: Dict[str, Path] = {}
+    per_host: dict[str, Path] = {}
     for host in remote_hosts:
         host_dir = output_root / host.name
         host_dir.mkdir(parents=True, exist_ok=True)

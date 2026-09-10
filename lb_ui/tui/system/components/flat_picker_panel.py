@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, TypeAlias, Sequence
 
 from prompt_toolkit.formatted_text import ANSI
 from prompt_toolkit.layout.controls import FormattedTextControl
@@ -11,12 +11,12 @@ from prompt_toolkit.widgets import TextArea
 from rich.console import Console
 from rich.text import Text
 
-from lb_ui.tui.system.models import PickItem
 from lb_ui.tui.core.capabilities import fuzzy_matcher, has_fuzzy_search
+from lb_ui.tui.system.models import PickItem
 
-RowFragment: TypeAlias = tuple[str, str]
-RowRenderer: TypeAlias = Callable[[PickItem, bool], RowFragment]
-PreviewRenderer: TypeAlias = Callable[[PickItem], object | None]
+type RowFragment = tuple[str, str]
+type RowRenderer = Callable[[PickItem, bool], RowFragment]
+type PreviewRenderer = Callable[[PickItem], object | None]
 
 
 @dataclass(frozen=True)
@@ -43,7 +43,7 @@ class FlatPickerPanel:
         row_renderer: RowRenderer,
         preview_renderer: PreviewRenderer | None = None,
         fallback_preview_renderer: PreviewRenderer | None = None,
-        search_prompt: str = "Filter › ",
+        search_prompt: str = "Filter › ",  # noqa: RUF001 - intentional UI glyph
         search_style: str = "class:search",
         config: FlatPickerPanelConfig | None = None,
     ) -> None:
@@ -71,25 +71,21 @@ class FlatPickerPanel:
     @property
     def items(self) -> list[PickItem]:
         """Return the full (unfiltered) items list."""
-
         return self._items
 
     @property
     def filtered(self) -> list[PickItem]:
         """Return the filtered items list."""
-
         return self._filtered
 
     @property
     def filter_text(self) -> str:
         """Return the current filter text."""
-
         return self._filter_text
 
     @property
     def selected_index(self) -> int:
         """Return the selected index in the filtered list."""
-
         return self._selected_index
 
     @selected_index.setter
@@ -99,7 +95,6 @@ class FlatPickerPanel:
     @property
     def selected_item(self) -> PickItem | None:
         """Return the currently selected item, if any."""
-
         if not self._filtered:
             return None
         idx = self._clamp_index(self._selected_index)
@@ -111,7 +106,6 @@ class FlatPickerPanel:
         self, items: Sequence[PickItem], *, keep_filter: bool = False
     ) -> None:
         """Replace items and re-apply filtering."""
-
         self._items = list(items)
         if not keep_filter:
             self.search.text = ""
@@ -120,7 +114,6 @@ class FlatPickerPanel:
 
     def apply_filter(self, *, reset_index: bool = True) -> None:
         """Apply search filter to items."""
-
         query = self.search.text.strip()
         self._filter_text = query
         self._filtered = self._filter_items(self._items, query)
@@ -131,13 +124,11 @@ class FlatPickerPanel:
 
     def reset_filter(self) -> None:
         """Clear filter text and re-apply."""
-
         self.search.text = ""
         self.apply_filter(reset_index=True)
 
     def move(self, delta: int) -> None:
         """Move selection up/down."""
-
         if not self._filtered:
             return
         if self._config.wrap_navigation:

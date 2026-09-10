@@ -14,9 +14,9 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 LB_PACKAGES = {
     "lb_common",
@@ -92,12 +92,10 @@ def is_api_import(module: str) -> bool:
     # Valid patterns:
     # - lb_foo (bare package import)
     # - lb_foo.api
-    # - lb_foo.api.something (re-exports)
+    # - lb_foo.api.something (re-exports)  # noqa: ERA001 (documented pattern)
     if len(parts) == 1:
         return True  # bare import like "import lb_runner"
-    if len(parts) >= 2 and parts[1] == "api":
-        return True
-    return False
+    return bool(len(parts) >= 2 and parts[1] == "api")
 
 
 def check_file(file_path: Path, owning_package: str) -> list[Violation]:
@@ -115,31 +113,36 @@ def check_file(file_path: Path, owning_package: str) -> list[Violation]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 target_pkg = get_package_from_import(alias.name)
-                if target_pkg and target_pkg != owning_package:
-                    if not is_api_import(alias.name):
-                        violations.append(
-                            Violation(
-                                file=file_path,
-                                line=node.lineno,
-                                importing_package=owning_package,
-                                target_package=target_pkg,
-                                import_path=alias.name,
-                            )
+                if (
+                    target_pkg
+                    and target_pkg != owning_package
+                    and not is_api_import(alias.name)
+                ):
+                    violations.append(
+                        Violation(
+                            file=file_path,
+                            line=node.lineno,
+                            importing_package=owning_package,
+                            target_package=target_pkg,
+                            import_path=alias.name,
                         )
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                target_pkg = get_package_from_import(node.module)
-                if target_pkg and target_pkg != owning_package:
-                    if not is_api_import(node.module):
-                        violations.append(
-                            Violation(
-                                file=file_path,
-                                line=node.lineno,
-                                importing_package=owning_package,
-                                target_package=target_pkg,
-                                import_path=node.module,
-                            )
-                        )
+                    )
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            target_pkg = get_package_from_import(node.module)
+            if (
+                target_pkg
+                and target_pkg != owning_package
+                and not is_api_import(node.module)
+            ):
+                violations.append(
+                    Violation(
+                        file=file_path,
+                        line=node.lineno,
+                        importing_package=owning_package,
+                        target_package=target_pkg,
+                        import_path=node.module,
+                    )
+                )
 
     return violations
 
@@ -182,9 +185,8 @@ def main() -> int:
             print()
 
         return 1
-    else:
-        print("All cross-package imports correctly use .api modules.")
-        return 0
+    print("All cross-package imports correctly use .api modules.")
+    return 0
 
 
 if __name__ == "__main__":

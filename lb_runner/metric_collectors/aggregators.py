@@ -2,25 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Dict
-
 import pandas as pd
 
 
-def aggregate_psutil(df: pd.DataFrame | None) -> Dict[str, float]:
-    """
-    Aggregate metrics collected by PSUtilCollector.
+def aggregate_psutil(df: pd.DataFrame | None) -> dict[str, float]:
+    """Aggregate metrics collected by PSUtilCollector.
 
     Args:
         df: DataFrame with PSUtil metrics (timestamp as index recommended)
 
     Returns:
         Dictionary of aggregated metrics.
+
     """
     if df is None or df.empty:
         return {}
 
-    summary: Dict[str, float] = {}
+    summary: dict[str, float] = {}
 
     if "cpu_percent" in df.columns:
         summary["cpu_usage_percent_avg"] = df["cpu_percent"].mean()
@@ -56,20 +54,20 @@ def aggregate_psutil(df: pd.DataFrame | None) -> Dict[str, float]:
     return summary
 
 
-def aggregate_cli(df: pd.DataFrame | None) -> Dict[str, float]:
-    """
-    Aggregate metrics collected by CLICollector.
+def aggregate_cli(df: pd.DataFrame | None) -> dict[str, float]:
+    """Aggregate metrics collected by CLICollector.
 
     Args:
         df: DataFrame with CLI metrics
 
     Returns:
         Dictionary of aggregated metrics.
+
     """
     if df is None or df.empty:
         return {}
 
-    summary: Dict[str, float] = {}
+    summary: dict[str, float] = {}
     if "r" in df.columns:
         summary["processes_running_avg"] = df["r"].mean()
     if "b" in df.columns:

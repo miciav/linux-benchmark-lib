@@ -1,5 +1,4 @@
-"""
-Sysbench workload plugin for linux-benchmark-lib.
+"""Sysbench workload plugin for linux-benchmark-lib.
 
 Provides a CPU-focused sysbench runner with sensible presets for low/medium/high
 intensities and optional custom arguments for advanced tuning.
@@ -13,13 +12,17 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional, cast
+from typing import Any, ClassVar
 
 from pydantic import Field
 
-from ...base_generator import CommandSpec
-from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
-from ..command_base import StdoutCommandGenerator
+from lb_plugins.base_generator import CommandSpec
+from lb_plugins.interface import (
+    BasePluginConfig,
+    SimpleWorkloadPlugin,
+    WorkloadIntensity,
+)
+from lb_plugins.plugins.command_base import StdoutCommandGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +53,7 @@ class SysbenchConfig(BasePluginConfig):
 
 class _SysbenchCommandBuilder:
     def build(self, config: SysbenchConfig) -> CommandSpec:
-        cmd: List[str] = ["sysbench", config.test]
+        cmd: list[str] = ["sysbench", config.test]
         cmd.extend(_sysbench_args(config))
         cmd.append("run")
         return CommandSpec(cmd=cmd)
@@ -108,11 +111,11 @@ class SysbenchGenerator(StdoutCommandGenerator):
         )
         self.config: SysbenchConfig = config
 
-    def _build_command(self) -> List[str]:
+    def _build_command(self) -> list[str]:
         assert self._command_builder is not None
         return self._command_builder.build(self.config).cmd
 
-    def _timeout_seconds(self) -> Optional[int]:
+    def _timeout_seconds(self) -> int | None:
         return max(int(self.config.time), 0) + int(self.config.timeout_buffer)
 
     def _validate_environment(self) -> bool:
@@ -139,8 +142,8 @@ class SysbenchPlugin(SimpleWorkloadPlugin):
     NAME = "sysbench"
     DESCRIPTION = "CPU micro-benchmark via sysbench"
     CONFIG_CLS = SysbenchConfig
-    REQUIRED_APT_PACKAGES = ["sysbench"]
-    REQUIRED_LOCAL_TOOLS = ["sysbench"]
+    REQUIRED_APT_PACKAGES: ClassVar[list[str]] = ["sysbench"]
+    REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["sysbench"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
     def create_generator(
@@ -152,7 +155,7 @@ class SysbenchPlugin(SimpleWorkloadPlugin):
             return SysbenchGenerator(SysbenchConfig(**config))
         return SysbenchGenerator(SysbenchConfig(**config.model_dump()))
 
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[SysbenchConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> SysbenchConfig | None:
         cpu_count = os.cpu_count() or 2
         if level == WorkloadIntensity.LOW:
             return SysbenchConfig(
@@ -174,11 +177,11 @@ class SysbenchPlugin(SimpleWorkloadPlugin):
             )
         return None
 
-    def get_dockerfile_path(self) -> Optional[Path]:
+    def get_dockerfile_path(self) -> Path | None:
         path = Path(__file__).parent / "Dockerfile"
         return path if path.exists() else None
 
-    def get_ansible_teardown_path(self) -> Optional[Path]:
+    def get_ansible_teardown_path(self) -> Path | None:
         return None
 
 

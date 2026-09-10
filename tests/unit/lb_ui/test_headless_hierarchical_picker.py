@@ -2,9 +2,7 @@
 
 import pytest
 
-from lb_ui.api import HeadlessUI
-from lb_ui.api import SelectionNode
-
+from lb_ui.api import HeadlessUI, SelectionNode
 
 pytestmark = pytest.mark.unit_ui
 

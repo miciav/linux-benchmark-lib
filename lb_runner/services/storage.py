@@ -6,9 +6,9 @@ import logging
 import os
 from pathlib import Path
 
+from lb_runner.models.config import BenchmarkConfig
 from lb_runner.services import system_info
 from lb_runner.services.system_info_io import write_outputs
-from lb_runner.models.config import BenchmarkConfig
 
 
 def ensure_run_dirs(config: BenchmarkConfig, run_id: str) -> tuple[Path, Path, Path]:
@@ -16,8 +16,7 @@ def ensure_run_dirs(config: BenchmarkConfig, run_id: str) -> tuple[Path, Path, P
     config.ensure_output_dirs()
 
     def _scope_with_run_id(base: Path) -> Path:
-        """
-        Attach run_id unless the path is already scoped.
+        """Attach run_id unless the path is already scoped.
 
         Remote runs pass in an output_dir that already contains run_id and host; avoid
         nesting an extra level in that case so collectors and plugins write
@@ -39,13 +38,13 @@ def ensure_run_dirs(config: BenchmarkConfig, run_id: str) -> tuple[Path, Path, P
 
 
 def workload_output_dir(output_root: Path, workload: str, ensure: bool = False) -> Path:
-    """
-    Return the output directory dedicated to a workload inside a run.
+    """Return the output directory dedicated to a workload inside a run.
 
     Args:
         output_root: Base output directory for the run (already scoped by run_id/host).
         workload: Workload/plugin identifier.
         ensure: When True, create the directory.
+
     """
     path = output_root / workload
     if ensure:

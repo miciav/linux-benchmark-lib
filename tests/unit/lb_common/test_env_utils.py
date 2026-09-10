@@ -9,7 +9,6 @@ from lb_common.config.env import (
     parse_labels_env,
 )
 
-
 pytestmark = pytest.mark.unit_runner
 
 

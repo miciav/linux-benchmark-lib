@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
+from typing import ClassVar
 
 from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem, QWidget
 
@@ -12,7 +13,7 @@ from lb_gui.utils.qt import status_color
 class JournalTable(QTableWidget):
     """Table for displaying run journal progress."""
 
-    HEADERS = [
+    HEADERS: ClassVar[list[str]] = [
         "Host",
         "Workload",
         "Intensity",

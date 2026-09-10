@@ -3,12 +3,16 @@
 import logging
 import threading
 import time
-from typing import Optional
+from typing import ClassVar
 
 from pydantic import Field
 
-from ...base_generator import BaseGenerator
-from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
+from lb_plugins.base_generator import BaseGenerator
+from lb_plugins.interface import (
+    BasePluginConfig,
+    SimpleWorkloadPlugin,
+    WorkloadIntensity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,10 +69,10 @@ class BaselinePlugin(SimpleWorkloadPlugin):
     DESCRIPTION = "Idle workload to measure system baseline performance"
     CONFIG_CLS = BaselineConfig
     GENERATOR_CLS = BaselineGenerator
-    REQUIRED_APT_PACKAGES: list[str] = []
-    REQUIRED_LOCAL_TOOLS: list[str] = []
+    REQUIRED_APT_PACKAGES: ClassVar[list[str]] = []
+    REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = []
 
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[BaselineConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> BaselineConfig | None:
         if level == WorkloadIntensity.LOW:
             return BaselineConfig(duration=30)
         if level == WorkloadIntensity.MEDIUM:

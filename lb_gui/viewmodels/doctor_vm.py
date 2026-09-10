@@ -5,12 +5,12 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QObject, Signal, QCoreApplication
+from PySide6.QtCore import QCoreApplication, QObject, Signal
 
 from lb_gui.workers import DoctorWorker
 
 if TYPE_CHECKING:
-    from lb_app.api import DoctorReport, BenchmarkConfig
+    from lb_app.api import BenchmarkConfig, DoctorReport
     from lb_gui.services import DoctorServiceWrapper, GUIConfigService
 
 
@@ -28,8 +28,8 @@ class DoctorViewModel(QObject):
 
     def __init__(
         self,
-        doctor_service: "DoctorServiceWrapper",
-        config_service: "GUIConfigService",
+        doctor_service: DoctorServiceWrapper,
+        config_service: GUIConfigService,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -37,13 +37,13 @@ class DoctorViewModel(QObject):
         self._config_service = config_service
 
         # State
-        self._reports: list["DoctorReport"] = []
-        self._config: "BenchmarkConfig | None" = None
+        self._reports: list[DoctorReport] = []
+        self._config: BenchmarkConfig | None = None
         self._is_running: bool = False
         self._worker: DoctorWorker | None = None
 
     @property
-    def reports(self) -> list["DoctorReport"]:
+    def reports(self) -> list[DoctorReport]:
         """List of doctor reports."""
         return self._reports
 
@@ -86,7 +86,7 @@ class DoctorViewModel(QObject):
 
         if QCoreApplication.instance() is None or os.environ.get("PYTEST_CURRENT_TEST"):
             try:
-                reports: list["DoctorReport"] = []
+                reports: list[DoctorReport] = []
                 reports.append(self._doctor.check_controller())
                 reports.append(self._doctor.check_local_tools())
                 if self._config is not None and self._config.remote_hosts:
@@ -105,7 +105,7 @@ class DoctorViewModel(QObject):
         self._worker.signals.failed.connect(self._on_worker_failed)
         self._worker.start()
 
-    def _on_worker_finished(self, reports: list["DoctorReport"]) -> None:
+    def _on_worker_finished(self, reports: list[DoctorReport]) -> None:
         """Handle successful completion from worker."""
         self._reports = reports
         self._is_running = False
@@ -144,15 +144,15 @@ class DoctorViewModel(QObject):
         results = []
         for report in self._reports:
             for group in report.groups:
-                for item in group.items:
-                    results.append(
-                        {
-                            "Group": group.title,
-                            "Check": item.label,
-                            "Status": "Pass" if item.ok else "FAIL",
-                            "Required": "Yes" if item.required else "No",
-                        }
-                    )
+                results.extend(
+                    {
+                        "Group": group.title,
+                        "Check": item.label,
+                        "Status": "Pass" if item.ok else "FAIL",
+                        "Required": "Yes" if item.required else "No",
+                    }
+                    for item in group.items
+                )
         return results
 
     def get_info_messages(self) -> list[str]:

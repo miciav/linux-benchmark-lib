@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import os
-from typing import Any, MutableMapping
+from collections.abc import MutableMapping
+from typing import Any
 
 from lb_common.api import (
     parse_bool_env,

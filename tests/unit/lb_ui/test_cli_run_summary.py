@@ -1,7 +1,7 @@
 import pytest
 
-from lb_ui.api import build_journal_summary
 from lb_controller.api import RunJournal, RunStatus, TaskState
+from lb_ui.api import build_journal_summary
 
 pytestmark = [pytest.mark.unit_ui, pytest.mark.unit_ui]
 

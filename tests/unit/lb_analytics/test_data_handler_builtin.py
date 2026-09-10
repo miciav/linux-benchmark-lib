@@ -1,9 +1,9 @@
 import json
 from pathlib import Path
 
-from lb_analytics.api import DataHandler
-
 import pytest
+
+from lb_analytics.api import DataHandler
 
 pytestmark = pytest.mark.unit_analytics
 

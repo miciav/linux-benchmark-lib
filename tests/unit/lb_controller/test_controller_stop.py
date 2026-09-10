@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from lb_controller.api import (
     BenchmarkConfig,
     LogSink,
@@ -13,11 +14,11 @@ from lb_controller.api import (
     RunStatus,
     WorkloadConfig,
 )
+from lb_controller.engine.session import RunSession
+from lb_controller.engine.stop_logic import handle_stop_protocol
 from lb_controller.engine.stops import StopState
 from lb_controller.models.types import ExecutionResult
-from lb_controller.engine.stop_logic import handle_stop_protocol
 from lb_controller.services.services import ControllerServices
-from lb_controller.engine.session import RunSession
 
 
 @pytest.fixture
@@ -93,10 +94,12 @@ def test_handle_stop_protocol_failure(services, session, mock_executor):
 
 @patch("time.sleep", return_value=None)
 def test_handle_stop_protocol_waits_for_state(
-    _mock_sleep, services, session, mock_executor
+    _mock_sleep,  # noqa: PT019 - injected by the @patch decorator above
+    services,
+    session,
+    mock_executor,
 ):
     """Test that the protocol waits for the coordinator state to change."""
-
     states = [
         StopState.STOPPING_WORKLOADS,
         StopState.STOPPING_WORKLOADS,

@@ -4,18 +4,18 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Dict, Optional
 
 from lb_app.api import TestService
 
 
 def get_intensity() -> dict:
-    """
-    Return intensity parameters based on LB_MULTIPASS_FORCE env var.
+    """Return intensity parameters based on LB_MULTIPASS_FORCE env var.
+
     Delegates to the shared TestService logic.
     """
     # The service logic includes mapping names like 'stress'/'stress_duration'.
-    # The tests expect keys: stress_duration, stress_timeout, dd_count, fio_runtime, fio_size.
+    # The tests expect keys: stress_duration, stress_timeout, dd_count,
+    # fio_runtime, fio_size.
     # TestService.get_multipass_intensity returns a superset including these keys.
     return TestService().get_multipass_intensity()
 
@@ -36,6 +36,7 @@ def _multipass_disabled() -> bool:
 def ensure_multipass_access() -> None:
     """Skip when multipass is not usable (socket permission, service down)."""
     import subprocess
+
     import pytest  # Local import to keep test-only dependency localized
 
     if _multipass_disabled():
@@ -169,11 +170,11 @@ def launch_multipass_vm(
 
 
 def stage_private_key(source_key: Path, target_dir: Path) -> Path:
-    """
-    Copy the generated SSH private key into a target directory that Ansible will access.
+    """Copy the generated SSH private key into a target directory Ansible can access.
 
-    The staging location avoids macOS folder permissions (e.g., Downloads) and ensures the
-    key remains available even if the original is cleaned up during teardown.
+    The staging location avoids macOS folder permissions (e.g., Downloads) and
+    ensures the key remains available even if the original is cleaned up during
+    teardown.
     """
     source_key = Path(source_key)
     if not source_key.exists():
@@ -187,10 +188,9 @@ def stage_private_key(source_key: Path, target_dir: Path) -> Path:
 
 
 def make_test_ansible_env(
-    tmp_path: Path, roles_path: Optional[Path] = None
-) -> Dict[str, str]:
-    """
-    Build an Ansible environment that avoids host-level callback plugins.
+    tmp_path: Path, roles_path: Path | None = None
+) -> dict[str, str]:
+    """Build an Ansible environment that avoids host-level callback plugins.
 
     Uses the built-in 'default' callback to prevent dependency on community.general.yaml
     and writes a temporary ansible.cfg in the provided tmp_path.

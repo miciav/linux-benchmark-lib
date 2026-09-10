@@ -1,8 +1,8 @@
-"""
-Generate a Markdown skeleton for release notes based on recent commits.
+r"""Generate a Markdown skeleton for release notes based on recent commits.
 
 Usage:
-    uv run python scripts/gen_release_notes.py --version 0.21.0 --output release_notes_0.21.0.md
+    uv run python scripts/gen_release_notes.py --version 0.21.0 \
+        --output release_notes_0.21.0.md
 """
 
 from __future__ import annotations
@@ -24,8 +24,7 @@ def git_log(from_ref: str | None = None, to_ref: str = "HEAD") -> list[str]:
         capture_output=True,
         text=True,
     )
-    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    return lines
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
 def main() -> None:
@@ -48,8 +47,8 @@ def main() -> None:
         ## Highlights
         - TODO: add key features/fixes
 
-        ## Changes (since {args.from_ref or 'initial'})
-        {bullet_commits or '- No commits found'}
+        ## Changes (since {args.from_ref or "initial"})
+        {bullet_commits or "- No commits found"}
 
         ## Upgrade Notes
         - TODO: migration notes, breaking changes, dependency updates

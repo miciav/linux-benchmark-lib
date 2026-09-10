@@ -10,7 +10,6 @@ from lb_app.services.config_repository import ConfigRepository
 from lb_app.services.config_service import ConfigService
 from lb_runner.api import BenchmarkConfig, PlatformConfig, WorkloadConfig
 
-
 pytestmark = pytest.mark.unit_ui
 
 

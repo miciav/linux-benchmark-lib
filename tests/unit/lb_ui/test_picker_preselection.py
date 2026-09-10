@@ -1,7 +1,7 @@
 import pytest
 
-from lb_ui.tui.system.models import PickItem
 from lb_ui.tui.screens.picker_screen import PickerSelectionState
+from lb_ui.tui.system.models import PickItem
 
 pytestmark = pytest.mark.unit_ui
 

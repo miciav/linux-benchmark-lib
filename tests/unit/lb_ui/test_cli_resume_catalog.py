@@ -61,8 +61,8 @@ def test_resume_uses_run_catalog_service(
     cfg_path = tmp_path / "cfg.json"
     cfg.save(cfg_path)
 
-    from lb_app.api import RunJournal
     import lb_ui.cli.commands.resume as resume_mod
+    from lb_app.api import RunJournal
 
     run_id = "run-20250101-000000"
     journal = RunJournal.initialize(run_id, cfg, ["stress_ng"])

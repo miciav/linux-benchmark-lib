@@ -6,8 +6,9 @@ import os
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple
 
+from lb_app.services.config_defaults import apply_platform_defaults
+from lb_app.services.config_repository import ConfigRepository
 from lb_controller.api import (
     BenchmarkConfig,
     PlatformConfig,
@@ -16,30 +17,26 @@ from lb_controller.api import (
     apply_playbook_defaults,
 )
 from lb_plugins.api import (
+    PluginRegistry,
     apply_plugin_assets,
     create_registry,
-    PluginRegistry,
     hydrate_plugin_settings,
 )
-from lb_app.services.config_defaults import apply_platform_defaults
-from lb_app.services.config_repository import ConfigRepository
 
 
 class ConfigService:
     """Resolve, load, and mutate BenchmarkConfig files."""
 
-    def __init__(self, config_home: Optional[Path] = None) -> None:
+    def __init__(self, config_home: Path | None = None) -> None:
         self._repo = ConfigRepository(config_home)
 
     def ensure_home(self) -> None:
         """Create the config home directory."""
         self._repo.ensure_home()
 
-    def open_editor(self, config_path: Optional[Path]) -> Path:
-        """
-        Open the resolved config file in the system editor.
-        """
-        resolved, stale = self.resolve_config_path(config_path)
+    def open_editor(self, config_path: Path | None) -> Path:
+        """Open the resolved config file in the system editor."""
+        resolved, _ = self.resolve_config_path(config_path)
         if resolved is None:
             raise FileNotFoundError(
                 "No config file found to edit. Run `lb config init` first."
@@ -47,7 +44,7 @@ class ConfigService:
 
         editor = os.environ.get("EDITOR")
         if not editor:
-            raise EnvironmentError(f"Set $EDITOR or open the file manually: {resolved}")
+            raise OSError(f"Set $EDITOR or open the file manually: {resolved}")
 
         try:
             subprocess.run([*shlex.split(editor), str(resolved)], check=False)
@@ -57,18 +54,18 @@ class ConfigService:
         return resolved
 
     def resolve_config_path(
-        self, config_path: Optional[Path]
-    ) -> Tuple[Optional[Path], Optional[Path]]:
-        """
-        Return (resolved_config, stale_pointer_target).
+        self, config_path: Path | None
+    ) -> tuple[Path | None, Path | None]:
+        """Return (resolved_config, stale_pointer_target).
+
         Respects explicit path, environment variable LB_CONFIG_PATH, stored
         pointer, or local benchmark_config.json.
         """
         return self._repo.resolve_config_path(config_path)
 
     def _hydrate_config(self, cfg: BenchmarkConfig) -> None:
-        """
-        Convert raw dictionary configs in plugin_settings to Typed Config Objects.
+        """Convert raw dictionary configs in plugin_settings to Typed Config Objects.
+
         This requires looking up the plugin definition in the registry.
         """
         registry = create_registry()
@@ -127,8 +124,8 @@ class ConfigService:
         return cfg, target
 
     def load_for_read(
-        self, config_path: Optional[Path]
-    ) -> Tuple[BenchmarkConfig, Optional[Path], Optional[Path]]:
+        self, config_path: Path | None
+    ) -> tuple[BenchmarkConfig, Path | None, Path | None]:
         """Load a config for read-only scenarios."""
         resolved, stale = self.resolve_config_path(config_path)
         if resolved is None:
@@ -145,13 +142,10 @@ class ConfigService:
 
     def load_for_write(
         self,
-        config_path: Optional[Path],
+        config_path: Path | None,
         allow_create: bool = True,
-    ) -> Tuple[BenchmarkConfig, Path, Optional[Path], bool]:
-        """
-        Load a config for mutation and return (config, target_path,
-        stale_pointer, created_new).
-        """
+    ) -> tuple[BenchmarkConfig, Path, Path | None, bool]:
+        """Load a config for mutation, returning paths and creation state."""
         resolved, stale = self.resolve_config_path(config_path)
         target = resolved or self._repo.default_target
         created = False
@@ -171,9 +165,9 @@ class ConfigService:
     def add_workload(
         self,
         name: str,
-        config: Optional[Path],
+        config: Path | None,
         set_default: bool,
-    ) -> Tuple[BenchmarkConfig, Path, Optional[Path]]:
+    ) -> tuple[BenchmarkConfig, Path, Path | None]:
         """Add a workload to the run config (ensuring plugin settings)."""
         cfg, target, stale, _ = self.load_for_write(config, allow_create=True)
         registry = create_registry()
@@ -201,10 +195,9 @@ class ConfigService:
     def remove_plugin(
         self,
         name: str,
-        config: Optional[Path],
-    ) -> Tuple[BenchmarkConfig, Path, Optional[Path], bool]:
-        """
-        Remove a plugin's workload and settings from a config file.
+        config: Path | None,
+    ) -> tuple[BenchmarkConfig, Path, Path | None, bool]:
+        """Remove a plugin's workload and settings from a config file.
 
         Returns (config, target_path, stale_pointer, removed_flag).
         """
@@ -222,10 +215,10 @@ class ConfigService:
     def add_remote_host(
         self,
         host: RemoteHostConfig,
-        config: Optional[Path],
+        config: Path | None,
         enable_remote: bool = True,
         set_default: bool = False,
-    ) -> Tuple[BenchmarkConfig, Path, Optional[Path]]:
+    ) -> tuple[BenchmarkConfig, Path, Path | None]:
         """Add or replace a remote host definition and persist the config."""
         cfg, target, stale, _ = self.load_for_write(config, allow_create=True)
         cfg.remote_hosts = [
@@ -241,8 +234,8 @@ class ConfigService:
     def remove_remote_host(
         self,
         name: str,
-        config: Optional[Path],
-    ) -> Tuple[BenchmarkConfig, Path, Optional[Path], bool]:
+        config: Path | None,
+    ) -> tuple[BenchmarkConfig, Path, Path | None, bool]:
         """Remove a remote host by name from the config.
 
         Returns (config, target_path, stale_pointer, removed_flag).
@@ -263,7 +256,7 @@ class ConfigService:
         """Persist a pointer to the preferred config path."""
         self._repo.write_saved_config_path(path)
 
-    def read_saved_config_path(self) -> Tuple[Optional[Path], Optional[Path]]:
+    def read_saved_config_path(self) -> tuple[Path | None, Path | None]:
         """Return (resolved_path, stale_path) from the pointer file, if any."""
         return self._repo.read_saved_config_path()
 

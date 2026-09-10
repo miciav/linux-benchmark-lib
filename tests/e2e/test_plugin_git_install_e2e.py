@@ -98,9 +98,9 @@ def test_e2e_install_plugin_from_git_url(
         new_plugins = set(new_registry.available(load_entrypoints=True).keys())
 
         # The sysbench plugin should be available after install.
-        assert (
-            "sysbench" in new_plugins
-        ), f"'sysbench' plugin not discoverable after installing from {url}"
+        assert "sysbench" in new_plugins, (
+            f"'sysbench' plugin not discoverable after installing from {url}"
+        )
 
         # If sysbench wasn't already installed in the environment, we expect a new plugin to appear.
         if not baseline_has_sysbench:

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import typer
-
 from typing import Any
 
+import typer
+
 from lb_app.api import build_plugin_table, create_registry
-from lb_ui.wiring.dependencies import UIContext
-from lb_ui.tui.system.models import TableModel
 from lb_ui.flows.errors import UIFlowError
-from lb_ui.flows.selection import select_plugins_interactively, apply_plugin_selection
+from lb_ui.flows.selection import apply_plugin_selection, select_plugins_interactively
+from lb_ui.tui.system.models import TableModel
+from lb_ui.wiring.dependencies import UIContext
 
 
 def create_plugin_app(ctx: UIContext) -> typer.Typer:
@@ -103,7 +103,7 @@ def create_plugin_app(ctx: UIContext) -> typer.Typer:
             selection = select_plugins_interactively(ctx.ui, registry, enabled_map)
         except UIFlowError as exc:
             ctx.ui.present.error(str(exc))
-            raise typer.Exit(exc.exit_code)
+            raise typer.Exit(exc.exit_code) from exc
         if selection is None:
             raise typer.Exit(1)
 

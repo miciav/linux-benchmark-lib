@@ -53,7 +53,9 @@ def test_destroy_all_skips_if_keep_nodes_set_dynamically(nodes):
 def test_multipass_provision_rolls_back_created_nodes_on_partial_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(multipass_mod.shutil, "which", lambda _name: "/usr/bin/multipass")
+    monkeypatch.setattr(
+        multipass_mod.shutil, "which", lambda _name: "/usr/bin/multipass"
+    )
     monkeypatch.setattr(multipass_mod, "MAX_NODES", 3)
 
     request = ProvisioningRequest(

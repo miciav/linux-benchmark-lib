@@ -94,7 +94,7 @@ class SigintDoublePressHandler(AbstractContextManager["SigintDoublePressHandler"
         self._on_confirmed = on_confirmed_sigint
         self._prev_handler: SignalHandler | None = None
 
-    def __enter__(self) -> "SigintDoublePressHandler":
+    def __enter__(self) -> SigintDoublePressHandler:
         if threading.current_thread() is not threading.main_thread():
             return self
         self._prev_handler = signal.getsignal(signal.SIGINT)

@@ -1,14 +1,14 @@
-"Webhook notification provider."
+"""Webhook notification provider."""
 
 from __future__ import annotations
 
 import json
 import logging
-import urllib.request
 import urllib.error
-from typing import Any, Dict
+import urllib.request
+from typing import Any
 
-from lb_ui.notifications.base import NotificationProvider, NotificationContext
+from lb_ui.notifications.base import NotificationContext, NotificationProvider
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class WebhookProvider(NotificationProvider):
         except Exception as exc:
             logger.debug(f"Webhook delivery failed: {exc}")
 
-    def _build_payload(self, context: NotificationContext) -> Dict[str, Any]:
+    def _build_payload(self, context: NotificationContext) -> dict[str, Any]:
         """Construct the JSON payload."""
         status_emoji = "✅" if context.success else "❌"
         duration_text = ""

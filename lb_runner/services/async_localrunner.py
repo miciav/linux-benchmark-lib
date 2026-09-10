@@ -8,8 +8,9 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Mapping
+
 from lb_plugins.api import (
     create_registry,
     ensure_workloads_from_plugin_settings,
@@ -159,7 +160,7 @@ def main() -> int:
                 total_repetitions=total_reps,
                 run_id=run_id,
             )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         duration = time.time() - start_ts
         payload = {
             "run_id": run_id,

@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from lb_ui.api import app
 from lb_app.api import ConfigService
 from lb_runner.api import BenchmarkConfig
+from lb_ui.api import app
 
 pytestmark = [pytest.mark.unit_ui]
 

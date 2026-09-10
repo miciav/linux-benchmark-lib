@@ -1,18 +1,16 @@
-"""
-Base generator abstract class for workload generators.
+"""Base generator abstract class for workload generators.
 
 This module defines the common interface that all workload generators must implement.
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 import logging
 import subprocess
 import threading
-from typing import Any, Optional, Protocol
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 from lb_common.api import WorkloadError, error_to_payload
-
 
 logger = logging.getLogger(__name__)
 
@@ -21,22 +19,21 @@ class BaseGenerator(ABC):
     """Abstract base class for all workload generators."""
 
     def __init__(self, name: str):
-        """
-        Initialize the base generator.
+        """Initialize the base generator.
 
         Args:
             name: Name of the generator
+
         """
         self.name = name
         self._is_running = False
-        self._thread: Optional[threading.Thread] = None
-        self._result: Optional[Any] = None
+        self._thread: threading.Thread | None = None
+        self._result: Any | None = None
         self._error: WorkloadError | None = None
 
     @abstractmethod
     def _run_command(self) -> None:
-        """
-        Run the actual command or process to generate workload.
+        """Run the actual command or process to generate workload.
 
         This method should handle the process of workload generation.
         """
@@ -44,36 +41,33 @@ class BaseGenerator(ABC):
 
     @abstractmethod
     def _validate_environment(self) -> bool:
-        """
-        Validate that the generator can run in the current environment.
+        """Validate that the generator can run in the current environment.
 
         Returns:
             True if the environment is valid, False otherwise
+
         """
         pass
 
     def prepare(self) -> None:
-        """
-        Optional pre-run hook executed synchronously before collectors start.
+        """Optional pre-run hook executed synchronously before collectors start.
 
         Generators can override to perform expensive setup (e.g., build binaries)
         so collectors do not capture that time. Default is a no-op.
         """
-        return None
+        return
 
     def cleanup(self) -> None:
-        """
-        Optional post-run hook executed after collectors stop and results are persisted.
+        """Optional post-run hook run after collectors stop and results are persisted.
 
         Generators can override to remove temporary artifacts created during a single
         repetition without affecting shared setup/provisioning.
         """
-        return None
+        return
 
     @abstractmethod
     def _stop_workload(self) -> None:
-        """
-        Stop the actual workload process.
+        """Stop the actual workload process.
 
         This method must be implemented by subclasses to ensure the
         underlying process (e.g., subprocess) is terminated correctly.
@@ -121,19 +115,18 @@ class BaseGenerator(ABC):
             logger.error(f"Error joining thread for {self.name}: {exc}")
 
     def check_prerequisites(self) -> bool:
-        """
-        Check if the generator's prerequisites are met.
+        """Check if the generator's prerequisites are met.
 
         Delegates to the protected _validate_environment method.
         """
         return self._validate_environment()
 
     def get_result(self) -> Any:
-        """
-        Get the result of the workload generation.
+        """Get the result of the workload generation.
 
         Returns:
             The result obtained from the workload generation
+
         """
         return self._result
 
@@ -182,7 +175,7 @@ class CommandSpec:
 
     cmd: list[str]
     popen_kwargs: dict[str, Any] = field(default_factory=dict)
-    timeout_seconds: Optional[int] = None
+    timeout_seconds: int | None = None
 
 
 class CommandSpecBuilder(Protocol):
@@ -210,10 +203,10 @@ class CommandGenerator(BaseGenerator):
     ):
         super().__init__(name)
         self.config = config
-        self._process: Optional[subprocess.Popen[str]] = None
+        self._process: subprocess.Popen[str] | None = None
         self._command_builder = command_builder
         self._result_parser = result_parser
-        self._active_timeout: Optional[int] = None
+        self._active_timeout: int | None = None
 
     @abstractmethod
     def _build_command(self) -> list[str]:
@@ -223,7 +216,7 @@ class CommandGenerator(BaseGenerator):
     def _popen_kwargs(self) -> dict[str, Any]:
         return {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "text": True}
 
-    def _timeout_seconds(self) -> Optional[int]:
+    def _timeout_seconds(self) -> int | None:
         if self._active_timeout is not None:
             return self._active_timeout
         timeout = getattr(self.config, "timeout", None)

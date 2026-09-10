@@ -8,7 +8,6 @@ import pytest
 
 from lb_common.errors import WorkloadError, error_to_payload
 
-
 pytestmark = pytest.mark.unit_runner
 
 

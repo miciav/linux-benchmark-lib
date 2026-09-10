@@ -10,7 +10,6 @@ from lb_app.api import (
     WorkloadConfig,
 )
 
-
 pytestmark = pytest.mark.unit_controller
 
 

@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import contextlib
 import threading
-from typing import Any, Callable, Optional
-
-from lb_runner.api import StopToken
+from collections.abc import Callable
+from typing import Any
 
 from lb_controller.models.state import ControllerState, ControllerStateMachine
+from lb_runner.api import StopToken
 
-
-StateCallback = Callable[[ControllerState, Optional[str]], None]
+StateCallback = Callable[[ControllerState, str | None], None]
 
 
 class ControllerRunner:
@@ -20,14 +20,16 @@ class ControllerRunner:
         self,
         run_callable: Callable[[], Any],
         stop_token: StopToken | None = None,
-        on_state_change: Optional[StateCallback] = None,
+        on_state_change: StateCallback | None = None,
         state_machine: ControllerStateMachine | None = None,
     ) -> None:
-        """
+        """Initialize the controller runner.
+
         Args:
-            run_callable: A callable that executes the controller and returns a summary.
-            stop_token: Optional stop token to request graceful termination.
-            on_state_change: Optional callback invoked on every state transition.
+        run_callable: A callable that executes the controller and returns a summary.
+        stop_token: Optional stop token to request graceful termination.
+        on_state_change: Optional callback invoked on every state transition.
+
         """
         self._run_callable = run_callable
         self._stop_token = stop_token
@@ -73,16 +75,12 @@ class ControllerRunner:
 
     def arm_stop(self, reason: str | None = None) -> None:
         """Signal the controller to stop gracefully."""
-        try:
+        # Ignore invalid transition; best-effort arming
+        with contextlib.suppress(Exception):
             self._machine.transition(ControllerState.STOP_ARMED, reason=reason)
-        except Exception:
-            # Ignore invalid transition; best-effort arming
-            pass
         if self._stop_token:
-            try:
+            with contextlib.suppress(Exception):
                 self._stop_token.request_stop()
-            except Exception:
-                pass
 
     def _run(self) -> None:
         try:
@@ -106,10 +104,8 @@ class ControllerRunner:
             if not self._machine.is_terminal():
                 self._machine.transition(final_state, reason=str(exc))
         except Exception:
-            try:
+            with contextlib.suppress(Exception):
                 self._machine.transition(ControllerState.FAILED, reason=str(exc))
-            except Exception:
-                pass
 
     def _final_state_on_success(self) -> ControllerState:
         if self._stop_token and self._stop_token.should_stop():

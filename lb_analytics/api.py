@@ -13,12 +13,12 @@ from lb_analytics.engine.service import (
 from lb_analytics.reporting.generator import Reporter
 
 __all__ = [
+    "AnalyticsKind",
     "AnalyticsRequest",
     "AnalyticsService",
-    "AnalyticsKind",
     "DataHandler",
+    "Reporter",
     "TestResult",
     "aggregate_cli",
     "aggregate_psutil",
-    "Reporter",
 ]

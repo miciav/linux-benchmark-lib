@@ -1,15 +1,16 @@
 """ExecutionContext for the runner."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from lb_runner.models.config import BenchmarkConfig
-    from lb_runner.services.runner_output_manager import RunnerOutputManager
-    from lb_runner.services.runner_log_manager import RunnerLogManager
-    from lb_runner.engine.stop_token import StopToken
     from lb_runner.engine.metrics import MetricManager
+    from lb_runner.engine.stop_token import StopToken
+    from lb_runner.models.config import BenchmarkConfig
+    from lb_runner.services.runner_log_manager import RunnerLogManager
+    from lb_runner.services.runner_output_manager import RunnerOutputManager
 
 
 @dataclass

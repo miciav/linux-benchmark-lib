@@ -1,3 +1,4 @@
+import contextlib
 import json
 import subprocess
 import time
@@ -23,8 +24,7 @@ ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 
 @pytest.mark.inter_generic
 def test_multipass_ssh_roundtrip(tmp_path: Path) -> None:
-    """
-    Minimal Multipass smoke test for SSH key provisioning.
+    """Minimal Multipass smoke test for SSH key provisioning.
 
     - Launch a fresh VM
     - Generate a throwaway keypair
@@ -80,17 +80,13 @@ def test_multipass_ssh_roundtrip(tmp_path: Path) -> None:
         )
         subprocess.run(["multipass", "purge"], stderr=subprocess.DEVNULL)
         for path in (key_path, pub_path):
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 path.unlink()
-            except FileNotFoundError:
-                pass
 
 
 @pytest.mark.inter_generic
 def test_multipass_ansible_ping(tmp_path: Path) -> None:
-    """
-    End-to-end smoke test: provision VM, inject key, run Ansible ping.
-    """
+    """End-to-end smoke test: provision VM, inject key, run Ansible ping."""
     ensure_multipass_access()
     ensure_ansible_available()
 
@@ -150,17 +146,13 @@ def test_multipass_ansible_ping(tmp_path: Path) -> None:
         )
         subprocess.run(["multipass", "purge"], stderr=subprocess.DEVNULL)
         for path in (key_path, pub_path):
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 path.unlink()
-            except FileNotFoundError:
-                pass
 
 
 @pytest.mark.inter_generic
 def test_multipass_ansible_stress_ng(tmp_path: Path) -> None:
-    """
-    Run a minimal stress-ng workload via Ansible on a fresh Multipass VM.
-    """
+    """Run a minimal stress-ng workload via Ansible on a fresh Multipass VM."""
     ensure_multipass_access()
     ensure_ansible_available()
 
@@ -230,17 +222,13 @@ def test_multipass_ansible_stress_ng(tmp_path: Path) -> None:
         )
         subprocess.run(["multipass", "purge"], stderr=subprocess.DEVNULL)
         for path in (key_path, pub_path):
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 path.unlink()
-            except FileNotFoundError:
-                pass
 
 
 @pytest.mark.inter_generic
 def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
-    """
-    Run the repo's setup playbook against a Multipass VM with controller-like extravars.
-    """
+    """Run the repo's setup playbook against a Multipass VM with controller-like extravars."""
     ensure_multipass_access()
     ensure_ansible_available()
 
@@ -378,7 +366,5 @@ def test_multipass_ansible_setup_playbook(tmp_path: Path) -> None:
         )
         subprocess.run(["multipass", "purge"], stderr=subprocess.DEVNULL)
         for path in (key_path, pub_path):
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 path.unlink()
-            except FileNotFoundError:
-                pass

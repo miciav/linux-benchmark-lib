@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -11,11 +10,11 @@ from lb_app.api import (
     RemoteHostConfig,
     create_registry,
 )
-from lb_ui.wiring.dependencies import UIContext
-from lb_ui.tui.system.models import TableModel
 from lb_ui.flows.config_wizard import run_config_wizard
 from lb_ui.flows.errors import UIFlowError
 from lb_ui.flows.selection import select_workloads_interactively
+from lb_ui.tui.system.models import TableModel
+from lb_ui.wiring.dependencies import UIContext
 
 
 def create_config_app(ctx: UIContext) -> typer.Typer:
@@ -24,7 +23,7 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         help="Manage benchmark configuration files.", no_args_is_help=True
     )
 
-    def _load_config(config_path: Optional[Path]) -> BenchmarkConfig:
+    def _load_config(config_path: Path | None) -> BenchmarkConfig:
         """Load a BenchmarkConfig from disk or fall back to defaults."""
         cfg, resolved, stale = ctx.config_service.load_for_read(config_path)
         if stale:
@@ -38,7 +37,7 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
 
     @app.command("edit")
     def config_edit(
-        config_path: Optional[Path] = typer.Option(
+        config_path: Path | None = typer.Option(
             None,
             "--config",
             "-c",
@@ -46,18 +45,18 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
                 "Config file to edit; uses saved default or local "
                 "benchmark_config.json when omitted."
             ),
-        )
+        ),
     ) -> None:
         """Open a config file in $EDITOR."""
         try:
             ctx.config_service.open_editor(config_path)
         except Exception as exc:
             ctx.ui.present.error(str(exc))
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
 
     @app.command("init")
     def config_init(
-        config_path: Optional[Path] = typer.Option(
+        config_path: Path | None = typer.Option(
             None,
             "--config",
             "-c",
@@ -109,7 +108,7 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         repetitions: int = typer.Argument(
             ..., help="Number of repetitions to store in the config."
         ),
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None, "--config", "-c", help="Config file to update."
         ),
         set_default: bool = typer.Option(
@@ -119,7 +118,6 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         ),
     ) -> None:
         """Persist the desired repetitions count to the configuration file."""
-
         if repetitions < 1:
             ctx.ui.present.error("Repetitions must be at least 1.")
             raise typer.Exit(1)
@@ -168,9 +166,9 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
 
     @app.command("workloads")
     def config_list_workloads(
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None, "--config", "-c", help="Config file to inspect."
-        )
+        ),
     ) -> None:
         """List configured workloads."""
         cfg = _load_config(config)
@@ -184,7 +182,7 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
     @app.command("enable-workload")
     def config_enable_workload(
         name: str = typer.Argument(..., help="Workload name to enable."),
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None, "--config", "-c", help="Config file to update."
         ),
         set_default: bool = typer.Option(
@@ -195,7 +193,7 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
     ) -> None:
         """Add a workload to the configuration (creates it if missing)."""
         try:
-            cfg, target, stale = ctx.config_service.add_workload(
+            _cfg, target, stale = ctx.config_service.add_workload(
                 name, config, set_default
             )
             if stale:
@@ -203,12 +201,12 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             ctx.ui.present.success(f"Workload '{name}' added in {target}")
         except ValueError as e:
             ctx.ui.present.error(str(e))
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
 
     @app.command("disable-workload")
     def config_disable_workload(
         name: str = typer.Argument(..., help="Workload name to disable."),
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None, "--config", "-c", help="Config file to update."
         ),
         set_default: bool = typer.Option(
@@ -218,7 +216,7 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         ),
     ) -> None:
         """Remove a workload from the configuration (and its plugin settings)."""
-        cfg, target, stale, removed = ctx.config_service.remove_plugin(name, config)
+        _cfg, target, stale, removed = ctx.config_service.remove_plugin(name, config)
         if stale:
             ctx.ui.present.warning(f"Saved default config not found: {stale}")
         if not removed:
@@ -230,7 +228,7 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
     def _select_workloads_interactively(
         cfg: BenchmarkConfig,
         registry: PluginRegistry,
-        config: Optional[Path],
+        config: Path | None,
         set_default: bool,
     ) -> None:
         """Interactively toggle configured workloads using arrows + space."""
@@ -240,11 +238,11 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             )
         except UIFlowError as exc:
             ctx.ui.present.error(str(exc))
-            raise typer.Exit(exc.exit_code)
+            raise typer.Exit(exc.exit_code) from exc
 
     @app.command("select-workloads")
     def config_select_workloads(
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None, "--config", "-c", help="Config file to update after selection."
         ),
         set_default: bool = typer.Option(
@@ -267,9 +265,9 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
 
     @app.command("hosts")
     def config_list_hosts(
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None, "--config", "-c", help="Config file to inspect."
-        )
+        ),
     ) -> None:
         """List configured remote hosts."""
         cfg = _load_config(config)
@@ -298,13 +296,13 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         ),
         port: int = typer.Option(22, "--port", "-p", help="SSH port."),
         user: str = typer.Option("root", "--user", "-u", help="SSH user."),
-        key: Optional[str] = typer.Option(
+        key: str | None = typer.Option(
             None, "--key", "-k", help="Path to SSH private key."
         ),
         become: bool = typer.Option(
             True, "--become/--no-become", help="Use sudo (Ansible become)."
         ),
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None, "--config", "-c", help="Config file to update."
         ),
         set_default: bool = typer.Option(
@@ -334,7 +332,7 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
         )
 
         try:
-            cfg, target, stale = ctx.config_service.add_remote_host(
+            _cfg, target, stale = ctx.config_service.add_remote_host(
                 host, config, enable_remote=True, set_default=set_default
             )
             if stale:
@@ -344,12 +342,12 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
             )
         except ValueError as e:
             ctx.ui.present.error(str(e))
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
 
     @app.command("remove-host")
     def config_remove_host(
         name: str = typer.Argument(..., help="Name of the host to remove."),
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None, "--config", "-c", help="Config file to update."
         ),
     ) -> None:
@@ -368,6 +366,6 @@ def create_config_app(ctx: UIContext) -> typer.Typer:
                 ctx.ui.present.info("No hosts remaining. Remote execution disabled.")
         except FileNotFoundError as e:
             ctx.ui.present.error(str(e))
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
 
     return app

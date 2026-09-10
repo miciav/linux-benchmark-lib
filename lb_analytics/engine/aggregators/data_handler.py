@@ -1,5 +1,4 @@
-"""
-Data handler module for processing and aggregating benchmark data.
+"""Data handler module for processing and aggregating benchmark data.
 
 This module is responsible for transforming raw metric data into aggregated
 DataFrames suitable for analysis and reporting.
@@ -8,7 +7,7 @@ DataFrames suitable for analysis and reporting.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, TypedDict
 
 import pandas as pd
 
@@ -24,24 +23,24 @@ class TestResult(TypedDict):
     """Structure of a single test repetition result."""
 
     repetition: int
-    metrics: Dict[str, List[Dict[str, Any]]]
-    start_time: Optional[str]
-    end_time: Optional[str]
+    metrics: dict[str, list[dict[str, Any]]]
+    start_time: str | None
+    end_time: str | None
 
 
 class DataHandler:
     """Handler for processing and aggregating benchmark data."""
 
-    def __init__(self, collectors: Optional[Dict[str, Any]] = None):
-        """
-        Initialize the data handler.
+    def __init__(self, collectors: dict[str, Any] | None = None):
+        """Initialize the data handler.
 
         Args:
             collectors: Optional mapping of collector name to CollectorPlugin metadata.
                         Used to look up aggregator functions supplied by collectors.
+
         """
         collectors = collectors or {}
-        self.collector_aggregators: Dict[str, Any] = {
+        self.collector_aggregators: dict[str, Any] = {
             name: plugin.aggregator
             for name, plugin in collectors.items()
             if getattr(plugin, "aggregator", None)
@@ -57,7 +56,7 @@ class DataHandler:
             )
 
     @staticmethod
-    def _parse_time(value: Optional[str]) -> Optional[pd.Timestamp]:
+    def _parse_time(value: str | None) -> pd.Timestamp | None:
         if not value:
             return None
         return pd.to_datetime(value)
@@ -65,8 +64,8 @@ class DataHandler:
     @staticmethod
     def _filter_by_time(
         df: pd.DataFrame,
-        start_time: Optional[pd.Timestamp],
-        end_time: Optional[pd.Timestamp],
+        start_time: pd.Timestamp | None,
+        end_time: pd.Timestamp | None,
     ) -> pd.DataFrame:
         if start_time and end_time:
             return df[(df["timestamp"] >= start_time) & (df["timestamp"] <= end_time)]
@@ -75,10 +74,10 @@ class DataHandler:
     def _normalize_collector_df(
         self,
         collector_name: str,
-        collector_data: List[Dict[str, Any]],
-        start_time: Optional[pd.Timestamp],
-        end_time: Optional[pd.Timestamp],
-    ) -> Optional[pd.DataFrame]:
+        collector_data: list[dict[str, Any]],
+        start_time: pd.Timestamp | None,
+        end_time: pd.Timestamp | None,
+    ) -> pd.DataFrame | None:
         if not collector_data:
             return None
 
@@ -100,7 +99,7 @@ class DataHandler:
 
     def _aggregate_collector(
         self, collector_name: str, df: pd.DataFrame
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         aggregator = self.collector_aggregators.get(collector_name)
         if not callable(aggregator):
             logger.warning(
@@ -112,7 +111,8 @@ class DataHandler:
             result = aggregator(df)
             if not isinstance(result, dict):
                 logger.warning(
-                    "Aggregator for collector '%s' returned %s instead of dict; skipping.",
+                    "Aggregator for collector '%s' returned %s instead of dict; "
+                    "skipping.",
                     collector_name,
                     type(result).__name__,
                 )
@@ -128,13 +128,13 @@ class DataHandler:
 
     def _build_repetition_summary(
         self, result: TestResult
-    ) -> Dict[str, Dict[str, Any]]:
+    ) -> dict[str, dict[str, Any]]:
         rep_num = result["repetition"]
         metrics = result["metrics"]
         start_time = self._parse_time(result.get("start_time"))
         end_time = self._parse_time(result.get("end_time"))
 
-        rep_summary: Dict[str, Any] = {}
+        rep_summary: dict[str, Any] = {}
         for collector_name, collector_data in metrics.items():
             df = self._normalize_collector_df(
                 collector_name, collector_data, start_time, end_time
@@ -148,10 +148,9 @@ class DataHandler:
     def process_test_results(
         self,
         test_name: str,
-        results: List[TestResult],
-    ) -> Optional[pd.DataFrame]:
-        """
-        Process test results and create aggregated DataFrame.
+        results: list[TestResult],
+    ) -> pd.DataFrame | None:
+        """Process test results and create aggregated DataFrame.
 
         Args:
             test_name: Name of the test
@@ -159,6 +158,7 @@ class DataHandler:
 
         Returns:
             DataFrame with metrics as index and repetitions as columns
+
         """
         if not results:
             logger.warning(f"No results to process for test {test_name}")
@@ -173,10 +173,11 @@ class DataHandler:
             return None
 
         # Combine all repetition data
-        combined_data: Dict[str, Dict[str, Any]] = {}
-        for rep_dict in repetition_summaries:
-            for rep_name, metrics in rep_dict.items():
-                combined_data[rep_name] = metrics
+        combined_data: dict[str, dict[str, Any]] = {
+            rep_name: metrics
+            for rep_dict in repetition_summaries
+            for rep_name, metrics in rep_dict.items()
+        }
 
         # Create DataFrame and transpose so metrics are index
         df = pd.DataFrame(combined_data).T

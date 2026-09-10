@@ -1,8 +1,7 @@
 import pandas as pd
+import pytest
 
 from lb_analytics.api import aggregate_cli, aggregate_psutil
-
-import pytest
 
 pytestmark = pytest.mark.unit_analytics
 

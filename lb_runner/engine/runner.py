@@ -1,5 +1,4 @@
-"""
-Local controller module for managing the benchmark process.
+"""Local controller module for managing the benchmark process.
 
 This module coordinates the execution of workload generators and metric collectors,
 managing the overall benchmark workflow.
@@ -7,31 +6,31 @@ managing the overall benchmark workflow.
 
 from __future__ import annotations
 
-import os
 import logging
+import os
 import platform
-import time
-from typing import Any, Callable, Dict, List, Optional, Protocol
+from collections.abc import Callable
+from typing import Any, Protocol
 
 from lb_common.api import LBError
-from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
-from lb_runner.models.events import RunEvent
-from lb_runner.services.runner_log_manager import RunnerLogManager
-from lb_runner.services.runner_output_manager import RunnerOutputManager
 from lb_plugins.api import PluginRegistry, WorkloadPlugin
-from lb_runner.metric_collectors.builtin import builtin_collectors
-from lb_runner.metric_collectors.registry import CollectorRegistry
-from lb_runner.registry import RunnerRegistry
-from lb_runner.engine.executor import RepetitionExecutor
 from lb_runner.engine.context import RunnerContext
-from lb_runner.engine.progress import RunProgressEmitter
+from lb_runner.engine.execution import sleep_with_stop_checks
+from lb_runner.engine.executor import RepetitionExecutor
+from lb_runner.engine.metrics import MetricManager
 from lb_runner.engine.planning import RunPlanner
+from lb_runner.engine.progress import RunProgressEmitter
 from lb_runner.engine.run_scope import RunScopeManager
-from lb_runner.services.result_persister import ResultPersister
 from lb_runner.engine.stop_context import should_stop, stop_context
 from lb_runner.engine.stop_token import StopToken
-from lb_runner.engine.metrics import MetricManager
-from lb_runner.engine.execution import sleep_with_stop_checks
+from lb_runner.metric_collectors.builtin import builtin_collectors
+from lb_runner.metric_collectors.registry import CollectorRegistry
+from lb_runner.models.config import BenchmarkConfig, WorkloadConfig
+from lb_runner.models.events import RunEvent
+from lb_runner.registry import RunnerRegistry
+from lb_runner.services.result_persister import ResultPersister
+from lb_runner.services.runner_log_manager import RunnerLogManager
+from lb_runner.services.runner_output_manager import RunnerOutputManager
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ class RunnerRegistryLike(Protocol):
         """Return the workload plugin registered under ``name``."""
 
     def create_generator(
-        self, plugin_name: str, options: Dict[str, Any] | None = None
+        self, plugin_name: str, options: dict[str, Any] | None = None
     ) -> Any:
         """Create a workload generator instance."""
 
@@ -58,19 +57,19 @@ class LocalRunner:
         self,
         config: BenchmarkConfig,
         registry: PluginRegistry | RunnerRegistryLike,
-        progress_callback: Optional[Callable[[RunEvent], None]] = None,
+        progress_callback: Callable[[RunEvent], None] | None = None,
         host_name: str | None = None,
         stop_token: StopToken | None = None,
         collector_registry: CollectorRegistry | None = None,
     ):
-        """
-        Initialize the local runner.
+        """Initialize the local runner.
 
         Args:
             config: Benchmark configuration
+
         """
         self.config = config
-        self.test_results: List[Dict[str, Any]] = []
+        self.test_results: list[dict[str, Any]] = []
         self.plugin_registry = self._resolve_registry(registry, collector_registry)
         workloads = getattr(self.config, "workloads", {})
         repetitions = getattr(self.config, "repetitions", 1)
@@ -83,7 +82,7 @@ class LocalRunner:
         )
         self._scope_manager = RunScopeManager(self.config, logger)
         self._result_persister = ResultPersister()
-        self._current_run_id: Optional[str] = None
+        self._current_run_id: str | None = None
         self._host_name = (
             host_name or os.environ.get("LB_RUN_HOST") or platform.node() or "localhost"
         )
@@ -108,7 +107,7 @@ class LocalRunner:
         )
 
     @property
-    def system_info(self) -> Optional[Dict[str, Any]]:
+    def system_info(self) -> dict[str, Any] | None:
         return self._metric_manager.system_info
 
     @staticmethod
@@ -121,12 +120,12 @@ class LocalRunner:
         collectors = collector_registry or CollectorRegistry(builtin_collectors())
         return RunnerRegistry(registry, collectors)
 
-    def collect_system_info(self) -> Dict[str, Any]:
-        """
-        Collect detailed information about the system.
+    def collect_system_info(self) -> dict[str, Any]:
+        """Collect detailed information about the system.
 
         Returns:
             Dictionary containing system information
+
         """
         return self._metric_manager.collect_system_info()
 
@@ -136,15 +135,15 @@ class LocalRunner:
         repetition_override: int | None = None,
         total_repetitions: int | None = None,
         run_id: str | None = None,
-        pending_reps: List[int] | None = None,
+        pending_reps: list[int] | None = None,
     ) -> bool:
-        """
-        Run a complete benchmark test.
+        """Run a complete benchmark test.
 
         Args:
             test_type: Name of the workload to run (plugin id)
             repetition_override: When set, run only this repetition index.
             total_repetitions: Total repetitions planned (for display purposes).
+
         """
         with stop_context(self._stop_token):
             total_reps = total_repetitions or self.config.repetitions

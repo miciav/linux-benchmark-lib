@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 import typer
 
@@ -20,14 +20,13 @@ def register_run_command(
 
     @app.command("run")
     def run(
-        tests: List[str] = typer.Argument(
+        tests: list[str] = typer.Argument(
             None,
             help=(
-                "Workload names to run; defaults to configured workloads in the "
-                "config."
+                "Workload names to run; defaults to configured workloads in the config."
             ),
         ),
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None,
             "--config",
             "-c",
@@ -36,12 +35,12 @@ def register_run_command(
                 "benchmark_config.json when omitted."
             ),
         ),
-        run_id: Optional[str] = typer.Option(
+        run_id: str | None = typer.Option(
             None,
             "--run-id",
             help="Optional run identifier for tracking results.",
         ),
-        remote: Optional[bool] = typer.Option(
+        remote: bool | None = typer.Option(
             None,
             "--remote/--no-remote",
             help=(
@@ -59,23 +58,18 @@ def register_run_command(
             "--docker-engine",
             help="Container engine to use with --docker (docker or podman).",
         ),
-        repetitions: Optional[int] = typer.Option(
+        repetitions: int | None = typer.Option(
             None,
             "--repetitions",
             "-r",
-            help=(
-                "Override the number of repetitions for this run (must be >= 1)."
-            ),
+            help=("Override the number of repetitions for this run (must be >= 1)."),
         ),
         multipass: bool = typer.Option(
             False,
             "--multipass",
-            help=(
-                "Provision Multipass VMs (Ubuntu 24.04) and run benchmarks on "
-                "them."
-            ),
+            help=("Provision Multipass VMs (Ubuntu 24.04) and run benchmarks on them."),
         ),
-        node_count: Optional[int] = typer.Option(
+        node_count: int | None = typer.Option(
             None,
             "--nodes",
             "--multipass-vm-count",
@@ -85,11 +79,10 @@ def register_run_command(
             False,
             "--debug",
             help=(
-                "Enable verbose debug logging (sets fio.debug=True when "
-                "applicable)."
+                "Enable verbose debug logging (sets fio.debug=True when applicable)."
             ),
         ),
-        stop_file: Optional[Path] = typer.Option(
+        stop_file: Path | None = typer.Option(
             None,
             "--stop-file",
             help=(
@@ -101,9 +94,7 @@ def register_run_command(
             None,
             "--intensity",
             "-i",
-            help=(
-                "Override workload intensity (low, medium, high, user_defined)."
-            ),
+            help=("Override workload intensity (low, medium, high, user_defined)."),
         ),
         setup: bool = typer.Option(
             True,
@@ -171,7 +162,7 @@ def register_run_command(
 
         cfg.ensure_output_dirs()
 
-        def _explicit_execution_mode() -> Optional[str]:
+        def _explicit_execution_mode() -> str | None:
             if docker:
                 return "docker"
             if multipass:
@@ -262,10 +253,10 @@ def register_run_command(
 
         except ValueError as e:
             ctx.ui.present.warning(str(e))
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
         except Exception as exc:
             ctx.ui.present.error(f"Run failed: {exc}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
         finally:
             if tray_enabled:
                 tray.stop()

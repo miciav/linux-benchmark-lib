@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict
+from collections.abc import Callable
 
 from lb_controller.adapters.playbooks import run_global_teardown
 from lb_controller.engine.run_state import RunFlags, RunState
+from lb_controller.engine.session import RunSession
 from lb_controller.models.types import ExecutionResult
 from lb_controller.services.services import ControllerServices
-from lb_controller.engine.session import RunSession
 
 
 class TeardownService:
@@ -22,7 +22,7 @@ class TeardownService:
         services: ControllerServices,
         session: RunSession,
         state: RunState,
-        phases: Dict[str, ExecutionResult],
+        phases: dict[str, ExecutionResult],
         flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> None:

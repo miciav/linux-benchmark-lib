@@ -42,7 +42,9 @@ def test_export_results_to_csv_writes_all_expected_artifacts(tmp_path: Path) -> 
             "generator_result": {
                 "peva_faas_functions": ["figlet"],
                 "peva_faas_results": [{"function_figlet": "figlet", "rest_seconds": 5}],
-                "peva_faas_skipped": [{"function_figlet": "figlet", "rate_function_figlet": 10}],
+                "peva_faas_skipped": [
+                    {"function_figlet": "figlet", "rate_function_figlet": 10}
+                ],
                 "peva_faas_index": [
                     {
                         "functions": ["figlet"],
@@ -64,7 +66,9 @@ def test_export_results_to_csv_writes_all_expected_artifacts(tmp_path: Path) -> 
                         "iteration": 1,
                         "metrics": {
                             "cpu_usage_node": 10.0,
-                            "functions": {"figlet": {"cpu": 1.0, "ram": 2.0, "power": 3.0}},
+                            "functions": {
+                                "figlet": {"cpu": 1.0, "ram": 2.0, "power": 3.0}
+                            },
                         },
                     }
                 ],
@@ -85,7 +89,10 @@ def test_export_results_to_csv_writes_all_expected_artifacts(tmp_path: Path) -> 
                     }
                 ],
                 "peva_faas_scripts": [
-                    {"config_id": "cfg-1", "script": "different script should be ignored"}
+                    {
+                        "config_id": "cfg-1",
+                        "script": "different script should be ignored",
+                    }
                 ],
             },
         },

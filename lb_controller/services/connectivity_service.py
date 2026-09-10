@@ -1,5 +1,4 @@
-"""
-Service for checking SSH connectivity to remote hosts.
+"""Service for checking SSH connectivity to remote hosts.
 
 Provides fast pre-flight checks to avoid waiting for Ansible timeouts
 when hosts are unreachable.
@@ -66,6 +65,7 @@ class ConnectivityService:
         Args:
             timeout_seconds: Default timeout for connectivity checks.
                 Defaults to 10 seconds.
+
         """
         self._timeout_seconds = timeout_seconds or self.DEFAULT_TIMEOUT_SECONDS
 
@@ -82,6 +82,7 @@ class ConnectivityService:
 
         Returns:
             ConnectivityReport with results for each host.
+
         """
         timeout = timeout_seconds or self._timeout_seconds
         results = []
@@ -108,6 +109,7 @@ class ConnectivityService:
 
         Returns:
             HostConnectivityResult with connectivity status.
+
         """
         start_time = time.time()
         address = host.address

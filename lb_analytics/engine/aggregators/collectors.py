@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict
-
 import numpy as np
 import pandas as pd
 
@@ -15,7 +13,7 @@ def _safe_time_diff_seconds(index: pd.Index) -> float:
     return time_diff if time_diff > 0 else 1.0
 
 
-def _update_cpu_metrics(summary: Dict[str, float], df: pd.DataFrame) -> None:
+def _update_cpu_metrics(summary: dict[str, float], df: pd.DataFrame) -> None:
     if "cpu_percent" not in df.columns:
         return
     summary["cpu_usage_percent_avg"] = df["cpu_percent"].mean()
@@ -23,14 +21,14 @@ def _update_cpu_metrics(summary: Dict[str, float], df: pd.DataFrame) -> None:
     summary["cpu_usage_percent_p95"] = df["cpu_percent"].quantile(0.95)
 
 
-def _update_memory_metrics(summary: Dict[str, float], df: pd.DataFrame) -> None:
+def _update_memory_metrics(summary: dict[str, float], df: pd.DataFrame) -> None:
     if "memory_usage" not in df.columns:
         return
     summary["memory_usage_percent_avg"] = df["memory_usage"].mean()
     summary["memory_usage_percent_max"] = df["memory_usage"].max()
 
 
-def _update_disk_metrics(summary: Dict[str, float], df: pd.DataFrame) -> None:
+def _update_disk_metrics(summary: dict[str, float], df: pd.DataFrame) -> None:
     time_diff = _safe_time_diff_seconds(df.index)
     if "disk_read_bytes" in df.columns:
         read_diff = df["disk_read_bytes"].iloc[-1] - df["disk_read_bytes"].iloc[0]
@@ -42,7 +40,7 @@ def _update_disk_metrics(summary: Dict[str, float], df: pd.DataFrame) -> None:
         return
 
 
-def _update_network_metrics(summary: Dict[str, float], df: pd.DataFrame) -> None:
+def _update_network_metrics(summary: dict[str, float], df: pd.DataFrame) -> None:
     time_diff = _safe_time_diff_seconds(df.index)
     if "net_bytes_sent" in df.columns:
         sent_diff = df["net_bytes_sent"].iloc[-1] - df["net_bytes_sent"].iloc[0]
@@ -57,12 +55,12 @@ def _update_network_metrics(summary: Dict[str, float], df: pd.DataFrame) -> None
         return
 
 
-def aggregate_psutil(df: pd.DataFrame) -> Dict[str, float]:
+def aggregate_psutil(df: pd.DataFrame) -> dict[str, float]:
     """Aggregate PSUtil collector data."""
     if df.empty:
         return {}
 
-    summary: Dict[str, float] = {}
+    summary: dict[str, float] = {}
     _update_cpu_metrics(summary, df)
     _update_memory_metrics(summary, df)
     _update_disk_metrics(summary, df)
@@ -71,9 +69,9 @@ def aggregate_psutil(df: pd.DataFrame) -> Dict[str, float]:
     return summary
 
 
-def aggregate_cli(df: pd.DataFrame) -> Dict[str, float]:
+def aggregate_cli(df: pd.DataFrame) -> dict[str, float]:
     """Aggregate CLI collector data."""
-    summary: Dict[str, float] = {}
+    summary: dict[str, float] = {}
 
     # Example: compute averages for numerical columns
     for col in df.columns:

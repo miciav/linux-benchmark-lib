@@ -1,15 +1,14 @@
 """Unit tests for RunOrchestrator."""
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
-from typing import Callable
-
 from lb_controller.engine.run_state import RunFlags, RunState
-from lb_controller.engine.session_builder import RunSessionBuilder
 from lb_controller.engine.session import RunSession
-from lb_controller.models.state import ControllerStateMachine, ControllerState
+from lb_controller.engine.session_builder import RunSessionBuilder
+from lb_controller.models.state import ControllerState, ControllerStateMachine
 from lb_controller.models.types import ExecutionResult, InventorySpec
 from lb_controller.services.run_orchestrator import RunOrchestrator
 from lb_controller.services.services import ControllerServices

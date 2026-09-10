@@ -7,7 +7,6 @@ import logging
 import os
 import queue
 import threading
-from typing import List, Optional
 
 from lb_ui.notifications.base import NotificationContext, NotificationProvider
 from lb_ui.notifications.providers.desktop import DesktopProvider
@@ -22,8 +21,8 @@ class NotificationManager:
 
     def __init__(self, app_name: str = "Linux Benchmark Lib") -> None:
         self.app_name = app_name
-        self._providers: List[NotificationProvider] = []
-        self._queue: queue.Queue[Optional[NotificationContext]] = queue.Queue()
+        self._providers: list[NotificationProvider] = []
+        self._queue: queue.Queue[NotificationContext | None] = queue.Queue()
         self._initialize_providers()
 
         # Start worker thread
@@ -72,11 +71,10 @@ class NotificationManager:
         title: str,
         message: str,
         success: bool = True,
-        run_id: Optional[str] = None,
-        duration_s: Optional[float] = None,
+        run_id: str | None = None,
+        duration_s: float | None = None,
     ) -> None:
         """Enqueue a notification for delivery."""
-
         # Enrich context
         if duration_s is not None:
             message += f"\nDuration: {duration_s:.1f}s"

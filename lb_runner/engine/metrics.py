@@ -1,18 +1,16 @@
-"""
-Metric management for benchmark execution.
-"""
+"""Metric management for benchmark execution."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 import os
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
+from lb_runner.services import system_info
 from lb_runner.services.collector_coordinator import CollectorCoordinator
 from lb_runner.services.log_handler import LBEventLogHandler
-from lb_runner.services import system_info
 from lb_runner.services.runner_output_manager import RunnerOutputManager
 
 logger = logging.getLogger(__name__)
@@ -30,9 +28,9 @@ class MetricManager:
         self._coordinator = CollectorCoordinator(registry)
         self._output_manager = output_manager
         self._host_name = host_name
-        self.system_info: Optional[Dict[str, Any]] = None
+        self.system_info: dict[str, Any] | None = None
 
-    def collect_system_info(self) -> Dict[str, Any]:
+    def collect_system_info(self) -> dict[str, Any]:
         """Collect and persist system information."""
         logger.info("Collecting system information")
         collected = system_info.collect_system_info()
@@ -97,7 +95,7 @@ class MetricManager:
         total_repetitions: int,
         current_run_id: str | None,
         collectors_enabled: bool = True,
-    ) -> "MetricSession":
+    ) -> MetricSession:
         """Create a MetricSession for a repetition lifecycle."""
         collectors = [] if not collectors_enabled else self.create_collectors(config)
         log_handler = self.attach_event_logger(

@@ -1,6 +1,6 @@
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
-from typing import IO, Any, Sequence
+from typing import IO, Any
 
 from lb_app.api import (
     DashboardHandle,

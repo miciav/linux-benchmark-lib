@@ -34,4 +34,3 @@ docker buildx build \
 
 echo "Artifacts in: $OUT_DIR"
 ls -l "$OUT_DIR" || true
-

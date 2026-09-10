@@ -69,7 +69,6 @@ def main_window(mock_services):
         patch("lb_gui.views.PluginsView", side_effect=MockView),
         patch("lb_gui.views.DoctorView", side_effect=MockView),
     ):
-
         window = MainWindow(mock_services)
         yield window
         window._current_worker = None

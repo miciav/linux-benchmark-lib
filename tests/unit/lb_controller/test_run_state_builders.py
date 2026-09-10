@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_plugins.api import PluginAssetConfig
 from lb_controller.engine.run_state_builders import (
     ExtravarsBuilder,
     RunDirectoryPreparer,
@@ -14,8 +13,8 @@ from lb_controller.engine.run_state_builders import (
     resolve_run_id,
 )
 from lb_controller.models.types import InventorySpec
+from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
-
 
 pytestmark = pytest.mark.unit_controller
 

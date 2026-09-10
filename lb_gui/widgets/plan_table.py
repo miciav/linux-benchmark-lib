@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
+from typing import ClassVar
 
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QWidget
 
@@ -10,7 +11,7 @@ from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QWidget
 class PlanTable(QTableWidget):
     """Table for displaying the run plan."""
 
-    HEADERS = ["Workload", "Config"]
+    HEADERS: ClassVar[list[str]] = ["Workload", "Config"]
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

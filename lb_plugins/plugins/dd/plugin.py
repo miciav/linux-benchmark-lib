@@ -8,14 +8,18 @@ import subprocess
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any, List, Optional, cast
+from typing import Any, ClassVar
 
 import pandas as pd
 from pydantic import Field
 
-from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
-from ...base_generator import CommandSpec
-from ..command_base import ProcessCommandGenerator
+from lb_plugins.base_generator import CommandSpec
+from lb_plugins.interface import (
+    BasePluginConfig,
+    SimpleWorkloadPlugin,
+    WorkloadIntensity,
+)
+from lb_plugins.plugins.command_base import ProcessCommandGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -71,16 +75,16 @@ class DDConfig(BasePluginConfig):
         default="1M",
         description="Block size for reads/writes (e.g., 1M, 4k)",
     )
-    count: Optional[int] = Field(
+    count: int | None = Field(
         default=None,
         ge=1,
         description="Number of blocks to copy (None means run until stopped)",
     )
-    conv: Optional[str] = Field(
+    conv: str | None = Field(
         default="fdatasync",
         description="Conversion options (e.g., fdatasync, noerror, sync)",
     )
-    oflag: Optional[str] = Field(
+    oflag: str | None = Field(
         default="direct",
         description="Output flags (e.g., direct, sync, dsync)",
     )
@@ -116,8 +120,8 @@ class _DDCommandBuilder:
 
     @staticmethod
     def _normalize_macos_flags(
-        conv: Optional[str], oflag: Optional[str]
-    ) -> tuple[Optional[str], Optional[str]]:
+        conv: str | None, oflag: str | None
+    ) -> tuple[str | None, str | None]:
         if oflag == "direct":
             logger.debug("Ignoring 'oflag=direct' on macOS (not supported by BSD dd)")
             oflag = None
@@ -133,18 +137,18 @@ class DDGenerator(ProcessCommandGenerator):
     tool_name = "dd"
 
     def __init__(self, config: DDConfig, name: str = "DDGenerator"):
-        """
-        Initialize the dd generator.
+        """Initialize the dd generator.
 
         Args:
             config: Configuration for dd
             name: Name of the generator
+
         """
         self._command_builder = _DDCommandBuilder()
         super().__init__(name, config, command_builder=self._command_builder)
         self.config: DDConfig = config
 
-    def _build_command(self) -> List[str]:
+    def _build_command(self) -> list[str]:
         assert self._command_builder is not None
         return self._command_builder.build(self.config).cmd
 
@@ -184,11 +188,11 @@ class DDGenerator(ProcessCommandGenerator):
                 logger.warning("Failed to clean up test file: %s", exc)
 
     def _validate_environment(self) -> bool:
-        """
-        Validate that dd is available and output path is writable.
+        """Validate that dd is available and output path is writable.
 
         Returns:
             True if dd is available and path is writable, False otherwise
+
         """
         if not super()._validate_environment():
             return False
@@ -222,11 +226,11 @@ class DDPlugin(SimpleWorkloadPlugin):
     DESCRIPTION = "Sequential disk I/O via dd"
     CONFIG_CLS = DDConfig
     GENERATOR_CLS = DDGenerator
-    REQUIRED_APT_PACKAGES = ["coreutils"]
-    REQUIRED_LOCAL_TOOLS = ["dd"]
+    REQUIRED_APT_PACKAGES: ClassVar[list[str]] = ["coreutils"]
+    REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["dd"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[DDConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> DDConfig | None:
         if level == WorkloadIntensity.LOW:
             return DDConfig(
                 bs="1M",
@@ -248,11 +252,11 @@ class DDPlugin(SimpleWorkloadPlugin):
 
     def export_results_to_csv(
         self,
-        results: List[dict[str, Any]],
+        results: list[dict[str, Any]],
         output_dir: Path,
         run_id: str,
         test_name: str,
-    ) -> List[Path]:
+    ) -> list[Path]:
         rows = [
             row
             for entry in results

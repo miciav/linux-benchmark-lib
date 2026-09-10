@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from lb_plugins.plugins.peva_faas.services.cooldown import (
     CooldownManager,
@@ -120,7 +121,7 @@ class TestCooldownManager:
             current = replica_count[0]
             if replica_count[0] > 1:
                 replica_count[0] -= 1
-            return {name: current for name in names}
+            return dict.fromkeys(names, current)
 
         monkeypatch.setattr(
             "lb_plugins.plugins.peva_faas.services.cooldown.time.sleep", lambda _: None

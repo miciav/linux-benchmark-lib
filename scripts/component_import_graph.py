@@ -6,8 +6,8 @@ from __future__ import annotations
 import argparse
 import ast
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Set, Tuple
 
 from lb_common.api import configure_logging
 
@@ -68,8 +68,8 @@ def discover_py_files(
             yield candidate
 
 
-def extract_edges(paths: Iterable[Path], components: Set[str]) -> Set[Tuple[str, str]]:
-    edges: Set[Tuple[str, str]] = set()
+def extract_edges(paths: Iterable[Path], components: set[str]) -> set[tuple[str, str]]:
+    edges: set[tuple[str, str]] = set()
     for path in paths:
         try:
             source = path.read_text()
@@ -82,7 +82,8 @@ def extract_edges(paths: Iterable[Path], components: Set[str]) -> Set[Tuple[str,
 
         owner = path.parts[0] if path.parts else None
         if owner not in components:
-            # Some files can live in nested dirs (e.g. lb_plugins/plugins). Derive owner by checking prefix.
+            # Some files can live in nested dirs (e.g. lb_plugins/plugins).
+            # Derive owner by checking prefix.
             owner = next(
                 (comp for comp in components if path.match(f"{comp}/**")), owner
             )
@@ -105,7 +106,7 @@ def extract_edges(paths: Iterable[Path], components: Set[str]) -> Set[Tuple[str,
 
 
 def render_dot(
-    edges: Set[Tuple[str, str]],
+    edges: set[tuple[str, str]],
     components: Iterable[str],
     output: Path,
     fmt: str,
@@ -115,8 +116,7 @@ def render_dot(
         "  rankdir=LR;",
         '  node [shape=box, style=filled, fillcolor="#f5f5f5", color="#555"]',
     ]
-    for comp in components:
-        dot_lines.append(f'  "{comp}" [fillcolor="#d0e4ff"];')
+    dot_lines.extend(f'  "{comp}" [fillcolor="#d0e4ff"];' for comp in components)
     for src, dst in sorted(edges):
         dot_lines.append(f'  "{src}" -> "{dst}" [color="#2c7cdb"];')
     if not edges:

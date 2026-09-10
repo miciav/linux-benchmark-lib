@@ -1,5 +1,4 @@
-"""
-Geekbench workload plugin.
+"""Geekbench workload plugin.
 
 This plugin downloads and runs Geekbench 6 CPU benchmark. It supports optional
 license unlocking and JSON export of results. Network access is only needed to
@@ -8,25 +7,31 @@ download the tarball on first run.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
 import platform
-from dataclasses import dataclass
-from pathlib import Path
 import shutil
 import subprocess
 import tarfile
 import tempfile
 import time
+from collections.abc import Iterable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, ClassVar
 from urllib.parse import urlparse
-from typing import Any, Dict, Iterable, List, Optional, Tuple, cast
 
 from pydantic import Field
 
-from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
-from ...base_generator import CommandGenerator, CommandSpec
-from ...utils.csv_export import write_csv_rows
+from lb_plugins.base_generator import CommandGenerator, CommandSpec
+from lb_plugins.interface import (
+    BasePluginConfig,
+    SimpleWorkloadPlugin,
+    WorkloadIntensity,
+)
+from lb_plugins.utils.csv_export import write_csv_rows
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +245,7 @@ def _normalize_key(key: str) -> str:
     return key.lower().replace("-", "_").replace(" ", "_")
 
 
-def _coerce_number(value: Any) -> Optional[float]:
+def _coerce_number(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
@@ -271,7 +276,7 @@ def _find_first_value(node: Any, keys: set[str]) -> Any:
     return None
 
 
-def _find_first_score(node: Any, keys: set[str]) -> Optional[float]:
+def _find_first_score(node: Any, keys: set[str]) -> float | None:
     for key, value in _iter_key_values(node):
         nk = _normalize_key(str(key))
         if nk in keys:
@@ -315,7 +320,7 @@ def _subtest_name(item: dict[str, Any]) -> Any:
     return item.get("name") or item.get("benchmark_name") or item.get("workload")
 
 
-def _resolve_json_path(gen_result: dict[str, Any], output_dir: Path) -> Optional[Path]:
+def _resolve_json_path(gen_result: dict[str, Any], output_dir: Path) -> Path | None:
     raw_json = gen_result.get("json_result")
     if isinstance(raw_json, str):
         candidate = Path(raw_json)
@@ -359,7 +364,7 @@ class GeekbenchResultParser:
 
     def collect_rows(
         self,
-        results: List[Dict[str, Any]],
+        results: list[dict[str, Any]],
         run_id: str,
         test_name: str,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -373,7 +378,7 @@ class GeekbenchResultParser:
 
 
 def _collect_geekbench_rows(
-    results: List[Dict[str, Any]],
+    results: list[dict[str, Any]],
     output_dir: Path,
     run_id: str,
     test_name: str,
@@ -412,7 +417,7 @@ def _load_entry_payload(
 
 
 def _build_summary_row(
-    entry: Dict[str, Any],
+    entry: dict[str, Any],
     gen_result: dict[str, Any],
     run_id: str,
     test_name: str,
@@ -455,21 +460,19 @@ def _build_subtest_rows(
     test_name: str,
     rep: Any,
 ) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for row in _collect_subtests(payload):
-        rows.append(
-            {
-                "run_id": run_id,
-                "workload": test_name,
-                "repetition": rep,
-                **row,
-            }
-        )
-    return rows
+    return [
+        {
+            "run_id": run_id,
+            "workload": test_name,
+            "repetition": rep,
+            **row,
+        }
+        for row in _collect_subtests(payload)
+    ]
 
 
 class _GeekbenchCommandBuilder:
-    def __init__(self, generator: "GeekbenchGenerator"):
+    def __init__(self, generator: GeekbenchGenerator):
         self._generator = generator
 
     def build(self, config: GeekbenchConfig) -> CommandSpec:
@@ -477,7 +480,7 @@ class _GeekbenchCommandBuilder:
         if not executable:
             raise RuntimeError("Geekbench executable not prepared")
 
-        cmd: List[str] = [str(executable)]
+        cmd: list[str] = [str(executable)]
         if config.license_key:
             cmd.extend(["--unlock", config.license_key])
         if config.run_gpu:
@@ -505,13 +508,13 @@ class GeekbenchGenerator(CommandGenerator):
         self._result: dict[str, Any] | None = None
         self._process: subprocess.Popen[str] | None = None
         self._download_ready: bool = False
-        self._download_error: Optional[str] = None
+        self._download_error: str | None = None
         self._export_supported: bool = True
-        self._executable: Optional[Path] = None
+        self._executable: Path | None = None
         self._current_env: dict[str, str] = {}
-        self._current_cwd: Optional[Path] = None
-        self._export_path: Optional[Path] = None
-        self._log_path: Optional[Path] = None
+        self._current_cwd: Path | None = None
+        self._export_path: Path | None = None
+        self._log_path: Path | None = None
         self._use_export_flag: bool = False
         # Allow long-running benchmark; runner will extend duration based on this hint.
         timeout_env = os.environ.get("LB_GEEKBENCH_TIMEOUT")
@@ -550,7 +553,7 @@ class GeekbenchGenerator(CommandGenerator):
             "env": self._current_env,
         }
 
-    def _timeout_seconds(self) -> Optional[int]:
+    def _timeout_seconds(self) -> int | None:
         return self.expected_runtime_seconds
 
     def _log_command(self, cmd: list[str]) -> None:
@@ -623,10 +626,8 @@ class GeekbenchGenerator(CommandGenerator):
     def _safe_rmtree(path: Path | None) -> None:
         if not path:
             return
-        try:
+        with contextlib.suppress(Exception):  # pragma: no cover - best effort
             shutil.rmtree(path, ignore_errors=True)
-        except Exception:  # pragma: no cover - best effort
-            pass
 
     @staticmethod
     def _safe_unlink(path: Path | None) -> None:
@@ -662,10 +663,12 @@ class GeekbenchGenerator(CommandGenerator):
     def _run_once(self) -> None:
         super()._run_command()
 
-    def _should_retry_without_export(self) -> tuple[bool, Optional[int]]:
+    def _should_retry_without_export(self) -> tuple[bool, int | None]:
         if not self._use_export_flag:
             return False, None
-        first_result: dict[str, Any] = self._result if isinstance(self._result, dict) else {}
+        first_result: dict[str, Any] = (
+            self._result if isinstance(self._result, dict) else {}
+        )
         export_failed = bool(self._export_path and not self._export_path.exists())
         stderr_value = first_result.get("stderr") or ""
         stderr_lower = stderr_value.lower() if isinstance(stderr_value, str) else ""
@@ -683,7 +686,7 @@ class GeekbenchGenerator(CommandGenerator):
         )
         return should_retry, first_result.get("returncode")
 
-    def _prepare_geekbench(self) -> Tuple[Path, Path, Path]:
+    def _prepare_geekbench(self) -> tuple[Path, Path, Path]:
         """Ensure Geekbench is downloaded and extracted; return asset paths."""
         if self._download_error:
             raise RuntimeError(self._download_error)
@@ -731,10 +734,8 @@ class GeekbenchGenerator(CommandGenerator):
                 proc.terminate()
                 proc.wait(timeout=5)
             except Exception:
-                try:
+                with contextlib.suppress(Exception):
                     proc.kill()
-                except Exception:
-                    pass
         self._process = None
 
 
@@ -745,11 +746,17 @@ class GeekbenchPlugin(SimpleWorkloadPlugin):
     DESCRIPTION = "Geekbench 6 CPU benchmark"
     CONFIG_CLS = GeekbenchConfig
     GENERATOR_CLS = GeekbenchGenerator
-    REQUIRED_APT_PACKAGES = ["curl", "wget", "tar", "ca-certificates", "sysstat"]
-    REQUIRED_LOCAL_TOOLS = ["curl", "wget", "tar"]
+    REQUIRED_APT_PACKAGES: ClassVar[list[str]] = [
+        "curl",
+        "wget",
+        "tar",
+        "ca-certificates",
+        "sysstat",
+    ]
+    REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["curl", "wget", "tar"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[GeekbenchConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> GeekbenchConfig | None:
         if level == WorkloadIntensity.LOW:
             return GeekbenchConfig(skip_cleanup=True, run_gpu=False)
         if level == WorkloadIntensity.MEDIUM:
@@ -760,13 +767,12 @@ class GeekbenchPlugin(SimpleWorkloadPlugin):
 
     def export_results_to_csv(
         self,
-        results: List[Dict[str, Any]],
+        results: list[dict[str, Any]],
         output_dir: Path,
         run_id: str,
         test_name: str,
-    ) -> List[Path]:
-        """
-        Export Geekbench summary scores to CSV.
+    ) -> list[Path]:
+        """Export Geekbench summary scores to CSV.
 
         When a Geekbench JSON export is available, extract overall single/multi-core
         scores plus optional subtest scores. Falls back to a minimal flattened CSV

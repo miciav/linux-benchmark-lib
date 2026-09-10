@@ -1,9 +1,9 @@
 import importlib
 import re
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
-from dataclasses import dataclass, field
 from unittest.mock import Mock
 
 import pytest
@@ -29,8 +29,7 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     for mod in list(sys.modules.keys()):
         if mod.startswith(("lb_ui.cli", "lb_ui.api")):
             del sys.modules[mod]
-    cli = importlib.import_module("lb_ui.api")
-    return cli
+    return importlib.import_module("lb_ui.api")
 
 
 def _ensure_workload_enabled(cfg: BenchmarkConfig, name: str) -> None:
@@ -42,7 +41,6 @@ def _ensure_workload_enabled(cfg: BenchmarkConfig, name: str) -> None:
 def test_plugins_enable_disable_persists_config(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -67,7 +65,6 @@ def test_plugins_enable_disable_persists_config(
 def test_plugins_shows_enabled_column(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture
 ):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -89,7 +86,6 @@ def test_plugins_shows_enabled_column(
 
 @pytest.mark.unit_ui
 def test_doctor_controller_uses_checks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -107,7 +103,6 @@ def test_doctor_controller_uses_checks(monkeypatch: pytest.MonkeyPatch, tmp_path
 
 @pytest.mark.unit_ui
 def test_doctor_local_tools_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -125,7 +120,6 @@ def test_doctor_local_tools_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
 @pytest.mark.unit_ui
 def test_plugin_enable_unknown_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -139,7 +133,6 @@ def test_plugin_enable_unknown_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 def test_plugin_interactive_selection_persists(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -166,7 +159,6 @@ def test_plugin_interactive_selection_persists(
 
 @pytest.mark.unit_ui
 def test_plugin_root_shows_help(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -180,7 +172,6 @@ def test_plugin_root_shows_help(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
 
 @pytest.mark.unit_ui
 def test_config_init_sets_repetitions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -209,7 +200,6 @@ def test_config_init_sets_repetitions(monkeypatch: pytest.MonkeyPatch, tmp_path:
 
 @pytest.mark.unit_ui
 def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -227,7 +217,6 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     called = {}
 
     def fake_execute(context, run_id, output_callback=None, ui_adapter=None):
-
         called["context"] = context
 
         called["run_id"] = run_id
@@ -273,7 +262,6 @@ def test_run_command_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
 def test_run_command_allows_repetition_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     monkeypatch.setattr(cli.ctx_store, "dev_mode", True)
@@ -291,7 +279,6 @@ def test_run_command_allows_repetition_override(
     called = {}
 
     def fake_execute(context, run_id, output_callback=None, ui_adapter=None):
-
         called["context"] = context
 
         called["run_id"] = run_id
@@ -337,7 +324,6 @@ def test_run_command_allows_repetition_override(
 def test_config_set_default_and_workloads_listing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -366,7 +352,6 @@ def test_config_set_default_and_workloads_listing(
 
 @pytest.mark.unit_ui
 def test_config_set_repetitions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -388,7 +373,6 @@ def test_config_set_repetitions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
 def test_multipass_helper_sets_artifacts_env(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -401,7 +385,6 @@ def test_multipass_helper_sets_artifacts_env(
     called = {}
 
     def fake_run(cmd, **kwargs):
-
         called["cmd"] = cmd
 
         called["env"] = kwargs.get("env", {})
@@ -435,7 +418,6 @@ def test_multipass_helper_sets_artifacts_env(
 def test_multipass_helper_allows_vm_count_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -448,7 +430,6 @@ def test_multipass_helper_allows_vm_count_override(
     called = {}
 
     def fake_run(cmd, **kwargs):
-
         called["cmd"] = cmd
 
         called["env"] = kwargs.get("env", {})
@@ -486,7 +467,6 @@ def test_multipass_helper_allows_vm_count_override(
 def test_multipass_helper_runs_multi_workloads(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()
@@ -499,7 +479,6 @@ def test_multipass_helper_runs_multi_workloads(
     called = {}
 
     def fake_run(cmd, **kwargs):
-
         called["cmd"] = cmd
 
         called["env"] = kwargs.get("env", {})
@@ -539,7 +518,6 @@ def test_multipass_helper_runs_multi_workloads(
 def test_multipass_helper_accepts_pytest_flags_without_separator(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-
     cli = _load_cli(monkeypatch, tmp_path)
 
     runner = CliRunner()

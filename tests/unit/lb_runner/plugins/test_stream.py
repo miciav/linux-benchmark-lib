@@ -124,7 +124,7 @@ def test_validate_environment_missing_numactl(mock_which, stream_config):
 
 @patch("subprocess.run")
 @patch("shutil.copy2")
-def test_compile_binary_success(_mock_copy, mock_run, stream_generator, tmp_path):
+def test_compile_binary_success(mock_copy, mock_run, stream_generator, tmp_path):
     # Mock workspace dirs
     stream_generator.workspace_src_dir = tmp_path / "src"
     stream_generator.workspace_bin_dir = tmp_path / "bin"
@@ -155,19 +155,23 @@ def test_compile_binary_failure(mock_run, stream_generator, tmp_path):
     stream_generator.workspace_src_dir = tmp_path / "src"
     stream_generator.workspace_bin_dir = tmp_path / "bin"
 
-    with patch.object(
-        StreamGenerator, "_upstream_stream_c", return_value=Path("/upstream/stream.c")
+    with (
+        patch.object(
+            StreamGenerator,
+            "_upstream_stream_c",
+            return_value=Path("/upstream/stream.c"),
+        ),
+        patch("shutil.copy2"),
     ):
-        with patch("shutil.copy2"):
-            # Simulate gcc failure
-            mock_run.return_value = MagicMock(returncode=1, stderr="Compilation error")
+        # Simulate gcc failure
+        mock_run.return_value = MagicMock(returncode=1, stderr="Compilation error")
 
-            with pytest.raises(RuntimeError) as exc:
-                stream_generator._compile_binary_for_compiler(
-                    "gcc", stream_generator.workspace_bin_dir / "stream"
-                )
+        with pytest.raises(RuntimeError) as exc:
+            stream_generator._compile_binary_for_compiler(
+                "gcc", stream_generator.workspace_bin_dir / "stream"
+            )
 
-            assert "Failed to compile STREAM" in str(exc.value)
+        assert "Failed to compile STREAM" in str(exc.value)
 
 
 @patch("os.access")
@@ -177,9 +181,7 @@ def test_ensure_binary_uses_system_if_available(mock_access, stream_generator):
 
     # Mock system path exists and is executable, but workspace path does NOT exist
     def side_effect(self):
-        if self == stream_generator.system_stream_path:
-            return True
-        return False
+        return self == stream_generator.system_stream_path
 
     with patch.object(Path, "exists", side_effect=side_effect, autospec=True):
         mock_access.return_value = True
@@ -311,14 +313,16 @@ def test_prepare_uses_validated_compiler_plan(tmp_path: Path) -> None:
         gen._compiler_plan = ["gcc"]
         return True
 
-    with patch.object(gen, "_validate_environment", side_effect=_validate):
-        with patch.object(gen, "_resolve_compiler_binary", return_value="/usr/bin/gcc"):
-            with patch.object(
-                gen,
-                "_ensure_binary_for_compiler",
-                return_value=tmp_path / "stream",
-            ) as ensure_binary:
-                gen.prepare()
+    with (
+        patch.object(gen, "_validate_environment", side_effect=_validate),
+        patch.object(gen, "_resolve_compiler_binary", return_value="/usr/bin/gcc"),
+        patch.object(
+            gen,
+            "_ensure_binary_for_compiler",
+            return_value=tmp_path / "stream",
+        ) as ensure_binary,
+    ):
+        gen.prepare()
 
     assert validated["called"] is True
     assert ensure_binary.call_count == 1

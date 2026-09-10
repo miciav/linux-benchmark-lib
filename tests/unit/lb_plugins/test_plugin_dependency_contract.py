@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import pytest
 
 from lb_plugins.api import _build_plugin_assets, merge_plugin_assets
@@ -10,7 +12,7 @@ pytestmark = [pytest.mark.unit_plugins]
 def test_simple_plugin_exposes_required_uv_extras() -> None:
     class P(SimpleWorkloadPlugin):
         NAME = "p"
-        REQUIRED_UV_EXTRAS = ["peva_faas"]
+        REQUIRED_UV_EXTRAS: ClassVar[list[str]] = ["peva_faas"]
 
     assert P().get_required_uv_extras() == ["peva_faas"]
 
@@ -18,7 +20,7 @@ def test_simple_plugin_exposes_required_uv_extras() -> None:
 def test_build_plugin_assets_includes_required_uv_extras() -> None:
     class P(SimpleWorkloadPlugin):
         NAME = "p"
-        REQUIRED_UV_EXTRAS = ["peva_faas"]
+        REQUIRED_UV_EXTRAS: ClassVar[list[str]] = ["peva_faas"]
 
     assets = _build_plugin_assets(P())
     assert assets.required_uv_extras == ["peva_faas"]
@@ -27,10 +29,10 @@ def test_build_plugin_assets_includes_required_uv_extras() -> None:
 def test_merge_plugin_assets_preserves_user_overrides_and_fills_uv_extras() -> None:
     class P(SimpleWorkloadPlugin):
         NAME = "p"
-        REQUIRED_UV_EXTRAS = ["dfaas"]
+        REQUIRED_UV_EXTRAS: ClassVar[list[str]] = ["dfaas"]
 
     class FakeRegistry:
-        def available(self, load_entrypoints: bool = True):  # noqa: ARG002
+        def available(self, load_entrypoints: bool = True):
             return {"p": P()}
 
     class FakeConfig:

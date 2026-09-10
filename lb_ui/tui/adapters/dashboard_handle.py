@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-from contextlib import contextmanager
 import queue
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from lb_ui.tui.core.protocols import Dashboard

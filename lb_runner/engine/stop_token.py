@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import signal
+from collections.abc import Callable
 from pathlib import Path
 from types import FrameType, TracebackType
-from typing import Callable, Optional
 
 SignalHandler = int | Callable[[int, FrameType | None], object]
 
@@ -20,8 +21,7 @@ def _as_callable_handler(
 
 
 class StopToken:
-    """
-    Lightweight cooperative stop controller.
+    """Lightweight cooperative stop controller.
 
     It can be tripped by signals (SIGINT/SIGTERM) or by the presence of a stop
     file on disk. Consumers should call `should_stop()` in long-running loops
@@ -30,9 +30,9 @@ class StopToken:
 
     def __init__(
         self,
-        stop_file: Optional[Path] = None,
+        stop_file: Path | None = None,
         enable_signals: bool = True,
-        on_stop: Optional[Callable[[], None]] = None,
+        on_stop: Callable[[], None] | None = None,
     ) -> None:
         self.stop_file = stop_file
         self._on_stop = on_stop
@@ -75,10 +75,8 @@ class StopToken:
             return
         self._stop_requested = True
         if self._on_stop:
-            try:
+            with contextlib.suppress(Exception):
                 self._on_stop()
-            except Exception:
-                pass
 
     def should_stop(self) -> bool:
         """Return True when stop was requested or the stop file exists."""
@@ -87,10 +85,8 @@ class StopToken:
         if self.stop_file and self.stop_file.exists():
             self._stop_requested = True
             if self._on_stop:
-                try:
+                with contextlib.suppress(Exception):
                     self._on_stop()
-                except Exception:
-                    pass
             return True
         return False
 
@@ -105,7 +101,7 @@ class StopToken:
                 continue
         self._prev_handlers.clear()
 
-    def __enter__(self) -> "StopToken":
+    def __enter__(self) -> StopToken:
         return self
 
     def __exit__(

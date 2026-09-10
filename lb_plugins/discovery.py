@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any
 
 from lb_common.api import (
     discover_entrypoints,
@@ -14,15 +16,13 @@ from lb_common.api import (
 )
 from lb_plugins.user_plugins import load_plugins_from_dir
 
-
 logger = logging.getLogger(__name__)
 ENTRYPOINT_GROUP = "linux_benchmark.workloads"
 BUILTIN_PLUGIN_ROOT = Path(__file__).resolve().parent / "plugins"
 
 
 def resolve_user_plugin_dir() -> Path:
-    """
-    Determine where third-party/user plugins should be installed and loaded from.
+    """Determine where third-party/user plugins should be installed and loaded from.
 
     Preference order:
     1) `LB_USER_PLUGIN_DIR` env override (if set).
@@ -31,31 +31,27 @@ def resolve_user_plugin_dir() -> Path:
     override = os.environ.get("LB_USER_PLUGIN_DIR")
     if override:
         path = Path(override).expanduser().resolve()
-        try:
-            path.mkdir(parents=True, exist_ok=True)
-        except Exception:
+        with contextlib.suppress(Exception):
             # Directory creation may fail for read-only locations; caller handles.
-            pass
+            path.mkdir(parents=True, exist_ok=True)
         return path
 
     candidate = BUILTIN_PLUGIN_ROOT / "_user"
-    try:
+    with contextlib.suppress(Exception):
         candidate.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
     return candidate
 
 
 USER_PLUGIN_DIR = resolve_user_plugin_dir()
 
 
-def discover_entrypoint_plugins() -> Dict[str, Any]:
+def discover_entrypoint_plugins() -> dict[str, Any]:
     """Collect entry points without importing them. Loaded on demand."""
     return discover_entrypoints([ENTRYPOINT_GROUP])
 
 
 def load_pending_entrypoint_plugins(
-    pending: Dict[str, Any], register: Callable[[Any], None]
+    pending: dict[str, Any], register: Callable[[Any], None]
 ) -> None:
     """Load all pending entry-point plugins."""
     load_pending_entrypoints(pending, register, label="plugin entry point")

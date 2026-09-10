@@ -16,7 +16,6 @@ from lb_common.api import (
 )
 from lb_plugins.api import WorkloadPlugin
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -108,9 +107,11 @@ def collect_metrics(
         if callable(get_errors):
             errors = get_errors()
             if isinstance(errors, list):
-                for err in errors:
-                    if isinstance(err, MetricCollectionError):
-                        metric_errors.append(error_to_payload(err))
+                metric_errors.extend(
+                    error_to_payload(err)
+                    for err in errors
+                    if isinstance(err, MetricCollectionError)
+                )
 
     if metric_errors:
         result["metric_errors"] = metric_errors

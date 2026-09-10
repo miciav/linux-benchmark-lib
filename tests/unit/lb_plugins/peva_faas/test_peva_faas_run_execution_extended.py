@@ -47,7 +47,9 @@ def _make_executor(
     config: DfaasConfig | None = None,
     memory_engine: MagicMock | None = None,
 ) -> tuple[DfaasConfigExecutor, dict[str, MagicMock]]:
-    cfg = config or DfaasConfig(functions=[DfaasFunctionConfig(name="f1")], iterations=3)
+    cfg = config or DfaasConfig(
+        functions=[DfaasFunctionConfig(name="f1")], iterations=3
+    )
     deps = {
         "k6_runner": MagicMock(),
         "metrics_collector": MagicMock(),
@@ -69,7 +71,7 @@ def _make_executor(
         duration_seconds=30,
         outputs_provider=lambda: ["loki=http://localhost"],
         tags_provider=lambda run_id: {"run_id": run_id},
-        replicas_provider=lambda names: {name: 1 for name in names},
+        replicas_provider=lambda names: dict.fromkeys(names, 1),
         scheduler=deps["scheduler"],
         memory_engine=memory_engine,
     )
@@ -379,4 +381,6 @@ def test_handle_error_helpers_append_skipped_rows() -> None:
 
 
 def test_format_pairs_label_sorts_by_function_name() -> None:
-    assert DfaasConfigExecutor._format_pairs_label([("b", 20), ("a", 10)]) == "a=10, b=20"
+    assert (
+        DfaasConfigExecutor._format_pairs_label([("b", 20), ("a", 10)]) == "a=10, b=20"
+    )

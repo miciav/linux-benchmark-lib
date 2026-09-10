@@ -7,7 +7,6 @@ import pytest
 from lb_runner.engine.progress import RunProgressEmitter
 from lb_runner.models.events import RunEvent
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
 
@@ -48,7 +47,7 @@ class TestRunProgressEmitterEmit:
     """Tests for emit method."""
 
     def test_emit_calls_callback(self) -> None:
-        """emit should call the callback with a RunEvent."""
+        """Emit should call the callback with a RunEvent."""
         callback = MagicMock()
         emitter = RunProgressEmitter(host="node-1", callback=callback)
         emitter.set_run_id("run-1")
@@ -66,7 +65,7 @@ class TestRunProgressEmitterEmit:
         assert event.host == "node-1"
 
     def test_emit_includes_message(self) -> None:
-        """emit should include optional message."""
+        """Emit should include optional message."""
         callback = MagicMock()
         emitter = RunProgressEmitter(host="node-1", callback=callback)
 
@@ -76,7 +75,7 @@ class TestRunProgressEmitterEmit:
         assert event.message == "Success!"
 
     def test_emit_includes_error_info(self) -> None:
-        """emit should include error_type and error_context."""
+        """Emit should include error_type and error_context."""
         callback = MagicMock()
         emitter = RunProgressEmitter(host="node-1", callback=callback)
 
@@ -94,7 +93,7 @@ class TestRunProgressEmitterEmit:
         assert event.error_context == {"cmd": "stress-ng"}
 
     def test_emit_calls_stdout_emitter(self) -> None:
-        """emit should call stdout emitter."""
+        """Emit should call stdout emitter."""
         stdout_emitter = MagicMock()
         emitter = RunProgressEmitter(host="node-1", stdout_emitter=stdout_emitter)
 
@@ -103,7 +102,7 @@ class TestRunProgressEmitterEmit:
         stdout_emitter.emit.assert_called_once()
 
     def test_emit_continues_on_callback_error(self) -> None:
-        """emit should not raise if callback fails."""
+        """Emit should not raise if callback fails."""
         callback = MagicMock(side_effect=RuntimeError("callback error"))
         stdout_emitter = MagicMock()
         emitter = RunProgressEmitter(
@@ -117,7 +116,7 @@ class TestRunProgressEmitterEmit:
         stdout_emitter.emit.assert_called_once()
 
     def test_emit_continues_on_stdout_error(self) -> None:
-        """emit should not raise if stdout emitter fails."""
+        """Emit should not raise if stdout emitter fails."""
         stdout_emitter = MagicMock()
         stdout_emitter.emit.side_effect = RuntimeError("stdout error")
         emitter = RunProgressEmitter(host="node-1", stdout_emitter=stdout_emitter)

@@ -1,6 +1,4 @@
-"""
-Unit tests for the Baseline workload plugin.
-"""
+"""Unit tests for the Baseline workload plugin."""
 
 import threading
 import time
@@ -8,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
+
 from lb_plugins.api import (
     BASELINE_PLUGIN,
     BaselineConfig,
@@ -179,8 +178,9 @@ class TestBaselineGenerator:
         config = BaselineConfig(duration=2)  # Long enough to intercept
         generator = BaselineGenerator(config)
 
-        # Start in a thread (using the public start/stop interface would be integration,
-        # but here we test the internal logic via _run_command or by simulating threading)
+        # Start in a thread (using the public start/stop interface would be
+        # integration, but here we test the internal logic via _run_command or
+        # by simulating threading)
 
         # We'll use a thread to run _run_command so we can stop it from main thread
         t = threading.Thread(target=generator._run_command)

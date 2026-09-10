@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 
-from lb_ui.wiring.dependencies import UIContext
 from lb_ui.presenters.doctor import render_doctor_report
+from lb_ui.wiring.dependencies import UIContext
 
 
 def create_doctor_app(ctx: UIContext) -> typer.Typer:
@@ -57,7 +56,7 @@ def create_doctor_app(ctx: UIContext) -> typer.Typer:
 
     @app.command("hosts")
     def doctor_hosts(
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None,
             "--config",
             "-c",

@@ -8,15 +8,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from lb_plugins.plugins.dfaas.queries import PrometheusQueryError
+from lb_plugins.plugins.dfaas.services.cooldown import MetricsSnapshot
 from lb_plugins.plugins.dfaas.services.metrics_collector import (
     FunctionMetrics,
     MetricsCollector,
     NodeMetrics,
 )
-from lb_plugins.plugins.dfaas.services.cooldown import MetricsSnapshot
-from lb_plugins.plugins.dfaas.queries import PrometheusQueryError
 
 pytestmark = [pytest.mark.unit_plugins]
+
 
 @pytest.fixture
 def queries_path(tmp_path: Path) -> Path:
@@ -32,14 +33,16 @@ queries:
   - name: ram_usage_node_pct
     query: "(1 - node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes)*100"
   - name: cpu_usage_function
-    query: "sum(rate(container_cpu_usage_seconds_total{container='{function_name}'}[{duration}]))*100"
+    query: "sum(rate(container_cpu_usage_seconds_total{container='"""
+        """{function_name}'}[{duration}]))*100"
   - name: ram_usage_function
     query: "sum(container_memory_usage_bytes{container='{function_name}'})"
   - name: power_usage_node
     query: "avg(scaph_host_power_microwatts)/1000000"
     enabled_if: scaphandre
   - name: power_usage_function
-    query: "sum(scaph_process_power_consumption_microwatts{cmdline=~'{pid_regex}'})/1000000"
+    query: "sum(scaph_process_power_consumption_microwatts{cmdline=~'"""
+        """{pid_regex}'})/1000000"
     enabled_if: scaphandre
 """
     )
@@ -99,16 +102,18 @@ queries:
     query: "avg(rate(node_cpu_seconds_total{mode!='idle'}[{time_span}]))*100"
 """
         )
-        with patch(
-            "lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner"
+        with (
+            patch(
+                "lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner"
+            ),
+            pytest.raises(ValueError, match="Missing required Prometheus queries"),
         ):
-            with pytest.raises(ValueError, match="Missing required Prometheus queries"):
-                MetricsCollector(
-                    prometheus_url="http://localhost:9090",
-                    queries_path=queries_file,
-                    duration="30s",
-                    scaphandre_enabled=False,
-                )
+            MetricsCollector(
+                prometheus_url="http://localhost:9090",
+                queries_path=queries_file,
+                duration="30s",
+                scaphandre_enabled=False,
+            )
 
     def test_missing_power_queries_raises_when_scaphandre_enabled(
         self, tmp_path: Path
@@ -124,21 +129,24 @@ queries:
   - name: ram_usage_node_pct
     query: "(1 - node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes)*100"
   - name: cpu_usage_function
-    query: "sum(rate(container_cpu_usage_seconds_total{container='{function_name}'}[{time_span}]))*100"
+    query: "sum(rate(container_cpu_usage_seconds_total{container='"""
+            """{function_name}'}[{time_span}]))*100"
   - name: ram_usage_function
     query: "sum(container_memory_usage_bytes{container='{function_name}'})"
 """
         )
-        with patch(
-            "lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner"
+        with (
+            patch(
+                "lb_plugins.plugins.dfaas.services.metrics_collector.PrometheusQueryRunner"
+            ),
+            pytest.raises(ValueError, match="Missing required Prometheus queries"),
         ):
-            with pytest.raises(ValueError, match="Missing required Prometheus queries"):
-                MetricsCollector(
-                    prometheus_url="http://localhost:9090",
-                    queries_path=queries_file,
-                    duration="30s",
-                    scaphandre_enabled=True,
-                )
+            MetricsCollector(
+                prometheus_url="http://localhost:9090",
+                queries_path=queries_file,
+                duration="30s",
+                scaphandre_enabled=True,
+            )
 
 
 class TestGetNodeSnapshot:

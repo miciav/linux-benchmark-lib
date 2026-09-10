@@ -10,7 +10,6 @@ from lb_app.services.doctor_service import DoctorService
 from lb_controller.api import ConnectivityReport, HostConnectivityResult
 from lb_runner.api import BenchmarkConfig, RemoteHostConfig
 
-
 pytestmark = pytest.mark.unit_ui
 
 
@@ -65,8 +64,8 @@ def test_all_hosts_reachable():
 
     with patch(
         "lb_app.services.doctor_service.ConnectivityService"
-    ) as MockConnectivityService:
-        mock_instance = MockConnectivityService.return_value
+    ) as mock_connectivity_cls:
+        mock_instance = mock_connectivity_cls.return_value
         mock_instance.check_hosts.return_value = mock_connectivity_report
 
         mock_config_service = MagicMock()
@@ -109,8 +108,8 @@ def test_unreachable_hosts_reported():
 
     with patch(
         "lb_app.services.doctor_service.ConnectivityService"
-    ) as MockConnectivityService:
-        mock_instance = MockConnectivityService.return_value
+    ) as mock_connectivity_cls:
+        mock_instance = mock_connectivity_cls.return_value
         mock_instance.check_hosts.return_value = mock_connectivity_report
 
         mock_config_service = MagicMock()
@@ -156,8 +155,8 @@ def test_loads_config_when_none_provided():
 
     with patch(
         "lb_app.services.doctor_service.ConnectivityService"
-    ) as MockConnectivityService:
-        mock_instance = MockConnectivityService.return_value
+    ) as mock_connectivity_cls:
+        mock_instance = mock_connectivity_cls.return_value
         mock_instance.check_hosts.return_value = mock_connectivity_report
 
         service = DoctorService(config_service=mock_config_service)
@@ -188,8 +187,8 @@ def test_custom_timeout_passed_to_service():
 
     with patch(
         "lb_app.services.doctor_service.ConnectivityService"
-    ) as MockConnectivityService:
-        mock_instance = MockConnectivityService.return_value
+    ) as mock_connectivity_cls:
+        mock_instance = mock_connectivity_cls.return_value
         mock_instance.check_hosts.return_value = mock_connectivity_report
 
         mock_config_service = MagicMock()
@@ -197,7 +196,7 @@ def test_custom_timeout_passed_to_service():
         report = service.check_remote_hosts(config=cfg, timeout_seconds=30)
 
         # Verify timeout was passed
-        MockConnectivityService.assert_called_once_with(timeout_seconds=30)
+        mock_connectivity_cls.assert_called_once_with(timeout_seconds=30)
         mock_instance.check_hosts.assert_called_once_with(hosts, 30)
         assert "30s timeout" in report.info_messages[0]
 
@@ -221,8 +220,8 @@ def test_latency_included_in_label():
 
     with patch(
         "lb_app.services.doctor_service.ConnectivityService"
-    ) as MockConnectivityService:
-        mock_instance = MockConnectivityService.return_value
+    ) as mock_connectivity_cls:
+        mock_instance = mock_connectivity_cls.return_value
         mock_instance.check_hosts.return_value = mock_connectivity_report
 
         mock_config_service = MagicMock()

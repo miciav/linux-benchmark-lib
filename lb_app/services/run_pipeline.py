@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any
 
 from rich.markup import escape
 
@@ -82,7 +83,7 @@ def mirror_event_to_dashboard(
 
 
 def event_from_payload_data(
-    data: Dict[str, Any], session: _RemoteSession, context: RunContext
+    data: dict[str, Any], session: _RemoteSession, context: RunContext
 ) -> RunEvent | None:
     """Convert a JSON payload dict to a RunEvent."""
     required = {"host", "workload", "repetition", "status"}
@@ -159,7 +160,7 @@ def make_output_tee(
 
 def maybe_start_event_tailer(
     controller: Any,
-    event_from_payload: Callable[[Dict[str, Any]], RunEvent | None],
+    event_from_payload: Callable[[dict[str, Any]], RunEvent | None],
     ingest_event: EventIngestCallback,
     formatter: AnsibleOutputFormatter | None,
 ) -> JsonEventTailer | None:
@@ -170,7 +171,7 @@ def maybe_start_event_tailer(
     if not event_log_path:
         return None
 
-    def _on_event_payload(data: Dict[str, Any]) -> None:
+    def _on_event_payload(data: dict[str, Any]) -> None:
         event = event_from_payload(data)
         if event:
             ingest_event(event, source="callback")

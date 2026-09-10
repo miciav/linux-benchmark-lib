@@ -40,4 +40,3 @@
 **Migration/rollout:**
 - No breaking changes for users of `dfaas`.
 - New users can opt into `peva_faas` by selecting workload `peva_faas` and defining `plugins.peva_faas` in config.
-

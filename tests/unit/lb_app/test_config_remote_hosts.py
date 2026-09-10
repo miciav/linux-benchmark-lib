@@ -9,7 +9,6 @@ import pytest
 from lb_app.services.config_service import ConfigService
 from lb_runner.api import BenchmarkConfig, RemoteHostConfig
 
-
 pytestmark = pytest.mark.unit_ui
 
 
@@ -29,7 +28,7 @@ def test_add_remote_host_creates_new(tmp_path: Path) -> None:
         user="ubuntu",
     )
 
-    result_cfg, target, stale = service.add_remote_host(host, config_path)
+    result_cfg, target, _ = service.add_remote_host(host, config_path)
 
     assert len(result_cfg.remote_hosts) == 1
     assert result_cfg.remote_hosts[0].name == "node1"

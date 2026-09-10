@@ -7,7 +7,6 @@ import pytest
 from lb_common.errors import MetricCollectionError
 from lb_runner.api import BaseCollector
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
 

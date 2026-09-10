@@ -11,8 +11,9 @@ import subprocess
 import threading
 import time
 import traceback
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator, TypeVar
+from typing import Any, TypeVar
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -27,11 +28,6 @@ from lb_controller.api import (
 )
 from lb_controller.models.state import ControllerState
 from lb_plugins.api import PluginAssetConfig
-from lb_plugins.plugins.dfaas.generator import DfaasGenerator
-from lb_plugins.plugins.dfaas.services.plan_builder import (
-    config_id,
-    generate_configurations,
-)
 from lb_plugins.plugins.dfaas.config import (
     DfaasCombinationConfig,
     DfaasConfig,
@@ -39,11 +35,16 @@ from lb_plugins.plugins.dfaas.config import (
     DfaasFunctionConfig,
     DfaasRatesConfig,
 )
+from lb_plugins.plugins.dfaas.generator import DfaasGenerator
 from lb_plugins.plugins.dfaas.plugin import DfaasPlugin
 from lb_plugins.plugins.dfaas.queries import (
     PrometheusQueryRunner,
     filter_queries,
     load_queries,
+)
+from lb_plugins.plugins.dfaas.services.plan_builder import (
+    config_id,
+    generate_configurations,
 )
 from lb_runner.api import (
     BenchmarkConfig,
@@ -53,7 +54,9 @@ from lb_runner.api import (
     StopToken,
     WorkloadConfig,
 )
-from tests.e2e.test_multipass_benchmark import multipass_vm  # noqa: F401 - fixture import
+from tests.e2e.test_multipass_benchmark import (
+    multipass_vm,  # noqa: F401 - fixture import
+)
 from tests.helpers.multipass import make_test_ansible_env, stage_private_key
 
 logger = logging.getLogger(__name__)
@@ -95,7 +98,7 @@ T = TypeVar("T")
 def _log_diagnostics(context: str, exc: Exception) -> None:
     """Log detailed diagnostics before skip/fail."""
     logger.warning(
-        "E2E test failure in %s:\n" "  Exception: %s: %s\n" "  Traceback:\n%s",
+        "E2E test failure in %s:\n  Exception: %s: %s\n  Traceback:\n%s",
         context,
         type(exc).__name__,
         exc,
@@ -530,7 +533,7 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
             {"openfaas_functions": ["env"]},
             ansible_env,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail("setup_target playbook failed", context="setup_target", exc=exc)
     try:
         _run_playbook(
@@ -539,12 +542,12 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
             {"k6_workspace_root": k6_workspace_root},
             ansible_env,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail("setup_k6 playbook failed", context="setup_k6", exc=exc)
 
     try:
         k6_version = _multipass_exec(k6_vm["name"], ["k6", "version"]).stdout.strip()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail("k6 not available on k6 host", context="verify_k6", exc=exc)
     assert "k6" in k6_version, "k6 version output should contain 'k6'"
 
@@ -569,7 +572,7 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
                 "list",
             ],
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail(
             "k3s/OpenFaaS/Prometheus not healthy", context="verify_k3s_stack", exc=exc
         )
@@ -579,7 +582,7 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
 
     try:
         _wait_for_http(f"{prometheus_url}/-/ready")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         if shutil.which("ssh") is None:
             _skip_or_fail(
                 "Prometheus not reachable from host", context="prometheus_http", exc=exc
@@ -626,10 +629,10 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
     try:
         password = _get_openfaas_password(target_vm["name"])
         _login_openfaas(gateway_url, password)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail("OpenFaaS login failed", context="openfaas_login", exc=exc)
 
-    auth_value = base64.b64encode(f"admin:{password}".encode("utf-8")).decode("utf-8")
+    auth_value = base64.b64encode(f"admin:{password}".encode()).decode("utf-8")
 
     config = DfaasConfig(
         gateway_url=gateway_url,
@@ -665,19 +668,19 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
 
     try:
         generator._run_command()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail("DFaaS generator run failed", context="generator_run", exc=exc)
 
     result = generator.get_result()
-    assert (
-        result is not None and result.get("success") is True
-    ), "DFaaS generator result success should be true"
-    assert bool(
-        result.get("dfaas_results")
-    ), "DFaaS generator result should have dfaas_results"
-    assert bool(
-        result.get("dfaas_summaries")
-    ), "DFaaS generator result should have dfaas_summaries"
+    assert result is not None and result.get("success") is True, (
+        "DFaaS generator result success should be true"
+    )
+    assert bool(result.get("dfaas_results")), (
+        "DFaaS generator result should have dfaas_results"
+    )
+    assert bool(result.get("dfaas_summaries")), (
+        "DFaaS generator result should have dfaas_summaries"
+    )
 
     config_ids = _extract_config_ids_from_summaries(result.get("dfaas_summaries", []))
     if not config_ids:
@@ -695,9 +698,9 @@ def test_dfaas_multipass_end_to_end(multipass_two_vms, tmp_path: Path) -> None:
         run_id="dfaas_e2e",
         test_name="dfaas",
     )
-    assert any(
-        path.name == "results.csv" for path in paths
-    ), "results.csv should be exported"
+    assert any(path.name == "results.csv" for path in paths), (
+        "results.csv should be exported"
+    )
 
     # Verify artifact structure and content
     _verify_dfaas_artifact_structure(Path(output_dir))
@@ -757,7 +760,7 @@ def run_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> N
             {"openfaas_functions": ["env"], "lb_workdir": configured_lb_workdir},
             ansible_env,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail(
             "setup_target playbook failed", context="setup_target_streaming", exc=exc
         )
@@ -769,21 +772,21 @@ def run_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> N
             {"k6_workspace_root": k6_workspace_root},
             ansible_env,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail("setup_k6 playbook failed", context="setup_k6_streaming", exc=exc)
 
     k6_key_path = str(staged_key)
 
     try:
         password = _get_openfaas_password(target_vm["name"])
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail(
             "Failed to read OpenFaaS password",
             context="openfaas_password_streaming",
             exc=exc,
         )
 
-    auth_value = base64.b64encode(f"admin:{password}".encode("utf-8")).decode("utf-8")
+    auth_value = base64.b64encode(f"admin:{password}".encode()).decode("utf-8")
 
     dfaas_config = DfaasConfig(
         gateway_url=f"http://{target_vm['ip']}:31112",
@@ -821,7 +824,7 @@ def run_dfaas_multipass_streaming_events(multipass_two_vms, tmp_path: Path) -> N
         _wait_for_prometheus_metric(
             f"http://{target_vm['ip']}:30411", "node_memory_MemTotal_bytes"
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail(
             "Prometheus not ready for DFaaS run",
             context="prometheus_ready_streaming",
@@ -1151,14 +1154,14 @@ def _remote_find_files(vm_name: str, path: str, pattern: str) -> list[str]:
 
 def _verify_dfaas_artifact_structure(output_dir: Path) -> None:
     """Verify all expected DFaaS artifacts exist."""
-    assert (
-        output_dir / "results.csv"
-    ).exists(), f"results.csv should exist in {output_dir}"
+    assert (output_dir / "results.csv").exists(), (
+        f"results.csv should exist in {output_dir}"
+    )
 
     summaries = list(output_dir.glob("summaries/summary-*.json"))
-    assert (
-        len(summaries) > 0
-    ), f"summary files should be found in {output_dir}/summaries"
+    assert len(summaries) > 0, (
+        f"summary files should be found in {output_dir}/summaries"
+    )
 
     k6_scripts = list(output_dir.glob("k6_scripts/*.js"))
     assert len(k6_scripts) > 0, f"k6 scripts should be found in {output_dir}/k6_scripts"
@@ -1172,17 +1175,17 @@ def _verify_results_csv_content(results_path: Path) -> None:
     content = results_path.read_text()
     print(content)
 
-    with open(results_path) as f:
+    with results_path.open() as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
     assert len(rows) > 0, "results.csv should have at least one row"
 
     # Check for success_rate columns
-    success_cols = [k for k in rows[0].keys() if k.startswith("success_rate_function_")]
-    assert (
-        len(success_cols) > 0
-    ), f"success_rate columns should be found. Columns: {list(rows[0].keys())}"
+    success_cols = [k for k in rows[0] if k.startswith("success_rate_function_")]
+    assert len(success_cols) > 0, (
+        f"success_rate columns should be found. Columns: {list(rows[0].keys())}"
+    )
 
     for row in rows:
         for col in success_cols:
@@ -1202,10 +1205,10 @@ def _verify_results_csv_text(content: str) -> None:
     rows = list(reader)
     assert len(rows) > 0, "results.csv should have at least one row"
 
-    success_cols = [k for k in rows[0].keys() if k.startswith("success_rate_function_")]
-    assert (
-        len(success_cols) > 0
-    ), f"success_rate columns should be found. Columns: {list(rows[0].keys())}"
+    success_cols = [k for k in rows[0] if k.startswith("success_rate_function_")]
+    assert len(success_cols) > 0, (
+        f"success_rate columns should be found. Columns: {list(rows[0].keys())}"
+    )
 
     for row in rows:
         for col in success_cols:
@@ -1216,9 +1219,9 @@ def _verify_results_csv_text(content: str) -> None:
 def _verify_peva_faas_results_text(content: str) -> None:
     """Verify peva_faas_results.json has successful entries."""
     data = json.loads(content)
-    assert (
-        isinstance(data, list) and data
-    ), "peva_faas_results.json should contain entries"
+    assert isinstance(data, list) and data, (
+        "peva_faas_results.json should contain entries"
+    )
     entry = data[0]
     assert entry.get("success") is True, "peva_faas_results.json should report success"
 
@@ -1259,9 +1262,9 @@ def _verify_k6_workspace_artifacts(
     poll_interval_seconds: int = 2,
 ) -> None:
     """Verify k6 workspace has script, summary, and log per config."""
-    assert bool(
-        config_ids
-    ), "config IDs should be available for k6 workspace verification"
+    assert bool(config_ids), (
+        "config IDs should be available for k6 workspace verification"
+    )
 
     deadline = time.time() + max(0, wait_seconds)
     last_counts: dict[str, tuple[int, int, int]] = {}
@@ -1296,7 +1299,7 @@ def _verify_k6_workspace_artifacts(
                 debug_output = _multipass_exec(
                     vm_name, ["bash", "-c", debug_cmd]
                 ).stdout
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 debug_output = f"Failed to collect debug output: {exc}"
 
             counts_lines = [
@@ -1398,9 +1401,9 @@ def _verify_k6_logs_on_generator(
                 print("WARNING: k6 logs found on TARGET VM, not GENERATOR VM!")
                 return
 
-    assert (
-        len(k6_logs) > 0
-    ), f"k6.log files found on generator in {workspace_root} or logs streamed in CLI output"
+    assert len(k6_logs) > 0, (
+        f"k6.log files found on generator in {workspace_root} or logs streamed in CLI output"
+    )
 
     for log_path in k6_logs:
         content = _multipass_exec(vm_name, ["sudo", "cat", log_path]).stdout
@@ -1536,7 +1539,7 @@ def test_dfaas_multipass_event_stream_file_creation(
             exc=exc,
         )
 
-    auth_value = base64.b64encode(f"admin:{password}".encode("utf-8")).decode("utf-8")
+    auth_value = base64.b64encode(f"admin:{password}".encode()).decode("utf-8")
 
     # Use short duration for faster testing
     dfaas_config = DfaasConfig(
@@ -1958,12 +1961,12 @@ EOFCONFIG
     except FileNotFoundError as e:
         logger.error("Status file not found: %s", e)
 
-    assert (
-        result.returncode == 0
-    ), f"LocalRunner should exit cleanly (rc=0). stderr={result.stderr}"
-    assert (
-        len(stdout_events) > 0 or len(log_events) > 0
-    ), f"LB_EVENT lines should be found in stdout or log. stdout={len(stdout_events)} log={len(log_events)}"
+    assert result.returncode == 0, (
+        f"LocalRunner should exit cleanly (rc=0). stderr={result.stderr}"
+    )
+    assert len(stdout_events) > 0 or len(log_events) > 0, (
+        f"LB_EVENT lines should be found in stdout or log. stdout={len(stdout_events)} log={len(log_events)}"
+    )
 
 
 def test_dfaas_multipass_localrunner_daemonized(
@@ -2081,9 +2084,9 @@ EOFCONFIG
     )
 
     logger.info("Parent exit code: %d", result.returncode)
-    assert (
-        result.returncode == 0
-    ), f"Parent process should exit cleanly (rc=0). stderr={result.stderr}"
+    assert result.returncode == 0, (
+        f"Parent process should exit cleanly (rc=0). stderr={result.stderr}"
+    )
 
     # Wait for PID file
     deadline = time.time() + 10
@@ -2091,9 +2094,9 @@ EOFCONFIG
         if _remote_file_exists(target_vm["name"], pid_file):
             break
         time.sleep(0.5)
-    assert _remote_file_exists(
-        target_vm["name"], pid_file
-    ), "PID file should be created by daemon"
+    assert _remote_file_exists(target_vm["name"], pid_file), (
+        "PID file should be created by daemon"
+    )
 
     pid = _remote_read_file(target_vm["name"], pid_file).strip()
 
@@ -2135,9 +2138,9 @@ EOFCONFIG
             logger.info("  %s", ev)
 
         # Should have at least the final done/failed event
-        assert (
-            len(log_events) > 0
-        ), "LB_EVENT lines should be present in daemon stream log"
+        assert len(log_events) > 0, (
+            "LB_EVENT lines should be present in daemon stream log"
+        )
     else:
         pytest.fail("Stream log file not created by daemon")
 
@@ -2149,7 +2152,9 @@ def run_peva_faas_multipass_stopfile_duckdb_e2e(
     _ensure_local_prereqs()
     k3s_vm, runner_vm = multipass_two_vms[0], multipass_two_vms[1]
     lb_workdir = _lb_workdir(runner_vm["user"])
-    runner_home = "/root" if runner_vm["user"] == "root" else f"/home/{runner_vm['user']}"
+    runner_home = (
+        "/root" if runner_vm["user"] == "root" else f"/home/{runner_vm['user']}"
+    )
     peva_k6_workspace_root = f"{runner_home}/.peva_faas-k6"
 
     # Cleanup before run
@@ -2193,7 +2198,7 @@ def run_peva_faas_multipass_stopfile_duckdb_e2e(
             ansible_env,
         )
         _run_playbook(setup_k6, runner_inventory, {}, ansible_env)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail("PEVA-faas setup playbook failed", context="peva_setup", exc=exc)
 
     if not _deploy_code_to_vm(runner_vm["name"], ansible_dir, staged_key, lb_workdir):
@@ -2208,7 +2213,7 @@ def run_peva_faas_multipass_stopfile_duckdb_e2e(
                 f"cd {lb_workdir} && .local/bin/uv sync --frozen --no-dev --extra peva_faas",
             ],
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail(
             "Failed to install PEVA-faas dependencies on runner VM",
             context="runner_uv_sync_peva",
@@ -2217,7 +2222,9 @@ def run_peva_faas_multipass_stopfile_duckdb_e2e(
 
     # Verify setup state on both VMs
     try:
-        k6_version = _multipass_exec(runner_vm["name"], ["k6", "version"]).stdout.strip()
+        k6_version = _multipass_exec(
+            runner_vm["name"], ["k6", "version"]
+        ).stdout.strip()
         assert "k6" in k6_version.lower(), "k6 should be installed on runner VM"
         _multipass_exec(runner_vm["name"], ["faas-cli", "version"])
         duckdb_check = _multipass_exec(
@@ -2229,8 +2236,10 @@ def run_peva_faas_multipass_stopfile_duckdb_e2e(
             ],
         ).stdout.strip()
         assert "duckdb-ok" in duckdb_check, "duckdb should be importable on runner VM"
-    except Exception as exc:  # noqa: BLE001
-        _skip_or_fail("Runner VM setup verification failed", context="runner_verify", exc=exc)
+    except Exception as exc:
+        _skip_or_fail(
+            "Runner VM setup verification failed", context="runner_verify", exc=exc
+        )
 
     try:
         _multipass_exec(k3s_vm["name"], ["kubectl", "get", "nodes"])
@@ -2241,15 +2250,17 @@ def run_peva_faas_multipass_stopfile_duckdb_e2e(
             k3s_vm["name"],
             ["kubectl", "-n", "openfaas", "get", "deploy", "prometheus"],
         )
-    except Exception as exc:  # noqa: BLE001
-        _skip_or_fail("k3s/OpenFaaS setup verification failed", context="k3s_verify", exc=exc)
+    except Exception as exc:
+        _skip_or_fail(
+            "k3s/OpenFaaS setup verification failed", context="k3s_verify", exc=exc
+        )
 
     prometheus_url = f"http://{k3s_vm['ip']}:30411"
     try:
         _wait_for_http(f"{prometheus_url}/-/ready")
         _wait_for_prometheus_metric(prometheus_url, "node_cpu_seconds_total")
         _wait_for_prometheus_metric(prometheus_url, "node_memory_MemTotal_bytes")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail(
             "Prometheus readiness/metrics verification failed",
             context="prometheus_verify",
@@ -2258,11 +2269,13 @@ def run_peva_faas_multipass_stopfile_duckdb_e2e(
 
     try:
         password = _get_openfaas_password(k3s_vm["name"])
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail(
-            "Failed to read OpenFaaS password", context="openfaas_password_stop", exc=exc
+            "Failed to read OpenFaaS password",
+            context="openfaas_password_stop",
+            exc=exc,
         )
-    auth_value = base64.b64encode(f"admin:{password}".encode("utf-8")).decode("utf-8")
+    auth_value = base64.b64encode(f"admin:{password}".encode()).decode("utf-8")
 
     peva_faas_options = {
         "gateway_url": f"http://{k3s_vm['ip']}:31112",
@@ -2327,15 +2340,15 @@ def run_peva_faas_multipass_stopfile_duckdb_e2e(
                 lb_workdir=lb_workdir,
             ),
             plugin_settings={"peva_faas": options},
-                plugin_assets={
-                    "peva_faas": PluginAssetConfig(
-                        setup_playbook=None,
-                        teardown_playbook=None,
-                        collect_post_playbook=Path(
-                            "lb_plugins/plugins/peva_faas/ansible/collect/post.yml"
-                        ).resolve(),
-                    )
-                },
+            plugin_assets={
+                "peva_faas": PluginAssetConfig(
+                    setup_playbook=None,
+                    teardown_playbook=None,
+                    collect_post_playbook=Path(
+                        "lb_plugins/plugins/peva_faas/ansible/collect/post.yml"
+                    ).resolve(),
+                )
+            },
             workloads={
                 "peva_faas": WorkloadConfig(
                     plugin="peva_faas",
@@ -2391,9 +2404,13 @@ def run_peva_faas_multipass_stopfile_duckdb_e2e(
 
     import duckdb
 
-    baseline_memory_root = Path(baseline_summary.output_root) / "memory" / runner_vm["name"]
+    baseline_memory_root = (
+        Path(baseline_summary.output_root) / "memory" / runner_vm["name"]
+    )
     baseline_duckdb_files = sorted(baseline_memory_root.rglob("peva_faas.duckdb"))
-    assert baseline_duckdb_files, f"Expected fetched duckdb file under {baseline_memory_root}"
+    assert baseline_duckdb_files, (
+        f"Expected fetched duckdb file under {baseline_memory_root}"
+    )
     baseline_conn = duckdb.connect(str(baseline_duckdb_files[0]), read_only=True)
     try:
         baseline_table_names = {
@@ -2499,7 +2516,9 @@ def run_peva_faas_multipass_stopfile_duckdb_e2e(
 
     stop_summary = run_summary.get("summary")
     assert stop_summary is not None, "Stop-run summary should be available"
-    assert stop_summary.success is False, "Interrupted stop-run should not report success"
+    assert stop_summary.success is False, (
+        "Interrupted stop-run should not report success"
+    )
     assert stop_summary.controller_state in {
         ControllerState.ABORTED,
         ControllerState.STOP_FAILED,
@@ -2511,7 +2530,9 @@ def run_peva_faas_multipass_stopfile_duckdb_e2e(
     assert stop_duckdb_files, f"Expected fetched duckdb file under {stop_memory_root}"
     stop_conn = duckdb.connect(str(stop_duckdb_files[0]), read_only=True)
     try:
-        stop_table_names = {str(row[0]) for row in stop_conn.execute("SHOW TABLES").fetchall()}
+        stop_table_names = {
+            str(row[0]) for row in stop_conn.execute("SHOW TABLES").fetchall()
+        }
         assert "execution_events" in stop_table_names, (
             "execution_events table should exist in stop-run duckdb"
         )
@@ -2573,7 +2594,7 @@ def run_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> N
             },
             ansible_env,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail(
             "setup_target playbook failed", context="setup_target_cli", exc=exc
         )
@@ -2584,17 +2605,17 @@ def run_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> N
             {},
             ansible_env,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail("setup_k6 playbook failed", context="setup_k6_cli", exc=exc)
 
     try:
         password = _get_openfaas_password(k3s_vm["name"])
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _skip_or_fail(
             "Failed to read OpenFaaS password", context="openfaas_password_cli", exc=exc
         )
 
-    auth_value = base64.b64encode(f"admin:{password}".encode("utf-8")).decode("utf-8")
+    auth_value = base64.b64encode(f"admin:{password}".encode()).decode("utf-8")
 
     # PEVA-faas plugin options - used in both plugin_settings and workloads.options
     peva_faas_options = {
@@ -2767,12 +2788,12 @@ def run_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> N
     if local_run_dir and peva_faas_output.exists():
         results_path = peva_faas_output / "peva_faas_results.json"
         rep_result_path = peva_faas_output / "rep1" / "result.json"
-        assert (
-            results_path.exists()
-        ), f"peva_faas_results.json should exist in {peva_faas_output}"
-        assert (
-            rep_result_path.exists()
-        ), f"rep1/result.json should exist in {peva_faas_output}"
+        assert results_path.exists(), (
+            f"peva_faas_results.json should exist in {peva_faas_output}"
+        )
+        assert rep_result_path.exists(), (
+            f"rep1/result.json should exist in {peva_faas_output}"
+        )
         _verify_peva_faas_results_text(results_path.read_text())
         _verify_peva_faas_result_text(rep_result_path.read_text())
     else:
@@ -2832,9 +2853,7 @@ def run_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> N
             if remote_results
             else expected_remote_output_dir
         )
-        assert (
-            remote_results
-        ), (
+        assert remote_results, (
             "peva_faas_results.json should exist in remote output "
             f"{expected_remote_output_dir} (run root: {remote_run_root})"
         )
@@ -2854,16 +2873,12 @@ def run_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> N
                 "result.json",
             )
         rep_result_path = next(
-            (
-                path
-                for path in remote_rep_results
-                if path.endswith("/rep1/result.json")
-            ),
+            (path for path in remote_rep_results if path.endswith("/rep1/result.json")),
             remote_rep_results[0] if remote_rep_results else "",
         )
-        assert (
-            rep_result_path
-        ), f"rep1/result.json should exist in {remote_output_dir}/rep1"
+        assert rep_result_path, (
+            f"rep1/result.json should exist in {remote_output_dir}/rep1"
+        )
         _verify_peva_faas_result_text(
             _remote_read_file(runner_vm["name"], rep_result_path)
         )
@@ -3067,6 +3082,6 @@ def run_peva_faas_multipass_cli_workflow(multipass_two_vms, tmp_path: Path) -> N
         print(f"Failed to search/read logs on runner: {e}")
 
     # Verify we got some events
-    assert (
-        len(lb_event_lines) > 0 or result.returncode == 0
-    ), "CLI should produce LB_EVENT output or succeed"
+    assert len(lb_event_lines) > 0 or result.returncode == 0, (
+        "CLI should produce LB_EVENT output or succeed"
+    )

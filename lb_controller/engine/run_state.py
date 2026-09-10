@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from lb_controller.models.types import InventorySpec
 from lb_controller.services.journal import RunJournal
@@ -20,11 +20,11 @@ class RunState:
     output_root: Path
     report_root: Path
     data_export_root: Path
-    per_host_output: Dict[str, Path]
+    per_host_output: dict[str, Path]
     active_journal: RunJournal
     journal_file: Path
-    extravars: Dict[str, Any]
-    test_types: List[str]
+    extravars: dict[str, Any]
+    test_types: list[str]
 
 
 @dataclass

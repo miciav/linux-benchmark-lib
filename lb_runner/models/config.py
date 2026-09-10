@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Self
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -16,7 +16,7 @@ from lb_runner.models.loki_env import apply_loki_env_fallbacks
 class PerfConfig(BaseModel):
     """Configuration for perf profiling."""
 
-    events: List[str] = Field(
+    events: list[str] = Field(
         default_factory=lambda: [
             "cpu-cycles",
             "instructions",
@@ -30,8 +30,8 @@ class PerfConfig(BaseModel):
     interval_ms: int = Field(
         default=1000, gt=0, description="Sampling interval in milliseconds"
     )
-    pid: Optional[int] = Field(default=None, gt=0, description="Process ID to profile")
-    cpu: Optional[int] = Field(default=None, ge=0, description="CPU to profile")
+    pid: int | None = Field(default=None, gt=0, description="Process ID to profile")
+    cpu: int | None = Field(default=None, ge=0, description="CPU to profile")
 
 
 DEFAULT_LB_WORKDIR = (
@@ -45,7 +45,7 @@ class MetricCollectorConfig(BaseModel):
     psutil_interval: float = Field(
         default=1.0, gt=0, description="Interval for psutil collector in seconds"
     )
-    cli_commands: List[str] = Field(
+    cli_commands: list[str] = Field(
         default_factory=lambda: [
             "sar -u 1 1",
             "vmstat 1 1",
@@ -71,7 +71,7 @@ class LokiConfig(BaseModel):
         default="http://localhost:3100",
         description="Loki base URL or push endpoint",
     )
-    labels: Dict[str, str] = Field(
+    labels: dict[str, str] = Field(
         default_factory=dict, description="Static labels sent with Loki logs"
     )
     batch_size: int = Field(default=100, gt=0, description="Logs per batch")
@@ -130,12 +130,12 @@ class RemoteHostConfig(BaseModel):
         default=True, description="Use Ansible become (sudo) for escalated privileges"
     )
     become_method: str = Field(default="sudo", description="Ansible become method")
-    vars: Dict[str, Any] = Field(
+    vars: dict[str, Any] = Field(
         default_factory=dict, description="Additional Ansible variables for this host"
     )
 
     @model_validator(mode="after")
-    def validate_name_not_empty(self) -> "RemoteHostConfig":
+    def validate_name_not_empty(self) -> RemoteHostConfig:
         if not self.name or not self.name.strip():
             raise ValueError("RemoteHostConfig: 'name' must be non-empty")
         return self
@@ -166,7 +166,7 @@ class RemoteExecutionConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     enabled: bool = Field(default=False, description="Enable remote execution")
-    inventory_path: Optional[Path] = Field(
+    inventory_path: Path | None = Field(
         default=None, description="Path to a custom Ansible inventory file"
     )
     lb_workdir: str = Field(
@@ -179,16 +179,16 @@ class RemoteExecutionConfig(BaseModel):
     run_collect: bool = Field(
         default=True, description="Execute collection playbooks after tests"
     )
-    setup_playbook: Optional[Path] = Field(
+    setup_playbook: Path | None = Field(
         default=None, description="Path to the Ansible setup playbook"
     )
-    run_playbook: Optional[Path] = Field(
+    run_playbook: Path | None = Field(
         default=None, description="Path to the Ansible run playbook"
     )
-    collect_playbook: Optional[Path] = Field(
+    collect_playbook: Path | None = Field(
         default=None, description="Path to the Ansible collect playbook"
     )
-    teardown_playbook: Optional[Path] = Field(
+    teardown_playbook: Path | None = Field(
         default=None, description="Path to the Ansible teardown playbook"
     )
     run_teardown: bool = Field(
@@ -218,7 +218,7 @@ class WorkloadConfig(BaseModel):
         default="user_defined",
         description="Pre-defined intensity level (low, medium, high, user_defined)",
     )
-    options: Dict[str, Any] = Field(
+    options: dict[str, Any] = Field(
         default_factory=dict, description="Plugin-specific options for the workload"
     )
 
@@ -258,11 +258,11 @@ class BenchmarkConfig(BaseModel):
     )
 
     # Dynamic Plugin Settings (The new way: Pydantic models for specific plugin configs)
-    plugin_settings: Dict[str, Any] = Field(
+    plugin_settings: dict[str, Any] = Field(
         default_factory=dict,
         description="Dictionary of plugin-specific Pydantic config models",
     )
-    plugin_assets: Dict[str, PluginAssetConfig] = Field(
+    plugin_assets: dict[str, PluginAssetConfig] = Field(
         default_factory=dict,
         description="Resolved plugin Ansible assets/extravars (from runner registry)",
     )
@@ -274,12 +274,12 @@ class BenchmarkConfig(BaseModel):
     )
 
     # Workload plugin configuration (name -> WorkloadConfig)
-    workloads: Dict[str, WorkloadConfig] = Field(
+    workloads: dict[str, WorkloadConfig] = Field(
         default_factory=dict, description="Dictionary of workload definitions"
     )
 
     # Remote execution configuration
-    remote_hosts: List[RemoteHostConfig] = Field(
+    remote_hosts: list[RemoteHostConfig] = Field(
         default_factory=list, description="List of remote hosts for benchmarking"
     )
     remote_execution: RemoteExecutionConfig = Field(
@@ -318,7 +318,7 @@ class BenchmarkConfig(BaseModel):
     # custom serialization logic is complex.
 
     @model_validator(mode="after")
-    def _validate_remote_hosts_unique(self) -> "BenchmarkConfig":
+    def _validate_remote_hosts_unique(self) -> BenchmarkConfig:
         if not self.remote_hosts:
             return self
         names = [h.name.strip() for h in self.remote_hosts]
@@ -327,12 +327,12 @@ class BenchmarkConfig(BaseModel):
         return self
 
     @classmethod
-    def from_json(cls, json_str: str) -> "BenchmarkConfig":
+    def from_json(cls, json_str: str) -> BenchmarkConfig:
         # Use Pydantic's built-in JSON parsing and validation
         return cls.model_validate_json(json_str)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "BenchmarkConfig":
+    def from_dict(cls, data: dict[str, Any]) -> BenchmarkConfig:
         # Use Pydantic's built-in dictionary parsing and validation
         # Pydantic will handle nested models and Path conversions automatically
         return cls.model_validate(data)
@@ -341,7 +341,7 @@ class BenchmarkConfig(BaseModel):
         filepath.write_text(self.model_dump_json(indent=2))
 
     @classmethod
-    def load(cls, filepath: Path) -> "BenchmarkConfig":
+    def load(cls, filepath: Path) -> BenchmarkConfig:
         return cls.model_validate_json(filepath.read_text())
 
     # Removed _normalize_playbook_paths as its logic now lives in
@@ -353,23 +353,23 @@ class PlatformConfig(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    plugins: Dict[str, bool] = Field(
+    plugins: dict[str, bool] = Field(
         default_factory=dict,
         description="Plugin enable/disable map (missing entries default to enabled)",
     )
-    output_dir: Optional[Path] = Field(
+    output_dir: Path | None = Field(
         default=None, description="Default benchmark output directory"
     )
-    report_dir: Optional[Path] = Field(
+    report_dir: Path | None = Field(
         default=None, description="Default report directory"
     )
-    data_export_dir: Optional[Path] = Field(
+    data_export_dir: Path | None = Field(
         default=None, description="Default data export directory"
     )
-    loki: Optional[LokiConfig] = Field(
+    loki: LokiConfig | None = Field(
         default=None, description="Optional Loki defaults for the platform"
     )
-    grafana: Optional[GrafanaPlatformConfig] = Field(
+    grafana: GrafanaPlatformConfig | None = Field(
         default=None, description="Optional Grafana defaults for the platform"
     )
 
@@ -381,5 +381,5 @@ class PlatformConfig(BaseModel):
         filepath.write_text(self.model_dump_json(indent=2))
 
     @classmethod
-    def load(cls, filepath: Path) -> "PlatformConfig":
+    def load(cls, filepath: Path) -> PlatformConfig:
         return cls.model_validate_json(filepath.read_text())

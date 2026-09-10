@@ -7,11 +7,13 @@ from typing import Any
 from PySide6.QtCore import QObject, Signal
 
 from lb_app.api import (
-    DashboardViewModel as AppDashboardViewModel,
     DashboardSnapshot,
     DashboardStatusSummary,
-    build_dashboard_viewmodel,
     RunJournal,
+    build_dashboard_viewmodel,
+)
+from lb_app.api import (
+    DashboardViewModel as AppDashboardViewModel,
 )
 
 

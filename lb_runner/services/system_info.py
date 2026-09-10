@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import platform
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from lb_runner.services import system_info_collectors as collectors
@@ -56,7 +56,7 @@ _calculate_fingerprint = collectors._calculate_fingerprint
 
 def collect_system_info() -> SystemInfo:
     """Collect system information into a structured dataclass."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     uname = platform.uname()
     os_release = _read_os_release()
     host = uname.node or platform.node() or ""

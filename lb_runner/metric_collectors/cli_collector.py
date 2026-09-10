@@ -1,18 +1,17 @@
-"""
-CLI metric collector implementation.
+"""CLI metric collector implementation.
 
 This module collects system metrics by invoking external CLI tools and parsing
 their output.
 """
 
 import logging
-import subprocess
 import shlex
+import subprocess
+from typing import Any
+
 import jc
-from typing import Dict, Any
 
 from ._base_collector import BaseCollector
-
 
 logger = logging.getLogger(__name__)
 
@@ -26,24 +25,24 @@ class CLICollector(BaseCollector):
         interval_seconds: float = 5.0,
         commands: list[str] | None = None,
     ) -> None:
-        """
-        Initialize the CLI collector.
+        """Initialize the CLI collector.
 
         Args:
             name: Name of the collector
             interval_seconds: Sampling interval in seconds
             commands: List of CLI commands to run
+
         """
         super().__init__(name, interval_seconds)
         self.commands: list[str] = list(commands or [])
         self._failed_commands: set[str] = set()
 
-    def _collect_metrics(self) -> Dict[str, Any]:
-        """
-        Collect metrics by running CLI commands.
+    def _collect_metrics(self) -> dict[str, Any]:
+        """Collect metrics by running CLI commands.
 
         Returns:
             Dictionary containing metric names and their values
+
         """
         metrics = {}
         for command in self.commands:
@@ -51,12 +50,15 @@ class CLICollector(BaseCollector):
                 continue
             try:
                 # Run the command safely with a timeout to avoid hanging collectors
-                # Use shell=True to support pipes/redirections in custom commands
+                # shell=True is required to support the pipes and redirections
+                # that these collector commands use (e.g. "vmstat 1 | tail -5").
+                # The command string comes from the user's own benchmark config,
+                # not from a remote or untrusted source, and it runs with the
+                # privileges the operator already has.
                 result = subprocess.run(
                     command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    shell=True,  # nosec B602
+                    capture_output=True,
                     text=True,
                     check=True,
                     timeout=self.interval_seconds + 1.0,
@@ -106,9 +108,8 @@ class CLICollector(BaseCollector):
 
         return metrics
 
-    def _parse_sar(self, output: str) -> Dict[str, Any]:
-        """
-        Minimal parser for `sar -u` output when jc lacks a parser.
+    def _parse_sar(self, output: str) -> dict[str, Any]:
+        """Minimal parser for `sar -u` output when jc lacks a parser.
 
         Returns an empty dict when parsing fails.
         """
@@ -152,11 +153,11 @@ class CLICollector(BaseCollector):
         }
 
     def _validate_environment(self) -> bool:
-        """
-        Validate that the CLI tools are available in the environment.
+        """Validate that the CLI tools are available in the environment.
 
         Returns:
             True if all commands are available, False otherwise
+
         """
         for command in self.commands:
             tool = command.split()[0]
@@ -167,16 +168,14 @@ class CLICollector(BaseCollector):
         return True
 
     def _is_tool_available(self, tool: str) -> bool:
-        """
-        Check if the given tool is available in the PATH.
+        """Check if the given tool is available in the PATH.
 
         Args:
             tool: Name of the tool
 
         Returns:
             True if available, False otherwise
+
         """
-        result = subprocess.run(
-            ["which", tool], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
+        result = subprocess.run(["which", tool], capture_output=True)
         return result.returncode == 0

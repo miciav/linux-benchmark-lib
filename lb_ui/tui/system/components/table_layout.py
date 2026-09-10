@@ -7,13 +7,13 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from lb_ui.tui.system.models import TableModel
 from lb_ui.tui.core import theme
+from lb_ui.tui.system.models import TableModel
 
 
 def _console_width(console: Console) -> int | None:
     try:
-        width = int(getattr(console.size, "width"))
+        width = int(console.size.width)
         if width > 0:
             return width
     except Exception:
@@ -36,8 +36,7 @@ def build_rich_table(
     box_style: box.Box = box.ROUNDED,
     row_styles: list[str] | None = None,
 ) -> Table:
-    """
-    Build a Rich Table from a TableModel that fits the current terminal width.
+    """Build a Rich Table from a TableModel that fits the current terminal width.
 
     Columns are rendered as single-line and truncated with ellipsis when needed.
     """

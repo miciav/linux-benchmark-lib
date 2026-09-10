@@ -8,8 +8,7 @@ from lb_provisioner.models.types import ProvisioningResult
 def cleanup_provisioned_nodes(
     provisioning_result: ProvisioningResult, result: Any, presenter: Any
 ) -> None:
-    """
-    Apply cleanup policy using controller authorization.
+    """Apply cleanup policy using controller authorization.
 
     Expects `result.summary.cleanup_allowed` to indicate permission to teardown.
     """

@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass
@@ -12,12 +11,12 @@ class DoctorCheckItem:
 @dataclass
 class DoctorCheckGroup:
     title: str
-    items: List[DoctorCheckItem]
+    items: list[DoctorCheckItem]
     failures: int
 
 
 @dataclass
 class DoctorReport:
-    groups: List[DoctorCheckGroup]
-    info_messages: List[str]
+    groups: list[DoctorCheckGroup]
+    info_messages: list[str]
     total_failures: int

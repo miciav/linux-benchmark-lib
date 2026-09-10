@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable
+from collections.abc import Iterable
 
 from lb_controller.api import RunJournal, RunStatus, TaskState
 
@@ -16,7 +16,7 @@ def target_repetitions(journal: RunJournal) -> int:
 
 
 def summarize_progress(
-    tasks: Dict[int, TaskState], target_reps: int
+    tasks: dict[int, TaskState], target_reps: int
 ) -> tuple[str, str]:
     total = target_reps or len(tasks)
     completed = sum(
@@ -73,7 +73,7 @@ def plan_rows(plan: Iterable[dict]) -> list[list[str]]:
     ]
 
 
-def _progress_flags(tasks: Dict[int, TaskState]) -> dict[str, bool]:
+def _progress_flags(tasks: dict[int, TaskState]) -> dict[str, bool]:
     return {
         "running": any(task.status == RunStatus.RUNNING for task in tasks.values()),
         "failed": any(task.status == RunStatus.FAILED for task in tasks.values()),

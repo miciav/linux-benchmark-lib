@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 from lb_controller.engine.run_state import RunState
 from lb_controller.engine.run_state_builders import (
@@ -40,9 +40,9 @@ class RunSessionBuilder:
     def build(
         self,
         test_types: list[str],
-        run_id: Optional[str],
-        journal: Optional[RunJournal],
-        journal_path: Optional[Path],
+        run_id: str | None,
+        journal: RunJournal | None,
+        journal_path: Path | None,
     ) -> RunSession:
         resolved_run_id = resolve_run_id(run_id, journal)
         inventory = build_inventory(self._config)

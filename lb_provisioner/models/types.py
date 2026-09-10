@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Callable, List, Optional
 
 from lb_common.api import RemoteHostSpec
 
@@ -26,12 +27,12 @@ class ProvisioningRequest:
 
     mode: ProvisioningMode
     count: int = 1
-    remote_hosts: Optional[List[RemoteHostSpec]] = None
-    node_names: Optional[List[str]] = None
+    remote_hosts: list[RemoteHostSpec] | None = None
+    node_names: list[str] | None = None
     docker_engine: str = "docker"
     docker_image: str = "ubuntu:24.04"
     multipass_image: str = "24.04"
-    state_dir: Optional[Path] = None
+    state_dir: Path | None = None
 
 
 @dataclass
@@ -39,23 +40,21 @@ class ProvisionedNode:
     """Provisioned host plus a teardown hook."""
 
     host: RemoteHostSpec
-    destroy: Optional[Callable[[], None]] = None
+    destroy: Callable[[], None] | None = None
 
     def teardown(self) -> None:
         """Destroy this node if a hook is available."""
         if self.destroy:
-            try:
-                self.destroy()
-            except Exception:
+            with contextlib.suppress(Exception):
                 # Best-effort cleanup; callers should not fail on teardown.
-                pass
+                self.destroy()
 
 
 @dataclass
 class ProvisioningResult:
     """Aggregate provisioning outcome."""
 
-    nodes: List[ProvisionedNode]
+    nodes: list[ProvisionedNode]
     keep_nodes: bool = False
 
     def destroy_all(self) -> None:

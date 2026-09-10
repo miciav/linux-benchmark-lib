@@ -1,9 +1,10 @@
 from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
+
+from lb_ui.tui.core import theme
 from lb_ui.tui.core.bases import Presenter
 from lb_ui.tui.core.protocols import PresenterSink
-from lb_ui.tui.core import theme
 
 
 class _RichPresenterSink(PresenterSink):

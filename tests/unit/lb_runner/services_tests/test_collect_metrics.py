@@ -2,7 +2,9 @@
 
 from pathlib import Path
 from unittest.mock import MagicMock
+
 import pytest
+
 from lb_runner.api import collect_metrics
 
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
@@ -33,8 +35,8 @@ def test_collect_metrics_saves_only_to_rep_dir(tmp_path: Path):
     workload_file = workload_dir / expected_filename
 
     assert rep_file.exists(), "Collector file should exist in repetition directory"
-    assert (
-        not workload_file.exists()
-    ), "Collector file should NOT exist in workload directory"
+    assert not workload_file.exists(), (
+        "Collector file should NOT exist in workload directory"
+    )
 
     assert result["metrics"]["test_collector"] == "some_data"

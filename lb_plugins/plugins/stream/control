@@ -11,4 +11,3 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libgomp1
 Description: STREAM memory bandwidth benchmark (prebuilt stream)
  STREAM 5.10 built with GCC OpenMP support.
-

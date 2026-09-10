@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Protocol
 
-from lb_controller.api import BenchmarkConfig, workload_output_dir
-
-from lb_controller.api import RunJournal, RunStatus, TaskState
 from lb_app.services.run_config import hash_config
 from lb_app.services.run_types import RunContext
+from lb_controller.api import (
+    BenchmarkConfig,
+    RunJournal,
+    RunStatus,
+    TaskState,
+    workload_output_dir,
+)
 
 
 class _HostLike(Protocol):

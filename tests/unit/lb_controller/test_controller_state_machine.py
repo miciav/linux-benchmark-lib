@@ -2,7 +2,6 @@ import pytest
 
 from lb_controller.api import ControllerState, ControllerStateMachine
 
-
 pytestmark = pytest.mark.unit_controller
 
 
@@ -27,7 +26,7 @@ def test_valid_transitions():
 
 def test_invalid_transition_raises():
     sm = ControllerStateMachine()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Invalid transition"):
         sm.transition(ControllerState.STOPPING_WAIT_RUNNERS)
 
 

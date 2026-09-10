@@ -1,18 +1,16 @@
-"""
-Executor for a single test attempt (repetition).
-"""
+"""Executor for a single test attempt (repetition)."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from lb_common.api import LBError, WorkloadError, error_to_payload
 from lb_plugins.api import BaseGenerator, WorkloadPlugin
-from lb_runner.engine.stop_context import should_stop
+from lb_runner.engine.context import RunnerContext
 from lb_runner.engine.execution import (
     StopRequested,
     generator_running,
@@ -21,9 +19,9 @@ from lb_runner.engine.execution import (
     resolve_duration,
     wait_for_generator,
 )
-from lb_runner.services.results import build_rep_result
-from lb_runner.engine.context import RunnerContext
 from lb_runner.engine.metrics import MetricSession
+from lb_runner.engine.stop_context import should_stop
+from lb_runner.services.results import build_rep_result
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +32,7 @@ class RepetitionOutcome:
 
     success: bool
     status: str
-    result: Dict[str, Any] | None
+    result: dict[str, Any] | None
     message: str = ""
     error_type: str | None = None
     error_context: dict[str, Any] | None = None
@@ -54,9 +52,8 @@ class RepetitionExecutor:
         total_repetitions: int,
         *,
         collectors_enabled: bool = True,
-    ) -> Dict[str, Any]:
-        """
-        Run a single test with the specified generator.
+    ) -> dict[str, Any]:
+        """Run a single test with the specified generator.
 
         Args:
             test_name: Name of the test
@@ -66,6 +63,7 @@ class RepetitionExecutor:
 
         Returns:
             Dictionary containing test results
+
         """
         logger.info(f"Running test '{test_name}' - Repetition {repetition}")
 
@@ -83,8 +81,8 @@ class RepetitionExecutor:
         )
         duration = resolve_duration(self.context.config, generator, logger)
 
-        test_start_time: Optional[datetime] = None
-        test_end_time: Optional[datetime] = None
+        test_start_time: datetime | None = None
+        test_end_time: datetime | None = None
 
         try:
             self._set_log_phase("setup", workload=test_name, repetition=repetition)
@@ -126,7 +124,7 @@ class RepetitionExecutor:
                     cause=exc,
                 ) from exc
 
-            # Phase: Running (None)
+            # Phase: Running (None)  # noqa: ERA001 - documents the log phase
             self._set_log_phase(None, workload=test_name, repetition=repetition)
             logger.info("Running test for %s seconds", duration)
 
@@ -154,7 +152,7 @@ class RepetitionExecutor:
             self._set_log_phase("teardown", workload=test_name, repetition=repetition)
             self._cleanup_after_run(generator, metric_session)
 
-            # Phase: Done (None)
+            # Phase: Done (None)  # noqa: ERA001 - documents the log phase
             self._set_log_phase(None, workload=test_name, repetition=repetition)
 
         except Exception:
@@ -165,7 +163,7 @@ class RepetitionExecutor:
         finally:
             metric_session.close()
 
-        result = self._finalize_single_test(
+        return self._finalize_single_test(
             generator,
             metric_session,
             workload_dir,
@@ -175,8 +173,6 @@ class RepetitionExecutor:
             test_start_time,
             test_end_time,
         )
-
-        return result
 
     def run_attempt(
         self,
@@ -224,14 +220,13 @@ class RepetitionExecutor:
             logger.exception(
                 "Workload '%s' failed on repetition %s", test_name, repetition
             )
-            outcome = self._handle_failure(
+            return self._handle_failure(
                 test_name=test_name,
                 repetition=repetition,
                 generator=generator,
                 error=exc,
                 plugin=plugin,
             )
-            return outcome
         except Exception:
             logger.exception(
                 "Unexpected failure running workload '%s' rep %s",
@@ -283,7 +278,7 @@ class RepetitionExecutor:
         repetition: int,
         test_start_time: datetime | None,
         test_end_time: datetime | None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         result = build_rep_result(
             test_name=test_name,
             repetition=repetition,

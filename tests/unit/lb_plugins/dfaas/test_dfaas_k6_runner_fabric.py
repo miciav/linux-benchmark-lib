@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 import shlex
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from invoke.exceptions import UnexpectedExit
 
-from lb_plugins.plugins.dfaas.services.k6_runner import K6Runner, K6ExecutionError
+from lb_plugins.plugins.dfaas.services.k6_runner import K6ExecutionError, K6Runner
 
 
 @pytest.fixture
@@ -27,7 +27,6 @@ def k6_runner():
 
 
 class TestK6RunnerFabric:
-
     @patch("lb_plugins.plugins.dfaas.services.k6_runner.Connection")
     def test_get_connection(self, mock_conn_cls, k6_runner):
         """Test Fabric connection initialization."""
@@ -104,7 +103,8 @@ class TestK6RunnerFabric:
         # 4. Verify Summary Download
         # Note: tempfile is called twice (script, then summary download)
         # We assume the second name generated is used for get
-        mock_conn.get.assert_called()  # Exact path match is tricky with shared mock_file name
+        # Exact path match is tricky with shared mock_file name
+        mock_conn.get.assert_called()
 
         # 5. Verify Cleanup
         assert mock_unlink.call_count == 2  # Script and Summary local temp files
@@ -251,10 +251,17 @@ class TestK6RunnerFabric:
         mkdir_call = mock_conn.run.call_args_list[0]
         exec_call = mock_conn.run.call_args_list[1]
 
-        assert mkdir_call.args[0] == "mkdir -p '/home/test/.dfaas-k6/target 1/run1/cfg1'"
+        assert (
+            mkdir_call.args[0] == "mkdir -p '/home/test/.dfaas-k6/target 1/run1/cfg1'"
+        )
         assert "set -o pipefail;" in exec_call.args[0]
-        assert "'/home/test/.dfaas-k6/target 1/run1/cfg1/summary.json'" in exec_call.args[0]
-        assert "'/home/test/.dfaas-k6/target 1/run1/cfg1/script.js'" in exec_call.args[0]
+        assert (
+            "'/home/test/.dfaas-k6/target 1/run1/cfg1/summary.json'"
+            in exec_call.args[0]
+        )
+        assert (
+            "'/home/test/.dfaas-k6/target 1/run1/cfg1/script.js'" in exec_call.args[0]
+        )
         assert "'/home/test/.dfaas-k6/target 1/run1/cfg1/k6.log'" in exec_call.args[0]
 
     def test_stream_handler(self, k6_runner):
@@ -299,5 +306,5 @@ class TestK6RunnerFabric:
         mkdir_cmd = mock_conn.run.call_args_list[0].args[0]
         exec_cmd = mock_conn.run.call_args_list[1].args[0]
 
-        assert "mkdir -p '/home/test/.dfaas-k6/target one/run one/cfg one'" == mkdir_cmd
+        assert mkdir_cmd == "mkdir -p '/home/test/.dfaas-k6/target one/run one/cfg one'"
         assert "'/home/test/.dfaas-k6/target one/run one/cfg one/k6.log'" in exec_cmd

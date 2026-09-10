@@ -1,18 +1,17 @@
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from lb_common.logs.schema import StructuredLogEvent
-
 
 pytestmark = pytest.mark.unit_runner
 
 
 def test_structured_log_event_serializes() -> None:
     event = StructuredLogEvent(
-        timestamp=datetime(2024, 1, 15, 10, 30, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
         level="INFO",
         component="runner",
         host="host1",

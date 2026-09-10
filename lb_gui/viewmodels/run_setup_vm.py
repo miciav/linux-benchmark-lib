@@ -4,21 +4,21 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-_log = logging.getLogger(__name__)
+from typing import TYPE_CHECKING, ClassVar
 
 from PySide6.QtCore import QObject, Signal
 
 from lb_app.api import (
-    BenchmarkConfig,
-    generate_run_id,
     MAX_NODES,
+    BenchmarkConfig,
     RunRequest,
+    generate_run_id,
 )
 
 if TYPE_CHECKING:
-    from lb_gui.services import PluginService, GUIConfigService
+    from lb_gui.services import GUIConfigService, PluginService
+
+_log = logging.getLogger(__name__)
 
 
 class RunSetupViewModel(QObject):
@@ -34,15 +34,15 @@ class RunSetupViewModel(QObject):
     validation_changed = Signal(bool, str)  # (is_valid, error_message)
 
     # Execution modes
-    EXECUTION_MODES = ["remote", "docker", "multipass"]
+    EXECUTION_MODES: ClassVar[list[str]] = ["remote", "docker", "multipass"]
 
     # Intensity options
-    INTENSITY_OPTIONS = ["low", "medium", "high", "user_defined"]
+    INTENSITY_OPTIONS: ClassVar[list[str]] = ["low", "medium", "high", "user_defined"]
 
     def __init__(
         self,
-        plugin_service: "PluginService",
-        config_service: "GUIConfigService",
+        plugin_service: PluginService,
+        config_service: GUIConfigService,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -218,7 +218,7 @@ class RunSetupViewModel(QObject):
             }
             from_config = set()
             if self._config is not None:
-                from_config = {name for name in self._config.workloads.keys()}
+                from_config = set(self._config.workloads)
             available = enabled | from_config
             self._available_workloads = [
                 name for name in available if name in available_registry
@@ -249,10 +249,9 @@ class RunSetupViewModel(QObject):
         if not self._selected_workloads:
             return False, "No workloads selected"
 
-        if self._execution_mode == "remote":
+        if self._execution_mode == "remote" and not self._config.remote_hosts:
             # Remote mode requires configured hosts
-            if not self._config.remote_hosts:
-                return False, "No remote hosts configured"
+            return False, "No remote hosts configured"
 
         return True, ""
 

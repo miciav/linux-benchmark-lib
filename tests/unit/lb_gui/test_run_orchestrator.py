@@ -1,5 +1,7 @@
 """Tests for RunOrchestrator."""
+
 from __future__ import annotations
+
 import pytest
 
 pytest.importorskip("PySide6")
@@ -10,6 +12,7 @@ from unittest.mock import MagicMock
 @pytest.fixture(scope="module")
 def qt_app():
     from PySide6.QtWidgets import QApplication
+
     return QApplication.instance() or QApplication([])
 
 
@@ -19,11 +22,14 @@ def test_run_orchestrator_initializes_dashboard_and_starts_worker(qt_app):
     from lb_gui.viewmodels.dashboard_vm import GUIDashboardViewModel
 
     mock_run_ctrl = MagicMock()
-    mock_run_ctrl.get_run_plan.return_value = [{"name": "stress_ng", "intensity": "low"}]
+    mock_run_ctrl.get_run_plan.return_value = [
+        {"name": "stress_ng", "intensity": "low"}
+    ]
     mock_worker = MagicMock()
     mock_worker.signals = MagicMock()
     mock_run_ctrl.create_worker.return_value = mock_worker
     from lb_app.api import RunJournal
+
     mock_run_ctrl.build_journal.return_value = RunJournal(run_id="r1", tasks={})
 
     dashboard_vm = GUIDashboardViewModel()

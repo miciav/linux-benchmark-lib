@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Sequence, cast, get_args
+from typing import TYPE_CHECKING, cast, get_args
 
-from lb_app.api import AnalyticsService, AnalyticsRequest, AnalyticsKind, RunInfo
+from lb_app.api import AnalyticsKind, AnalyticsRequest, AnalyticsService, RunInfo
 
 if TYPE_CHECKING:
     pass
@@ -39,6 +40,7 @@ class AnalyticsServiceWrapper:
 
         Returns:
             List of paths to generated artifacts
+
         """
         request = AnalyticsRequest(
             run=run_info,

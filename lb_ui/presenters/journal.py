@@ -7,8 +7,7 @@ from lb_ui.tui.system.models import TableModel
 
 
 def build_journal_summary(journal: RunJournal) -> tuple[list[str], list[list[str]]]:
-    """
-    Summarize run progress by host/workload collapsing repetitions.
+    """Summarize run progress by host/workload collapsing repetitions.
 
     Returns column headers and row data for a compact table (without TableModel).
     """

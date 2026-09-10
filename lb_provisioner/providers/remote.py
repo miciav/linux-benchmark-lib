@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from lb_provisioner.models.types import (
     MAX_NODES,
     ProvisionedNode,
@@ -15,7 +13,7 @@ from lb_provisioner.models.types import (
 class RemoteProvisioner:
     """Return pre-configured remote hosts without side effects."""
 
-    def provision(self, request: ProvisioningRequest) -> List[ProvisionedNode]:
+    def provision(self, request: ProvisioningRequest) -> list[ProvisionedNode]:
         hosts = request.remote_hosts or []
         if not hosts:
             raise ProvisioningError("Remote provisioning requires remote_hosts")

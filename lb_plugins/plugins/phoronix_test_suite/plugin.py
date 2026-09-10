@@ -1,5 +1,4 @@
-"""
-Phoronix Test Suite (PTS) workload bundle.
+"""Phoronix Test Suite (PTS) workload bundle.
 
 This module exposes multiple `WorkloadPlugin` instances, one per configured PTS
 test-profile or test-suite. New profiles can be added by editing `pts_workloads.yaml`.
@@ -7,6 +6,7 @@ test-profile or test-suite. New profiles can be added by editing `pts_workloads.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -16,14 +16,14 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import Any
 
 import yaml
 from pydantic import Field, model_validator
 
-from ...base_generator import CommandGenerator
-from ...interface import BasePluginConfig, WorkloadPlugin
-from ...utils.csv_export import write_csv_rows
+from lb_plugins.base_generator import CommandGenerator
+from lb_plugins.interface import BasePluginConfig, WorkloadPlugin
+from lb_plugins.utils.csv_export import write_csv_rows
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,14 @@ def _ensure_trailing_sep(path_value: str) -> str:
     stripped = path_value.strip()
     if not stripped:
         return stripped
-    expanded = os.path.expanduser(stripped)
+    # PTH111 deliberately not applied. pathlib's expanduser() is NOT equivalent
+    # to os.path.expanduser() here, and this value comes from the user's
+    # home_root config:
+    #   - Path("~nosuchuser/x").expanduser() raises RuntimeError, whereas
+    #     os.path.expanduser() returns the path unchanged
+    #   - Path() also collapses redundant separators ("/a//b" -> "/a/b")
+    # Both would change behaviour for a user-supplied home_root.
+    expanded = os.path.expanduser(stripped)  # noqa: PTH111
     return expanded if expanded.endswith(os.sep) else expanded + os.sep
 
 
@@ -46,9 +53,7 @@ def _looks_like_menu_prompt(line: str) -> bool:
     lower = line.lower()
     if "multiple items can be selected" in lower:
         return True
-    if "test configuration" in lower and ("1:" in line or "2:" in line):
-        return True
-    return False
+    return "test configuration" in lower and ("1:" in line or "2:" in line)
 
 
 @dataclass(frozen=True)
@@ -57,7 +62,7 @@ class PtsDefaults:
 
     binary: str
     deb_relpath: str
-    apt_packages: List[str]
+    apt_packages: list[str]
     # PTS_USER_PATH_OVERRIDE (directory with trailing slash).
     home_root: str
 
@@ -69,16 +74,16 @@ class PtsWorkloadSpec:
     profile: str
     plugin_name: str
     description: str
-    tags: List[str]
-    args: List[str]
-    apt_packages: List[str]
-    expected_runtime_seconds: Optional[int]
+    tags: list[str]
+    args: list[str]
+    apt_packages: list[str]
+    expected_runtime_seconds: int | None
 
 
 class _PtsManifestParser:
     """Parse PTS workload manifest YAML into defaults and workload specs."""
 
-    def parse(self, path: Path) -> tuple[PtsDefaults, List[PtsWorkloadSpec]]:
+    def parse(self, path: Path) -> tuple[PtsDefaults, list[PtsWorkloadSpec]]:
         data = self._load_yaml(path)
         defaults = self._parse_defaults(data)
         specs = self._parse_workloads(data)
@@ -116,14 +121,11 @@ class _PtsManifestParser:
             home_root=_ensure_trailing_sep(home_root),
         )
 
-    def _parse_workloads(self, data: dict[str, Any]) -> List[PtsWorkloadSpec]:
+    def _parse_workloads(self, data: dict[str, Any]) -> list[PtsWorkloadSpec]:
         raw_workloads = data.get("workloads") or []
         if not isinstance(raw_workloads, list):
             raise ValueError("workloads must be a list")
-        specs: List[PtsWorkloadSpec] = []
-        for item in raw_workloads:
-            specs.append(self._parse_workload_entry(item))
-        return specs
+        return [self._parse_workload_entry(item) for item in raw_workloads]
 
     def _parse_workload_entry(self, item: Any) -> PtsWorkloadSpec:
         if isinstance(item, str):
@@ -177,7 +179,7 @@ class _PtsManifestParser:
         )
 
     @staticmethod
-    def _parse_expected_runtime_seconds(value: Any, profile: str) -> Optional[int]:
+    def _parse_expected_runtime_seconds(value: Any, profile: str) -> int | None:
         if value is None:
             return None
         if not isinstance(value, int):
@@ -187,13 +189,13 @@ class _PtsManifestParser:
         return value
 
     @staticmethod
-    def _require_string_list(value: Any, error: str) -> List[str]:
+    def _require_string_list(value: Any, error: str) -> list[str]:
         if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
             raise ValueError(error)
         return list(value)
 
     @staticmethod
-    def _validate_unique_names(specs: List[PtsWorkloadSpec]) -> None:
+    def _validate_unique_names(specs: list[PtsWorkloadSpec]) -> None:
         names = [spec.plugin_name for spec in specs]
         dupes = {name for name in names if names.count(name) > 1}
         if dupes:
@@ -221,13 +223,13 @@ class PhoronixConfig(BasePluginConfig):
         ge=0,
         description="Hard timeout for the PTS command; 0 disables.",
     )
-    extra_args: List[str] = Field(
+    extra_args: list[str] = Field(
         default_factory=list,
         description="Additional arguments appended to the PTS command.",
     )
 
     @model_validator(mode="after")
-    def _require_batch_mode(self) -> "PhoronixConfig":
+    def _require_batch_mode(self) -> PhoronixConfig:
         if not self.batch_mode:
             raise ValueError("PTS workloads require batch mode (batch_mode=True).")
         return self
@@ -282,7 +284,7 @@ class PtsResultParser:
 
     def build_success_result(
         self,
-        cmd: List[str],
+        cmd: list[str],
         rc: int,
         output: str,
         pts_result_dir: str | None,
@@ -301,7 +303,7 @@ class PtsResultParser:
 
     def build_error_result(
         self,
-        cmd: List[str],
+        cmd: list[str],
         error_type: str,
         message: str,
         start: float,
@@ -331,9 +333,9 @@ class PhoronixGenerator(CommandGenerator):
         binary: str,
         profile: str,
         home_root: str,
-        profile_args: List[str],
-        system_packages: List[str],
-        expected_runtime_seconds: Optional[int],
+        profile_args: list[str],
+        system_packages: list[str],
+        expected_runtime_seconds: int | None,
         name: str,
     ):
         super().__init__(name, config)
@@ -348,14 +350,13 @@ class PhoronixGenerator(CommandGenerator):
     def _validate_environment(self) -> bool:
         return shutil.which(self.binary) is not None
 
-    def _batch_config_paths(self, pts_user_path: str) -> List[Path]:
+    def _batch_config_paths(self, pts_user_path: str) -> list[Path]:
         # If running as root and /etc is writable, PTS stores config globally.
         # Otherwise it stores per-user under PTS_USER_PATH.
-        candidates = [
+        return [
             Path("/etc/phoronix-test-suite.xml"),
             Path(pts_user_path) / "user-config.xml",
         ]
-        return candidates
 
     def _is_batch_configured(self, pts_user_path: str) -> bool:
         for candidate in self._batch_config_paths(pts_user_path):
@@ -369,7 +370,7 @@ class PhoronixGenerator(CommandGenerator):
                 return True
         return False
 
-    def _require_batch_setup(self, env: Dict[str, str]) -> None:
+    def _require_batch_setup(self, env: dict[str, str]) -> None:
         pts_user_path = env.get("PTS_USER_PATH_OVERRIDE", "")
         if not pts_user_path:
             return
@@ -380,10 +381,10 @@ class PhoronixGenerator(CommandGenerator):
             "`phoronix-test-suite batch-setup` before executing workloads."
         )
 
-    def _is_profile_installed(self, env: Dict[str, str]) -> bool:
+    def _is_profile_installed(self, env: dict[str, str]) -> bool:
         return self._profile_in_user_path(env) or self._profile_in_cli(env)
 
-    def _profile_in_user_path(self, env: Dict[str, str]) -> bool:
+    def _profile_in_user_path(self, env: dict[str, str]) -> bool:
         pts_user_path = env.get("PTS_USER_PATH_OVERRIDE", "")
         if not pts_user_path:
             return False
@@ -396,7 +397,7 @@ class PhoronixGenerator(CommandGenerator):
         ]
         return any(path.exists() for path in candidates)
 
-    def _profile_in_cli(self, env: Dict[str, str]) -> bool:
+    def _profile_in_cli(self, env: dict[str, str]) -> bool:
         profile = self.profile.strip().lower()
         if not profile:
             return False
@@ -406,7 +407,7 @@ class PhoronixGenerator(CommandGenerator):
                 return True
         return False
 
-    def _run_pts_list(self, subcommand: str, env: Dict[str, str]) -> str | None:
+    def _run_pts_list(self, subcommand: str, env: dict[str, str]) -> str | None:
         try:
             res = subprocess.run(
                 [self.binary, subcommand],
@@ -426,7 +427,7 @@ class PhoronixGenerator(CommandGenerator):
     def _profile_in_output(output: str, profile: str) -> bool:
         return any(profile in line.lower() for line in output.splitlines())
 
-    def _check_system_packages(self, env: Dict[str, str]) -> None:
+    def _check_system_packages(self, env: dict[str, str]) -> None:
         missing = self._missing_system_packages(env)
         if missing:
             raise RuntimeError(
@@ -435,19 +436,19 @@ class PhoronixGenerator(CommandGenerator):
                 "Run the plugin setup phase before executing workloads."
             )
 
-    def _missing_system_packages(self, env: Dict[str, str]) -> list[str]:
+    def _missing_system_packages(self, env: dict[str, str]) -> list[str]:
         if not self.system_packages:
             return []
         if shutil.which("dpkg-query") is None:
             return []
-        missing: list[str] = []
-        for pkg in sorted(set(self.system_packages)):
-            if not self._is_package_installed(pkg, env):
-                missing.append(pkg)
-        return missing
+        return [
+            pkg
+            for pkg in sorted(set(self.system_packages))
+            if not self._is_package_installed(pkg, env)
+        ]
 
     @staticmethod
-    def _is_package_installed(pkg: str, env: Dict[str, str]) -> bool:
+    def _is_package_installed(pkg: str, env: dict[str, str]) -> bool:
         res = subprocess.run(
             ["dpkg-query", "-W", "-f=${Status}", pkg],
             env=env,
@@ -459,8 +460,7 @@ class PhoronixGenerator(CommandGenerator):
         return res.returncode == 0 and "install ok installed" in (res.stdout or "")
 
     def prepare(self) -> None:
-        """
-        Validate that setup ran before workload execution.
+        """Validate that setup ran before workload execution.
 
         Installations must happen in the setup phase, not during workload runs.
         """
@@ -485,13 +485,13 @@ class PhoronixGenerator(CommandGenerator):
                 "Run the plugin setup phase before executing workloads."
             )
 
-    def _build_command_for(self, subcommand: str) -> List[str]:
+    def _build_command_for(self, subcommand: str) -> list[str]:
         cmd = [self.binary, subcommand, self.profile]
         cmd.extend(self.profile_args)
         cmd.extend(self.config.extra_args)
         return cmd
 
-    def _build_command(self) -> List[str]:
+    def _build_command(self) -> list[str]:
         return self._build_command_for("batch-benchmark")
 
     def _run_command(self) -> None:
@@ -528,7 +528,7 @@ class PhoronixGenerator(CommandGenerator):
 
     def _run_pts_process(
         self,
-        cmd: List[str],
+        cmd: list[str],
         env: dict[str, str],
         start: float,
     ) -> tuple[int, str]:
@@ -559,13 +559,13 @@ class PhoronixGenerator(CommandGenerator):
 
     def _collect_process_output(
         self,
-        cmd: List[str],
+        cmd: list[str],
         deadline: float | None,
-    ) -> List[str]:
+    ) -> list[str]:
         proc = self._process
         assert proc is not None
         assert proc.stdout is not None
-        output_lines: List[str] = []
+        output_lines: list[str] = []
         menu_responses = 0
         while True:
             self._raise_on_timeout(cmd, deadline)
@@ -577,12 +577,12 @@ class PhoronixGenerator(CommandGenerator):
                 menu_responses = self._maybe_handle_menu_prompt(line, menu_responses)
         return output_lines
 
-    def _raise_on_timeout(self, cmd: List[str], deadline: float | None) -> None:
+    def _raise_on_timeout(self, cmd: list[str], deadline: float | None) -> None:
         if deadline and time.time() > deadline:
             raise subprocess.TimeoutExpired(cmd, self.config.timeout_seconds)
 
     @staticmethod
-    def _emit_pts_output(line: str, output_lines: List[str]) -> None:
+    def _emit_pts_output(line: str, output_lines: list[str]) -> None:
         print(line, end="", flush=True)
         output_lines.append(line)
 
@@ -633,10 +633,8 @@ def _force_kill_process(proc: subprocess.Popen[str]) -> None:
     try:
         os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
     except Exception:
-        try:
+        with contextlib.suppress(Exception):
             proc.kill()
-        except Exception:
-            pass
 
 
 class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
@@ -664,7 +662,7 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
         return self._spec.description
 
     @property
-    def config_cls(self) -> Type[BasePluginConfig]:
+    def config_cls(self) -> type[BasePluginConfig]:
         return PhoronixConfig
 
     def create_generator(self, config: BasePluginConfig) -> Any:
@@ -688,13 +686,13 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
             name=f"PTS[{self._spec.profile}]",
         )
 
-    def get_required_local_tools(self) -> List[str]:
+    def get_required_local_tools(self) -> list[str]:
         return [self._defaults.binary]
 
-    def get_ansible_setup_path(self) -> Optional[Path]:
+    def get_ansible_setup_path(self) -> Path | None:
         return self._ansible_setup_path
 
-    def get_ansible_setup_extravars(self) -> Dict[str, Any]:
+    def get_ansible_setup_extravars(self) -> dict[str, Any]:
         combined = sorted(set(self._defaults.apt_packages + self._spec.apt_packages))
         return {
             "pts_profile": self._spec.profile,
@@ -703,19 +701,19 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
             "pts_apt_packages": combined,
         }
 
-    def get_ansible_teardown_path(self) -> Optional[Path]:
+    def get_ansible_teardown_path(self) -> Path | None:
         return self._ansible_teardown_path
 
-    def get_ansible_teardown_extravars(self) -> Dict[str, Any]:
+    def get_ansible_teardown_extravars(self) -> dict[str, Any]:
         return self.get_ansible_setup_extravars()
 
     def export_results_to_csv(
         self,
-        results: List[Dict[str, Any]],
+        results: list[dict[str, Any]],
         output_dir: Path,
         run_id: str,
         test_name: str,
-    ) -> List[Path]:
+    ) -> list[Path]:
         self._copy_result_artifacts(results, output_dir)
         rows = self._build_summary_rows(results, run_id, test_name)
         if not rows:
@@ -738,7 +736,7 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
         return [csv_path]
 
     def _copy_result_artifacts(
-        self, results: List[Dict[str, Any]], output_dir: Path
+        self, results: list[dict[str, Any]], output_dir: Path
     ) -> None:
         for entry in results:
             src_path = self._result_dir_for_entry(entry)
@@ -758,7 +756,7 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
                 )
 
     @staticmethod
-    def _result_dir_for_entry(entry: Dict[str, Any]) -> Optional[Path]:
+    def _result_dir_for_entry(entry: dict[str, Any]) -> Path | None:
         gen_result = entry.get("generator_result") or {}
         rep = entry.get("repetition")
         if not isinstance(rep, int) or rep <= 0:
@@ -773,7 +771,7 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
 
     @staticmethod
     def _build_summary_rows(
-        results: List[Dict[str, Any]],
+        results: list[dict[str, Any]],
         run_id: str,
         test_name: str,
     ) -> list[dict[str, Any]]:
@@ -794,14 +792,13 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
         return rows
 
 
-def _load_manifest(path: Path) -> tuple[PtsDefaults, List[PtsWorkloadSpec]]:
+def _load_manifest(path: Path) -> tuple[PtsDefaults, list[PtsWorkloadSpec]]:
     parser = _PtsManifestParser()
     return parser.parse(path)
 
 
-def get_plugins() -> List[WorkloadPlugin]:
-    """
-    Return virtual PTS workload plugins driven by `pts_workloads.yaml`.
+def get_plugins() -> list[WorkloadPlugin]:
+    """Return virtual PTS workload plugins driven by `pts_workloads.yaml`.
 
     This is intentionally evaluated at registry creation time so editing the YAML
     is sufficient to add/remove workloads.
@@ -810,16 +807,15 @@ def get_plugins() -> List[WorkloadPlugin]:
     defaults, specs = _load_manifest(config_path)
     ansible_setup_path = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     ansible_teardown_path = Path(__file__).parent / "ansible" / "teardown.yml"
-    plugins: List[WorkloadPlugin] = []
-    for spec in specs:
-        plugins.append(
-            PhoronixTestSuiteWorkloadPlugin(
-                spec=spec,
-                defaults=defaults,
-                ansible_setup_path=ansible_setup_path,
-                ansible_teardown_path=ansible_teardown_path,
-            )
+    plugins: list[WorkloadPlugin] = [
+        PhoronixTestSuiteWorkloadPlugin(
+            spec=spec,
+            defaults=defaults,
+            ansible_setup_path=ansible_setup_path,
+            ansible_teardown_path=ansible_teardown_path,
         )
+        for spec in specs
+    ]
     logger.debug(
         "PTS plugin bundle created %s workload(s): %s",
         len(plugins),

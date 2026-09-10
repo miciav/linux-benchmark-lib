@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -12,7 +13,7 @@ import sys
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, cast
+from typing import Any, Protocol, cast
 
 from lb_controller.models.types import ExecutionResult, InventorySpec
 from lb_runner.api import StopToken
@@ -37,9 +38,7 @@ class InventoryWriter:
         inventory_path = inventory.inventory_path
         if inventory_path:
             if not inventory_path.exists():
-                raise FileNotFoundError(
-                    f"Inventory file not found: {inventory_path}"
-                )
+                raise FileNotFoundError(f"Inventory file not found: {inventory_path}")
             return inventory_path
 
         inventory_dir = self._private_data_dir / "inventory"
@@ -49,15 +48,13 @@ class InventoryWriter:
         return inventory_file
 
 
-def render_inventory(hosts: List[Any]) -> str:
+def render_inventory(hosts: list[Any]) -> str:
     """Render an INI inventory from host configs."""
     lines = ["[all]"]
-    for host in hosts:
-        lines.append(host.ansible_host_line())
+    lines.extend(host.ansible_host_line() for host in hosts)
     lines.append("")
     lines.append("[cluster]")
-    for host in hosts:
-        lines.append(host.ansible_host_line())
+    lines.extend(host.ansible_host_line() for host in hosts)
     return "\n".join(lines) + "\n"
 
 
@@ -67,7 +64,7 @@ class ExtravarsWriter:
     def __init__(self, private_data_dir: Path) -> None:
         self._private_data_dir = private_data_dir
 
-    def write(self, extravars: Dict[str, Any]) -> Path:
+    def write(self, extravars: dict[str, Any]) -> Path:
         env_dir = self._private_data_dir / "env"
         env_dir.mkdir(parents=True, exist_ok=True)
         extravars_file = env_dir / "extravars.json"
@@ -82,8 +79,8 @@ class PlaybookCommandBuilder:
     def build(
         abs_playbook_path: Path,
         inventory_path: Path,
-        tags: Optional[List[str]],
-        limit_hosts: Optional[List[str]],
+        tags: list[str] | None,
+        limit_hosts: list[str] | None,
     ) -> list[str]:
         cmd = [
             "ansible-playbook",
@@ -115,7 +112,7 @@ class AnsibleEnvBuilder:
         self._ansible_root = ansible_root
         self._event_debug = event_debug
 
-    def build(self) -> Dict[str, str]:
+    def build(self) -> dict[str, str]:
         repo_roles = (self._ansible_root / "roles").resolve()
         runner_roles = (self._private_data_dir / "roles").resolve()
         callback_dir = (self._ansible_root / "callback_plugins").resolve()
@@ -143,7 +140,7 @@ class AnsibleEnvBuilder:
         return env
 
     @staticmethod
-    def merge_env(envvars: Dict[str, str]) -> Dict[str, str]:
+    def merge_env(envvars: dict[str, str]) -> dict[str, str]:
         env = os.environ.copy()
         env.update(envvars)
         return env
@@ -195,10 +192,8 @@ class ProcessStopController:
             try:
                 proc.terminate()
             except Exception:
-                try:
+                with contextlib.suppress(Exception):
                     proc.kill()
-                except Exception:
-                    pass
         with self._lock:
             self._active_process = None
 
@@ -206,7 +201,7 @@ class ProcessStopController:
 class ProcessOutputStreamer:
     """Stream stdout from a subprocess to a callback or stdout."""
 
-    def __init__(self, output_callback: Optional[Callable[[str, str], None]]) -> None:
+    def __init__(self, output_callback: Callable[[str, str], None] | None) -> None:
         self._output_callback = output_callback
 
     def stream(
@@ -282,7 +277,7 @@ class SubprocessRunner:
     def run(
         self,
         cmd: list[str],
-        env: Dict[str, str],
+        env: dict[str, str],
         *,
         stream_output: bool,
         cancellable: bool,
@@ -292,7 +287,7 @@ class SubprocessRunner:
         return self._run_capture(cmd, env)
 
     def _run_streaming(
-        self, cmd: list[str], env: Dict[str, str], cancellable: bool
+        self, cmd: list[str], env: dict[str, str], cancellable: bool
     ) -> ExecutionResult:
         proc = subprocess.Popen(
             cmd,
@@ -318,7 +313,7 @@ class SubprocessRunner:
         status = "successful" if rc == 0 else "failed"
         return ExecutionResult(rc=rc, status=status, stats={})
 
-    def _run_capture(self, cmd: list[str], env: Dict[str, str]) -> ExecutionResult:
+    def _run_capture(self, cmd: list[str], env: dict[str, str]) -> ExecutionResult:
         completed = subprocess.run(
             cmd,
             cwd=self._private_data_dir,
@@ -352,7 +347,7 @@ class PlaybookProcessRunner(ProcessStopController):
         self,
         private_data_dir: Path,
         stream_output: bool,
-        output_callback: Optional[Callable[[str, str], None]],
+        output_callback: Callable[[str, str], None] | None,
         stop_token: StopToken | None,
     ) -> None:
         super().__init__(stop_token)
@@ -365,7 +360,7 @@ class PlaybookProcessRunner(ProcessStopController):
         )
 
     def run(
-        self, cmd: list[str], env: Dict[str, str], *, cancellable: bool
+        self, cmd: list[str], env: dict[str, str], *, cancellable: bool
     ) -> ExecutionResult:
         return self._runner.run(
             cmd,

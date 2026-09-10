@@ -1,5 +1,4 @@
-"""
-Coordinator for distributed stop protocol.
+"""Coordinator for distributed stop protocol.
 
 Manages the lifecycle of a graceful stop:
 1. Requesting remote runners to stop (via Stop File).
@@ -7,10 +6,9 @@ Manages the lifecycle of a graceful stop:
 3. Deciding whether to proceed to teardown.
 """
 
-import time
 import logging
+import time
 from enum import Enum, auto
-from typing import Set
 
 from lb_runner.api import RunEvent
 
@@ -27,18 +25,20 @@ class StopState(Enum):
 class StopCoordinator:
     def __init__(
         self,
-        expected_runners: Set[str],
+        expected_runners: set[str],
         stop_timeout: float = 30.0,
         run_id: str | None = None,
     ):
-        """
+        """Initialize the stop coordinator.
+
         Args:
-            expected_runners: Set of hostnames expected to confirm stop.
-            stop_timeout: Seconds to wait for confirmations.
-            run_id: Run identifier used to correlate stop events.
+        expected_runners: Set of hostnames expected to confirm stop.
+        stop_timeout: Seconds to wait for confirmations.
+        run_id: Run identifier used to correlate stop events.
+
         """
         self.expected_runners = expected_runners
-        self.confirmed_runners: Set[str] = set()
+        self.confirmed_runners: set[str] = set()
         self.state = StopState.IDLE
         self.stop_timeout = stop_timeout
         self.start_time: float | None = None
@@ -55,8 +55,7 @@ class StopCoordinator:
         # immediately after calling this.
 
     def process_event(self, event: RunEvent) -> None:
-        """
-        Process incoming events to check for stop confirmation.
+        """Process incoming events to check for stop confirmation.
 
         We accept 'stopped', 'failed', or 'cancelled' as confirmation that
         the runner has ceased execution for the current workload.
@@ -76,15 +75,17 @@ class StopCoordinator:
 
         # Check for status indicating the workload has stopped/aborted
         # Note: 'failed' is often emitted on interrupt. 'stopped' is ideal.
-        if event.status.lower() in ("stopped", "failed", "cancelled", "done"):
-            if event.host not in self.confirmed_runners:
-                logger.info(
-                    "Stop confirmed for host: %s (status=%s)",
-                    event.host,
-                    event.status,
-                )
-                self.confirmed_runners.add(event.host)
-                self._check_completion()
+        if (
+            event.status.lower() in ("stopped", "failed", "cancelled", "done")
+            and event.host not in self.confirmed_runners
+        ):
+            logger.info(
+                "Stop confirmed for host: %s (status=%s)",
+                event.host,
+                event.status,
+            )
+            self.confirmed_runners.add(event.host)
+            self._check_completion()
 
     def _check_completion(self) -> None:
         """Check if all expected runners have confirmed."""

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from lb_app.api import RunCatalogService, BenchmarkConfig
+from lb_app.api import BenchmarkConfig, RunCatalogService
 
 if TYPE_CHECKING:
     from lb_common.api import RunInfo
@@ -35,12 +35,12 @@ class RunCatalogServiceWrapper:
             )
         return self._service
 
-    def list_runs(self) -> list["RunInfo"]:
+    def list_runs(self) -> list[RunInfo]:
         """List all available runs."""
         service = self._ensure_configured()
         return list(service.list_runs())
 
-    def get_run(self, run_id: str) -> "RunInfo | None":
+    def get_run(self, run_id: str) -> RunInfo | None:
         """Get a specific run by ID."""
         service = self._ensure_configured()
         return service.get_run(run_id)

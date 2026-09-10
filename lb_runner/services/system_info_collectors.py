@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import platform
@@ -9,10 +10,11 @@ import shutil
 import socket
 import subprocess
 import sys
+from collections.abc import Iterable
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from lb_runner.services.system_info_types import (
     DiskInfo,
@@ -165,10 +167,8 @@ def _collect_disks() -> list[DiskInfo]:
                 rota_path = entry / "queue" / "rotational"
                 rota = None
                 if rota_path.exists():
-                    try:
+                    with contextlib.suppress(Exception):
                         rota = rota_path.read_text().strip() == "1"
-                    except Exception:
-                        pass
                 disks.append(DiskInfo(name=entry.name, rotational=rota))
     return disks
 
@@ -233,7 +233,9 @@ def _is_link_layer_family(family: Any) -> bool:
         getattr(psutil, "AF_LINK", None) if psutil else None,
         getattr(socket, "AF_PACKET", None),
     ]
-    return any(candidate is not None and family == candidate for candidate in candidates)
+    return any(
+        candidate is not None and family == candidate for candidate in candidates
+    )
 
 
 def _collect_pci() -> list[PciDevice]:
@@ -354,7 +356,7 @@ def _calculate_fingerprint(info: SystemInfo) -> str:
 
 def collect_system_info() -> SystemInfo:
     """Collect system information into a structured dataclass."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     uname = platform.uname()
     os_release = _read_os_release()
     host = uname.node or platform.node() or ""

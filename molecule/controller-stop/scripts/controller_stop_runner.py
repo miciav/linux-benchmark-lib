@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from pathlib import Path
@@ -102,24 +103,21 @@ def run_controller(stop_at: str | None) -> dict[str, bool]:
     def _patched_handle(inventory, extravars, log_fn):
         patched = extravars.copy()
         patched["lb_workdir"] = str(lb_workdir)
-        try:
+        with contextlib.suppress(Exception):
             (lb_workdir / "STOP").touch()
-        except Exception:
-            pass
         return True
 
     controller._handle_stop_protocol = _patched_handle  # type: ignore[attr-defined]
 
     summary = controller.run(test_types=["dummy"], run_id=run_id)
     run_path = out / run_id
-    markers = {
+    return {
         "setup": (run_path / "setup_marker").exists(),
         "run_start": (run_path / "run_start").exists(),
         "run_done": (run_path / "run_done").exists(),
         "teardown": (run_path / "teardown_marker").exists(),
         "success": summary.success,
     }
-    return markers
 
 
 def run_all_cases() -> dict[str, dict[str, bool]]:

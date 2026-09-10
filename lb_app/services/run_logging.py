@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from typing import IO, Callable
+from collections.abc import Callable
+from typing import IO
 
-from lb_controller.api import ControllerState
 from lb_app.services.run_types import StopAnnouncer, _RemoteSession
 from lb_app.ui_interfaces import DashboardHandle, UIAdapter
+from lb_controller.api import ControllerState
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +17,12 @@ logger = logging.getLogger(__name__)
 def _write_log_files(
     log_file: IO[str], ui_stream_log_file: IO[str] | None, message: str
 ) -> None:
-    try:
+    with contextlib.suppress(Exception):
         log_file.write(message + "\n")
         log_file.flush()
         if ui_stream_log_file:
             ui_stream_log_file.write(message + "\n")
             ui_stream_log_file.flush()
-    except Exception:
-        pass
 
 
 def _emit_ui_message(
@@ -39,12 +39,12 @@ def _emit_ui_message(
     dashboard_emitted = False
     if dashboard_warning or not ui_emitted:
         dashboard_emitted = _emit_via_dashboard(
-        dashboard,
-        message,
-        dashboard_message=dashboard_message,
-        dashboard_warning=dashboard_warning,
-        ttl=ttl,
-    )
+            dashboard,
+            message,
+            dashboard_message=dashboard_message,
+            dashboard_warning=dashboard_warning,
+            ttl=ttl,
+        )
     if ui_emitted or dashboard_emitted:
         return
     print(message)
@@ -81,10 +81,8 @@ def _emit_via_dashboard(
             dashboard.add_log(msg)
     except Exception:
         pass
-    try:
+    with contextlib.suppress(Exception):
         dashboard.refresh()
-    except Exception:
-        pass
     return True
 
 
@@ -110,10 +108,8 @@ def announce_stop_factory(
         if stop_announced["value"]:
             return
         stop_announced["value"] = True
-        try:
+        with contextlib.suppress(Exception):
             session.controller_state.transition(ControllerState.STOP_ARMED, reason=msg)
-        except Exception:
-            pass
         display_msg, log_msg = hint_factory(msg)
         logger.info("%s", log_msg)
         _emit_ui_message(

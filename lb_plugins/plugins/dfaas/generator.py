@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
+from lb_plugins.base_generator import BaseGenerator
+
 from .config import DfaasConfig
 from .context import ExecutionContext
 from .services import (
@@ -20,7 +22,6 @@ from .services import (
 )
 from .services.k6_runner import K6Runner
 from .services.plan_builder import parse_duration_seconds
-from ...base_generator import BaseGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +104,7 @@ class DfaasGenerator(BaseGenerator):
                 logger.error("Required tool missing: %s", tool)
                 return False
         # Resolve k6_ssh_key; fall back to standard remote path.
-        if not self._resolve_k6_ssh_key():
-            return False
-        return True
+        return self._resolve_k6_ssh_key()
 
     def _resolve_k6_ssh_key(self) -> bool:
         """Resolve k6_ssh_key path, trying fallback locations for remote execution."""
@@ -210,7 +209,7 @@ class DfaasGenerator(BaseGenerator):
         return outputs
 
     def _get_function_replicas(self, function_names: list[str]) -> dict[str, int]:
-        replicas = {name: 0 for name in function_names}
+        replicas = dict.fromkeys(function_names, 0)
         # Use the resolved gateway URL (same as K6Runner uses)
         resolved_gateway = self._k6_runner.gateway_url
         cmd = [
@@ -231,7 +230,7 @@ class DfaasGenerator(BaseGenerator):
     def _parse_faas_cli_replicas(
         self, output: str, function_names: list[str]
     ) -> dict[str, int]:
-        replicas = {name: 0 for name in function_names}
+        replicas = dict.fromkeys(function_names, 0)
         lines = [line for line in output.splitlines() if line.strip()]
         if not lines:
             return replicas

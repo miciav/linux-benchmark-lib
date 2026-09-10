@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 import math
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,7 @@ class CooldownManager:
             idle_threshold_pct: Percentage threshold above baseline (0-100)
             metrics_provider: Function that returns current MetricsSnapshot
             replicas_provider: Function that returns replica counts by function name
+
         """
         self.max_wait_seconds = max_wait_seconds
         self.sleep_step_seconds = sleep_step_seconds
@@ -91,6 +92,7 @@ class CooldownManager:
 
         Raises:
             CooldownTimeoutError: If max_wait_seconds exceeded
+
         """
         waited = 0
         iterations = 0
@@ -153,6 +155,7 @@ class CooldownManager:
         Returns:
             True if value <= baseline + (baseline * threshold_pct)
             Also returns True if either value is NaN
+
         """
         if math.isnan(baseline) or math.isnan(value):
             return True
@@ -169,6 +172,7 @@ def within_threshold(value: float, baseline: float, threshold_pct: float) -> boo
 
     Returns:
         True if value is within threshold of baseline
+
     """
     if math.isnan(baseline) or math.isnan(value):
         return True

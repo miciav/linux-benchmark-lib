@@ -8,7 +8,7 @@ import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 from lb_plugins.discovery import resolve_user_plugin_dir
 
@@ -24,8 +24,8 @@ class PluginInstaller:
 
     def install(
         self,
-        source_path: Union[Path, str],
-        manifest_path: Optional[Path] = None,
+        source_path: Path | str,
+        manifest_path: Path | None = None,
         force: bool = False,
     ) -> str:
         """Install a plugin from file/dir/archive/git URL."""
@@ -84,7 +84,7 @@ class PluginInstaller:
         return found
 
     def _install_file(
-        self, py_path: Path, manifest_path: Optional[Path], force: bool
+        self, py_path: Path, manifest_path: Path | None, force: bool
     ) -> str:
         target_py = self.plugin_dir / py_path.name
         if target_py.exists() and not force:

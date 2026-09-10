@@ -6,9 +6,10 @@ import types
 
 import pytest
 
-from lb_runner.api import system_info_module as sysinfo, write_outputs
-from lb_runner.services import system_info_collectors as collectors
 from lb_app.api import summarize_system_info
+from lb_runner.api import system_info_module as sysinfo
+from lb_runner.api import write_outputs
+from lb_runner.services import system_info_collectors as collectors
 
 pytestmark = [pytest.mark.unit_runner]
 

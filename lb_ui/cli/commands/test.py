@@ -6,13 +6,12 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List
 
 import typer
 
-from lb_ui.wiring.dependencies import UIContext
-from lb_ui.tui.system.models import PickItem
 from lb_app.api import create_registry
+from lb_ui.tui.system.models import PickItem
+from lb_ui.wiring.dependencies import UIContext
 
 
 def _module_available(name: str) -> bool:
@@ -75,7 +74,7 @@ def create_test_app(ctx: UIContext) -> typer.Typer:
         else:
             registry = create_registry()
             names = sorted(registry.available().keys())
-            options = list(dict.fromkeys(names + ["multi"]).keys())
+            options = list(dict.fromkeys([*names, "multi"]).keys())
 
             items = []
             for opt in options:
@@ -116,7 +115,7 @@ def create_test_app(ctx: UIContext) -> typer.Typer:
             env[key] = value
 
         extra_args = list(typer_ctx.args) if typer_ctx.args else []
-        cmd: List[str] = [sys.executable, "-m", "pytest", scenario.target]
+        cmd: list[str] = [sys.executable, "-m", "pytest", scenario.target]
         if extra_args:
             cmd.extend(extra_args)
 
@@ -131,7 +130,7 @@ def create_test_app(ctx: UIContext) -> typer.Typer:
             result = subprocess.run(cmd, check=False, env=env)
         except Exception as exc:
             ctx.ui.present.error(f"Failed to launch Multipass test: {exc}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
 
         if result.returncode != 0:
             ctx.ui.present.error(f"`pytest` exited with {result.returncode}")

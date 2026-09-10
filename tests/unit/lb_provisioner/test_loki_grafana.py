@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 
 from lb_plugins.observability import (
@@ -46,7 +48,7 @@ class DummyGrafanaClient:
 
 
 class TokenGrafanaClient(DummyGrafanaClient):
-    instances: list["TokenGrafanaClient"] = []
+    instances: ClassVar[list[TokenGrafanaClient]] = []
 
     def __init__(
         self,
@@ -110,7 +112,7 @@ def test_configure_grafana_uses_assets() -> None:
 
 
 def test_configure_grafana_requires_api_key() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="API key or admin credentials"):
         configure_grafana(
             grafana_url="http://grafana:3000",
             grafana_api_key=None,

@@ -3,10 +3,8 @@ import time
 
 import pytest
 
-from lb_controller.api import ControllerRunner
-from lb_controller.api import ControllerState
+from lb_controller.api import ControllerRunner, ControllerState
 from lb_runner.api import StopToken
-
 
 pytestmark = pytest.mark.unit_controller
 

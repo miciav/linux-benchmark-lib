@@ -10,7 +10,6 @@ from lb_app.api import (
 )
 from lb_provisioner.api import ProvisionedNode, ProvisioningError, ProvisioningResult
 
-
 pytestmark = pytest.mark.unit_ui
 
 

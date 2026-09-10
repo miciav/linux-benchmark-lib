@@ -9,9 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from lb_runner.api import RemoteHostConfig
-
 from lb_controller.services.journal import RunJournal, RunStatus, TaskState
+from lb_runner.api import RemoteHostConfig
 
 logger = logging.getLogger(__name__)
 

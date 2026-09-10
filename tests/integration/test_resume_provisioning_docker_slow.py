@@ -17,7 +17,6 @@ from lb_app.api import (
 )
 from lb_controller.api import ExecutionResult
 
-
 pytestmark = [pytest.mark.inter_docker, pytest.mark.slow]
 
 

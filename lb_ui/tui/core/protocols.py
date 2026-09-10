@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import IO, ContextManager, Protocol, Sequence, TYPE_CHECKING
+from collections.abc import Sequence
+from contextlib import AbstractContextManager
+from typing import IO, TYPE_CHECKING, Protocol
 
 from lb_ui.tui.system.models import PickItem, SelectionNode, TableModel
 
@@ -80,11 +82,11 @@ class Form(Protocol):
 
 
 class Progress(Protocol):
-    def status(self, message: str) -> ContextManager[None]: ...
+    def status(self, message: str) -> AbstractContextManager[None]: ...
 
 
 class Dashboard(Protocol):
-    def live(self) -> ContextManager[None]: ...
+    def live(self) -> AbstractContextManager[None]: ...
 
     def add_log(self, line: str) -> None: ...
 
@@ -102,7 +104,7 @@ class Dashboard(Protocol):
 class DashboardFactory(Protocol):
     def create(
         self,
-        viewmodel: "DashboardViewModel",
+        viewmodel: DashboardViewModel,
         ui_log_file: IO[str] | None = None,
     ) -> Dashboard: ...
 

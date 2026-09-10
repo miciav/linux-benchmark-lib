@@ -9,7 +9,6 @@ from lb_plugins.api import WorkloadIntensity, WorkloadPlugin
 from lb_runner.api import BenchmarkConfig, WorkloadConfig
 from lb_runner.engine.planning import RunPlanner
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
 
@@ -71,7 +70,9 @@ class TestRunPlannerRepetitions:
     def test_select_repetitions_rejects_zero(self, tmp_path: Path) -> None:
         """Repetition 0 is rejected."""
         planner = _make_planner(tmp_path)
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            ValueError, match="Repetition index must be a positive integer"
+        ):
             planner.select_repetitions(None, [0])
 
 

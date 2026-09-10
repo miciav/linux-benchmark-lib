@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, cast
 
 from lb_controller.adapters.ansible_helpers import (
     AnsibleEnvBuilder,
@@ -26,14 +27,13 @@ class AnsibleRunnerExecutor(RemoteExecutor):
 
     def __init__(
         self,
-        private_data_dir: Optional[Path] = None,
-        runner_fn: Optional[Callable[..., Any]] = None,
+        private_data_dir: Path | None = None,
+        runner_fn: Callable[..., Any] | None = None,
         stream_output: bool = False,
-        output_callback: Optional[Callable[[str, str], None]] = None,
+        output_callback: Callable[[str, str], None] | None = None,
         stop_token: StopToken | None = None,
     ):
-        """
-        Initialize the executor.
+        """Initialize the executor.
 
         Args:
             private_data_dir: Directory used by ansible-runner.
@@ -43,6 +43,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
                 process (useful for visibility in long-running tasks).
             output_callback: Optional callback to handle stdout stream.
                              Signature: (text: str, end: str) -> None
+
         """
         self.private_data_dir = private_data_dir or Path(".ansible_runner")
         self.private_data_dir.mkdir(parents=True, exist_ok=True)
@@ -86,9 +87,9 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         self,
         playbook_path: Path,
         inventory: InventorySpec,
-        extravars: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        limit_hosts: Optional[List[str]] = None,
+        extravars: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+        limit_hosts: list[str] | None = None,
         *,
         cancellable: bool = True,
     ) -> ExecutionResult:
@@ -148,17 +149,14 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         self,
         abs_playbook_path: Path,
         inventory_path: Path,
-        extravars: Dict[str, Any],
-        tags: Optional[List[str]],
-        envvars: Dict[str, str],
-        limit_hosts: Optional[List[str]] = None,
+        extravars: dict[str, Any],
+        tags: list[str] | None,
+        envvars: dict[str, str],
+        limit_hosts: list[str] | None = None,
         *,
         cancellable: bool = True,
     ) -> ExecutionResult:
-        """
-        Execute ansible-playbook via subprocess to avoid ansible-runner's
-        awx_display callback.
-        """
+        """Run ansible-playbook via subprocess, bypassing ansible-runner callbacks."""
         cmd = self._command_builder.build(
             abs_playbook_path, inventory_path, tags, limit_hosts
         )
@@ -171,7 +169,7 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         return self._process_runner.run(cmd, env, cancellable=cancellable)
 
     @staticmethod
-    def _log_subprocess_command(cmd: list[str], envvars: Dict[str, str]) -> None:
+    def _log_subprocess_command(cmd: list[str], envvars: dict[str, str]) -> None:
         logger.debug("Executing Ansible command: %s", " ".join(cmd))
         logger.debug("Ansible Env: %s", envvars)
 
@@ -202,9 +200,9 @@ class AnsibleRunnerExecutor(RemoteExecutor):
 
     @staticmethod
     def _merge_extravars(
-        extravars: Optional[Dict[str, Any]],
+        extravars: dict[str, Any] | None,
         inventory_path: Path,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         merged = extravars.copy() if extravars else {}
         merged.setdefault("_lb_inventory_path", str(inventory_path))
         return merged
@@ -215,10 +213,10 @@ class AnsibleRunnerExecutor(RemoteExecutor):
         runner_fn: Callable[..., Any],
         abs_playbook_path: Path,
         inventory_path: Path,
-        extravars: Dict[str, Any],
-        tags: Optional[List[str]],
-        envvars: Dict[str, str],
-        limit_hosts: Optional[List[str]],
+        extravars: dict[str, Any],
+        tags: list[str] | None,
+        envvars: dict[str, str],
+        limit_hosts: list[str] | None,
         cancellable: bool,
     ) -> Any:
         if self._runner_fn:

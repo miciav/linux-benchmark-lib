@@ -9,24 +9,24 @@ from unittest.mock import Mock
 
 import pytest
 
-from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
-from lb_plugins.plugins.peva_faas.context import ExecutionContext
-from lb_plugins.plugins.peva_faas.services.k6_runner import K6Runner
-from lb_plugins.plugins.peva_faas.services.annotation_service import (
-    DfaasAnnotationService,
-)
-from lb_plugins.plugins.peva_faas.services.plan_builder import (
-    DfaasPlanBuilder,
-    dominates,
-    generate_configurations,
-    generate_rates_list,
-)
 from lb_plugins.plugins._faas_shared import plan_builder as shared_plan_builder
 from lb_plugins.plugins.peva_faas.config import (
     DfaasCombinationConfig,
     DfaasConfig,
     DfaasFunctionConfig,
     LinearRateStrategy,
+)
+from lb_plugins.plugins.peva_faas.context import ExecutionContext
+from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
+from lb_plugins.plugins.peva_faas.services.annotation_service import (
+    DfaasAnnotationService,
+)
+from lb_plugins.plugins.peva_faas.services.k6_runner import K6Runner
+from lb_plugins.plugins.peva_faas.services.plan_builder import (
+    DfaasPlanBuilder,
+    dominates,
+    generate_configurations,
+    generate_rates_list,
 )
 
 pytestmark = [pytest.mark.unit_plugins]
@@ -196,8 +196,9 @@ def test_peva_faas_annotations_emit_grafana_tags(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Annotation service should create Grafana annotations for run events."""
-    from lb_plugins.plugins.peva_faas.config import DfaasConfig, GrafanaConfig
     from unittest.mock import MagicMock
+
+    from lb_plugins.plugins.peva_faas.config import DfaasConfig, GrafanaConfig
 
     config = DfaasConfig(
         grafana=GrafanaConfig(enabled=True, url="http://grafana", api_key="key"),
@@ -241,8 +242,8 @@ def test_peva_faas_annotations_emit_grafana_tags(
 
 
 def test_k6_log_event_skips_when_lb_event_handler_present() -> None:
-    from lb_runner.services.log_handler import LBEventLogHandler
     from lb_plugins.plugins.peva_faas.services.log_manager import DfaasLogManager
+    from lb_runner.services.log_handler import LBEventLogHandler
 
     cfg = DfaasConfig()
     exec_ctx = ExecutionContext(

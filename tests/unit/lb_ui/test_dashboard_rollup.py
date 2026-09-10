@@ -6,7 +6,6 @@ import pytest
 
 from lb_ui.tui.system.components.dashboard_rollup import PollingRollupHelper
 
-
 pytestmark = pytest.mark.unit_ui
 
 

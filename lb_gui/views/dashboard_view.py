@@ -14,12 +14,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from lb_gui.widgets import JournalTable, LogViewer, PlanTable, RunStatusBar
 from lb_gui.utils import set_widget_role
+from lb_gui.widgets import JournalTable, LogViewer, PlanTable, RunStatusBar
 
 if TYPE_CHECKING:
-    from lb_gui.viewmodels.dashboard_vm import GUIDashboardViewModel
     from lb_app.api import DashboardSnapshot
+    from lb_gui.viewmodels.dashboard_vm import GUIDashboardViewModel
 
 
 class DashboardView(QWidget):
@@ -27,7 +27,7 @@ class DashboardView(QWidget):
 
     def __init__(
         self,
-        viewmodel: "GUIDashboardViewModel",
+        viewmodel: GUIDashboardViewModel,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -122,7 +122,7 @@ class DashboardView(QWidget):
 
     # Slots for viewmodel signals
 
-    def _on_snapshot_changed(self, snapshot: "DashboardSnapshot") -> None:
+    def _on_snapshot_changed(self, snapshot: DashboardSnapshot) -> None:
         """Handle snapshot update."""
         # Update run ID
         self._run_id_label.setText(f"Run: {snapshot.run_id}")

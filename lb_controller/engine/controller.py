@@ -7,23 +7,21 @@ execution to Ansible Runner.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional
 
-from lb_runner.api import BenchmarkConfig, RunEvent
-
-from lb_controller.engine.stops import StopCoordinator
-from lb_controller.models.state import ControllerStateMachine
-from lb_controller.services.journal import RunJournal
 from lb_controller.engine.lifecycle import RunLifecycle
-from lb_controller.engine.session_builder import RunSessionBuilder
-from lb_controller.models.types import RunExecutionSummary
-from lb_controller.models.controller_options import ControllerOptions
-from lb_controller.services.services import ControllerServices
 from lb_controller.engine.session import RunSession
+from lb_controller.engine.session_builder import RunSessionBuilder
+from lb_controller.engine.stops import StopCoordinator
+from lb_controller.models.controller_options import ControllerOptions
+from lb_controller.models.state import ControllerStateMachine
+from lb_controller.models.types import RunExecutionSummary
+from lb_controller.services.journal import RunJournal
 from lb_controller.services.run_orchestrator import RunOrchestrator
+from lb_controller.services.services import ControllerServices
 from lb_controller.services.teardown_service import TeardownService
 from lb_controller.services.ui_notifier import UINotifier
 from lb_controller.services.workload_runner import WorkloadRunner
+from lb_runner.api import BenchmarkConfig, RunEvent
 
 
 class BenchmarkController:
@@ -69,7 +67,7 @@ class BenchmarkController:
             ui_notifier=self._ui,
         )
         self.teardown_service = TeardownService()
-        self._current_session: Optional[RunSession] = None
+        self._current_session: RunSession | None = None
         self._session_builder = RunSessionBuilder(
             config=self.config,
             state_machine=self.state_machine,
@@ -95,14 +93,13 @@ class BenchmarkController:
 
     def run(
         self,
-        test_types: List[str],
-        run_id: Optional[str] = None,
-        journal: Optional[RunJournal] = None,
+        test_types: list[str],
+        run_id: str | None = None,
+        journal: RunJournal | None = None,
         resume: bool = False,
-        journal_path: Optional[Path] = None,
+        journal_path: Path | None = None,
     ) -> RunExecutionSummary:
-        """
-        Execute the configured benchmarks on remote hosts.
+        """Execute the configured benchmarks on remote hosts.
 
         Args:
             test_types: List of benchmark identifiers to execute.
@@ -111,6 +108,7 @@ class BenchmarkController:
             journal: Optional pre-loaded journal used for resume flows.
             resume: When True, reuse the provided journal instead of creating a new one.
             journal_path: Optional override for where the journal is persisted.
+
         """
         if not self.config.remote_hosts:
             raise ValueError("At least one remote host must be configured.")

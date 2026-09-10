@@ -1,9 +1,8 @@
-"""
-Multipass e2e test for DFaaS k6 installation.
-"""
+"""Multipass e2e test for DFaaS k6 installation."""
 
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 import time
@@ -105,7 +104,5 @@ def test_multipass_k6_install(tmp_path: Path) -> None:
         )
         subprocess.run(["multipass", "purge"], stderr=subprocess.DEVNULL)
         for path in (key_path, pub_path):
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 path.unlink()
-            except FileNotFoundError:
-                pass

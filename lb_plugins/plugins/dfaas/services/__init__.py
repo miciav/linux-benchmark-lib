@@ -9,7 +9,7 @@ from .cooldown import (
     CooldownTimeoutError,
     MetricsSnapshot,
 )
-from .k6_runner import K6RunResult, K6Runner
+from .k6_runner import K6Runner, K6RunResult
 from .log_manager import DfaasLogManager
 from .metrics_collector import FunctionMetrics, MetricsCollector, NodeMetrics
 from .plan_builder import DfaasPlanBuilder, parse_duration_seconds
@@ -22,23 +22,23 @@ from .run_execution import (
 )
 
 __all__ = [
-    "DfaasAnnotationService",
-    "DfaasLogManager",
-    "DfaasPlanBuilder",
     "CooldownManager",
     "CooldownResult",
     "CooldownTimeoutError",
+    "DfaasAnnotationService",
+    "DfaasConfigExecutor",
+    "DfaasLogManager",
+    "DfaasPlanBuilder",
+    "DfaasResultBuilder",
+    "DfaasResultWriter",
+    "DfaasRunContext",
+    "DfaasRunPlanner",
     "FunctionMetrics",
     "GrafanaClient",
-    "K6Runner",
     "K6RunResult",
+    "K6Runner",
     "MetricsCollector",
     "MetricsSnapshot",
     "NodeMetrics",
     "parse_duration_seconds",
-    "DfaasResultBuilder",
-    "DfaasConfigExecutor",
-    "DfaasResultWriter",
-    "DfaasRunContext",
-    "DfaasRunPlanner",
 ]

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from contextlib import nullcontext
-from typing import Any, ContextManager, Sequence
+from collections.abc import Sequence
+from contextlib import AbstractContextManager, nullcontext
+from typing import Any
 
 from PySide6.QtCore import QObject
 
@@ -54,7 +55,7 @@ class GuiUIAdapter(QObject):
     ) -> None:
         _ = (title, columns, rows)
 
-    def status(self, message: str) -> ContextManager[None]:
+    def status(self, message: str) -> AbstractContextManager[None]:
         self._vm.on_status(message)
         return nullcontext()
 

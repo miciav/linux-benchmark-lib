@@ -15,8 +15,8 @@ pytestmark = [pytest.mark.inter_generic, pytest.mark.slow]
 
 
 def test_run_stress_ng_benchmark(tmp_path, mocker):
-    """
-    Test a full execution of stress-ng benchmark using LocalRunner.
+    """Test a full execution of stress-ng benchmark using LocalRunner.
+
     Simulates the workload generator and collectors.
     """
     # --- Setup Mocks ---

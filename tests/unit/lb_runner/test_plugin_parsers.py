@@ -15,7 +15,6 @@ from lb_plugins.api import (
     StreamPlugin,
 )
 
-
 pytestmark = pytest.mark.unit_runner
 
 

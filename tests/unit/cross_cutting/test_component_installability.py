@@ -1,9 +1,9 @@
-"""Ensure the runner, controller, and UI parts can be installed/imported in isolation."""
+"""Ensure runner, controller, and UI parts install/import in isolation."""
 
 import importlib
 import sys
-from pathlib import Path
 import tomllib
+from pathlib import Path
 
 import pytest
 
@@ -11,9 +11,10 @@ pytestmark = pytest.mark.unit_controller
 
 
 def _import_without(additional_path: str, module_name: str) -> None:
-    """
-    Import ``module_name`` while verifying that no modules are pulled
-    from ``additional_path`` during the import (simulates independent install).
+    """Import ``module_name`` while verifying no modules come from a second path.
+
+    Verifies that no modules are pulled from ``additional_path`` during the
+    import (simulates independent install).
     """
     before = set(sys.modules)
     importlib.import_module(module_name)
@@ -21,7 +22,8 @@ def _import_without(additional_path: str, module_name: str) -> None:
     for mod in added:
         if mod == additional_path or mod.startswith(f"{additional_path}."):
             raise AssertionError(
-                f"Importing {module_name} unexpectedly loaded {mod} from {additional_path}"
+                f"Importing {module_name} unexpectedly loaded {mod} "
+                f"from {additional_path}"
             )
 
 
@@ -35,11 +37,9 @@ def test_runner_package_import_does_not_drag_controller_modules(monkeypatch):
 
 
 def test_controller_is_importable_even_without_extra_optional_packages():
-    """
-    The controller component should import cleanly without requiring optional extras.
-    """
-    from lb_controller import api  # noqa: F401
-    import lb_controller  # noqa: F401
+    """The controller should import cleanly without optional extras."""
+    import lb_controller
+    from lb_controller import api
 
     assert hasattr(api, "BenchmarkController")
     assert not hasattr(api, "ConfigService")
@@ -59,7 +59,7 @@ def test_pyproject_lists_component_cli_scripts():
 
 
 def test_controller_extra_is_defined():
-    """There should be a controller extra so the orchestration stack can be installed separately."""
+    """A controller extra should exist so orchestration installs separately."""
     data = tomllib.loads(Path("pyproject.toml").read_text())
     extras = data.get("project", {}).get("optional-dependencies", {})
     assert "controller" in extras

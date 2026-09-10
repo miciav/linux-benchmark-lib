@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import importlib.util
-import types
 import logging
 import sys
 import tomllib
+import types
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional
-
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def iter_plugin_dirs(root: Path) -> Iterable[Path]:
     )
 
 
-def resolve_target_from_dir(path: Path) -> Optional[Path]:
+def resolve_target_from_dir(path: Path) -> Path | None:
     """Resolve a plugin entry point within a plugin directory."""
     toml_file = path / "pyproject.toml"
     if toml_file.exists():
@@ -68,7 +68,7 @@ def candidate_entrypoints(path: Path) -> Iterable[Path]:
     return candidates
 
 
-def resolve_entry_point_from_toml(root: Path, toml_path: Path) -> Optional[Path]:
+def resolve_entry_point_from_toml(root: Path, toml_path: Path) -> Path | None:
     """Parse pyproject.toml to guess the package location."""
     try:
         data = _load_toml(toml_path)
@@ -88,7 +88,7 @@ def resolve_entry_point_from_toml(root: Path, toml_path: Path) -> Optional[Path]
 
 
 def _load_toml_data(toml_path: Path) -> dict[str, Any]:
-    with open(toml_path, "rb") as f:
+    with toml_path.open("rb") as f:
         return tomllib.load(f)
 
 
@@ -108,7 +108,7 @@ def _iter_entrypoint_targets(root: Path, data: dict[str, Any]) -> Iterable[Path]
         yield poetry_entrypoint
 
 
-def _resolve_project_entrypoint(root: Path, project: Any) -> Optional[Path]:
+def _resolve_project_entrypoint(root: Path, project: Any) -> Path | None:
     if not isinstance(project, dict):
         return None
     entry_points = project.get("entry-points") or project.get("entry_points")
@@ -118,7 +118,7 @@ def _resolve_project_entrypoint(root: Path, project: Any) -> Optional[Path]:
     return _resolve_entrypoint_group(root, workload_group)
 
 
-def _resolve_poetry_entrypoint(root: Path, poetry: Any) -> Optional[Path]:
+def _resolve_poetry_entrypoint(root: Path, poetry: Any) -> Path | None:
     if not isinstance(poetry, dict):
         return None
     target = _resolve_poetry_plugins(root, poetry.get("plugins"))
@@ -130,7 +130,7 @@ def _resolve_poetry_entrypoint(root: Path, poetry: Any) -> Optional[Path]:
     return _resolve_poetry_name(root, poetry)
 
 
-def _resolve_entrypoint_mapping(root: Path, entry_points: Any) -> Optional[Path]:
+def _resolve_entrypoint_mapping(root: Path, entry_points: Any) -> Path | None:
     if not isinstance(entry_points, dict):
         return None
     workload_group = entry_points.get("linux_benchmark.workloads")
@@ -139,7 +139,7 @@ def _resolve_entrypoint_mapping(root: Path, entry_points: Any) -> Optional[Path]
     return _resolve_entrypoint_values(root, workload_group.values())
 
 
-def _resolve_entrypoint_values(root: Path, values: Iterable[Any]) -> Optional[Path]:
+def _resolve_entrypoint_values(root: Path, values: Iterable[Any]) -> Path | None:
     for value in values:
         if isinstance(value, str):
             target = _resolve_entrypoint_module(root, value)
@@ -148,7 +148,7 @@ def _resolve_entrypoint_values(root: Path, values: Iterable[Any]) -> Optional[Pa
     return None
 
 
-def _resolve_package_root(root: Path, name: str) -> Optional[Path]:
+def _resolve_package_root(root: Path, name: str) -> Path | None:
     pkg_name = name.replace("-", "_")
     for base in (root / "src", root):
         target = _resolve_package_path(base / pkg_name)
@@ -157,7 +157,7 @@ def _resolve_package_root(root: Path, name: str) -> Optional[Path]:
     return None
 
 
-def _resolve_package_path(package_root: Path) -> Optional[Path]:
+def _resolve_package_path(package_root: Path) -> Path | None:
     plugin_path = package_root / "plugin.py"
     if plugin_path.exists():
         return plugin_path
@@ -167,7 +167,7 @@ def _resolve_package_path(package_root: Path) -> Optional[Path]:
     return None
 
 
-def _resolve_entrypoint_module(root: Path, entry_point: str) -> Optional[Path]:
+def _resolve_entrypoint_module(root: Path, entry_point: str) -> Path | None:
     module_path = entry_point.split(":", 1)[0].strip()
     if not module_path:
         return None
@@ -182,7 +182,7 @@ def _resolve_entrypoint_module(root: Path, entry_point: str) -> Optional[Path]:
 def load_plugin_from_path(
     path: Path,
     register: Callable[[Any], None],
-    module_name: Optional[str] = None,
+    module_name: str | None = None,
 ) -> None:
     try:
         name = module_name or path.stem
@@ -294,18 +294,18 @@ def _load_plugin_dir(path: Path, register: Callable[[Any], None]) -> None:
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         return tomllib.load(f)
 
 
-def _resolve_project_name(root: Path, project: Any) -> Optional[Path]:
+def _resolve_project_name(root: Path, project: Any) -> Path | None:
     name = project.get("name") if isinstance(project, dict) else None
     if isinstance(name, str) and name:
         return _resolve_package_root(root, name)
     return None
 
 
-def _resolve_entrypoint_group(root: Path, group: Any) -> Optional[Path]:
+def _resolve_entrypoint_group(root: Path, group: Any) -> Path | None:
     if not isinstance(group, dict):
         return None
     for value in group.values():
@@ -316,14 +316,14 @@ def _resolve_entrypoint_group(root: Path, group: Any) -> Optional[Path]:
     return None
 
 
-def _resolve_poetry_plugins(root: Path, plugins: Any) -> Optional[Path]:
+def _resolve_poetry_plugins(root: Path, plugins: Any) -> Path | None:
     if not isinstance(plugins, dict):
         return None
     workload_group = plugins.get("linux_benchmark.workloads")
     return _resolve_entrypoint_group(root, workload_group)
 
 
-def _resolve_poetry_packages(root: Path, packages: Any) -> Optional[Path]:
+def _resolve_poetry_packages(root: Path, packages: Any) -> Path | None:
     if not isinstance(packages, list):
         return None
     for package_path in _iter_poetry_package_paths(root, packages):
@@ -333,14 +333,14 @@ def _resolve_poetry_packages(root: Path, packages: Any) -> Optional[Path]:
     return None
 
 
-def _resolve_poetry_name(root: Path, poetry: dict[str, Any]) -> Optional[Path]:
+def _resolve_poetry_name(root: Path, poetry: dict[str, Any]) -> Path | None:
     name = poetry.get("name")
     if isinstance(name, str) and name:
         return _resolve_package_root(root, name)
     return None
 
 
-def _resolve_module_candidate(candidate: Path) -> Optional[Path]:
+def _resolve_module_candidate(candidate: Path) -> Path | None:
     module_file = candidate.with_suffix(".py")
     if module_file.exists():
         return module_file
@@ -361,7 +361,7 @@ def _iter_poetry_package_paths(root: Path, packages: list[Any]) -> Iterable[Path
             yield package_path
 
 
-def _poetry_package_path(root: Path, entry: Any) -> Optional[Path]:
+def _poetry_package_path(root: Path, entry: Any) -> Path | None:
     if not isinstance(entry, dict):
         return None
     include = entry.get("include")
@@ -401,12 +401,12 @@ def _exec_module(
 
 
 def _candidate_plugins_from_module(module: Any) -> list[Any]:
-    if hasattr(module, "get_plugins") and callable(getattr(module, "get_plugins")):
+    if hasattr(module, "get_plugins") and callable(module.get_plugins):
         return _normalize_plugins(module.get_plugins())
     if hasattr(module, "PLUGINS"):
-        return _normalize_plugins(getattr(module, "PLUGINS"))
+        return _normalize_plugins(module.PLUGINS)
     if hasattr(module, "PLUGIN"):
-        return [getattr(module, "PLUGIN")]
+        return [module.PLUGIN]
     return []
 
 

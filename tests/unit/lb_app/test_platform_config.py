@@ -34,7 +34,7 @@ def test_resolve_target_tests_filters_disabled():
 
     assert allowed == ["fio"]
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="All selected workloads are disabled"):
         RunService._resolve_target_tests(
             cfg,
             ["stress_ng"],

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QThread, Signal
 
@@ -24,9 +25,9 @@ class AnalyticsWorker(QObject):
 
     def __init__(
         self,
-        analytics_service: "AnalyticsServiceWrapper",
-        run_info: "RunInfo",
-        kind: "AnalyticsKind",
+        analytics_service: AnalyticsServiceWrapper,
+        run_info: RunInfo,
+        kind: AnalyticsKind,
         workloads: Sequence[str] | None = None,
         hosts: Sequence[str] | None = None,
         parent: QObject | None = None,

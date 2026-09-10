@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import importlib
 import logging
-from pathlib import Path
 import socket
 import subprocess
+from pathlib import Path
 from urllib.parse import ParseResult, urlparse, urlunparse
+
+from lb_plugins.base_generator import BaseGenerator
 
 from .config import DfaasConfig
 from .context import ExecutionContext
@@ -27,7 +29,6 @@ from .services.algorithm_loader import load_policy_algorithm
 from .services.cartesian_scheduler import CartesianScheduler
 from .services.k6_runner import K6Runner
 from .services.plan_builder import parse_duration_seconds
-from ...base_generator import BaseGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +235,7 @@ class DfaasGenerator(BaseGenerator):
         return outputs
 
     def _get_function_replicas(self, function_names: list[str]) -> dict[str, int]:
-        replicas = {name: 0 for name in function_names}
+        replicas = dict.fromkeys(function_names, 0)
         # Use the resolved gateway URL (same as K6Runner uses)
         resolved_gateway = self._k6_runner.gateway_url
         cmd = [
@@ -255,7 +256,7 @@ class DfaasGenerator(BaseGenerator):
     def _parse_faas_cli_replicas(
         self, output: str, function_names: list[str]
     ) -> dict[str, int]:
-        replicas = {name: 0 for name in function_names}
+        replicas = dict.fromkeys(function_names, 0)
         lines = [line for line in output.splitlines() if line.strip()]
         if not lines:
             return replicas

@@ -1,21 +1,19 @@
-"""
-Unit tests for the benchmark_config module.
-"""
+"""Unit tests for the benchmark_config module."""
 
 import json
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from lb_runner.api import BenchmarkConfig, PerfConfig, RemoteHostConfig, WorkloadConfig
 from lb_plugins.api import (
     BaselineConfig,
     StressNGConfig,
     apply_plugin_settings_defaults,
     create_registry,
 )
+from lb_runner.api import BenchmarkConfig, PerfConfig, RemoteHostConfig, WorkloadConfig
 
 pytestmark = pytest.mark.unit_runner
 
@@ -150,7 +148,7 @@ class TestBenchmarkConfig:
         """Remote host names must be unique."""
         host_a = RemoteHostConfig(name="node1", address="10.0.0.1")
         host_b = RemoteHostConfig(name="node1", address="10.0.0.2")
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="remote_hosts names must be unique"):
             BenchmarkConfig(remote_hosts=[host_a, host_b])
 
     def test_module_does_not_create_default_instance(self):

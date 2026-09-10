@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
-from typing import ContextManager
+from contextlib import AbstractContextManager, nullcontext
 
 from lb_ui.tui.core.protocols import Dashboard, PresenterSink
 
@@ -35,7 +34,7 @@ class Presenter:
 
 
 class NullDashboard(Dashboard):
-    def live(self) -> ContextManager[None]:
+    def live(self) -> AbstractContextManager[None]:
         return nullcontext()
 
     def add_log(self, line: str) -> None:
@@ -59,4 +58,4 @@ class NullDashboard(Dashboard):
 
 DashboardNoOp = NullDashboard
 
-__all__ = ["Presenter", "NullDashboard", "DashboardNoOp"]
+__all__ = ["DashboardNoOp", "NullDashboard", "Presenter"]

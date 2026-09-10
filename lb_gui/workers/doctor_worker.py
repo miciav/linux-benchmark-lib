@@ -24,8 +24,8 @@ class DoctorWorker(QObject):
 
     def __init__(
         self,
-        doctor_service: "DoctorServiceWrapper",
-        config: "BenchmarkConfig | None",
+        doctor_service: DoctorServiceWrapper,
+        config: BenchmarkConfig | None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -52,7 +52,7 @@ class DoctorWorker(QObject):
     def _run(self) -> None:
         """Execute doctor checks in the worker thread."""
         try:
-            reports: list["DoctorReport"] = []
+            reports: list[DoctorReport] = []
 
             self.signals.progress.emit("Checking controller dependencies...")
             reports.append(self._doctor.check_controller())

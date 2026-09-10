@@ -14,7 +14,7 @@ class DummyPlugin:
     name = "dummy"
     config_cls = DummyConfig
 
-    def get_preset_config(self, level):  # noqa: D401
+    def get_preset_config(self, level):
         return DummyConfig(timeout=5, cpu_workers=1)
 
 

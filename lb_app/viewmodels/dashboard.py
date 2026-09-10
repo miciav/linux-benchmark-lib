@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import time
-from typing import Any, Iterable
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Any
 
-from lb_controller.api import RunJournal, RunStatus, TaskState
 from lb_app.viewmodels import run_viewmodels
+from lb_controller.api import RunJournal, RunStatus, TaskState
 
 
 @dataclass(frozen=True)

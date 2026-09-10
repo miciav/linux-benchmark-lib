@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from lb_plugins.plugins.dfaas.services.cooldown import (
     CooldownManager,
@@ -120,7 +121,7 @@ class TestCooldownManager:
             current = replica_count[0]
             if replica_count[0] > 1:
                 replica_count[0] -= 1
-            return {name: current for name in names}
+            return dict.fromkeys(names, current)
 
         monkeypatch.setattr(
             "lb_plugins.plugins.dfaas.services.cooldown.time.sleep", lambda _: None
@@ -167,7 +168,9 @@ class TestCooldownManager:
         assert exc_info.value.max_seconds == 10
         assert sleep_calls == [5, 5]
 
-    def test_timeout_stops_at_exact_boundary(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_timeout_stops_at_exact_boundary(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         baseline = MetricsSnapshot(cpu=10.0, ram=1000.0, ram_pct=50.0, power=100.0)
         high_cpu = MetricsSnapshot(cpu=50.0, ram=1000.0, ram_pct=50.0, power=100.0)
         sleep_calls: list[int] = []

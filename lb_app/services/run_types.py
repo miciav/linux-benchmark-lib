@@ -2,22 +2,25 @@
 
 from __future__ import annotations
 
+import queue
+import threading
 from collections import deque
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from pathlib import Path
-import queue
-import threading
-from typing import IO, TYPE_CHECKING, Any, Callable, Dict, Optional, Protocol
+from typing import IO, TYPE_CHECKING, Any, Protocol
 
+from lb_app.ui_interfaces import DashboardHandle
 from lb_controller.api import (
+    BenchmarkConfig,
     ControllerStateMachine,
     DoubleCtrlCStateMachine,
     LogSink,
+    RunEvent,
     RunJournal,
+    StopToken,
 )
-from lb_app.ui_interfaces import DashboardHandle
-from lb_controller.api import BenchmarkConfig, RunEvent, StopToken
 from lb_plugins.api import PluginRegistry
 
 if TYPE_CHECKING:
@@ -55,7 +58,7 @@ class RunContext:
     config: BenchmarkConfig
     target_tests: list[str]
     registry: PluginRegistry
-    config_path: Optional[Path] = None
+    config_path: Path | None = None
     debug: bool = False
     resume_from: str | None = None
     resume_latest: bool = False
@@ -69,7 +72,7 @@ class RunResult:
     """Outcome of a run."""
 
     context: RunContext
-    summary: Optional[RunExecutionSummary]
+    summary: RunExecutionSummary | None
     journal_path: Path | None = None
     log_path: Path | None = None
     ui_log_path: Path | None = None
@@ -100,9 +103,9 @@ class _EventPipeline:
     output_cb: OutputCallback
     announce_stop: StopAnnouncer
     ingest_event: EventIngestCallback
-    event_from_payload: Callable[[Dict[str, Any]], RunEvent | None]
+    event_from_payload: Callable[[dict[str, Any]], RunEvent | None]
     sink: LogSink
-    controller_ref: dict[str, "BenchmarkController" | None]
+    controller_ref: dict[str, BenchmarkController | None]
 
 
 @dataclass

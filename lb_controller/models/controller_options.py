@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from lb_controller.adapters.ansible_runner import AnsibleRunnerExecutor
 from lb_controller.models.state import ControllerStateMachine

@@ -1,5 +1,6 @@
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence, Tuple
+from typing import Any
 
 
 @dataclass
@@ -13,7 +14,7 @@ class TableModel:
 class PickItem:
     id: str
     title: str
-    tags: Tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
     description: str = ""
     search_blob: str = ""
     preview: object | None = None  # Rich renderable

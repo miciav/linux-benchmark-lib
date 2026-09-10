@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 from lb_plugins.api import PluginRegistry
 
 

@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import IO, Any, Callable, Optional
+from typing import IO, Any
 
-from lb_controller.api import ControllerStateMachine, LogSink, RunJournal, StopToken
-from lb_app.ui_interfaces import DashboardHandle, NoOpDashboardHandle, UIAdapter
 from lb_app.services.run_journal import initialize_new_journal, load_resume_journal
+from lb_app.services.run_plan import build_run_plan
 from lb_app.services.run_types import (
     RunContext,
-    _RemoteSession,
     _DashboardLogProxy,
+    _RemoteSession,
 )
-from lb_app.services.run_plan import build_run_plan
+from lb_app.ui_interfaces import DashboardHandle, NoOpDashboardHandle, UIAdapter
+from lb_controller.api import ControllerStateMachine, LogSink, RunJournal, StopToken
 
 
 class SessionManager:
@@ -25,7 +26,7 @@ class SessionManager:
     def prepare_remote_session(
         self,
         context: RunContext,
-        run_id: Optional[str],
+        run_id: str | None,
         ui_adapter: UIAdapter | None,
         stop_token: StopToken | None,
     ) -> _RemoteSession:
@@ -64,7 +65,7 @@ class SessionManager:
     def _prepare_journal_and_dashboard(
         self,
         context: RunContext,
-        run_id: Optional[str],
+        run_id: str | None,
         ui_adapter: UIAdapter | None,
         ui_stream_log_file: IO[str] | None = None,
     ) -> tuple[RunJournal, Path, DashboardHandle, str]:
@@ -118,7 +119,7 @@ class SessionManager:
         return wrapped, ui_stream_log_path, ui_stream_log_file
 
     def _resolve_journal(
-        self, context: RunContext, run_id: Optional[str]
+        self, context: RunContext, run_id: str | None
     ) -> tuple[RunJournal, Path, str]:
         resume_requested = context.resume_from is not None or context.resume_latest
         if resume_requested:

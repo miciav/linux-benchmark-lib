@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Protocol
+from typing import Any, Protocol
 
+from lb_common.api import GrafanaClient
 from lb_plugins import discovery as discovery_module
 from lb_plugins import registry as registry_module
 from lb_plugins.base_generator import (
@@ -18,6 +19,7 @@ from lb_plugins.base_generator import (
 )
 from lb_plugins.builtin import builtin_plugins
 from lb_plugins.discovery import resolve_user_plugin_dir
+from lb_plugins.installer import PluginInstaller
 from lb_plugins.interface import (
     BasePluginConfig,
     SimpleWorkloadPlugin,
@@ -30,24 +32,14 @@ from lb_plugins.observability import (
     GrafanaDatasourceAsset,
     resolve_grafana_assets,
 )
-from lb_plugins.installer import PluginInstaller
 from lb_plugins.plugin_assets import PluginAssetConfig
-from lb_plugins.registry import PluginRegistry
-from lb_plugins.settings import (
-    SupportsPluginSettings,
-    SupportsWorkloads,
-    WorkloadFactory,
-    apply_plugin_settings_defaults,
-    ensure_workloads_from_plugin_settings,
-    hydrate_plugin_settings,
-    populate_default_plugin_settings,
+from lb_plugins.plugins.baseline.plugin import (
+    PLUGIN as BASELINE_PLUGIN,
 )
-from lb_plugins.table import build_plugin_table
 from lb_plugins.plugins.baseline.plugin import (
     BaselineConfig,
     BaselineGenerator,
     BaselinePlugin,
-    PLUGIN as BASELINE_PLUGIN,
 )
 from lb_plugins.plugins.dd.plugin import DDConfig, DDGenerator, DDPlugin
 from lb_plugins.plugins.fio.plugin import FIOConfig, FIOGenerator, FIOPlugin
@@ -61,6 +53,8 @@ from lb_plugins.plugins.phoronix_test_suite.plugin import (
     PhoronixConfig,
     PhoronixGenerator,
     PhoronixTestSuiteWorkloadPlugin,
+)
+from lb_plugins.plugins.phoronix_test_suite.plugin import (
     get_plugins as get_phoronix_plugins,
 )
 from lb_plugins.plugins.stream.plugin import (
@@ -86,7 +80,17 @@ from lb_plugins.plugins.unixbench.plugin import (
     UnixBenchPlugin,
 )
 from lb_plugins.plugins.yabs.plugin import YabsConfig, YabsGenerator, YabsPlugin
-from lb_common.api import GrafanaClient
+from lb_plugins.registry import PluginRegistry
+from lb_plugins.settings import (
+    SupportsPluginSettings,
+    SupportsWorkloads,
+    WorkloadFactory,
+    apply_plugin_settings_defaults,
+    ensure_workloads_from_plugin_settings,
+    hydrate_plugin_settings,
+    populate_default_plugin_settings,
+)
+from lb_plugins.table import build_plugin_table
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +101,7 @@ _REGISTRY_CACHE: PluginRegistry | None = None
 class SupportsPluginAssets(Protocol):
     """Minimal interface for configs that store plugin asset metadata."""
 
-    plugin_assets: Dict[str, PluginAssetConfig]
+    plugin_assets: dict[str, PluginAssetConfig]
 
 
 def create_registry(refresh: bool = False) -> PluginRegistry:
@@ -146,9 +150,9 @@ def get_builtin_plugin_root() -> Path:
     return discovery_module.BUILTIN_PLUGIN_ROOT
 
 
-def plugin_metadata(registry: PluginRegistry) -> Dict[str, Dict[str, Any]]:
+def plugin_metadata(registry: PluginRegistry) -> dict[str, dict[str, Any]]:
     """Return serializable metadata for available plugins."""
-    data: Dict[str, Dict[str, Any]] = {}
+    data: dict[str, dict[str, Any]] = {}
     for name, plugin in registry.available(load_entrypoints=True).items():
         data[name] = _build_plugin_metadata(name, plugin)
     return data
@@ -159,7 +163,7 @@ def apply_plugin_assets(
     registry: PluginRegistry,
 ) -> None:
     """Populate config.plugin_assets from resolved plugins."""
-    assets: Dict[str, PluginAssetConfig] = {}
+    assets: dict[str, PluginAssetConfig] = {}
     for name, plugin in registry.available(load_entrypoints=True).items():
         assets[name] = _build_plugin_assets(plugin)
     config.plugin_assets = assets
@@ -196,8 +200,8 @@ def merge_plugin_assets(
 
 def collect_grafana_assets(
     registry: PluginRegistry,
-    plugin_settings: Dict[str, Any] | None = None,
-    enabled_plugins: Dict[str, bool] | None = None,
+    plugin_settings: dict[str, Any] | None = None,
+    enabled_plugins: dict[str, bool] | None = None,
     remote_hosts: list[Any] | None = None,
 ) -> GrafanaAssets:
     """Collect Grafana assets from enabled plugins, resolving datasource URLs."""
@@ -220,7 +224,7 @@ def collect_grafana_assets(
     return GrafanaAssets(datasources=tuple(datasources), dashboards=tuple(dashboards))
 
 
-def _build_plugin_metadata(name: str, plugin: Any) -> Dict[str, Any]:
+def _build_plugin_metadata(name: str, plugin: Any) -> dict[str, Any]:
     return {
         "name": name,
         "description": getattr(plugin, "description", ""),
@@ -279,7 +283,7 @@ def _build_plugin_assets(plugin: Any) -> PluginAssetConfig:
 
 def _resolve_grafana_assets_for_plugin(
     plugin: Any,
-    settings: Dict[str, Any],
+    settings: dict[str, Any],
     *,
     name: str,
     hosts: list[Any] | None,
@@ -301,54 +305,18 @@ def _default_plugin_config(plugin: Any) -> Any | None:
 
 
 __all__ = [
-    "BaseGenerator",
-    "CommandGenerator",
-    "CommandSpec",
-    "CommandSpecBuilder",
-    "ResultParser",
-    "BasePluginConfig",
-    "WorkloadIntensity",
-    "WorkloadPlugin",
-    "SimpleWorkloadPlugin",
-    "PluginRegistry",
-    "PluginInstaller",
-    "create_registry",
-    "plugin_metadata",
-    "build_plugin_table",
-    "apply_plugin_assets",
-    "merge_plugin_assets",
-    "apply_plugin_settings_defaults",
-    "ensure_workloads_from_plugin_settings",
-    "hydrate_plugin_settings",
-    "populate_default_plugin_settings",
-    "reset_registry_cache",
-    "set_builtin_plugin_root",
-    "get_builtin_plugin_root",
-    "set_user_plugin_dir",
-    "resolve_user_plugin_dir",
+    "BASELINE_PLUGIN",
+    "DEFAULT_NTIMES",
+    "DEFAULT_STREAM_ARRAY_SIZE",
     "USER_PLUGIN_DIR",
-    "builtin_plugins",
-    "SupportsPluginAssets",
-    "SupportsPluginSettings",
-    "SupportsWorkloads",
-    "WorkloadFactory",
-    "PluginAssetConfig",
-    "GrafanaAssets",
-    "GrafanaDashboardAsset",
-    "GrafanaDatasourceAsset",
-    "resolve_grafana_assets",
-    "collect_grafana_assets",
-    "GrafanaClient",
+    "BaseGenerator",
+    "BasePluginConfig",
     "BaselineConfig",
     "BaselineGenerator",
     "BaselinePlugin",
-    "BASELINE_PLUGIN",
-    "StressNGConfig",
-    "StressNGGenerator",
-    "StressNGPlugin",
-    "SysbenchConfig",
-    "SysbenchGenerator",
-    "SysbenchPlugin",
+    "CommandGenerator",
+    "CommandSpec",
+    "CommandSpecBuilder",
     "DDConfig",
     "DDGenerator",
     "DDPlugin",
@@ -358,22 +326,58 @@ __all__ = [
     "GeekbenchConfig",
     "GeekbenchGenerator",
     "GeekbenchPlugin",
+    "GrafanaAssets",
+    "GrafanaClient",
+    "GrafanaDashboardAsset",
+    "GrafanaDatasourceAsset",
     "HPLConfig",
     "HPLGenerator",
     "HPLPlugin",
-    "StreamConfig",
-    "StreamGenerator",
-    "StreamPlugin",
-    "UnixBenchConfig",
-    "UnixBenchGenerator",
-    "UnixBenchPlugin",
-    "YabsConfig",
-    "YabsGenerator",
-    "YabsPlugin",
     "PhoronixConfig",
     "PhoronixGenerator",
     "PhoronixTestSuiteWorkloadPlugin",
+    "PluginAssetConfig",
+    "PluginInstaller",
+    "PluginRegistry",
+    "ResultParser",
+    "SimpleWorkloadPlugin",
+    "StreamConfig",
+    "StreamGenerator",
+    "StreamPlugin",
+    "StressNGConfig",
+    "StressNGGenerator",
+    "StressNGPlugin",
+    "SupportsPluginAssets",
+    "SupportsPluginSettings",
+    "SupportsWorkloads",
+    "SysbenchConfig",
+    "SysbenchGenerator",
+    "SysbenchPlugin",
+    "UnixBenchConfig",
+    "UnixBenchGenerator",
+    "UnixBenchPlugin",
+    "WorkloadFactory",
+    "WorkloadIntensity",
+    "WorkloadPlugin",
+    "YabsConfig",
+    "YabsGenerator",
+    "YabsPlugin",
+    "apply_plugin_assets",
+    "apply_plugin_settings_defaults",
+    "build_plugin_table",
+    "builtin_plugins",
+    "collect_grafana_assets",
+    "create_registry",
+    "ensure_workloads_from_plugin_settings",
+    "get_builtin_plugin_root",
     "get_phoronix_plugins",
-    "DEFAULT_NTIMES",
-    "DEFAULT_STREAM_ARRAY_SIZE",
+    "hydrate_plugin_settings",
+    "merge_plugin_assets",
+    "plugin_metadata",
+    "populate_default_plugin_settings",
+    "reset_registry_cache",
+    "resolve_grafana_assets",
+    "resolve_user_plugin_dir",
+    "set_builtin_plugin_root",
+    "set_user_plugin_dir",
 ]

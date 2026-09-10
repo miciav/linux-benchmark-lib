@@ -27,13 +27,22 @@ def _action_phase_label(action: str) -> str | None:
     normalized = action.strip().lower().replace("_", " ")
     if not normalized:
         return None
-    if any(token in normalized for token in ("setup", "install", "bootstrap", "prepare", "provision", "init")):
+    if any(
+        token in normalized
+        for token in ("setup", "install", "bootstrap", "prepare", "provision", "init")
+    ):
         return "SET"
     if any(token in normalized for token in ("collect", "metric", "parse", "export")):
         return "COL"
-    if any(token in normalized for token in ("teardown", "cleanup", "final", "stop", "close")):
+    if any(
+        token in normalized
+        for token in ("teardown", "cleanup", "final", "stop", "close")
+    ):
         return "END"
-    if any(token in normalized for token in ("run", "exec", "benchmark", "stress", "fio", "workload")):
+    if any(
+        token in normalized
+        for token in ("run", "exec", "benchmark", "stress", "fio", "workload")
+    ):
         return "RUN"
     return None
 

@@ -5,10 +5,9 @@ import logging
 
 import pytest
 
-from lb_runner.api import RunEvent
-from lb_runner.api import LBEventLogHandler
-from lb_runner.services.async_localrunner import _configure_logging_level
 from lb_app.api import AnsibleOutputFormatter, _extract_lb_event_data
+from lb_runner.api import LBEventLogHandler, RunEvent
+from lb_runner.services.async_localrunner import _configure_logging_level
 
 
 @pytest.mark.unit_controller

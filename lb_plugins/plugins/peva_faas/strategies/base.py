@@ -24,6 +24,7 @@ class RateStrategy(BaseModel, ABC):
 
         Returns:
             Sorted list of non-negative integer rates (requests per second).
+
         """
         ...
 

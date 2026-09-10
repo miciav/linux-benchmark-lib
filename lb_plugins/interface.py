@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, ClassVar
 
 import pandas as pd
-from pydantic import BaseModel, Field
 import yaml
+from pydantic import BaseModel, Field
 
 from lb_plugins.observability import GrafanaAssets
 
@@ -29,7 +29,7 @@ class BasePluginConfig(BaseModel):
         default=10,
         description="Safety buffer in seconds added to expected runtime",
     )
-    tags: List[str] = Field(
+    tags: list[str] = Field(
         default_factory=list,
         description="Tags associated with the workload",
     )
@@ -40,8 +40,7 @@ class BasePluginConfig(BaseModel):
 
 
 class WorkloadPlugin(ABC):
-    """
-    Abstract base class for all workload plugins.
+    """Abstract base class for all workload plugins.
 
     A plugin encapsulates the logic for:
     1. Configuration (schema)
@@ -64,26 +63,25 @@ class WorkloadPlugin(ABC):
 
     @property
     @abstractmethod
-    def config_cls(self) -> Type[BasePluginConfig]:
-        """
-        The Pydantic model used for configuration.
+    def config_cls(self) -> type[BasePluginConfig]:
+        """The Pydantic model used for configuration.
+
         The app config service uses this to deserialize raw JSON.
         """
         pass
 
     @abstractmethod
     def create_generator(self, config: BasePluginConfig) -> Any:
-        """
-        Create a new instance of the workload generator.
+        """Create a new instance of the workload generator.
 
         Args:
             config: An instance of self.config_cls
+
         """
         pass
 
     def load_config_from_file(self, config_file_path: Path) -> BasePluginConfig:
-        """
-        Loads and validates plugin configuration from a YAML file.
+        """Loads and validates plugin configuration from a YAML file.
 
         The method merges common configuration (from the 'common' section)
         with plugin-specific configuration (from the 'plugins.<plugin_name>' section).
@@ -102,11 +100,12 @@ class WorkloadPlugin(ABC):
             yaml.YAMLError: If the file content is not valid YAML.
             ValidationError: If the merged configuration does not conform to
                 `self.config_cls` schema.
+
         """
         if not config_file_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_file_path}")
 
-        with open(config_file_path, "r") as f:
+        with config_file_path.open() as f:
             full_data = yaml.safe_load(f) or {}
 
         # Extract common and plugin-specific data
@@ -120,73 +119,73 @@ class WorkloadPlugin(ABC):
         # Pydantic will handle default values for missing fields
         return self.config_cls(**merged_data)
 
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[BasePluginConfig]:
-        """
-        Return a configuration object for the specified intensity level.
+    def get_preset_config(self, level: WorkloadIntensity) -> BasePluginConfig | None:
+        """Return a configuration object for the specified intensity level.
+
         If USER_DEFINED or not implemented, return None.
         """
         return None
 
-    def get_required_apt_packages(self) -> List[str]:
+    def get_required_apt_packages(self) -> list[str]:
         """Return list of APT packages required by this plugin."""
         return []
 
-    def get_required_pip_packages(self) -> List[str]:
+    def get_required_pip_packages(self) -> list[str]:
         """Return list of Python packages required by this plugin."""
         return []
 
-    def get_required_uv_extras(self) -> List[str]:
+    def get_required_uv_extras(self) -> list[str]:
         """Return list of UV extras required by this plugin."""
         return []
 
-    def get_required_local_tools(self) -> List[str]:
-        """
-        Return list of command-line tools required by this plugin for local execution.
+    def get_required_local_tools(self) -> list[str]:
+        """Return command-line tools required by this plugin for local execution.
+
         Used by `lb doctor` to verify the local environment.
         """
         return []
 
-    def get_ansible_setup_path(self) -> Optional[Path]:
-        """
-        Return the path to the Ansible setup playbook.
+    def get_ansible_setup_path(self) -> Path | None:
+        """Return the path to the Ansible setup playbook.
+
         Executed before the workload runs on remote hosts.
         """
         return None
 
-    def get_ansible_teardown_path(self) -> Optional[Path]:
-        """
-        Return the path to the Ansible teardown playbook.
+    def get_ansible_teardown_path(self) -> Path | None:
+        """Return the path to the Ansible teardown playbook.
+
         Executed after the workload runs (even on failure) on remote hosts.
         """
         return None
 
-    def get_ansible_setup_extravars(self) -> Dict[str, Any]:
+    def get_ansible_setup_extravars(self) -> dict[str, Any]:
         """Return extra vars merged into the plugin setup playbook run."""
         return {}
 
-    def get_ansible_teardown_extravars(self) -> Dict[str, Any]:
+    def get_ansible_teardown_extravars(self) -> dict[str, Any]:
         """Return extra vars merged into the plugin teardown playbook run."""
         return {}
 
-    def get_ansible_collect_pre_path(self) -> Optional[Path]:
-        """
-        Return the path to the Ansible collect pre-playbook.
+    def get_ansible_collect_pre_path(self) -> Path | None:
+        """Return the path to the Ansible collect pre-playbook.
+
         Executed before the collect phase (e.g., to add dynamic hosts to inventory).
         """
         return None
 
-    def get_ansible_collect_post_path(self) -> Optional[Path]:
-        """
-        Return the path to the Ansible collect post-playbook.
+    def get_ansible_collect_post_path(self) -> Path | None:
+        """Return the path to the Ansible collect post-playbook.
+
         Executed after the collect phase for plugin-specific log collection.
         """
         return None
 
-    def get_ansible_collect_pre_extravars(self) -> Dict[str, Any]:
+    def get_ansible_collect_pre_extravars(self) -> dict[str, Any]:
         """Return extra vars merged into the plugin collect pre-playbook run."""
         return {}
 
-    def get_ansible_collect_post_extravars(self) -> Dict[str, Any]:
+    def get_ansible_collect_post_extravars(self) -> dict[str, Any]:
         """Return extra vars merged into the plugin collect post-playbook run."""
         return {}
 
@@ -197,13 +196,12 @@ class WorkloadPlugin(ABC):
     # Optional: allow plugins to normalize their own results into CSV before collection
     def export_results_to_csv(
         self,
-        results: List[Dict[str, Any]],
+        results: list[dict[str, Any]],
         output_dir: Path,
         run_id: str,
         test_name: str,
-    ) -> List[Path]:
-        """
-        Normalize plugin-specific results into CSV files stored in output_dir.
+    ) -> list[Path]:
+        """Normalize plugin-specific results into CSV files stored in output_dir.
 
         Default implementation flattens generator_result and metadata into a single CSV.
         Plugins with richer report formats can override to write multiple CSVs.
@@ -224,7 +222,7 @@ class WorkloadPlugin(ABC):
 
     @staticmethod
     def _build_export_row(
-        entry: Dict[str, Any],
+        entry: dict[str, Any],
         run_id: str,
         test_name: str,
     ) -> dict[str, Any]:
@@ -247,16 +245,16 @@ class SimpleWorkloadPlugin(WorkloadPlugin):
 
     NAME: str = ""
     DESCRIPTION: str = ""
-    CONFIG_CLS: Type[BasePluginConfig] = BasePluginConfig
+    CONFIG_CLS: type[BasePluginConfig] = BasePluginConfig
     GENERATOR_CLS: Any = None
-    REQUIRED_APT_PACKAGES: List[str] = []
-    REQUIRED_PIP_PACKAGES: List[str] = []
-    REQUIRED_UV_EXTRAS: List[str] = []
-    REQUIRED_LOCAL_TOOLS: List[str] = []
-    SETUP_PLAYBOOK: Optional[Path] = None
-    TEARDOWN_PLAYBOOK: Optional[Path] = None
-    COLLECT_PRE_PLAYBOOK: Optional[Path] = None
-    COLLECT_POST_PLAYBOOK: Optional[Path] = None
+    REQUIRED_APT_PACKAGES: ClassVar[list[str]] = []
+    REQUIRED_PIP_PACKAGES: ClassVar[list[str]] = []
+    REQUIRED_UV_EXTRAS: ClassVar[list[str]] = []
+    REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = []
+    SETUP_PLAYBOOK: Path | None = None
+    TEARDOWN_PLAYBOOK: Path | None = None
+    COLLECT_PRE_PLAYBOOK: Path | None = None
+    COLLECT_POST_PLAYBOOK: Path | None = None
     GRAFANA_ASSETS: GrafanaAssets | None = None
 
     @property
@@ -270,7 +268,7 @@ class SimpleWorkloadPlugin(WorkloadPlugin):
         return self.DESCRIPTION
 
     @property
-    def config_cls(self) -> Type[BasePluginConfig]:
+    def config_cls(self) -> type[BasePluginConfig]:
         if not self.CONFIG_CLS:
             raise NotImplementedError("SimpleWorkloadPlugin.CONFIG_CLS must be set")
         return self.CONFIG_CLS
@@ -283,41 +281,41 @@ class SimpleWorkloadPlugin(WorkloadPlugin):
     def get_grafana_assets(self) -> GrafanaAssets | None:
         return self.GRAFANA_ASSETS
 
-    def get_required_apt_packages(self) -> List[str]:
+    def get_required_apt_packages(self) -> list[str]:
         return list(self.REQUIRED_APT_PACKAGES)
 
-    def get_required_pip_packages(self) -> List[str]:
+    def get_required_pip_packages(self) -> list[str]:
         return list(self.REQUIRED_PIP_PACKAGES)
 
-    def get_required_uv_extras(self) -> List[str]:
+    def get_required_uv_extras(self) -> list[str]:
         return list(self.REQUIRED_UV_EXTRAS)
 
-    def get_required_local_tools(self) -> List[str]:
+    def get_required_local_tools(self) -> list[str]:
         return list(self.REQUIRED_LOCAL_TOOLS)
 
-    def get_ansible_setup_path(self) -> Optional[Path]:
+    def get_ansible_setup_path(self) -> Path | None:
         if self.SETUP_PLAYBOOK and self.SETUP_PLAYBOOK.exists():
             return self.SETUP_PLAYBOOK
         return None
 
-    def get_ansible_teardown_path(self) -> Optional[Path]:
+    def get_ansible_teardown_path(self) -> Path | None:
         if self.TEARDOWN_PLAYBOOK and self.TEARDOWN_PLAYBOOK.exists():
             return self.TEARDOWN_PLAYBOOK
         return None
 
-    def get_ansible_collect_pre_path(self) -> Optional[Path]:
+    def get_ansible_collect_pre_path(self) -> Path | None:
         if self.COLLECT_PRE_PLAYBOOK and self.COLLECT_PRE_PLAYBOOK.exists():
             return self.COLLECT_PRE_PLAYBOOK
         return None
 
-    def get_ansible_collect_post_path(self) -> Optional[Path]:
+    def get_ansible_collect_post_path(self) -> Path | None:
         if self.COLLECT_POST_PLAYBOOK and self.COLLECT_POST_PLAYBOOK.exists():
             return self.COLLECT_POST_PLAYBOOK
         return None
 
 
 def _build_result_row(
-    entry: Dict[str, Any],
+    entry: dict[str, Any],
     run_id: str,
     test_name: str,
 ) -> dict[str, Any] | None:

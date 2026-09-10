@@ -3,7 +3,6 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from lb_app.api import (
     AnalyticsService,
@@ -15,8 +14,8 @@ from lb_app.api import (
 )
 from lb_common.api import configure_logging
 from lb_ui.tui.adapters.tui_adapter import TUIAdapter
-from lb_ui.tui.system.facade import TUI
 from lb_ui.tui.core.protocols import UI
+from lb_ui.tui.system.facade import TUI
 
 
 @dataclass
@@ -27,13 +26,13 @@ class UIContext:
     dev_mode: bool = False
 
     # Lazily initialized services
-    _ui: Optional[UI] = None
-    _ui_adapter: Optional[UIAdapter] = None
-    _config_service: Optional[ConfigService] = None
-    _doctor_service: Optional[DoctorService] = None
-    _test_service: Optional[TestService] = None
-    _analytics_service: Optional[AnalyticsService] = None
-    _app_client: Optional[ApplicationClient] = None
+    _ui: UI | None = None
+    _ui_adapter: UIAdapter | None = None
+    _config_service: ConfigService | None = None
+    _doctor_service: DoctorService | None = None
+    _test_service: TestService | None = None
+    _analytics_service: AnalyticsService | None = None
+    _app_client: ApplicationClient | None = None
 
     @property
     def ui(self) -> UI:
@@ -131,7 +130,7 @@ def load_dev_mode(cli_root: Path) -> bool:
 
 
 __all__ = [
-    "load_dev_mode",
     "UIContext",
     "configure_logging",
+    "load_dev_mode",
 ]

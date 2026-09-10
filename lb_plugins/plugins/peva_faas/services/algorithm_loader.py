@@ -29,9 +29,7 @@ def load_policy_algorithm(entrypoint: str | None) -> PolicyAlgorithm:
     try:
         module_name, class_name = entrypoint.split(":", 1)
     except ValueError as exc:
-        raise ValueError(
-            "algorithm_entrypoint must use 'module:Class' format"
-        ) from exc
+        raise ValueError("algorithm_entrypoint must use 'module:Class' format") from exc
     module = import_module(module_name)
     algorithm_cls = getattr(module, class_name, None)
     if algorithm_cls is None:

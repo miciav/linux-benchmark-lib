@@ -8,7 +8,6 @@ import pytest
 
 from lb_runner.api import BenchmarkConfig, LocalRunner, WorkloadConfig
 
-
 pytestmark = pytest.mark.unit_runner
 
 
@@ -33,8 +32,8 @@ def test_run_single_repetition_emits_done() -> None:
     workload_cfg = WorkloadConfig(plugin="stress_ng")
 
     # Mock RepetitionExecutor.run_attempt
-    with patch("lb_runner.engine.runner.RepetitionExecutor") as MockExecutor:
-        executor_instance = MockExecutor.return_value
+    with patch("lb_runner.engine.runner.RepetitionExecutor") as mock_executor:
+        executor_instance = mock_executor.return_value
         executor_instance.run_attempt.return_value = SimpleNamespace(
             success=True,
             status="done",
@@ -74,8 +73,8 @@ def test_run_single_repetition_emits_failed() -> None:
     workload_cfg = WorkloadConfig(plugin="stress_ng")
 
     # Mock RepetitionExecutor.run_attempt
-    with patch("lb_runner.engine.runner.RepetitionExecutor") as MockExecutor:
-        executor_instance = MockExecutor.return_value
+    with patch("lb_runner.engine.runner.RepetitionExecutor") as mock_executor:
+        executor_instance = mock_executor.return_value
         executor_instance.run_attempt.return_value = SimpleNamespace(
             success=False,
             status="failed",

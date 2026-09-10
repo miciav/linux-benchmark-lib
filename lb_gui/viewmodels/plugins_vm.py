@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QObject, Signal
 
 if TYPE_CHECKING:
-    from lb_gui.services import PluginService, GUIConfigService
+    from lb_gui.services import GUIConfigService, PluginService
 
 
 class PluginsViewModel(QObject):
@@ -23,8 +23,8 @@ class PluginsViewModel(QObject):
 
     def __init__(
         self,
-        plugin_service: "PluginService",
-        config_service: "GUIConfigService",
+        plugin_service: PluginService,
+        config_service: GUIConfigService,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)

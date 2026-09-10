@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 from dataclasses import dataclass
@@ -43,10 +44,8 @@ class RunnerLogManager:
         root_logger = logging.getLogger()
         if self._jsonl_handler:
             root_logger.removeHandler(self._jsonl_handler)
-            try:
+            with contextlib.suppress(Exception):
                 self._jsonl_handler.close()
-            except Exception:
-                pass
         tags = {"phase": phase} if phase else None
         self._jsonl_handler = attach_jsonl_handler(
             root_logger,
@@ -79,10 +78,8 @@ class RunnerLogManager:
         root_logger = logging.getLogger()
         if self._loki_handler:
             root_logger.removeHandler(self._loki_handler)
-            try:
+            with contextlib.suppress(Exception):
                 self._loki_handler.close()
-            except Exception:
-                pass
             self._loki_handler = None
 
         loki_cfg = self.config.loki

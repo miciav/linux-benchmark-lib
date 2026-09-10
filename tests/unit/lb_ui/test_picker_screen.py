@@ -1,6 +1,10 @@
 import pytest
 
-from lb_ui.tui.screens.picker_screen import HierarchyState, PickerScreen, PickerSelectionState
+from lb_ui.tui.screens.picker_screen import (
+    HierarchyState,
+    PickerScreen,
+    PickerSelectionState,
+)
 from lb_ui.tui.system.models import PickItem, SelectionNode
 
 pytestmark = pytest.mark.unit_ui
@@ -100,7 +104,9 @@ def test_picker_row_no_arrow_for_plain_item_single_select() -> None:
     assert "\u25b8" not in text  # no ▸
 
 
-def test_picker_row_shows_arrow_for_unselected_item_with_variants_multi_select() -> None:
+def test_picker_row_shows_arrow_for_unselected_item_with_variants_multi_select() -> (
+    None
+):
     variants = [PickItem(id="low", title="low"), PickItem(id="high", title="high")]
     items = [PickItem(id="stress", title="Stress", variants=variants)]
     screen = PickerScreen(title="Test", items=items, multi_select=True)

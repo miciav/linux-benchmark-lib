@@ -1,5 +1,4 @@
-"""
-Metric collectors package for Linux performance benchmarking.
+"""Metric collectors package for Linux performance benchmarking.
 
 Collectors are exposed lazily to avoid importing optional dependencies at
 module import time.
@@ -8,11 +7,11 @@ module import time.
 from __future__ import annotations
 
 import importlib
-from typing import Any, Dict
+from typing import Any
 
-__all__ = ["PSUtilCollector", "CLICollector"]
+__all__ = ["CLICollector", "PSUtilCollector"]
 
-_LAZY_MODULES: Dict[str, str] = {
+_LAZY_MODULES: dict[str, str] = {
     "PSUtilCollector": "psutil_collector",
     "CLICollector": "cli_collector",
 }

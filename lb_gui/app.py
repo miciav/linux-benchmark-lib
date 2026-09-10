@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from functools import cached_property
 
+from lb_gui.services.analytics_service import AnalyticsServiceWrapper
 from lb_gui.services.app_client import AppClientService
 from lb_gui.services.config_service import GUIConfigService
+from lb_gui.services.doctor_service import DoctorServiceWrapper
 from lb_gui.services.plugin_service import PluginService
 from lb_gui.services.run_catalog import RunCatalogServiceWrapper
-from lb_gui.services.analytics_service import AnalyticsServiceWrapper
-from lb_gui.services.doctor_service import DoctorServiceWrapper
 from lb_gui.services.run_controller import RunControllerService
 from lb_gui.windows.main_window import MainWindow
 
@@ -49,5 +49,4 @@ class ServiceContainer:
 def create_app() -> MainWindow:
     """Create and wire up the main application window."""
     services = ServiceContainer()
-    window = MainWindow(services)
-    return window
+    return MainWindow(services)

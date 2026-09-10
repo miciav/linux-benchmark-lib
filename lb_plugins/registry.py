@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Iterable, Optional, cast
+from collections.abc import Iterable
+from typing import Any, cast
 
 from lb_plugins import discovery as discovery_module
+
 from .base_generator import BaseGenerator
 from .interface import WorkloadPlugin as IWorkloadPlugin
-
 
 logger = logging.getLogger(__name__)
 ENTRYPOINT_GROUP = discovery_module.ENTRYPOINT_GROUP
@@ -20,9 +21,9 @@ resolve_user_plugin_dir = discovery_module.resolve_user_plugin_dir
 class PluginRegistry:
     """In-memory registry for built-in, entry-point, and user plugins."""
 
-    def __init__(self, plugins: Optional[Iterable[Any]] = None):
-        self._workloads: Dict[str, IWorkloadPlugin] = {}
-        self._pending_entrypoints: Dict[str, Any] = {}
+    def __init__(self, plugins: Iterable[Any] | None = None):
+        self._workloads: dict[str, IWorkloadPlugin] = {}
+        self._pending_entrypoints: dict[str, Any] = {}
         if plugins:
             for plugin in plugins:
                 self.register(plugin)
@@ -48,9 +49,7 @@ class PluginRegistry:
             raise KeyError(f"Workload Plugin '{name}' not found")
         return self._workloads[name]
 
-    def create_generator(
-        self, plugin_name: str, options: Any = None
-    ) -> BaseGenerator:
+    def create_generator(self, plugin_name: str, options: Any = None) -> BaseGenerator:
         plugin = self.get(plugin_name)
 
         # New style: we need to handle config instantiation here or in the plugin
@@ -68,9 +67,8 @@ class PluginRegistry:
         config_obj = plugin.config_cls(**options)
         return cast(BaseGenerator, plugin.create_generator(config_obj))
 
-    def available(self, load_entrypoints: bool = False) -> Dict[str, Any]:
-        """
-        Return available workload plugins.
+    def available(self, load_entrypoints: bool = False) -> dict[str, Any]:
+        """Return available workload plugins.
 
         When load_entrypoints is True, pending entry-point plugins are resolved and
         registered; otherwise only already-registered plugins are returned.

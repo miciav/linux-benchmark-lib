@@ -7,10 +7,10 @@ import threading
 import time
 from dataclasses import dataclass
 
-from ..config import GrafanaConfig
-from ..context import ExecutionContext
-from ..grafana_assets import GRAFANA_DASHBOARD_UID
 from lb_common.api import GrafanaClient
+from lb_plugins.plugins.peva_faas.config import GrafanaConfig
+from lb_plugins.plugins.peva_faas.context import ExecutionContext
+from lb_plugins.plugins.peva_faas.grafana_assets import GRAFANA_DASHBOARD_UID
 
 logger = logging.getLogger(__name__)
 
@@ -57,14 +57,14 @@ class DfaasAnnotationService:
             logger.warning("Failed to resolve Grafana dashboard: %s", exc)
 
     def annotate_run_start(self, run_id: str) -> None:
-        tags = self._base_tags(run_id) + ["event:run_start"]
+        tags = [*self._base_tags(run_id), "event:run_start"]
         self._queue_annotation(
             text=f"PEVA-faas run start ({run_id})",
             tags=tags,
         )
 
     def annotate_run_end(self, run_id: str) -> None:
-        tags = self._base_tags(run_id) + ["event:run_end"]
+        tags = [*self._base_tags(run_id), "event:run_end"]
         self._queue_annotation(
             text=f"PEVA-faas run end ({run_id})",
             tags=tags,
@@ -73,7 +73,7 @@ class DfaasAnnotationService:
     def annotate_config_change(
         self, run_id: str, cfg_id: str, pairs_label: str
     ) -> None:
-        tags = self._base_tags(run_id) + [f"config_id:{cfg_id}", "event:config"]
+        tags = [*self._base_tags(run_id), f"config_id:{cfg_id}", "event:config"]
         self._queue_annotation(
             text=f"Config {cfg_id}: {pairs_label}",
             tags=tags,
@@ -86,7 +86,8 @@ class DfaasAnnotationService:
         pairs_label: str,
         iteration: int,
     ) -> None:
-        tags = self._base_tags(run_id) + [
+        tags = [
+            *self._base_tags(run_id),
             f"config_id:{cfg_id}",
             f"iteration:{iteration}",
             "event:overload",
@@ -97,7 +98,7 @@ class DfaasAnnotationService:
         )
 
     def annotate_error(self, run_id: str, cfg_id: str, message: str) -> None:
-        tags = self._base_tags(run_id) + [f"config_id:{cfg_id}", "event:error"]
+        tags = [*self._base_tags(run_id), f"config_id:{cfg_id}", "event:error"]
         self._queue_annotation(
             text=f"Config {cfg_id} error: {message}",
             tags=tags,

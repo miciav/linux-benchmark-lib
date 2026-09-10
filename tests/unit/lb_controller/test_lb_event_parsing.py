@@ -2,15 +2,20 @@
 
 import pytest
 
-from lb_controller.api import LogSink, RunJournal, RunStatus
 from lb_app.api import _extract_lb_event_data
+from lb_controller.api import LogSink, RunJournal, RunStatus
 from lb_runner.api import RunEvent
 
 pytestmark = pytest.mark.unit_controller
 
 
 def test_extract_lb_event_data_handles_noise():
-    line = 'TASK [debug] ********************************************************\nok: [localhost] => {"msg": "LB_EVENT {\\"run_id\\":\\"run-1\\",\\"host\\":\\"h1\\",\\"workload\\":\\"w\\",\\"repetition\\":1,\\"total_repetitions\\":3,\\"status\\":\\"running\\"}"}'
+    line = (
+        "TASK [debug] ********************************************************\n"
+        'ok: [localhost] => {"msg": "LB_EVENT {\\"run_id\\":\\"run-1\\",'
+        '\\"host\\":\\"h1\\",\\"workload\\":\\"w\\",\\"repetition\\":1,'
+        '\\"total_repetitions\\":3,\\"status\\":\\"running\\"}"}'
+    )
     data = _extract_lb_event_data(line, token="LB_EVENT")
     assert data is not None
     assert data["run_id"] == "run-1"
@@ -22,7 +27,15 @@ def test_extract_lb_event_data_handles_noise():
 def test_update_local_journal_sets_status(tmp_path):
     journal = RunJournal.initialize(
         "run-1",
-        config=type("Cfg", (), {"remote_hosts": [type("H", (), {"name": "h1"})], "repetitions": 2, "workloads": {"w": {}}}),  # type: ignore
+        config=type(
+            "Cfg",
+            (),
+            {
+                "remote_hosts": [type("H", (), {"name": "h1"})],
+                "repetitions": 2,
+                "workloads": {"w": {}},
+            },
+        ),  # type: ignore
         test_types=["w"],
     )
     journal_path = tmp_path / "journal.json"

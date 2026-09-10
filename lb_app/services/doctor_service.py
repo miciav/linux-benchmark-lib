@@ -1,14 +1,11 @@
-"""
-Service for performing environment health checks (doctor).
-"""
+"""Service for performing environment health checks (doctor)."""
 
 import importlib
 import platform
 import shutil
-from typing import List, Optional, Tuple
 
-from lb_app.services.doctor_types import DoctorCheckGroup, DoctorCheckItem, DoctorReport
 from lb_app.services.config_service import ConfigService
+from lb_app.services.doctor_types import DoctorCheckGroup, DoctorCheckItem, DoctorReport
 from lb_controller.api import (
     BenchmarkConfig,
     ConnectivityReport,
@@ -23,7 +20,7 @@ class DoctorService:
 
     def __init__(
         self,
-        config_service: Optional[ConfigService] = None,
+        config_service: ConfigService | None = None,
     ):
         self.config_service = config_service or ConfigService()
 
@@ -38,7 +35,7 @@ class DoctorService:
         return shutil.which(name) is not None
 
     def _build_check_group(
-        self, title: str, items: List[Tuple[str, bool, bool]]
+        self, title: str, items: list[tuple[str, bool, bool]]
     ) -> DoctorCheckGroup:
         failures = 0
         check_items = []
@@ -96,7 +93,7 @@ class DoctorService:
         items.extend(self._plugin_tool_items(registry))
         return self._local_tools_report(items)
 
-    def _common_tool_items(self) -> List[Tuple[str, bool, bool]]:
+    def _common_tool_items(self) -> list[tuple[str, bool, bool]]:
         common_tools = ["sar", "vmstat", "iostat", "mpstat", "pidstat"]
         return [
             (f"{tool} (system)", self._check_command(tool), False)
@@ -105,8 +102,8 @@ class DoctorService:
 
     def _plugin_tool_items(
         self, registry: PluginRegistry
-    ) -> List[Tuple[str, bool, bool]]:
-        items: List[Tuple[str, bool, bool]] = []
+    ) -> list[tuple[str, bool, bool]]:
+        items: list[tuple[str, bool, bool]] = []
         for plugin in registry.available(load_entrypoints=True).values():
             if not hasattr(plugin, "get_required_local_tools"):
                 continue
@@ -116,8 +113,8 @@ class DoctorService:
                 items.append((label, self._check_command(tool), True))
         return items
 
-    def _local_tools_report(self, items: List[Tuple[str, bool, bool]]) -> DoctorReport:
-        messages: List[str] = []
+    def _local_tools_report(self, items: list[tuple[str, bool, bool]]) -> DoctorReport:
+        messages: list[str] = []
         if not items:
             messages.append("No plugins with local tool requirements found.")
             return DoctorReport(groups=[], info_messages=messages, total_failures=0)
@@ -140,7 +137,7 @@ class DoctorService:
 
     def check_remote_hosts(
         self,
-        config: Optional[BenchmarkConfig] = None,
+        config: BenchmarkConfig | None = None,
         timeout_seconds: int = 10,
     ) -> DoctorReport:
         """Check SSH connectivity to configured remote hosts.
@@ -152,6 +149,7 @@ class DoctorService:
 
         Returns:
             DoctorReport with connectivity results for each host.
+
         """
         cfg = self._resolve_config(config)
         if not cfg.remote_hosts:
@@ -172,7 +170,7 @@ class DoctorService:
             total_failures=group.failures,
         )
 
-    def _resolve_config(self, config: Optional[BenchmarkConfig]) -> BenchmarkConfig:
+    def _resolve_config(self, config: BenchmarkConfig | None) -> BenchmarkConfig:
         if config is not None:
             return config
         cfg, _, _ = self.config_service.load_for_read(None)
@@ -185,8 +183,8 @@ class DoctorService:
         return connectivity_service.check_hosts(hosts, timeout_seconds)
 
     @staticmethod
-    def _connectivity_items(report: ConnectivityReport) -> List[Tuple[str, bool, bool]]:
-        items: List[Tuple[str, bool, bool]] = []
+    def _connectivity_items(report: ConnectivityReport) -> list[tuple[str, bool, bool]]:
+        items: list[tuple[str, bool, bool]] = []
         for result in report.results:
             label = f"{result.name} ({result.address})"
             if result.reachable and result.latency_ms is not None:
@@ -199,7 +197,7 @@ class DoctorService:
     @staticmethod
     def _connectivity_messages(
         report: ConnectivityReport, timeout_seconds: int
-    ) -> List[str]:
+    ) -> list[str]:
         messages = [
             f"Checked {report.total_count} host(s) with {timeout_seconds}s timeout"
         ]

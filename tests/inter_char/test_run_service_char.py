@@ -1,10 +1,11 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from lb_app.services.run_service import RunService
 from lb_controller.api import BenchmarkConfig, WorkloadConfig
-from lb_runner.api import RemoteHostConfig
 from lb_plugins.api import PluginRegistry
+from lb_runner.api import RemoteHostConfig
 
 
 @pytest.fixture
@@ -23,8 +24,8 @@ def run_service(mock_registry):
 def test_char_run_benchmark_local_flow(
     run_service, mock_registry, tmp_path, monkeypatch
 ):
-    """
-    Characterization test for local benchmark run.
+    """Characterization test for local benchmark run.
+
     Verifies that run_benchmark orchestrates the components correctly.
     """
     # 1. Setup Config
@@ -66,9 +67,7 @@ def test_char_run_benchmark_local_flow(
 def test_char_run_benchmark_remote_flow(
     run_service, mock_registry, tmp_path, monkeypatch
 ):
-    """
-    Characterization test for remote benchmark run.
-    """
+    """Characterization test for remote benchmark run."""
     # 1. Setup Config
     cfg = BenchmarkConfig(
         output_dir=str(tmp_path),

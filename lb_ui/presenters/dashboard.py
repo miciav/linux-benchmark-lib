@@ -9,6 +9,8 @@ from lb_app.api import (
     DashboardStatusSummary,
     DashboardViewModel,
     build_dashboard_viewmodel,
+)
+from lb_app.api import (
     event_status_line as _event_status_line,
 )
 
@@ -37,6 +39,6 @@ __all__ = [
     "DashboardStatusSummary",
     "DashboardViewModel",
     "build_dashboard_viewmodel",
-    "event_status_parts",
     "event_status_line",
+    "event_status_parts",
 ]

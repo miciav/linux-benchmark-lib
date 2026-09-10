@@ -1,5 +1,4 @@
-"""
-YABS (Yet Another Benchmark Script) workload plugin.
+"""YABS (Yet Another Benchmark Script) workload plugin.
 
 This plugin downloads and executes the upstream yabs.sh script to run
 combined CPU/disk/network benchmarks. It avoids Geekbench by default to
@@ -8,18 +7,23 @@ reduce external dependencies/licensing friction.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-from typing import Any, List, Optional, cast
+from pathlib import Path
+from typing import Any, ClassVar
 
 from pydantic import Field
 
-from ...interface import SimpleWorkloadPlugin, WorkloadIntensity, BasePluginConfig
-from ...base_generator import CommandGenerator, CommandSpec
+from lb_plugins.base_generator import CommandGenerator, CommandSpec
+from lb_plugins.interface import (
+    BasePluginConfig,
+    SimpleWorkloadPlugin,
+    WorkloadIntensity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +40,7 @@ class YabsConfig(BasePluginConfig):
     """Configuration for the YABS workload."""
 
     script_url: str = Field(default=YABS_URL, description="URL to the YABS script")
-    script_checksum: Optional[str] = Field(
+    script_checksum: str | None = Field(
         default=None, description="SHA256 checksum for script validation"
     )
     skip_disk: bool = Field(default=False, description="Skip disk benchmarks (fio)")
@@ -49,7 +53,7 @@ class YabsConfig(BasePluginConfig):
         default_factory=_default_yabs_output_dir,
         description="Directory for YABS log files",
     )
-    extra_args: List[str] = Field(
+    extra_args: list[str] = Field(
         default_factory=list, description="Additional arguments to pass to yabs.sh"
     )
     expected_runtime_seconds: int = Field(
@@ -92,7 +96,7 @@ class YabsGenerator(CommandGenerator):
         self._result: dict[str, Any] | None = None
         self._current_args: list[str] = []
         self._env: dict[str, str] = {}
-        self._log_path: Optional[Path] = None
+        self._log_path: Path | None = None
         self._command_builder: _YabsCommandBuilder | None = None
         self._include_skip_cleanup = True
         # expected_runtime_seconds comes directly from config.
@@ -143,8 +147,10 @@ class YabsGenerator(CommandGenerator):
         self._current_args = list(spec.cmd)
         return spec
 
-    def _timeout_seconds(self) -> Optional[int]:
-        return int(self.config.expected_runtime_seconds) + int(self.config.timeout_buffer)
+    def _timeout_seconds(self) -> int | None:
+        return int(self.config.expected_runtime_seconds) + int(
+            self.config.timeout_buffer
+        )
 
     def _log_command(self, cmd: list[str]) -> None:
         if self.config.debug:
@@ -213,7 +219,7 @@ class YabsGenerator(CommandGenerator):
             self._is_running = False
             return
 
-        script_path: Optional[Path] = None
+        script_path: Path | None = None
         try:
             script_path = self._download_script()
             self._prepare_execution(script_path)
@@ -263,14 +269,12 @@ class YabsGenerator(CommandGenerator):
             super()._run_command()
 
     @staticmethod
-    def _cleanup_script(script_path: Optional[Path]) -> None:
+    def _cleanup_script(script_path: Path | None) -> None:
         if script_path and script_path.exists():
-            try:
+            with contextlib.suppress(Exception):
                 script_path.unlink()
-            except Exception:
-                pass
 
-    def _run_checked(self, cmd: List[str], error_message: str) -> None:
+    def _run_checked(self, cmd: list[str], error_message: str) -> None:
         """Run a command and raise on failure."""
         completed = subprocess.run(cmd, check=False, capture_output=True, text=True)
         if completed.returncode != 0:
@@ -286,11 +290,18 @@ class YabsPlugin(SimpleWorkloadPlugin):
     DESCRIPTION = "Yet Another Bench Script (CPU/disk/network)"
     CONFIG_CLS = YabsConfig
     GENERATOR_CLS = YabsGenerator
-    REQUIRED_APT_PACKAGES = ["curl", "wget", "fio", "iperf3", "bc", "tar"]
-    REQUIRED_LOCAL_TOOLS = ["bash", "curl", "wget"]
+    REQUIRED_APT_PACKAGES: ClassVar[list[str]] = [
+        "curl",
+        "wget",
+        "fio",
+        "iperf3",
+        "bc",
+        "tar",
+    ]
+    REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["bash", "curl", "wget"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[YabsConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> YabsConfig | None:
         # Intensities map to which portions we run; Geekbench remains skipped.
         # Durations: curl/wget+iperf+fio add seconds; cleanup skipped on low levels.
         if level == WorkloadIntensity.LOW:
@@ -321,11 +332,11 @@ class YabsPlugin(SimpleWorkloadPlugin):
 
     def export_results_to_csv(
         self,
-        results: List[dict[str, Any]],
+        results: list[dict[str, Any]],
         output_dir: Path,
         run_id: str,
         test_name: str,
-    ) -> List[Path]:
+    ) -> list[Path]:
         """Export YABS summary metrics parsed from stdout to CSV."""
         import pandas as pd
 
@@ -400,7 +411,7 @@ class YabsPlugin(SimpleWorkloadPlugin):
         }
 
     @staticmethod
-    def _last_float(pattern: str, text: str, flags: int = 0) -> Optional[float]:
+    def _last_float(pattern: str, text: str, flags: int = 0) -> float | None:
         import re
 
         matches = re.findall(pattern, text, flags=flags)
@@ -412,7 +423,7 @@ class YabsPlugin(SimpleWorkloadPlugin):
             return None
 
     @staticmethod
-    def _last_str(pattern: str, text: str) -> Optional[str]:
+    def _last_str(pattern: str, text: str) -> str | None:
         import re
 
         matches = re.findall(pattern, text)

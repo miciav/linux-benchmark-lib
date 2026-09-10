@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import contextlib
 import logging
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from lb_common.api import JsonlLogFormatter, attach_jsonl_handler, attach_loki_handler
+from lb_plugins.plugins.dfaas.config import DfaasConfig
+from lb_plugins.plugins.dfaas.context import ExecutionContext
 from lb_runner.api import LBEventLogHandler, RunEvent, StdoutEmitter
-
-from ..config import DfaasConfig
-from ..context import ExecutionContext
 
 
 @dataclass
@@ -187,7 +187,5 @@ class DfaasLogManager:
 
     @staticmethod
     def _close_handler(handler: logging.Handler) -> None:
-        try:
+        with contextlib.suppress(Exception):
             handler.close()
-        except Exception:
-            pass

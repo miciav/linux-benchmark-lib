@@ -1,3 +1,4 @@
+import contextlib
 import os
 import shutil
 import subprocess
@@ -5,10 +6,13 @@ import time
 from pathlib import Path
 from typing import Any
 
-# import multiprocessing # Removed for multiprocessing context fix
-
 import pytest
 
+from lb_controller.api import (
+    AnsibleRunnerExecutor,
+    BenchmarkController,
+    ControllerOptions,
+)
 from lb_plugins.api import DDConfig, FIOConfig, StressNGConfig
 from lb_runner.api import (
     BenchmarkConfig,
@@ -16,11 +20,6 @@ from lb_runner.api import (
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
-)
-from lb_controller.api import (
-    AnsibleRunnerExecutor,
-    BenchmarkController,
-    ControllerOptions,
 )
 from tests.helpers.multipass import (
     ensure_ansible_available,
@@ -32,12 +31,10 @@ from tests.helpers.multipass import (
     wait_for_multipass_ip,
 )
 
-# Explicitly set the start method for multiprocessing on macOS
-# This can help with issues related to ansible-runner's worker processes
-# try:
-#     multiprocessing.set_start_method('fork', force=True)
-# except RuntimeError:
-#     pass # Already set, or not supported on this platform/context
+# Note: multiprocessing.set_start_method('fork', force=True) was tried here to
+# work around ansible-runner worker-process issues on macOS. It is not enabled:
+# the start method is process-global and setting it at module import time
+# affected unrelated tests.
 
 pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.slowest]
 
@@ -109,10 +106,9 @@ def _vm_disk() -> str:
 
 
 def _handle_missing_artifacts(vm_name: str, missing: list[str]) -> None:
-    """
-    Allow graceful skips when the environment does not yield collector artifacts
-    (common on hosts where Multipass networking or file sharing is restricted).
+    """Allow graceful skips when the environment does not yield collector artifacts.
 
+    This is common on hosts where Multipass networking or file sharing is restricted.
     Set LB_STRICT_MULTIPASS_ARTIFACTS=1 to turn these into hard failures.
     """
     if not missing:
@@ -187,8 +183,8 @@ def _run_multipass_cleanup(cmd: list[str], timeout: int = 120) -> None:
 
 @pytest.fixture(scope="module")
 def multipass_vm():
-    """
-    Fixture to provision one or more Multipass VMs for testing.
+    """Fixture to provision one or more Multipass VMs for testing.
+
     It generates an SSH key, launches the requested VMs, injects the key, and yields
     connection info.
     """
@@ -216,8 +212,7 @@ def multipass_vm():
 
     created_vms = []
     try:
-        for name in vm_names:
-            created_vms.append(_launch_vm(name, pub_key))
+        created_vms.extend(_launch_vm(name, pub_key) for name in vm_names)
 
         yield created_vms
 
@@ -229,15 +224,13 @@ def multipass_vm():
         _run_multipass_cleanup(["multipass", "purge"])
         # Remove generated SSH keys if present
         for key_path in (SSH_KEY_PATH, SSH_PUB_KEY_PATH):
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 key_path.unlink()
-            except FileNotFoundError:
-                pass
 
 
 def test_remote_benchmark_execution(multipass_vm, tmp_path):
-    """
-    Test the full remote benchmark execution flow on a Multipass VM.
+    """Test the full remote benchmark execution flow on a Multipass VM.
+
     Supports dynamic workloads via LB_MULTIPASS_WORKLOADS (comma-separated).
     """
     intensity = get_intensity()
@@ -435,9 +428,11 @@ def test_remote_benchmark_execution(multipass_vm, tmp_path):
                 rep_dir = workload_dir / f"rep{rep}"
                 cli_csv = rep_dir / f"{workload}_rep{rep}_CLICollector.csv"
                 psutil_csv = rep_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
-                for artifact in (cli_csv, psutil_csv):
-                    if not artifact.exists() or artifact.stat().st_size == 0:
-                        missing.append(f"Collector CSV missing or empty: {artifact}")
+                missing.extend(
+                    f"Collector CSV missing or empty: {artifact}"
+                    for artifact in (cli_csv, psutil_csv)
+                    if not artifact.exists() or artifact.stat().st_size == 0
+                )
 
             plugin_csv = workload_dir / f"{workload}_plugin.csv"
             if not plugin_csv.exists() or plugin_csv.stat().st_size == 0:

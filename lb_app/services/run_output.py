@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Callable, Pattern, cast
+from collections.abc import Callable
+from re import Pattern
+from typing import Any
 
 from rich.markup import escape
 
@@ -12,8 +14,8 @@ from .run_output_formatting import (
     format_bullet_line,
     format_progress_line,
 )
-from .run_output_parsing import _extract_lb_event_data  # noqa: F401
 from .run_output_parsing import (
+    _extract_lb_event_data,  # noqa: F401
     _extract_lb_task_data,
     extract_benchmark_name,
     extract_msg_line,

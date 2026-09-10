@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-
 ConfigPairs = list[tuple[str, int]]
 ConfigKey = tuple[tuple[str, ...], tuple[int, ...]]
 

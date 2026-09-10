@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import duckdb
@@ -209,11 +209,14 @@ class DuckDBMemoryStore:
 
     def _ensure_schema_meta(self) -> None:
         conn = self._require_conn()
-        row = conn.execute("SELECT schema_version FROM memory_schema_meta LIMIT 1").fetchone()
-        now = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+        row = conn.execute(
+            "SELECT schema_version FROM memory_schema_meta LIMIT 1"
+        ).fetchone()
+        now = datetime.now(tz=UTC).replace(tzinfo=None)
         if row is None:
             conn.execute(
-                "INSERT INTO memory_schema_meta(schema_version, created_at, updated_at) VALUES (?, ?, ?)",
+                "INSERT INTO memory_schema_meta"
+                "(schema_version, created_at, updated_at) VALUES (?, ?, ?)",
                 [self._schema_version, now, now],
             )
             return

@@ -6,9 +6,6 @@ import inspect
 import logging
 import os
 
-from lb_provisioner.providers.docker import DockerProvisioner
-from lb_provisioner.providers.multipass import MultipassProvisioner
-from lb_provisioner.providers.remote import RemoteProvisioner
 from lb_provisioner.models.types import (
     MAX_NODES,
     ProvisioningError,
@@ -16,6 +13,9 @@ from lb_provisioner.models.types import (
     ProvisioningRequest,
     ProvisioningResult,
 )
+from lb_provisioner.providers.docker import DockerProvisioner
+from lb_provisioner.providers.multipass import MultipassProvisioner
+from lb_provisioner.providers.remote import RemoteProvisioner
 
 logger = logging.getLogger(__name__)
 

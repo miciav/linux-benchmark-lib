@@ -2,17 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 import platform
-from typing import Any, Callable
-
-from lb_controller.api import (
-    BenchmarkController,
-    RunEvent,
-    RunExecutionSummary,
-    StopToken,
-)
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 from lb_app.services.execution_loop import RunExecutionLoop
 from lb_app.services.remote_run_coordinator import RemoteRunCoordinator
@@ -38,6 +32,12 @@ from lb_app.services.run_types import (
 from lb_app.services.session_manager import SessionManager
 from lb_app.ui_interfaces import UIAdapter
 from lb_common.api import JsonlLogFormatter, attach_jsonl_handler, attach_loki_handler
+from lb_controller.api import (
+    BenchmarkController,
+    RunEvent,
+    RunExecutionSummary,
+    StopToken,
+)
 
 
 @dataclass(frozen=True)

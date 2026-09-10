@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from lb_common.logs.schema import StructuredLogEvent
-
 
 DEFAULT_JSONL_TEMPLATE = "{output_dir}/logs/{component}-{host}.jsonl"
 

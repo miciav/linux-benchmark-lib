@@ -26,7 +26,7 @@ class RandomRateStrategy(RateStrategy):
     )
 
     @model_validator(mode="after")
-    def _validate_bounds(self) -> "RandomRateStrategy":
+    def _validate_bounds(self) -> RandomRateStrategy:
         if self.max_rate < self.min_rate:
             raise ValueError("max_rate must be >= min_rate")
         return self
@@ -43,8 +43,7 @@ class RandomRateStrategy(RateStrategy):
 
         # Sample without replacement and sort
         population = range(self.min_rate, self.max_rate + 1)
-        rates = sorted(rng.sample(list(population), actual_count))
-        return rates
+        return sorted(rng.sample(list(population), actual_count))
 
     def description(self) -> str:
         """Return human-readable description."""

@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, Tuple
 
 from rich.markup import escape
-
 
 POLLING_TASKS = frozenset(
     {
@@ -25,7 +23,7 @@ class PollingRollupHelper:
     def __init__(self, log_buffer: list[str], *, summary_only: bool = True) -> None:
         self._log_buffer = log_buffer
         self._summary_only = summary_only
-        self._rollups: Dict[Tuple[str, str, str, str], dict[str, float | int]] = {}
+        self._rollups: dict[tuple[str, str, str, str], dict[str, float | int]] = {}
 
     def maybe_rollup(self, message: str) -> bool:
         parsed = self._parse_bullet_line(self._normalize_log_line(message))

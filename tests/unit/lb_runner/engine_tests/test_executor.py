@@ -6,9 +6,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lb_common.errors import WorkloadError
-from lb_runner.engine.executor import RepetitionExecutor
-from lb_runner.engine.execution import StopRequested
 from lb_runner.engine.context import RunnerContext
+from lb_runner.engine.execution import StopRequested
+from lb_runner.engine.executor import RepetitionExecutor
 from lb_runner.engine.stop_token import StopToken
 
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
@@ -64,11 +64,13 @@ def test_execute_success(executor, context):
     context.output_manager.workload_output_dir.return_value = MagicMock()
 
     # Mock resolve_duration
-    with patch("lb_runner.engine.executor.resolve_duration", return_value=1):
-        with patch(
+    with (
+        patch("lb_runner.engine.executor.resolve_duration", return_value=1),
+        patch(
             "lb_runner.engine.executor.wait_for_generator", return_value=datetime.now()
-        ):
-            result = executor.execute("test_workload", generator, 1, 3)
+        ),
+    ):
+        result = executor.execute("test_workload", generator, 1, 3)
 
     assert result["generator_result"] == {"status": "ok"}
     assert generator.start.called
@@ -90,9 +92,11 @@ def test_execute_stop_requested(executor, context):
     context.metric_manager.begin_repetition.return_value = metric_session
 
     # Mock resolve_duration
-    with patch("lb_runner.engine.executor.resolve_duration", return_value=1):
-        with pytest.raises(StopRequested):
-            executor.execute("test_workload", generator, 1, 3)
+    with (
+        patch("lb_runner.engine.executor.resolve_duration", return_value=1),
+        pytest.raises(StopRequested),
+    ):
+        executor.execute("test_workload", generator, 1, 3)
 
     assert not generator.start.called
     # Cleanup should still be called
@@ -112,11 +116,13 @@ def test_execute_passes_stop_token_to_wait_loop(executor, context):
     context.metric_manager.begin_repetition.return_value = metric_session
     context.output_manager.workload_output_dir.return_value = MagicMock()
 
-    with patch("lb_runner.engine.executor.resolve_duration", return_value=1):
-        with patch(
+    with (
+        patch("lb_runner.engine.executor.resolve_duration", return_value=1),
+        patch(
             "lb_runner.engine.executor.wait_for_generator", return_value=datetime.now()
-        ) as wait_mock:
-            executor.execute("test_workload", generator, 1, 1)
+        ) as wait_mock,
+    ):
+        executor.execute("test_workload", generator, 1, 1)
 
     assert wait_mock.call_args.kwargs["stop_token"] is stop_token
 
@@ -129,9 +135,11 @@ def test_execute_generator_failure(executor, context):
     metric_session.collectors = []
     context.metric_manager.begin_repetition.return_value = metric_session
 
-    with patch("lb_runner.engine.executor.resolve_duration", return_value=1):
-        with pytest.raises(WorkloadError):
-            executor.execute("test_workload", generator, 1, 3)
+    with (
+        patch("lb_runner.engine.executor.resolve_duration", return_value=1),
+        pytest.raises(WorkloadError),
+    ):
+        executor.execute("test_workload", generator, 1, 3)
 
     assert metric_session.stop.called
     assert metric_session.close.called
@@ -170,4 +178,7 @@ def test_run_attempt_defers_export_until_last_repetition(executor, context, tmp_
         )
 
     assert outcome.success is True
-    assert context.output_manager.process_results.call_args.kwargs["export_results"] is False
+    assert (
+        context.output_manager.process_results.call_args.kwargs["export_results"]
+        is False
+    )

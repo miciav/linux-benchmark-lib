@@ -8,7 +8,6 @@ from typer.testing import CliRunner
 
 from lb_runner.api import BenchmarkConfig, WorkloadConfig
 
-
 pytestmark = pytest.mark.inter_generic
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from lb_app.api import ConfigService, BenchmarkConfig
+from lb_app.api import BenchmarkConfig, ConfigService
 
 if TYPE_CHECKING:
     from lb_app.api import PlatformConfig
@@ -42,13 +42,13 @@ class GUIConfigService:
         """
         return self._service.load_for_write(path)
 
-    def load_platform_config(self) -> tuple["PlatformConfig", Path, bool]:
+    def load_platform_config(self) -> tuple[PlatformConfig, Path, bool]:
         """Load platform config. Returns (config, path, existed)."""
         return self._service.load_platform_config()
 
     def set_plugin_enabled(
         self, name: str, enabled: bool
-    ) -> tuple["PlatformConfig", Path]:
+    ) -> tuple[PlatformConfig, Path]:
         """Enable or disable a plugin in platform config."""
         return self._service.set_plugin_enabled(name, enabled)
 

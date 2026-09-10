@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping, TypeVar
+from collections.abc import Mapping
+from typing import Any
 
 
 def _normalize_context_value(value: Any) -> Any:
@@ -69,10 +70,7 @@ class ConfigurationError(LBError):
     """Failure due to invalid configuration."""
 
 
-T = TypeVar("T", bound=LBError)
-
-
-def wrap_error(
+def wrap_error[T: LBError](
     error_cls: type[T],
     message: str,
     *,

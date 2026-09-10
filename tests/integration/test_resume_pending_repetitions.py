@@ -1,8 +1,8 @@
 import pytest
 
 from lb_controller.api import (
-    BenchmarkController,
     BenchmarkConfig,
+    BenchmarkController,
     ControllerOptions,
     ExecutionResult,
     RemoteHostConfig,
@@ -10,7 +10,6 @@ from lb_controller.api import (
     RunStatus,
     WorkloadConfig,
 )
-
 
 pytestmark = pytest.mark.inter_generic
 

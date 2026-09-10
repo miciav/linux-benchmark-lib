@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from lb_runner.models.events import RunEvent, StdoutEmitter
-
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +60,6 @@ class RunProgressEmitter:
                 self._callback(event)
             except Exception as exc:  # pragma: no cover - defensive
                 logger.debug("Progress callback failed: %s", exc)
-        try:
+        # Never break workload on progress path
+        with contextlib.suppress(Exception):
             self._stdout_emitter.emit(event)
-        except Exception:
-            # Never break workload on progress path
-            pass

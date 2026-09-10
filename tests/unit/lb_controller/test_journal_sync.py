@@ -1,10 +1,9 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from lb_controller.api import backfill_timings_from_results
+from lb_controller.api import RunJournal, RunStatus, backfill_timings_from_results
 from lb_controller.services.journal_sync import update_all_reps
-from lb_controller.api import RunJournal, RunStatus
-from lb_runner.api import BenchmarkConfig, WorkloadConfig, RemoteHostConfig
+from lb_runner.api import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
 
 
 def _journal_for(workload: str = "stress_ng") -> tuple[RunJournal, BenchmarkConfig]:

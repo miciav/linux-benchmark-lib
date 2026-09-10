@@ -16,7 +16,6 @@ from lb_controller.adapters.ansible_helpers import (
 )
 from lb_runner.api import StopToken
 
-
 pytestmark = pytest.mark.unit_controller
 
 

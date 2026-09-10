@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
-
-_DOC_REDIRECTS: Dict[str, str] = {}
+_DOC_REDIRECTS: dict[str, str] = {}
 
 _HTML_TEMPLATE = """<!doctype html>
 <html lang="en">

@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from lb_runner.services.system_info_service import SystemInfoCollector
 from lb_runner.services.system_info_io import write_outputs
+from lb_runner.services.system_info_service import SystemInfoCollector
 
 
 def main(argv: list[str] | None = None) -> int:

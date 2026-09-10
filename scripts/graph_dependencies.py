@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Iterable, Sequence
 
 from lb_common.api import configure_logging
 
@@ -65,13 +65,17 @@ def build_cmd(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Convenience wrapper around pydeps for visualizing component dependencies."
+    description = (
+        "Convenience wrapper around pydeps for visualizing component dependencies."
     )
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
         "module",
         nargs="?",
-        help="Top-level module/package to analyze (e.g. lb_runner). Required unless --all is set.",
+        help=(
+            "Top-level module/package to analyze (e.g. lb_runner). "
+            "Required unless --all is set."
+        ),
     )
     parser.add_argument(
         "--only",

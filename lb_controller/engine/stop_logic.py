@@ -4,22 +4,23 @@ from __future__ import annotations
 
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any
 
 from lb_controller.engine.run_state import RunFlags
-from lb_controller.models.state import ControllerState
+from lb_controller.engine.session import RunSession
 from lb_controller.engine.stops import StopState
+from lb_controller.models.state import ControllerState
 from lb_controller.models.types import InventorySpec
 from lb_controller.services.services import ControllerServices
-from lb_controller.engine.session import RunSession
 
 
 def handle_stop_during_workloads(
     services: ControllerServices,
     session: RunSession,
     inventory: InventorySpec,
-    extravars: Dict[str, Any],
+    extravars: dict[str, Any],
     flags: RunFlags,
     ui_log: Callable[[str], None],
 ) -> RunFlags:
@@ -42,15 +43,15 @@ def handle_stop_protocol(
     services: ControllerServices,
     session: RunSession,
     inventory: InventorySpec,
-    extravars: Dict[str, Any],
+    extravars: dict[str, Any],
     log_fn: Callable[[str], None],
 ) -> bool:
-    """
-    Execute the distributed stop protocol.
+    """Execute the distributed stop protocol.
 
     Returns:
         True if stop was confirmed by all runners (safe to teardown).
         False if stop timed out or failed (unsafe to teardown).
+
     """
     if not session.coordinator:
         return False

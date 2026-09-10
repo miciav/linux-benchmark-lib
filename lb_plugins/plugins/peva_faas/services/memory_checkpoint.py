@@ -73,7 +73,9 @@ class ParquetCheckpoint:
                 [str(meta_file)],
             ).fetchone()
         if row is None:
-            raise ValueError("Invalid memory_schema_meta.parquet: missing schema_version")
+            raise ValueError(
+                "Invalid memory_schema_meta.parquet: missing schema_version"
+            )
         loaded_schema = str(row[0])
         if loaded_schema != self._schema_version:
             raise ValueError(

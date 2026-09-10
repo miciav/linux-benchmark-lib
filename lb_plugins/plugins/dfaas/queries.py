@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import logging
 import json
+import logging
 import time
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, cast
+from typing import Any, cast
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
@@ -129,7 +130,7 @@ def _extract_range_totals(result: list[dict[str, Any]]) -> list[float]:
         elif len(current_values) != expected_length:
             raise PrometheusQueryError("Malformed range query result.")
         series_samples.append(current_values)
-    return [sum(samples) for samples in zip(*series_samples)]
+    return [sum(samples) for samples in zip(*series_samples, strict=False)]
 
 
 class PrometheusQueryRunner:

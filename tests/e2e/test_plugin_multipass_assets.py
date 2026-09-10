@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 import pytest
 
@@ -53,8 +53,8 @@ def _collect_playbooks() -> list[tuple[str, str, Path]]:
 
 
 def _iter_paths(plugin: object) -> Iterable[tuple[str, Path | None]]:
-    yield "setup", getattr(plugin, "get_ansible_setup_path")()
-    yield "teardown", getattr(plugin, "get_ansible_teardown_path")()
+    yield "setup", plugin.get_ansible_setup_path()
+    yield "teardown", plugin.get_ansible_teardown_path()
 
 
 PLAYBOOKS = _collect_playbooks()
@@ -70,7 +70,7 @@ pytestmark = [pytest.mark.inter_e2e, pytest.mark.inter_multipass, pytest.mark.sl
 @pytest.mark.skipif(
     not MULTIPASS_READY.ready, reason=MULTIPASS_READY.reason or "multipass unavailable"
 )
-@pytest.mark.parametrize("plugin_name,kind,playbook_path", PLAYBOOKS)
+@pytest.mark.parametrize(("plugin_name", "kind", "playbook_path"), PLAYBOOKS)
 def test_plugin_playbook_syntax(
     plugin_name: str, kind: str, playbook_path: Path
 ) -> None:

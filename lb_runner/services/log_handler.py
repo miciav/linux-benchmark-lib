@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import logging
 import json
+import logging
 import sys
 
 
 class LBEventLogHandler(logging.Handler):
-    """
-    Logging handler that emits logs as structured LB_EVENT JSON lines
-    to stdout, allowing the controller to capture and stream them.
+    """Logging handler that emits logs as structured LB_EVENT JSON lines.
+
+    Logs go to stdout, allowing the controller to capture and stream them.
     """
 
     def __init__(

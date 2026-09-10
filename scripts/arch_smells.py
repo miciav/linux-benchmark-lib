@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 
-
 IO_IMPORT_HINTS = {
     "requests",
     "httpx",
@@ -78,9 +77,8 @@ def top_level_imports(tree: ast.AST) -> set[str]:
         if isinstance(node, ast.Import):
             for n in node.names:
                 imports.add(n.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imports.add(node.module.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.add(node.module.split(".")[0])
     return imports
 
 
@@ -174,7 +172,9 @@ def main(pkg_dir: str) -> None:
 
     (out_dir / "hotspots.txt").write_text(
         "\n".join(
-            f"{h.file}:{h.name} | methods={h.n_methods} init_params={h.init_params} imports={h.n_imports} flags={list(h.suspicious)}"
+            f"{h.file}:{h.name} | methods={h.n_methods} "
+            f"init_params={h.init_params} imports={h.n_imports} "
+            f"flags={list(h.suspicious)}"
             for h in hotspots[:500]
         )
         + "\n",
@@ -208,7 +208,8 @@ def main(pkg_dir: str) -> None:
     print(" - arch_report/hotspots.txt")
     print(" - arch_report/duplication_candidates.txt")
     print(
-        f"Classes analyzed: {len(all_infos)} | hotspots: {len(hotspots)} | dup_pairs: {len(pairs)}"
+        f"Classes analyzed: {len(all_infos)} | hotspots: {len(hotspots)} | "
+        f"dup_pairs: {len(pairs)}"
     )
 
 

@@ -1,13 +1,15 @@
-"""
-Multipass e2e tests for the Baseline workload.
-"""
+"""Multipass e2e tests for the Baseline workload."""
 
 import os
 from pathlib import Path
-from typing import Dict, List
 
 import pytest
 
+from lb_controller.api import (
+    AnsibleRunnerExecutor,
+    BenchmarkController,
+    ControllerOptions,
+)
 from lb_plugins.api import BaselineConfig
 from lb_runner.api import (
     BenchmarkConfig,
@@ -15,11 +17,6 @@ from lb_runner.api import (
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
-)
-from lb_controller.api import (
-    AnsibleRunnerExecutor,
-    BenchmarkController,
-    ControllerOptions,
 )
 from tests.helpers.multipass import make_test_ansible_env, stage_private_key
 
@@ -45,8 +42,8 @@ STRICT_MULTIPASS_ARTIFACTS = os.environ.get(
 
 
 def _build_host_configs(
-    multipass_vms: List[Dict], staged_key: Path
-) -> List[RemoteHostConfig]:
+    multipass_vms: list[dict], staged_key: Path
+) -> list[RemoteHostConfig]:
     return [
         RemoteHostConfig(
             name=vm["name"],
@@ -93,9 +90,11 @@ def _assert_artifacts(host_output_dir: Path, workload: str, expected_reps: int) 
         rep_dir = workload_dir / f"rep{rep}"
         cli_csv = rep_dir / f"{workload}_rep{rep}_CLICollector.csv"
         psutil_csv = rep_dir / f"{workload}_rep{rep}_PSUtilCollector.csv"
-        for path in (cli_csv, psutil_csv):
-            if not path.exists() or path.stat().st_size == 0:
-                missing.append(f"Collector CSV missing/empty: {path}")
+        missing.extend(
+            f"Collector CSV missing/empty: {path}"
+            for path in (cli_csv, psutil_csv)
+            if not path.exists() or path.stat().st_size == 0
+        )
 
     if missing:
         _handle_missing_artifacts("; ".join(missing))
@@ -104,7 +103,7 @@ def _assert_artifacts(host_output_dir: Path, workload: str, expected_reps: int) 
 def _run_single_workload(
     workload: str,
     workload_cfg: WorkloadConfig,
-    plugin_settings: Dict[str, object],
+    plugin_settings: dict[str, object],
     multipass_vms,
     tmp_path: Path,
 ) -> None:

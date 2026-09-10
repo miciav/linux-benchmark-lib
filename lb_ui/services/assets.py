@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import importlib
 import logging
@@ -11,10 +12,8 @@ from typing import Any
 
 Image: Any | None = None
 
-try:
+with contextlib.suppress(ImportError):
     Image = importlib.import_module("PIL.Image")
-except ImportError:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +21,7 @@ logger = logging.getLogger(__name__)
 def get_cache_dir() -> Path:
     """Get the user cache directory for LB."""
     cache_base = os.environ.get("XDG_CACHE_HOME")
-    if cache_base:
-        path = Path(cache_base) / "lb"
-    else:
-        path = Path.home() / ".cache" / "lb"
+    path = Path(cache_base) / "lb" if cache_base else Path.home() / ".cache" / "lb"
 
     try:
         path.mkdir(parents=True, exist_ok=True)
@@ -39,8 +35,11 @@ def get_cache_dir() -> Path:
 
 def _calculate_file_hash(path: Path) -> str:
     """Calculate MD5 hash of a file."""
-    hash_md5 = hashlib.md5()
-    with open(path, "rb") as f:
+    # usedforsecurity=False: this is a cache key for icon assets, not a
+    # security primitive. It also keeps the call working on FIPS-enabled hosts,
+    # where a plain md5() raises.
+    hash_md5 = hashlib.md5(usedforsecurity=False)
+    with path.open("rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()[:8]  # Short hash is enough
@@ -79,10 +78,8 @@ def _cleanup_old_icons(cache_dir: Path, current_hash: str) -> None:
     """Remove icons from previous versions."""
     for file in cache_dir.glob("icon_*_64.png"):
         if current_hash not in file.name:
-            try:
+            with contextlib.suppress(OSError):
                 file.unlink()
-            except OSError:
-                pass
 
 
 def resolve_icon_path() -> str | None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import importlib
 import logging
 import os
@@ -12,23 +13,17 @@ import sys
 import time
 from typing import Any, cast
 
-from lb_ui.notifications.base import NotificationProvider, NotificationContext
+from lb_ui.notifications.base import NotificationContext, NotificationProvider
 
 # Optional dependencies loaded lazily to keep imports soft.
 notification: Any | None = None
 DesktopNotifier: Any | None = None
 
-try:
+with contextlib.suppress(ImportError):
     notification = importlib.import_module("plyer.notification")
-except ImportError:
-    pass
 
-try:
-    DesktopNotifier = getattr(
-        importlib.import_module("desktop_notifier"), "DesktopNotifier"
-    )
-except ImportError:
-    pass
+with contextlib.suppress(ImportError):
+    DesktopNotifier = importlib.import_module("desktop_notifier").DesktopNotifier
 
 logger = logging.getLogger(__name__)
 

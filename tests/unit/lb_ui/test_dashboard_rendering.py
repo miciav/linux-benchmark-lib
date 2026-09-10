@@ -1,8 +1,10 @@
-import pytest
+from io import StringIO
 from typing import Any
 from unittest.mock import MagicMock
-from io import StringIO
+
+import pytest
 from rich.console import Console
+
 from lb_ui.tui.system.components.dashboard import RichDashboard
 
 pytestmark = pytest.mark.unit_ui

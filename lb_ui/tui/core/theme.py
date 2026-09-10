@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 # ── Accent & borders ────────────────────────────────────────────────────────
 RICH_ACCENT = "cyan"
 RICH_ACCENT_BOLD = f"bold {RICH_ACCENT}"
-RICH_BORDER_STYLE = "bright_black"        # subtle grey — secondary panels
-RICH_BORDER_STYLE_ACTIVE = RICH_ACCENT    # cyan — primary/active panels
+RICH_BORDER_STYLE = "bright_black"  # subtle grey — secondary panels
+RICH_BORDER_STYLE_ACTIVE = RICH_ACCENT  # cyan — primary/active panels
 RICH_TITLE_SECONDARY = "bold white"
 RICH_META_MUTED = "bright_black"
 RICH_EMPTY_TEXT = "italic bright_black"
@@ -23,19 +23,19 @@ RICH_STATUS_COLORS: dict[str, str] = {
 
 # ── Status badges (icon + label) ─────────────────────────────────────────────
 RICH_STATUS_BADGES: dict[str, str] = {
-    "failed":  "[bold red]✗ failed[/bold red]",
+    "failed": "[bold red]✗ failed[/bold red]",
     "running": "[bold yellow]⟳ running[/bold yellow]",
     "skipped": "[bright_black]⊘ skipped[/bright_black]",
-    "done":    "[bold green]✓ done[/bold green]",
+    "done": "[bold green]✓ done[/bold green]",
     "partial": "[yellow]◑ partial[/yellow]",
     "pending": "[bright_black]· pending[/bright_black]",
 }
 
 # ── Presenter templates ───────────────────────────────────────────────────────
 PRESENTER_TEMPLATES: dict[str, str] = {
-    "info":    "[cyan]●[/cyan] {message}",
+    "info": "[cyan]●[/cyan] {message}",
     "warning": "[bold yellow]▲ {message}[/bold yellow]",
-    "error":   "[bold red]✗ {message}[/bold red]",
+    "error": "[bold red]✗ {message}[/bold red]",
     "success": "[bold green]✓ {message}[/bold green]",
 }
 
@@ -53,25 +53,18 @@ ACTION_PHASE_STYLES: dict[str, str] = {
 }
 
 # ── Picker keybinding hint strings ────────────────────────────────────────────
-PICKER_KEYBINDINGS_FLAT_SINGLE = (
-    "↑↓:navigate  Enter:confirm  Esc:cancel  Ctrl+R:clear"
-)
+PICKER_KEYBINDINGS_FLAT_SINGLE = "↑↓:navigate  Enter:confirm  Esc:cancel  Ctrl+R:clear"
 PICKER_KEYBINDINGS_FLAT_MULTI = (
     "↑↓:navigate  Space:toggle  →:options  Enter:confirm  Esc:cancel  Ctrl+R:clear"
 )
-PICKER_KEYBINDINGS_HIERARCHICAL = (
-    "↑↓:navigate  Enter/→:open  ←/⌫:back  Esc:cancel"
-)
-PICKER_KEYBINDINGS_VARIANTS = (
-    "↑↓:navigate  Enter:select  ←/⌫:back"
-)
+PICKER_KEYBINDINGS_HIERARCHICAL = "↑↓:navigate  Enter/→:open  ←/⌫:back  Esc:cancel"
+PICKER_KEYBINDINGS_VARIANTS = "↑↓:navigate  Enter:select  ←/⌫:back"
 
 
 # ── Public helpers ────────────────────────────────────────────────────────────
 
-def panel_title(
-    text: str, meta: str | None = None, *, active: bool = True
-) -> str:
+
+def panel_title(text: str, meta: str | None = None, *, active: bool = True) -> str:
     title_style = RICH_ACCENT_BOLD if active else RICH_TITLE_SECONDARY
     if not meta:
         return f"[{title_style}]{text}[/{title_style}]"
@@ -144,7 +137,8 @@ def event_status_live(event_source: str, freshness: str) -> str:
 
 
 def controller_state_line(state: str) -> str:
-    return f"[{RICH_TITLE_SECONDARY}]Controller[/{RICH_TITLE_SECONDARY}] {muted('•')} {state}"
+    title = f"[{RICH_TITLE_SECONDARY}]Controller[/{RICH_TITLE_SECONDARY}]"
+    return f"{title} {muted('•')} {state}"
 
 
 def warning_banner(message: str) -> str:
@@ -153,16 +147,16 @@ def warning_banner(message: str) -> str:
 
 def prompt_toolkit_picker_style() -> Mapping[str, str]:
     return {
-        "selected":         "bg:#14323a fg:#eafffb bold",
-        "checked":          "fg:#67d6c3 bold",
-        "separator":        "fg:#3c464d",
-        "frame.border":     "fg:#3c464d",
-        "frame.label":      "fg:#7fe3d4 bold",
-        "search":           "bg:#171c20 fg:#dffcf7",
+        "selected": "bg:#14323a fg:#eafffb bold",
+        "checked": "fg:#67d6c3 bold",
+        "separator": "fg:#3c464d",
+        "frame.border": "fg:#3c464d",
+        "frame.label": "fg:#7fe3d4 bold",
+        "search": "bg:#171c20 fg:#dffcf7",
         "variant-selected": "bg:#163b38 fg:#effffb bold",
-        "disabled":         "fg:#66727a",
-        "path":             "fg:#7fe3d4 bold",
-        "title":            "fg:#f4fffd bold",
-        "footer":           "bg:#101316 fg:#73818a",
-        "footer.key":       "fg:#7fe3d4 bold",
+        "disabled": "fg:#66727a",
+        "path": "fg:#7fe3d4 bold",
+        "title": "fg:#f4fffd bold",
+        "footer": "bg:#101316 fg:#73818a",
+        "footer.key": "fg:#7fe3d4 bold",
     }

@@ -15,7 +15,9 @@ from lb_plugins.plugins.peva_faas.services.run_execution import DfaasRunPlanner
 pytestmark = [pytest.mark.unit_plugins]
 
 
-def _make_run_planner(config: DfaasConfig) -> tuple[DfaasRunPlanner, MagicMock, MagicMock, MagicMock, MagicMock]:
+def _make_run_planner(
+    config: DfaasConfig,
+) -> tuple[DfaasRunPlanner, MagicMock, MagicMock, MagicMock, MagicMock]:
     exec_ctx = ExecutionContext(host="node-1", repetition=2, total_repetitions=3)
     planner = MagicMock()
     metrics = MagicMock()
@@ -89,7 +91,10 @@ def test_load_output_dir_from_generated_returns_none_on_parse_error(
 
 
 def test_find_workload_name_falls_back_to_peva_name() -> None:
-    assert DfaasRunPlanner._find_workload_name({"other": {"plugin": "not-peva"}}) == "peva_faas"
+    assert (
+        DfaasRunPlanner._find_workload_name({"other": {"plugin": "not-peva"}})
+        == "peva_faas"
+    )
 
 
 def test_load_index_reads_rows_and_handles_invalid_literal(
@@ -101,16 +106,14 @@ def test_load_index_reads_rows_and_handles_invalid_literal(
     output_dir.mkdir(parents=True, exist_ok=True)
     index_path = output_dir / "index.csv"
     index_path.write_text(
-        "functions;rates;results_file\n"
-        "\"['f1']\";\"[10]\";results.csv\n"
+        'functions;rates;results_file\n"[\'f1\']";"[10]";results.csv\n'
     )
 
     assert run_planner._load_index(output_dir) == {(("f1",), (10,))}
 
     caplog.set_level("WARNING")
     index_path.write_text(
-        "functions;rates;results_file\n"
-        "\"['f1'\";\"[10]\";results.csv\n"
+        'functions;rates;results_file\n"[\'f1\'";"[10]";results.csv\n'
     )
     assert run_planner._load_index(output_dir) == set()
     assert "Invalid data in index file" in caplog.text

@@ -1,5 +1,4 @@
-"""
-Service for provisioning execution environments (local or remote).
+"""Service for provisioning execution environments (local or remote).
 
 This service bridges the gap between Python logic and Ansible playbooks,
 allowing the CLI to prepare environments consistently.
@@ -9,7 +8,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Optional
 
 from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import DEFAULT_LB_WORKDIR, RemoteHostConfig
@@ -31,7 +30,7 @@ class SetupService:
     def __init__(self, executor: Optional["AnsibleRunnerExecutor"] = None):
         from lb_controller.api import AnsibleRunnerExecutor, InventorySpec
 
-        self._inventory_cls: Type["InventorySpec"] = InventorySpec
+        self._inventory_cls: type[InventorySpec] = InventorySpec
         self.executor = executor or AnsibleRunnerExecutor(stream_output=True)
 
     def _get_local_inventory(self) -> "InventorySpec":
@@ -51,11 +50,10 @@ class SetupService:
 
     def provision_global(
         self,
-        target_hosts: Optional[List[RemoteHostConfig]] = None,
-        lb_workdir: Optional[str] = None,
+        target_hosts: list[RemoteHostConfig] | None = None,
+        lb_workdir: str | None = None,
     ) -> bool:
-        """
-        Run the global setup playbook (dependencies, base directories).
+        """Run the global setup playbook (dependencies, base directories).
 
         If target_hosts is None, runs against localhost.
         """
@@ -83,11 +81,9 @@ class SetupService:
         self,
         plugin_assets: PluginAssetConfig | None,
         plugin_name: str,
-        target_hosts: Optional[List[RemoteHostConfig]] = None,
+        target_hosts: list[RemoteHostConfig] | None = None,
     ) -> bool:
-        """
-        Run the setup playbook for a specific workload plugin.
-        """
+        """Run the setup playbook for a specific workload plugin."""
         playbook = plugin_assets.setup_playbook if plugin_assets else None
         if not playbook:
             install_logger.debug("No setup playbook for plugin %s", plugin_name)
@@ -99,7 +95,7 @@ class SetupService:
             else self._get_local_inventory()
         )
 
-        extravars: Dict[str, Any] = {}
+        extravars: dict[str, Any] = {}
         if plugin_assets:
             extravars.update(plugin_assets.setup_extravars)
 
@@ -113,11 +109,9 @@ class SetupService:
         self,
         plugin_assets: PluginAssetConfig | None,
         plugin_name: str,
-        target_hosts: Optional[List[RemoteHostConfig]] = None,
+        target_hosts: list[RemoteHostConfig] | None = None,
     ) -> bool:
-        """
-        Run the teardown playbook for a specific workload plugin.
-        """
+        """Run the teardown playbook for a specific workload plugin."""
         playbook = plugin_assets.teardown_playbook if plugin_assets else None
         if not playbook:
             return True
@@ -128,7 +122,7 @@ class SetupService:
             else self._get_local_inventory()
         )
 
-        extravars: Dict[str, Any] = {}
+        extravars: dict[str, Any] = {}
         if plugin_assets:
             extravars.update(plugin_assets.teardown_extravars)
 
@@ -143,12 +137,10 @@ class SetupService:
 
     def teardown_global(
         self,
-        target_hosts: Optional[List[RemoteHostConfig]] = None,
-        lb_workdir: Optional[str] = None,
+        target_hosts: list[RemoteHostConfig] | None = None,
+        lb_workdir: str | None = None,
     ) -> bool:
-        """
-        Run the global teardown playbook.
-        """
+        """Run the global teardown playbook."""
         playbook = ANSIBLE_ROOT / "playbooks" / "teardown.yml"
         if not playbook.exists():
             return True

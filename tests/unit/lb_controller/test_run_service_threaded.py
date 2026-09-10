@@ -1,10 +1,12 @@
+from typing import ClassVar
+
 import pytest
+
 import lb_app.services.execution_loop as execution_loop_module
 import lb_app.services.remote_run_coordinator as coordinator_module
-from lb_app.api import RunService, RunContext, RunResult
+from lb_app.api import RunContext, RunResult, RunService
 from lb_plugins.api import PluginRegistry
 from lb_runner.api import BenchmarkConfig, RemoteHostConfig, WorkloadConfig
-
 
 pytestmark = pytest.mark.unit_controller
 
@@ -18,7 +20,7 @@ class DummyController:
 
         class _Summary:
             success = True
-            phases = {}
+            phases: ClassVar[dict] = {}
 
         return _Summary()
 

@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, List, Optional
+from typing import Any
 
+from lb_app.services.config_defaults import apply_platform_defaults
+from lb_app.services.run_types import RunContext
+from lb_app.ui_interfaces import UIAdapter
 from lb_controller.api import (
     BenchmarkConfig,
     PlatformConfig,
     apply_playbook_defaults,
 )
 from lb_plugins.api import PluginRegistry, apply_plugin_assets, create_registry
-
-from lb_app.services.config_defaults import apply_platform_defaults
-from lb_app.services.run_types import RunContext
-from lb_app.ui_interfaces import UIAdapter
 
 
 def apply_overrides(cfg: BenchmarkConfig, intensity: str | None, debug: bool) -> None:
@@ -37,10 +37,10 @@ def _apply_debug_override(cfg: BenchmarkConfig) -> None:
 
 def resolve_target_tests(
     cfg: BenchmarkConfig,
-    tests: Optional[List[str]],
+    tests: list[str] | None,
     platform_config: PlatformConfig,
     ui_adapter: UIAdapter | None,
-) -> List[str]:
+) -> list[str]:
     """Determine which workloads to run, skipping those disabled by platform."""
     target_tests = tests or list(cfg.workloads.keys())
     if not target_tests:
@@ -55,7 +55,7 @@ def resolve_target_tests(
 
 def _partition_targets(
     cfg: BenchmarkConfig,
-    target_tests: List[str],
+    target_tests: list[str],
     platform_config: PlatformConfig,
 ) -> tuple[list[str], list[str]]:
     disabled: list[str] = []
@@ -91,11 +91,11 @@ class RunContextBuilder:
     def build_context(
         self,
         cfg: BenchmarkConfig,
-        tests: Optional[List[str]],
-        config_path: Optional[Path] = None,
+        tests: list[str] | None,
+        config_path: Path | None = None,
         debug: bool = False,
-        resume: Optional[str] = None,
-        stop_file: Optional[Path] = None,
+        resume: str | None = None,
+        stop_file: Path | None = None,
         execution_mode: str = "remote",
         node_count: int | None = None,
     ) -> RunContext:
@@ -118,22 +118,21 @@ class RunContextBuilder:
     def create_session(
         self,
         config_service: Any,
-        tests: Optional[List[str]] = None,
-        config_path: Optional[Path] = None,
-        run_id: Optional[str] = None,
-        resume: Optional[str] = None,
-        repetitions: Optional[int] = None,
+        tests: list[str] | None = None,
+        config_path: Path | None = None,
+        run_id: str | None = None,
+        resume: str | None = None,
+        repetitions: int | None = None,
         debug: bool = False,
-        intensity: Optional[str] = None,
+        intensity: str | None = None,
         ui_adapter: UIAdapter | None = None,
         setup: bool = True,
-        stop_file: Optional[Path] = None,
+        stop_file: Path | None = None,
         execution_mode: str = "remote",
         node_count: int | None = None,
         preloaded_config: BenchmarkConfig | None = None,
     ) -> RunContext:
-        """
-        Orchestrate the creation of a RunContext from raw inputs.
+        """Orchestrate the creation of a RunContext from raw inputs.
 
         This method consolidates configuration loading, overrides, and context building.
         """
@@ -163,10 +162,10 @@ class RunContextBuilder:
     def _load_or_default_config(
         self,
         config_service: Any,
-        config_path: Optional[Path],
+        config_path: Path | None,
         ui_adapter: UIAdapter | None,
         preloaded_config: BenchmarkConfig | None,
-    ) -> tuple[BenchmarkConfig, Optional[Path]]:
+    ) -> tuple[BenchmarkConfig, Path | None]:
         """Load config from disk or return a provided instance with UI feedback."""
         if preloaded_config is not None:
             cfg = self._prepare_preloaded_config(preloaded_config)
@@ -190,8 +189,8 @@ class RunContextBuilder:
     @staticmethod
     def _notify_config_resolution(
         ui_adapter: UIAdapter | None,
-        resolved: Optional[Path],
-        stale: Optional[Path],
+        resolved: Path | None,
+        stale: Path | None,
     ) -> None:
         if not ui_adapter:
             return
@@ -206,8 +205,8 @@ class RunContextBuilder:
         self,
         cfg: BenchmarkConfig,
         setup: bool,
-        repetitions: Optional[int],
-        intensity: Optional[str],
+        repetitions: int | None,
+        intensity: str | None,
         ui_adapter: UIAdapter | None,
         debug: bool,
     ) -> None:
@@ -227,7 +226,7 @@ class RunContextBuilder:
 
     @staticmethod
     def _apply_repetitions(
-        cfg: BenchmarkConfig, repetitions: Optional[int], ui_adapter: UIAdapter | None
+        cfg: BenchmarkConfig, repetitions: int | None, ui_adapter: UIAdapter | None
     ) -> None:
         if repetitions is None:
             return
@@ -237,7 +236,7 @@ class RunContextBuilder:
 
     @staticmethod
     def _announce_intensity(
-        intensity: Optional[str], ui_adapter: UIAdapter | None
+        intensity: str | None, ui_adapter: UIAdapter | None
     ) -> None:
         if intensity and ui_adapter:
             ui_adapter.show_info(f"Global intensity override: {intensity}")

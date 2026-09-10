@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable, Iterator, Sequence
 from itertools import combinations, product
-from typing import Iterable, Iterator, Sequence
 
 
 def generate_function_combinations(
@@ -65,7 +65,9 @@ def count_configurations(
 ) -> int:
     """Count configurations without materializing the full Cartesian product."""
     total = 0
-    for combo in generate_function_combinations(functions, min_functions, max_functions):
+    for combo in generate_function_combinations(
+        functions, min_functions, max_functions
+    ):
         combo_total = 1
         for fn in combo:
             combo_total *= len(_rates_for_function(fn, rates, rates_by_function))
@@ -110,7 +112,9 @@ def config_key(
 def config_id(config: Iterable[tuple[str, int]]) -> str:
     """Return a stable short identifier for a config."""
     names, rates = config_key(config)
-    payload = "|".join(f"{name}:{rate}" for name, rate in zip(names, rates))
+    payload = "|".join(
+        f"{name}:{rate}" for name, rate in zip(names, rates, strict=False)
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
 
 
@@ -126,7 +130,7 @@ def dominates(
     if base_names != candidate_names:
         return False
     better = False
-    for base_rate, candidate_rate in zip(base_rates, candidate_rates):
+    for base_rate, candidate_rate in zip(base_rates, candidate_rates, strict=False):
         if candidate_rate < base_rate:
             return False
         if candidate_rate > base_rate:

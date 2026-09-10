@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from lb_plugins.api import PluginRegistry
-from lb_runner.metric_collectors.registry import CollectorRegistry, CollectorPlugin
+from lb_runner.metric_collectors.registry import CollectorPlugin, CollectorRegistry
 from lb_runner.models.config import BenchmarkConfig
 
 
@@ -23,11 +23,11 @@ class RunnerRegistry:
     def get(self, name: str) -> Any:
         return self._workloads.get(name)
 
-    def available(self, load_entrypoints: bool = False) -> Dict[str, Any]:
+    def available(self, load_entrypoints: bool = False) -> dict[str, Any]:
         return self._workloads.available(load_entrypoints=load_entrypoints)
 
     def create_generator(
-        self, plugin_name: str, options: Dict[str, Any] | None = None
+        self, plugin_name: str, options: dict[str, Any] | None = None
     ) -> Any:
         return self._workloads.create_generator(plugin_name, options)
 
@@ -36,5 +36,5 @@ class RunnerRegistry:
 
     def available_collectors(
         self, load_entrypoints: bool = False
-    ) -> Dict[str, CollectorPlugin]:
+    ) -> dict[str, CollectorPlugin]:
         return self._collectors.available(load_entrypoints=load_entrypoints)

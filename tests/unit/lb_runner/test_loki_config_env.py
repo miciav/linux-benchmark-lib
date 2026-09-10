@@ -6,7 +6,6 @@ import pytest
 
 from lb_runner.models.config import LokiConfig
 
-
 pytestmark = pytest.mark.unit_runner
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional, Literal
 from pathlib import Path
+from typing import Literal
 
 import typer
 
@@ -24,23 +24,23 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
             "-m",
             help="Install mode: local (brew/apt) or docker.",
         ),
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None,
             "--config",
             "-c",
             help="Run config to resolve plugin settings for dashboards.",
         ),
-        grafana_url: Optional[str] = typer.Option(
+        grafana_url: str | None = typer.Option(
             None,
             "--grafana-url",
             help="Grafana base URL (defaults to platform config or localhost).",
         ),
-        grafana_api_key: Optional[str] = typer.Option(
+        grafana_api_key: str | None = typer.Option(
             None,
             "--grafana-api-key",
             help="Grafana API key used to configure datasources/dashboards.",
         ),
-        grafana_admin_user: Optional[str] = typer.Option(
+        grafana_admin_user: str | None = typer.Option(
             None,
             "--grafana-admin-user",
             help=(
@@ -48,7 +48,7 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
                 "(default: admin)."
             ),
         ),
-        grafana_admin_password: Optional[str] = typer.Option(
+        grafana_admin_password: str | None = typer.Option(
             None,
             "--grafana-admin-password",
             help=(
@@ -56,17 +56,17 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
                 "(default: admin)."
             ),
         ),
-        grafana_token_name: Optional[str] = typer.Option(
+        grafana_token_name: str | None = typer.Option(
             None,
             "--grafana-api-key-name",
             help="Name for the generated Grafana API key/token.",
         ),
-        grafana_org_id: Optional[int] = typer.Option(
+        grafana_org_id: int | None = typer.Option(
             None,
             "--grafana-org-id",
             help="Grafana organization id.",
         ),
-        loki_endpoint: Optional[str] = typer.Option(
+        loki_endpoint: str | None = typer.Option(
             None,
             "--loki-endpoint",
             help="Loki base URL or push endpoint.",
@@ -93,7 +93,7 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
             )
         except Exception as exc:
             ctx.ui.present.error(f"Installation failed: {exc}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
 
         if not configure_assets:
             ctx.ui.present.warning("Skipping Grafana configuration (--no-configure).")
@@ -123,27 +123,27 @@ def create_provision_app(ctx: UIContext) -> typer.Typer:
             ctx.app_client.remove_loki_grafana(remove_data=remove_data)
         except Exception as exc:
             ctx.ui.present.error(f"Removal failed: {exc}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
         ctx.ui.present.success("Loki and Grafana removed.")
 
     @loki_grafana_app.command("status")
     def loki_grafana_status(
-        grafana_url: Optional[str] = typer.Option(
+        grafana_url: str | None = typer.Option(
             None,
             "--grafana-url",
             help="Grafana base URL (defaults to platform config or localhost).",
         ),
-        grafana_api_key: Optional[str] = typer.Option(
+        grafana_api_key: str | None = typer.Option(
             None,
             "--grafana-api-key",
             help="Grafana API key for authenticated health checks.",
         ),
-        grafana_org_id: Optional[int] = typer.Option(
+        grafana_org_id: int | None = typer.Option(
             None,
             "--grafana-org-id",
             help="Grafana organization id.",
         ),
-        loki_endpoint: Optional[str] = typer.Option(
+        loki_endpoint: str | None = typer.Option(
             None,
             "--loki-endpoint",
             help="Loki base URL or push endpoint.",

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from PySide6.QtWidgets import (
     QGroupBox,
@@ -28,11 +28,11 @@ if TYPE_CHECKING:
 class DoctorView(QWidget):
     """View for running environment health checks."""
 
-    CHECK_HEADERS = ["Group", "Check", "Status", "Required"]
+    CHECK_HEADERS: ClassVar[list[str]] = ["Group", "Check", "Status", "Required"]
 
     def __init__(
         self,
-        viewmodel: "DoctorViewModel",
+        viewmodel: DoctorViewModel,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)

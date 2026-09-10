@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import logging
 import json
+import logging
 import time
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, cast
+from typing import Any, cast
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 

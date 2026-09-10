@@ -1,6 +1,6 @@
-import pytest
-
 from types import SimpleNamespace
+
+import pytest
 
 from lb_app.api import (
     ApplicationClient,
@@ -12,7 +12,6 @@ from lb_app.api import (
 )
 from lb_common.api import RemoteHostSpec
 from lb_provisioner.api import ProvisionedNode
-
 
 pytestmark = pytest.mark.inter_generic
 

@@ -30,4 +30,3 @@ RUN cd stream-benchmark-${STREAM_VERSION} && dpkg-buildpackage -b -us -uc -Zgzip
 
 FROM scratch AS artifact
 COPY --from=builder /stream-deb/*.deb /out/
-

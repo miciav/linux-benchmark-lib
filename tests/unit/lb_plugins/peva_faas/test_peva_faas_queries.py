@@ -51,7 +51,7 @@ def test_load_queries_requires_queries_to_be_list(tmp_path: Path) -> None:
     path = tmp_path / "queries.yml"
     path.write_text("queries: {}\n")
 
-    with pytest.raises(ValueError, match="queries.yml must contain a 'queries' list"):
+    with pytest.raises(ValueError, match=r"queries.yml must contain a 'queries' list"):
         load_queries(path)
 
 
@@ -79,7 +79,7 @@ def test_filter_queries_applies_scaphandre_flag() -> None:
 
 
 @pytest.mark.parametrize(
-    "payload,error",
+    ("payload", "error"),
     [
         ({}, "Empty instant query result"),
         ({"data": {"result": [{"value": [1]}]}}, "Malformed instant query result"),
@@ -93,7 +93,7 @@ def test_parse_instant_value_error_paths(
 
 
 @pytest.mark.parametrize(
-    "payload,error",
+    ("payload", "error"),
     [
         ({}, "Empty range query result"),
         ({"data": {"result": [{"values": []}]}}, "Malformed range query result"),
@@ -108,7 +108,9 @@ def test_parse_range_average_error_paths(
 
 def test_runner_execute_calls_range_when_window_is_provided() -> None:
     runner = PrometheusQueryRunner("http://prom")
-    query = QueryDefinition(name="cpu", query="rate(up[{time_span}])", range=True, step="5s")
+    query = QueryDefinition(
+        name="cpu", query="rate(up[{time_span}])", range=True, step="5s"
+    )
 
     runner._execute_range = lambda *args, **kwargs: 4.2  # type: ignore[method-assign]
     runner._execute_instant = lambda *_args, **_kwargs: 0.0  # type: ignore[method-assign]
@@ -141,7 +143,7 @@ def test_retry_until_result_logs_once_before_success(
     payloads = [
         {"data": {"result": []}},
         {"data": {"result": []}},
-        {"data": {"result": [{"value": [1, "2.0"]}]}}
+        {"data": {"result": [{"value": [1, "2.0"]}]}},
     ]
 
     def fake_request(_url: str, _params: dict[str, str]) -> dict[str, object]:
@@ -197,7 +199,7 @@ def test_request_json_builds_request_and_parses_response(
     captured: dict[str, object] = {}
 
     class FakeResponse:
-        def __enter__(self) -> "FakeResponse":
+        def __enter__(self) -> FakeResponse:
             return self
 
         def __exit__(self, *_args: object) -> None:

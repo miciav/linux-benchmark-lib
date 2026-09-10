@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import List
 from lb_app.api import DoctorReport
 from lb_ui.tui.core.protocols import UI
 from lb_ui.tui.system.models import TableModel
 
 
-def build_doctor_tables(report: DoctorReport) -> List[TableModel]:
+def build_doctor_tables(report: DoctorReport) -> list[TableModel]:
     """Transform a DoctorReport into a list of TableModels."""
     tables = []
     for group in report.groups:
@@ -24,8 +23,7 @@ def build_doctor_tables(report: DoctorReport) -> List[TableModel]:
 
 
 def render_doctor_report(ui: UI, report: DoctorReport) -> bool:
-    """
-    Render a doctor report to the provided UI.
+    """Render a doctor report to the provided UI.
 
     Returns True when all checks passed.
     """

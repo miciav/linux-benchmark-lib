@@ -11,9 +11,9 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from lb_plugins.api import (
+    USER_PLUGIN_DIR,
     BasePluginConfig,
     PluginRegistry,
-    USER_PLUGIN_DIR,
     builtin_plugins,
 )
 
@@ -55,7 +55,7 @@ plugins:
     assert isinstance(cfg, BasePluginConfig)
     assert cfg.max_retries == 2
     assert cfg.tags == ["common"]
-    assert getattr(cfg, "threads") == 4
+    assert cfg.threads == 4
 
 
 def test_unixbench_user_plugin_yaml_config(
@@ -86,8 +86,8 @@ plugins:
     cfg = plugin.load_config_from_file(cfg_path)
     assert isinstance(cfg, BasePluginConfig)
     assert cfg.tags == ["t1"]
-    assert getattr(cfg, "threads") == 2
-    assert getattr(cfg, "workdir") == Path("./UnixBench")
+    assert cfg.threads == 2
+    assert cfg.workdir == Path("./UnixBench")
 
 
 def test_unixbench_user_plugin_yaml_validation(

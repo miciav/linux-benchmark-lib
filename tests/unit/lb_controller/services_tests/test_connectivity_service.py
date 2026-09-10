@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from unittest.mock import patch, MagicMock
 import subprocess
+from dataclasses import dataclass
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from lb_controller.services.connectivity_service import (
-    ConnectivityService,
     ConnectivityReport,
+    ConnectivityService,
     HostConnectivityResult,
 )
 

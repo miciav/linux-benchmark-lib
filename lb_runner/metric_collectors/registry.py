@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, Optional
+from typing import Any
 
 from lb_common.api import discover_entrypoints, load_pending_entrypoints
 from lb_runner.metric_collectors._base_collector import BaseCollector
@@ -22,16 +23,16 @@ class CollectorPlugin:
     name: str
     description: str
     factory: Callable[[BenchmarkConfig], BaseCollector]
-    aggregator: Optional[Callable[[Any], Dict[str, float]]] = None
+    aggregator: Callable[[Any], dict[str, float]] | None = None
     should_run: Callable[[BenchmarkConfig], bool] = lambda _: True
 
 
 class CollectorRegistry:
     """Registry for collector plugins (built-in + entry points)."""
 
-    def __init__(self, plugins: Optional[Iterable[Any]] = None) -> None:
-        self._collectors: Dict[str, CollectorPlugin] = {}
-        self._pending_entrypoints: Dict[str, Any] = {}
+    def __init__(self, plugins: Iterable[Any] | None = None) -> None:
+        self._collectors: dict[str, CollectorPlugin] = {}
+        self._pending_entrypoints: dict[str, Any] = {}
         if plugins:
             for plugin in plugins:
                 self.register(plugin)
@@ -47,7 +48,7 @@ class CollectorRegistry:
             return
         raise TypeError(f"Unknown collector plugin type: {type(plugin)}")
 
-    def available(self, load_entrypoints: bool = False) -> Dict[str, CollectorPlugin]:
+    def available(self, load_entrypoints: bool = False) -> dict[str, CollectorPlugin]:
         """Return available collector plugins."""
         if load_entrypoints:
             self._load_pending_entrypoints()

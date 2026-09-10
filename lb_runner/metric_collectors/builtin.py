@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import importlib
 import logging
-from typing import Any, List, Optional, Tuple, cast
+from typing import Any, cast
 
 from lb_runner.metric_collectors._base_collector import BaseCollector
 from lb_runner.metric_collectors.registry import CollectorPlugin
@@ -13,7 +13,7 @@ from lb_runner.models.config import BenchmarkConfig
 logger = logging.getLogger(__name__)
 
 
-def _safe_import(module: str, attr: str) -> Tuple[Optional[Any], Optional[Exception]]:
+def _safe_import(module: str, attr: str) -> tuple[Any | None, Exception | None]:
     """Import a module attribute, capturing failures for optional deps."""
     try:
         mod = importlib.import_module(module)
@@ -79,6 +79,6 @@ CLI_COLLECTOR = CollectorPlugin(
 )
 
 
-def builtin_collectors() -> List[Any]:
+def builtin_collectors() -> list[Any]:
     """Return built-in collector plugins."""
     return [PSUTIL_COLLECTOR, CLI_COLLECTOR]

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional, Set
 
 from lb_app.api import (
     BenchmarkConfig,
@@ -12,6 +11,8 @@ from lb_app.api import (
     WorkloadConfig,
     build_plugin_table,
 )
+from lb_ui.flows.errors import UIFlowError
+from lb_ui.tui.core.capabilities import is_tty_available
 from lb_ui.tui.core.protocols import UI
 from lb_ui.tui.system.models import PickItem, TableModel
 
@@ -21,7 +22,7 @@ def select_workloads_interactively(
     config_service: ConfigService,
     cfg: BenchmarkConfig,
     registry: PluginRegistry,
-    config: Optional[Path],
+    config: Path | None,
     set_default: bool,
 ) -> None:
     """Interactively toggle configured workloads using arrows + space."""
@@ -77,8 +78,7 @@ def select_workloads_interactively(
             id=name,
             title=name,
             description=(
-                f"Plugin: {wl.plugin} | Intensity: {current_intensity} | "
-                f"{description}"
+                f"Plugin: {wl.plugin} | Intensity: {current_intensity} | {description}"
             ),
             payload=wl,
             variants=variant_list,
@@ -103,9 +103,7 @@ def select_workloads_interactively(
                 PickItem(
                     id=plugin_name,
                     title=plugin_name,
-                    description=(
-                        f"{description} (Available - click to add to config)"
-                    ),
+                    description=(f"{description} (Available - click to add to config)"),
                     disabled=False,
                     selected=False,
                 )
@@ -117,9 +115,7 @@ def select_workloads_interactively(
                 PickItem(
                     id=plugin_name,
                     title=plugin_name,
-                    description=(
-                        f"{description} (Disabled in platform configuration)"
-                    ),
+                    description=(f"{description} (Disabled in platform configuration)"),
                     disabled=True,
                     selected=False,
                 )
@@ -138,7 +134,7 @@ def select_workloads_interactively(
     if selection is None:
         return
     selected_names = set()
-    intensities: Dict[str, str] = {}
+    intensities: dict[str, str] = {}
 
     for picked in selection:
         # Variants come back as "<workload>:<intensity>"
@@ -197,8 +193,8 @@ def select_workloads_interactively(
 
 
 def select_plugins_interactively(
-    ui: UI, registry: PluginRegistry, enabled_map: Dict[str, bool]
-) -> Optional[Set[str]]:
+    ui: UI, registry: PluginRegistry, enabled_map: dict[str, bool]
+) -> set[str] | None:
     """Prompt the user to enable/disable plugins using arrows and space."""
     if not is_tty_available():
         raise UIFlowError("Interactive selection requires a TTY.")
@@ -236,15 +232,9 @@ def apply_plugin_selection(
     ui: UI,
     config_service: ConfigService,
     registry: PluginRegistry,
-    selection: Set[str],
-) -> Dict[str, bool]:
-    """
-    Persist the selected plugins to the config and return the updated enabled map.
-    """
+    selection: set[str],
+) -> dict[str, bool]:
+    """Persist the selected plugins to the config and return the updated enabled map."""
     cfg, target = config_service.set_plugin_selection(selection, registry)
     ui.present.success(f"Plugin selection saved to {target}")
     return {name: cfg.is_plugin_enabled(name) for name in registry.available()}
-
-
-from lb_ui.flows.errors import UIFlowError
-from lb_ui.tui.core.capabilities import is_tty_available

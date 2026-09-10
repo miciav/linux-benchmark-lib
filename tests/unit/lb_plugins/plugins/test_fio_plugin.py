@@ -15,7 +15,8 @@ def test_parse_json_output_with_prefixed_noise():
     """Ensure fio JSON is parsed even when warnings precede the payload."""
     generator = _make_generator()
     noisy_output = """
-note: both iodepth >= 1 and synchronous I/O engine are selected, queue depth will be capped at 1
+note: both iodepth >= 1 and synchronous I/O engine are selected, queue depth \
+will be capped at 1
 fio: terminating on signal 15
 {
   "jobs": [
@@ -36,9 +37,7 @@ fio: terminating on signal 15
 trailing text that should be ignored
 """.strip()
 
-    parsed = generator._parse_json_output(
-        noisy_output
-    )  # pylint: disable=protected-access
+    parsed = generator._parse_json_output(noisy_output)  # pylint: disable=protected-access
 
     assert parsed["read_iops"] == pytest.approx(1234.5)
     assert parsed["write_iops"] == pytest.approx(2345.6)
@@ -53,9 +52,7 @@ def test_parse_json_output_without_payload(caplog):
     generator = _make_generator()
 
     with caplog.at_level("ERROR"):
-        parsed = generator._parse_json_output(
-            "fio: nothing to see here"
-        )  # pylint: disable=protected-access
+        parsed = generator._parse_json_output("fio: nothing to see here")  # pylint: disable=protected-access
 
     assert parsed == {}
     assert "Failed to locate fio JSON payload" in caplog.text

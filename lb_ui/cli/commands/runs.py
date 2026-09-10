@@ -1,19 +1,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional
 
 import typer
 
 from lb_app.api import AnalyticsRequest, RunCatalogService
 from lb_ui.tui.system.models import PickItem, TableModel
-
-
 from lb_ui.wiring.dependencies import UIContext
 
 
 def _show_run_details(
-    ctx: "UIContext",
+    ctx: UIContext,
     run_id: str,
     catalog: RunCatalogService,
 ) -> None:
@@ -22,14 +19,14 @@ def _show_run_details(
         ctx.ui.present.error(f"Run '{run_id}' not found")
         return
     rows = [
-        ["Run ID",    run.run_id],
-        ["Output",    str(run.output_root)],
-        ["Reports",   str(run.report_root or "-")],
-        ["Exports",   str(run.data_export_root or "-")],
-        ["Created",   run.created_at.isoformat() if run.created_at else "-"],
-        ["Hosts",     ", ".join(run.hosts) if run.hosts else "-"],
+        ["Run ID", run.run_id],
+        ["Output", str(run.output_root)],
+        ["Reports", str(run.report_root or "-")],
+        ["Exports", str(run.data_export_root or "-")],
+        ["Created", run.created_at.isoformat() if run.created_at else "-"],
+        ["Hosts", ", ".join(run.hosts) if run.hosts else "-"],
         ["Workloads", ", ".join(run.workloads) if run.workloads else "-"],
-        ["Journal",   str(run.journal_path or "-")],
+        ["Journal", str(run.journal_path or "-")],
     ]
     ctx.ui.tables.show(
         TableModel(title="Run Details", columns=["Field", "Value"], rows=rows)
@@ -42,13 +39,13 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
 
     @app.command("list")
     def runs_list(
-        root: Optional[Path] = typer.Option(
+        root: Path | None = typer.Option(
             None,
             "--root",
             "-r",
             help="Root directory containing benchmark_results run folders.",
         ),
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None,
             "--config",
             "-c",
@@ -72,7 +69,7 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
         if not runs:
             ctx.ui.present.warning(f"No runs found under {output_root}")
             return
-        rows: List[List[str]] = []
+        rows: list[list[str]] = []
         for run in runs:
             created = run.created_at.isoformat() if run.created_at else "-"
             hosts = ", ".join(run.hosts) if run.hosts else "-"
@@ -90,6 +87,7 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
         if not interactive or ctx.headless:
             return
         from lb_ui.tui.core.capabilities import is_tty_available
+
         if not is_tty_available():
             return
 
@@ -124,13 +122,13 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
     @app.command("show")
     def runs_show(
         run_id: str = typer.Argument(..., help="Run identifier (folder name)."),
-        root: Optional[Path] = typer.Option(
+        root: Path | None = typer.Option(
             None,
             "--root",
             "-r",
             help="Root directory containing benchmark_results run folders.",
         ),
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None,
             "--config",
             "-c",
@@ -149,34 +147,34 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
 
     @app.command("analyze")
     def analyze(
-        run_id: Optional[str] = typer.Argument(
+        run_id: str | None = typer.Argument(
             None, help="Run identifier (folder name). If omitted, prompt to select."
         ),
-        kind: Optional[str] = typer.Option(
+        kind: str | None = typer.Option(
             None,
             "--kind",
             "-k",
             help="Analytics kind to run (currently: aggregate).",
         ),
-        root: Optional[Path] = typer.Option(
+        root: Path | None = typer.Option(
             None,
             "--root",
             "-r",
             help="Root directory containing benchmark_results run folders.",
         ),
-        workload: Optional[List[str]] = typer.Option(
+        workload: list[str] | None = typer.Option(
             None,
             "--workload",
             "-w",
             help="Workload(s) to analyze (repeatable). Default: all in run.",
         ),
-        host: Optional[List[str]] = typer.Option(
+        host: list[str] | None = typer.Option(
             None,
             "--host",
             "-H",
             help="Host(s) to analyze (repeatable). Default: all in run.",
         ),
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None,
             "--config",
             "-c",

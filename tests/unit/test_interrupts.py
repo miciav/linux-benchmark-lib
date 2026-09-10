@@ -1,12 +1,16 @@
 """Unit tests for interrupt handling state machine."""
 
 import signal
-from unittest.mock import Mock, patch, ANY
+from unittest.mock import ANY, Mock, patch
 
 import pytest
 
-from lb_controller.api import DoubleCtrlCStateMachine, SigintDoublePressHandler
-from lb_controller.api import RunInterruptState, SigintDecision
+from lb_controller.api import (
+    DoubleCtrlCStateMachine,
+    RunInterruptState,
+    SigintDecision,
+    SigintDoublePressHandler,
+)
 
 
 class TestDoubleCtrlCStateMachine:
@@ -100,7 +104,8 @@ class TestSigintDoublePressHandler:
             on_confirmed_sigint=on_confirmed,
         )
 
-        # We manually invoke _handle_sigint to test logic without dealing with real signal stack
+        # We manually invoke _handle_sigint to test logic without dealing
+        # with the real signal stack.
         # 1. First press -> WARN_ARM
         handler._handle_sigint(signal.SIGINT, None)
         on_first.assert_called_once()
@@ -131,14 +136,14 @@ class TestSigintDoublePressHandler:
                 side_effect=ValueError("signal only works in main thread"),
             ) as mock_signal,
             patch("signal.getsignal") as mock_getsignal,
-        ):
-            with SigintDoublePressHandler(
+            SigintDoublePressHandler(
                 state_machine=sm,
                 run_active=lambda: True,
                 on_first_sigint=Mock(),
                 on_confirmed_sigint=Mock(),
-            ):
-                pass
+            ),
+        ):
+            pass
 
         mock_signal.assert_not_called()
         mock_getsignal.assert_not_called()

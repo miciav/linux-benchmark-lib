@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Sequence, cast
+from collections.abc import Sequence
+from typing import cast
 
 from lb_ui.tui.core.capabilities import is_tty_available
+from lb_ui.tui.core.protocols import HierarchicalPicker, Picker
 from lb_ui.tui.screens.picker_screen import PickerScreen
 from lb_ui.tui.system.models import PickItem, SelectionNode
-from lb_ui.tui.core.protocols import HierarchicalPicker, Picker
 
 
 class PowerPicker(Picker):

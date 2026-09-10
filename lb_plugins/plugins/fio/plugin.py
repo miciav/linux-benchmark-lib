@@ -1,5 +1,4 @@
-"""
-FIO workload generator implementation.
+"""FIO workload generator implementation.
 
 This module uses fio (Flexible I/O Tester) to generate advanced disk I/O workloads.
 """
@@ -9,14 +8,17 @@ import logging
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, ClassVar
 
 import pandas as pd
 from pydantic import Field
 
-from ...base_generator import CommandGenerator
-from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
-
+from lb_plugins.base_generator import CommandGenerator
+from lb_plugins.interface import (
+    BasePluginConfig,
+    SimpleWorkloadPlugin,
+    WorkloadIntensity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,7 @@ def _default_fio_directory() -> str:
 class FIOConfig(BasePluginConfig):
     """Configuration for fio I/O testing."""
 
-    job_file: Optional[Path] = Field(
+    job_file: Path | None = Field(
         default=None, description="Path to a custom FIO job file"
     )
     runtime: int = Field(
@@ -64,12 +66,12 @@ class FIOGenerator(CommandGenerator):
     """Workload generator using fio."""
 
     def __init__(self, config: FIOConfig, name: str = "FIOGenerator"):
-        """
-        Initialize the fio generator.
+        """Initialize the fio generator.
 
         Args:
             config: Configuration for fio
             name: Name of the generator
+
         """
         super().__init__(name, config)
         self.config: FIOConfig = config
@@ -95,12 +97,12 @@ class FIOGenerator(CommandGenerator):
         logger.addHandler(handler)
         logger.debug("FIO debug logging enabled")
 
-    def _build_command(self) -> List[str]:
-        """
-        Build the fio command from configuration.
+    def _build_command(self) -> list[str]:
+        """Build the fio command from configuration.
 
         Returns:
             List of command arguments
+
         """
         cmd = ["fio"]
         if self.config.job_file:
@@ -115,12 +117,12 @@ class FIOGenerator(CommandGenerator):
         )
         return cmd
 
-    def _build_jobfile_command(self, cmd: List[str]) -> List[str]:
+    def _build_jobfile_command(self, cmd: list[str]) -> list[str]:
         logger.debug("Using job file for fio: %s", self.config.job_file)
         cmd.append(str(self.config.job_file))
         return cmd
 
-    def _build_inline_args(self) -> List[str]:
+    def _build_inline_args(self) -> list[str]:
         return [
             f"--name={self.config.name}",
             f"--rw={self.config.rw}",
@@ -140,11 +142,11 @@ class FIOGenerator(CommandGenerator):
         logger.debug("Working directory: %s", self.config.directory)
 
     def _validate_environment(self) -> bool:
-        """
-        Validate that fio is available.
+        """Validate that fio is available.
 
         Returns:
             True if fio is available, False otherwise
+
         """
         try:
             result = subprocess.run(
@@ -157,18 +159,18 @@ class FIOGenerator(CommandGenerator):
             logger.error("Error checking for fio: %s", exc)
             return False
 
-    def _timeout_seconds(self) -> Optional[int]:
+    def _timeout_seconds(self) -> int | None:
         return int(self.config.runtime) + int(self.config.timeout_buffer)
 
     def _parse_json_output(self, output: str) -> dict[str, Any]:
-        """
-        Parse fio JSON output.
+        """Parse fio JSON output.
 
         Args:
             output: Raw JSON output from fio
 
         Returns:
             Parsed results dictionary
+
         """
         if not output or not output.strip():
             logger.error("fio produced no output to parse")
@@ -186,7 +188,7 @@ class FIOGenerator(CommandGenerator):
 
         return _parse_job_metrics(jobs[0])
 
-    def _find_json_payload(self, output: str) -> Optional[dict[str, Any]]:
+    def _find_json_payload(self, output: str) -> dict[str, Any] | None:
         decoder = json.JSONDecoder()
         # fio may prepend warnings or termination notices before the JSON payload.
         for idx, char in enumerate(output):
@@ -253,11 +255,11 @@ class FIOPlugin(SimpleWorkloadPlugin):
     DESCRIPTION = "Flexible disk I/O via fio"
     CONFIG_CLS = FIOConfig
     GENERATOR_CLS = FIOGenerator
-    REQUIRED_APT_PACKAGES = ["fio"]
-    REQUIRED_LOCAL_TOOLS = ["fio"]
+    REQUIRED_APT_PACKAGES: ClassVar[list[str]] = ["fio"]
+    REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["fio"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[FIOConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> FIOConfig | None:
         if level == WorkloadIntensity.LOW:
             return FIOConfig(
                 rw="read",
@@ -286,11 +288,11 @@ class FIOPlugin(SimpleWorkloadPlugin):
 
     def export_results_to_csv(
         self,
-        results: List[Dict[str, Any]],
+        results: list[dict[str, Any]],
         output_dir: Path,
         run_id: str,
         test_name: str,
-    ) -> List[Path]:
+    ) -> list[Path]:
         """Export parsed fio metrics to a CSV file."""
         rows = [_build_fio_row(entry, run_id, test_name) for entry in results]
 
@@ -322,7 +324,7 @@ def _build_fio_args(config: FIOConfig) -> list[str]:
     ]
 
 
-def _extract_json_payload(output: str) -> Optional[dict[str, Any]]:
+def _extract_json_payload(output: str) -> dict[str, Any] | None:
     decoder = json.JSONDecoder()
     for idx, char in enumerate(output):
         if char not in "{[":

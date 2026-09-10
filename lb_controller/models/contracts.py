@@ -17,7 +17,7 @@ __all__ = [
     "GrafanaPlatformConfig",
     "LokiConfig",
     "PlatformConfig",
+    "RemoteExecutionConfig",
     "RemoteHostConfig",
     "WorkloadConfig",
-    "RemoteExecutionConfig",
 ]

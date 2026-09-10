@@ -31,10 +31,10 @@ class PluginService:
     def list_plugins(self) -> dict[str, bool]:
         """List all available plugins. Returns {name: is_available}."""
         registry = self.get_registry()
-        return {name: True for name in registry.available()}
+        return dict.fromkeys(registry.available(), True)
 
     def get_plugin_table(
-        self, platform_config: "PlatformConfig"
+        self, platform_config: PlatformConfig
     ) -> tuple[list[str], list[list[str]]]:
         """Get plugin table data for display.
 

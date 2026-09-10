@@ -1,12 +1,11 @@
-"""
-Reporter module for generating benchmark reports and visualizations.
+"""Reporter module for generating benchmark reports and visualizations.
 
 This module creates textual and graphical reports from aggregated benchmark data.
 """
 
+import logging
 from pathlib import Path
 
-import logging
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -16,11 +15,11 @@ class Reporter:
     """Reporter for generating and exporting benchmark reports."""
 
     def __init__(self, output_dir: Path):
-        """
-        Initialize the reporter.
+        """Initialize the reporter.
 
         Args:
             output_dir: Directory for saving report files
+
         """
         self.output_dir = output_dir
 
@@ -29,19 +28,19 @@ class Reporter:
         aggregated_df: pd.DataFrame,
         test_name: str,
     ) -> None:
-        """
-        Generate a textual report for a benchmark test.
+        """Generate a textual report for a benchmark test.
 
         Args:
             aggregated_df: DataFrame containing aggregated benchmark data
             test_name: Name of the test
+
         """
         logger.info(f"Generating textual report for {test_name}")
 
         report_path = self.output_dir / f"{test_name}_report.txt"
 
         # Write summary statistics
-        with open(report_path, "w") as f:
+        with report_path.open("w") as f:
             f.write(f"Benchmark Report: {test_name}\n\n")
             f.write(
                 f"{'Metric':<30} {'Mean':>10} {'Std Dev':>10} "
@@ -65,12 +64,12 @@ class Reporter:
         aggregated_df: pd.DataFrame,
         test_name: str,
     ) -> None:
-        """
-        Generate graphical report for a benchmark test.
+        """Generate graphical report for a benchmark test.
 
         Args:
             aggregated_df: DataFrame containing aggregated benchmark data
             test_name: Name of the test
+
         """
         logger.info(f"Generating graphical report for {test_name}")
 
@@ -98,12 +97,12 @@ class Reporter:
         aggregated_df: pd.DataFrame,
         test_name: str,
     ) -> None:
-        """
-        Save aggregated benchmark data to CSV.
+        """Save aggregated benchmark data to CSV.
 
         Args:
             aggregated_df: DataFrame containing aggregated benchmark data
             test_name: Name of the test
+
         """
         csv_path = self.output_dir / f"{test_name}_summary.csv"
         aggregated_df.to_csv(csv_path)

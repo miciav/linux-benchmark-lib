@@ -6,11 +6,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_app.services.remote_run_coordinator import RemoteRunCoordinator
 import lb_app.services.remote_run_coordinator as coordinator_mod
+from lb_app.services.remote_run_coordinator import RemoteRunCoordinator
 from lb_app.services.run_types import RunContext, RunResult, _EventPipeline
 from lb_controller.api import BenchmarkConfig, RemoteHostConfig, StopToken
-
 
 pytestmark = pytest.mark.unit_ui
 

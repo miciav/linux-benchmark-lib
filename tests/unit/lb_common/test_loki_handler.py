@@ -12,7 +12,6 @@ from lb_common.logs.handlers.loki_handler import (
     normalize_loki_endpoint,
 )
 
-
 pytestmark = pytest.mark.unit_runner
 
 
@@ -34,7 +33,7 @@ def test_normalize_loki_endpoint_strips_trailing_slash() -> None:
 
 
 def test_normalize_loki_endpoint_rejects_non_http() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="must be an http"):
         normalize_loki_endpoint("file:///tmp/loki")
 
 

@@ -1,5 +1,4 @@
-"""
-UnixBench workload plugin for linux-benchmark-lib.
+"""UnixBench workload plugin for linux-benchmark-lib.
 
 Builds and runs UnixBench from source (Ubuntu package is outdated/broken).
 """
@@ -9,14 +8,17 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, List, Optional, cast
+from typing import Any, ClassVar
 
 from pydantic import Field
 
-from ...base_generator import CommandSpec
-from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
-from ..command_base import StdoutCommandGenerator
-
+from lb_plugins.base_generator import CommandSpec
+from lb_plugins.interface import (
+    BasePluginConfig,
+    SimpleWorkloadPlugin,
+    WorkloadIntensity,
+)
+from lb_plugins.plugins.command_base import StdoutCommandGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ class UnixBenchConfig(BasePluginConfig):
 
 class _UnixBenchCommandBuilder:
     def build(self, config: UnixBenchConfig) -> CommandSpec:
-        cmd: List[str] = ["./Run"]
+        cmd: list[str] = ["./Run"]
         cmd.extend(["-c", str(config.threads)])
         cmd.extend(["-i", str(config.iterations)])
         if config.tests:
@@ -61,15 +63,17 @@ class UnixBenchGenerator(StdoutCommandGenerator):
         super().__init__(name, config, command_builder=self._command_builder)
         self.config: UnixBenchConfig = config
 
-    def _build_command(self) -> List[str]:
+    def _build_command(self) -> list[str]:
         assert self._command_builder is not None
         return self._command_builder.build(self.config).cmd
 
     def _command_workdir(self) -> Path | None:
         return self.config.workdir
 
-    def _timeout_seconds(self) -> Optional[int]:
-        return int(self.config.timeout_buffer) + max(120, 60 * int(self.config.iterations))
+    def _timeout_seconds(self) -> int | None:
+        return int(self.config.timeout_buffer) + max(
+            120, 60 * int(self.config.iterations)
+        )
 
     def _log_command(self, cmd: list[str]) -> None:
         logger.info("Running UnixBench in %s: %s", self.config.workdir, " ".join(cmd))
@@ -92,14 +96,14 @@ class UnixBenchPlugin(SimpleWorkloadPlugin):
     NAME = "unixbench"
     DESCRIPTION = "UnixBench micro-benchmark suite built from source"
     CONFIG_CLS = UnixBenchConfig
-    REQUIRED_APT_PACKAGES = [
+    REQUIRED_APT_PACKAGES: ClassVar[list[str]] = [
         "build-essential",
         "libx11-dev",
         "libgl1-mesa-dev",
         "libxext-dev",
         "wget",
     ]
-    REQUIRED_LOCAL_TOOLS = ["make", "gcc", "wget"]
+    REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["make", "gcc", "wget"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
     def create_generator(
@@ -111,7 +115,7 @@ class UnixBenchPlugin(SimpleWorkloadPlugin):
             return UnixBenchGenerator(UnixBenchConfig(**config))
         return UnixBenchGenerator(UnixBenchConfig(**config.model_dump()))
 
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[UnixBenchConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> UnixBenchConfig | None:
         cpu_count = os.cpu_count() or 2
         if level == WorkloadIntensity.LOW:
             return UnixBenchConfig(threads=1, iterations=1)
@@ -121,7 +125,7 @@ class UnixBenchPlugin(SimpleWorkloadPlugin):
             return UnixBenchConfig(threads=max(2, cpu_count), iterations=2)
         return None
 
-    def get_dockerfile_path(self) -> Optional[Path]:
+    def get_dockerfile_path(self) -> Path | None:
         path = Path(__file__).parent / "Dockerfile"
         return path if path.exists() else None
 

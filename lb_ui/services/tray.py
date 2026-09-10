@@ -8,6 +8,8 @@ import multiprocessing
 from multiprocessing.process import BaseProcess
 from typing import Any
 
+from lb_ui.services.assets import resolve_icon_path
+
 Image: Any | None = None
 pystray: Any | None = None
 
@@ -16,8 +18,6 @@ try:
     pystray = importlib.import_module("pystray")
 except ImportError:
     pass
-
-from lb_ui.services.assets import resolve_icon_path
 
 logger = logging.getLogger(__name__)
 

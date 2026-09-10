@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent
@@ -14,10 +14,10 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
-    QPushButton,
 )
 
 from lb_gui.resources.theme import (
@@ -28,7 +28,9 @@ from lb_gui.resources.theme import (
 )
 
 if TYPE_CHECKING:
+    from lb_app.api import RunRequest
     from lb_gui.app import ServiceContainer
+    from lb_gui.services.run_orchestrator import RunOrchestrator
     from lb_gui.viewmodels import (
         AnalyticsViewModel,
         ConfigViewModel,
@@ -37,15 +39,13 @@ if TYPE_CHECKING:
         RunSetupViewModel,
     )
     from lb_gui.workers import RunWorker
-    from lb_app.api import RunRequest
-    from lb_gui.services.run_orchestrator import RunOrchestrator
 
 
 class MainWindow(QMainWindow):
     """Main application window with sidebar navigation."""
 
     # Navigation sections
-    SECTIONS = [
+    SECTIONS: ClassVar[list[tuple[str, str]]] = [
         ("Run Setup", "run_setup"),
         ("Dashboard", "dashboard"),
         ("Results", "results"),
@@ -56,15 +56,15 @@ class MainWindow(QMainWindow):
     ]
 
     def __init__(
-        self, services: "ServiceContainer", parent: QWidget | None = None
+        self, services: ServiceContainer, parent: QWidget | None = None
     ) -> None:
         super().__init__(parent)
         self.services = services
         self._views: dict[str, QWidget] = {}
         self._viewmodels: dict[str, object] = {}
-        self._current_worker: "RunWorker | None" = None
+        self._current_worker: RunWorker | None = None
         self._current_stop_file: Path | None = None
-        self._orchestrator: "RunOrchestrator | None" = None
+        self._orchestrator: RunOrchestrator | None = None
 
         self._setup_ui()
         self._setup_views()
@@ -120,22 +120,22 @@ class MainWindow(QMainWindow):
     def _setup_views(self) -> None:
         """Create and add views with their viewmodels."""
         from lb_gui.viewmodels import (
-            RunSetupViewModel,
-            GUIDashboardViewModel,
-            ResultsViewModel,
             AnalyticsViewModel,
             ConfigViewModel,
-            PluginsViewModel,
             DoctorViewModel,
+            GUIDashboardViewModel,
+            PluginsViewModel,
+            ResultsViewModel,
+            RunSetupViewModel,
         )
         from lb_gui.views import (
-            RunSetupView,
-            DashboardView,
-            ResultsView,
             AnalyticsView,
             ConfigView,
-            PluginsView,
+            DashboardView,
             DoctorView,
+            PluginsView,
+            ResultsView,
+            RunSetupView,
         )
 
         # Create viewmodels
@@ -258,8 +258,8 @@ class MainWindow(QMainWindow):
 
     def _connect_run_flow(
         self,
-        run_setup_vm: "RunSetupViewModel",
-        dashboard_vm: "GUIDashboardViewModel",
+        run_setup_vm: RunSetupViewModel,
+        dashboard_vm: GUIDashboardViewModel,
     ) -> None:
         """Connect run setup to dashboard for run execution flow."""
         from lb_gui.services.run_orchestrator import RunOrchestrator
@@ -271,7 +271,7 @@ class MainWindow(QMainWindow):
 
         self._orchestrator = RunOrchestrator(self.services.run_controller, dashboard_vm)
 
-        def on_start_run(request: "RunRequest") -> None:
+        def on_start_run(request: RunRequest) -> None:
             try:
                 worker = self._orchestrator.start_run(request)
             except RuntimeError as exc:
@@ -294,7 +294,9 @@ class MainWindow(QMainWindow):
     def _set_ui_busy(self, busy: bool) -> None:
         """Enable or disable UI interaction during run."""
         self._sidebar.setEnabled(not busy)
-        is_running = bool(busy and self._current_worker and self._current_worker.is_running())
+        is_running = bool(
+            busy and self._current_worker and self._current_worker.is_running()
+        )
         self._stop_button.setEnabled(is_running)
         if busy:
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
@@ -346,7 +348,7 @@ class MainWindow(QMainWindow):
             return
         self._stop_button.setEnabled(False)
 
-    def closeEvent(self, event: QCloseEvent) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 (Qt override)
         """Handle window close request."""
         worker = self._current_worker
         if worker is not None and worker.is_running():
@@ -366,12 +368,13 @@ class MainWindow(QMainWindow):
 
     def _connect_config_flow(
         self,
-        config_vm: "ConfigViewModel",
-        run_setup_vm: "RunSetupViewModel",
-        results_vm: "ResultsViewModel",
-        analytics_vm: "AnalyticsViewModel",
+        config_vm: ConfigViewModel,
+        run_setup_vm: RunSetupViewModel,
+        results_vm: ResultsViewModel,
+        analytics_vm: AnalyticsViewModel,
     ) -> None:
         """Connect config changes to dependent views."""
+
         def on_config_loaded(_: object) -> None:
             self._sync_config_to_views(
                 config_vm, run_setup_vm, results_vm, analytics_vm
@@ -381,10 +384,10 @@ class MainWindow(QMainWindow):
 
     def _sync_config_to_views(
         self,
-        config_vm: "ConfigViewModel",
-        run_setup_vm: "RunSetupViewModel",
-        results_vm: "ResultsViewModel",
-        analytics_vm: "AnalyticsViewModel",
+        config_vm: ConfigViewModel,
+        run_setup_vm: RunSetupViewModel,
+        results_vm: ResultsViewModel,
+        analytics_vm: AnalyticsViewModel,
     ) -> None:
         """Apply the loaded config to views that depend on it."""
         config_path = getattr(config_vm, "config_path", None)

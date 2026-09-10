@@ -1,6 +1,7 @@
-import yaml
 from pathlib import Path
+
 import pytest
+import yaml
 
 
 def test_ansible_task_passes_loki_env():

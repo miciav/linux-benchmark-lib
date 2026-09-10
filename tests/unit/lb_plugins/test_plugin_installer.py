@@ -96,7 +96,8 @@ def test_installer_handles_archive_and_directory(
     # Accept either flat file or package directory
     assert (plugin_dir / "dummy.py").exists() or (plugin_dir / name).exists()
 
-    # Registry may or may not auto-load package dirs without a PLUGIN marker; just ensure install artifacts exist
+    # Registry may or may not auto-load package dirs without a PLUGIN marker;
+    # just ensure install artifacts exist
 
 
 def test_install_from_git_url(
@@ -170,10 +171,10 @@ def test_uninstall_and_config_cleanup(
     cfg.save(config_path)
 
     config_service = ConfigService(config_home=tmp_path)
-    updated, target, _, removed = config_service.remove_plugin("dummy", config_path)
+    _updated, target, _, removed = config_service.remove_plugin("dummy", config_path)
     if not removed and installed_name != "dummy":
         # Try again with actual installed name
-        updated, target, _, removed = config_service.remove_plugin(
+        _updated, target, _, removed = config_service.remove_plugin(
             installed_name, config_path
         )
     # When the config had no entries, removal may be False; accept both

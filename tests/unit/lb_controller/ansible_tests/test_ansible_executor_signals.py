@@ -4,8 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from lb_controller.api import AnsibleRunnerExecutor
-from lb_controller.api import InventorySpec
+from lb_controller.api import AnsibleRunnerExecutor, InventorySpec
 from lb_runner.api import RemoteHostConfig
 
 

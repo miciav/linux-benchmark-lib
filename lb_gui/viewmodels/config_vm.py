@@ -27,19 +27,19 @@ class ConfigViewModel(QObject):
 
     def __init__(
         self,
-        config_service: "GUIConfigService",
+        config_service: GUIConfigService,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._config_service = config_service
 
         # State
-        self._config: "BenchmarkConfig | None" = None
+        self._config: BenchmarkConfig | None = None
         self._config_path: Path | None = None
         self._is_dirty: bool = False
 
     @property
-    def config(self) -> "BenchmarkConfig | None":
+    def config(self) -> BenchmarkConfig | None:
         """Current loaded configuration."""
         return self._config
 
@@ -96,17 +96,15 @@ class ConfigViewModel(QObject):
         if self._config is None:
             return []
 
-        hosts = []
-        for host in self._config.remote_hosts:
-            hosts.append(
-                {
-                    "Name": host.name,
-                    "Address": host.address,
-                    "Port": str(host.port),
-                    "User": host.user,
-                }
-            )
-        return hosts
+        return [
+            {
+                "Name": host.name,
+                "Address": host.address,
+                "Port": str(host.port),
+                "User": host.user,
+            }
+            for host in self._config.remote_hosts
+        ]
 
     def get_loki_info(self) -> dict[str, str]:
         """Get Loki config info for display."""

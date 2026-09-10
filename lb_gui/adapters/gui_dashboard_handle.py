@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from contextlib import nullcontext
-from typing import Any, ContextManager
+from contextlib import AbstractContextManager, nullcontext
+from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
@@ -26,7 +26,7 @@ class GuiDashboardHandle(DashboardHandle):
     def __init__(self, signals: GuiDashboardSignals) -> None:
         self._signals = signals
 
-    def live(self) -> ContextManager[None]:
+    def live(self) -> AbstractContextManager[None]:
         return nullcontext()
 
     def add_log(self, line: str) -> None:

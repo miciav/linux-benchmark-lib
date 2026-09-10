@@ -3,19 +3,18 @@
 import importlib
 import logging
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 _PLUGIN_PACKAGE = f"{__package__}.plugins"
 
 
-def builtin_plugins() -> List[Any]:
-    """
-    Return built-in workload plugins via dynamic discovery.
+def builtin_plugins() -> list[Any]:
+    """Return built-in workload plugins via dynamic discovery.
 
     Scans `plugins/` for `PLUGIN`, `PLUGINS`, or `get_plugins` exports.
     """
-    plugins: List[Any] = []
+    plugins: list[Any] = []
     plugins_path = Path(__file__).resolve().parent / "plugins"
     if not plugins_path.exists():
         return plugins
@@ -30,7 +29,7 @@ def builtin_plugins() -> List[Any]:
     return plugins
 
 
-def _plugin_dirs(root: Path) -> List[Path]:
+def _plugin_dirs(root: Path) -> list[Path]:
     return [
         item
         for item in root.iterdir()
@@ -38,18 +37,18 @@ def _plugin_dirs(root: Path) -> List[Path]:
     ]
 
 
-def _collect_module_plugins(module_name: str) -> List[Any]:
+def _collect_module_plugins(module_name: str) -> list[Any]:
     mod = importlib.import_module(module_name)
-    if hasattr(mod, "get_plugins") and callable(getattr(mod, "get_plugins")):
+    if hasattr(mod, "get_plugins") and callable(mod.get_plugins):
         return _normalize_plugins(mod.get_plugins())
     if hasattr(mod, "PLUGINS"):
-        return _normalize_plugins(getattr(mod, "PLUGINS"))
+        return _normalize_plugins(mod.PLUGINS)
     if hasattr(mod, "PLUGIN"):
         return [mod.PLUGIN]
     return []
 
 
-def _normalize_plugins(discovered: Any) -> List[Any]:
+def _normalize_plugins(discovered: Any) -> list[Any]:
     if isinstance(discovered, list):
         return discovered
     return [discovered]

@@ -7,14 +7,15 @@ import logging
 import re
 import subprocess
 import time
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from ..exceptions import K6ExecutionError
+from lb_plugins.plugins.peva_faas.exceptions import K6ExecutionError
 
 if TYPE_CHECKING:
-    from ..config import DfaasFunctionConfig
+    from lb_plugins.plugins.peva_faas.config import DfaasFunctionConfig
 
 logger = logging.getLogger(__name__)
 

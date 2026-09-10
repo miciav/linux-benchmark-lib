@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
-from typing import Protocol, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Protocol
 
 from .config_enumerator import (
     config_id,
@@ -14,7 +15,6 @@ from .config_enumerator import (
     generate_configurations,
     generate_function_combinations,
 )
-
 
 _DURATION_RE = re.compile(r"^(?P<value>[0-9]+)(?P<unit>ms|s|m|h)$")
 

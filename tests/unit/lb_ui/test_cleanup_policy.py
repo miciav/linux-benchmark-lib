@@ -2,11 +2,13 @@
 
 from types import SimpleNamespace
 
-
 from lb_common.api import RemoteHostSpec
 from lb_controller.api import ControllerState, RunExecutionSummary
-from lb_provisioner.api import ProvisionedNode, ProvisioningResult
-from lb_provisioner.api import cleanup_provisioned_nodes
+from lb_provisioner.api import (
+    ProvisionedNode,
+    ProvisioningResult,
+    cleanup_provisioned_nodes,
+)
 
 
 class DummyPresenter:

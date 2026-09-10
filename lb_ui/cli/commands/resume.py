@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any
 
 import typer
-
-import json
-from datetime import datetime
 
 from lb_app.api import (
     RunCatalogService,
@@ -17,8 +15,8 @@ from lb_app.api import (
     results_exist_for_run,
 )
 from lb_common.api import RunInfo
-from lb_ui.presenters.plan import build_run_plan_table
 from lb_ui.cli.commands.run_helpers import print_run_journal_summary, resolve_stop_file
+from lb_ui.presenters.plan import build_run_plan_table
 from lb_ui.tui.system.models import PickItem
 from lb_ui.wiring.dependencies import UIContext
 
@@ -26,7 +24,7 @@ from lb_ui.wiring.dependencies import UIContext
 def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
     """Register the resume command on the given Typer app."""
 
-    def _load_config(config_path: Optional[Path]) -> Any:
+    def _load_config(config_path: Path | None) -> Any:
         cfg, resolved, stale = ctx.config_service.load_for_read(config_path)
         if stale:
             ctx.ui.present.warning(f"Saved default config not found: {stale}")
@@ -42,7 +40,7 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
     def _discover_runs(output_root: Path) -> list[RunInfo]:
         return _catalog(output_root).list_runs()
 
-    def _journal_status(run_info: RunInfo) -> Tuple[str, bool, str, Sequence[str]]:
+    def _journal_status(run_info: RunInfo) -> tuple[str, bool, str, Sequence[str]]:
         journal_path = run_info.journal_path or (
             run_info.output_root / "run_journal.json"
         )
@@ -122,7 +120,7 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         return selection.id, workloads
 
     def _resolve_run_or_pick(
-        run_id: Optional[str], output_root: Path
+        run_id: str | None, output_root: Path
     ) -> tuple[str, Sequence[str]]:
         if run_id:
             run = next(
@@ -146,8 +144,8 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         return _select_run_id(output_root)
 
     def _explicit_execution_mode(
-        docker: bool, multipass: bool, remote: Optional[bool]
-    ) -> Optional[str]:
+        docker: bool, multipass: bool, remote: bool | None
+    ) -> str | None:
         if docker:
             return "docker"
         if multipass:
@@ -191,23 +189,23 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
 
     @app.command("resume")
     def resume(
-        run_id: Optional[str] = typer.Argument(
+        run_id: str | None = typer.Argument(
             None,
             help="Run identifier to resume; omit to select interactively.",
         ),
-        config: Optional[Path] = typer.Option(
+        config: Path | None = typer.Option(
             None,
             "--config",
             "-c",
             help="Config file to load for resume.",
         ),
-        root: Optional[Path] = typer.Option(
+        root: Path | None = typer.Option(
             None,
             "--root",
             "-r",
             help="Root directory containing benchmark_results run folders.",
         ),
-        remote: Optional[bool] = typer.Option(
+        remote: bool | None = typer.Option(
             None,
             "--remote/--no-remote",
             help=(
@@ -228,12 +226,9 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         multipass: bool = typer.Option(
             False,
             "--multipass",
-            help=(
-                "Provision Multipass VMs (Ubuntu 24.04) and run benchmarks on "
-                "them."
-            ),
+            help=("Provision Multipass VMs (Ubuntu 24.04) and run benchmarks on them."),
         ),
-        node_count: Optional[int] = typer.Option(
+        node_count: int | None = typer.Option(
             None,
             "--nodes",
             "--multipass-vm-count",
@@ -244,7 +239,7 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
             "--debug",
             help="Enable verbose debug logging (sets fio.debug=True when applicable).",
         ),
-        stop_file: Optional[Path] = typer.Option(
+        stop_file: Path | None = typer.Option(
             None,
             "--stop-file",
             help=(
@@ -252,7 +247,7 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
                 "gracefully."
             ),
         ),
-        intensity: Optional[str] = typer.Option(
+        intensity: str | None = typer.Option(
             None,
             "--intensity",
             "-i",
@@ -278,8 +273,8 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
         import time
 
         start_ts = time.time()
-        from lb_common.api import configure_logging
         from lb_app.api import MAX_NODES
+        from lb_common.api import configure_logging
 
         if not ctx.dev_mode and (docker or multipass):
             ctx.ui.present.error(
@@ -411,10 +406,10 @@ def register_resume_command(app: typer.Typer, ctx: UIContext) -> None:
             run_success = True
         except ValueError as e:
             ctx.ui.present.warning(str(e))
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
         except Exception as exc:
             ctx.ui.present.error(f"Resume failed: {exc}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
         finally:
             if tray_enabled:
                 tray.stop()

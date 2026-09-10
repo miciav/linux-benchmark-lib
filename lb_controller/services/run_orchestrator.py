@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Callable, Dict
+from collections.abc import Callable
 
 from lb_controller.adapters.playbooks import build_summary, run_global_setup
 from lb_controller.engine.lifecycle import RunPhase
@@ -39,7 +39,7 @@ class RunOrchestrator:
         *,
         resume_requested: bool,
     ) -> RunExecutionSummary:
-        phases: Dict[str, ExecutionResult] = {}
+        phases: dict[str, ExecutionResult] = {}
         flags = RunFlags()
 
         ui_log = self._make_ui_log()
@@ -86,7 +86,7 @@ class RunOrchestrator:
     def _maybe_run_setup(
         self,
         session: RunSession,
-        phases: Dict[str, ExecutionResult],
+        phases: dict[str, ExecutionResult],
         flags: RunFlags,
         ui_log: Callable[[str], None],
     ) -> RunExecutionSummary | None:

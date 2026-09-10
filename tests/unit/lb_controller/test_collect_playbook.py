@@ -64,9 +64,13 @@ def _has_stream_log_fetch_task(tasks: list[dict]) -> bool:
             continue
         src = fetch_cfg.get("src", "")
         dest = fetch_cfg.get("dest", "")
-        if isinstance(src, str) and "lb_events.stream.log" in src:
-            if isinstance(dest, str) and "lb_events-" in dest:
-                return True
+        if (
+            isinstance(src, str)
+            and "lb_events.stream.log" in src
+            and isinstance(dest, str)
+            and "lb_events-" in dest
+        ):
+            return True
     return False
 
 

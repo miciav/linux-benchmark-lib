@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Sequence
 
 
 @dataclass(frozen=True)
@@ -14,9 +14,9 @@ class RunInfo:
 
     run_id: str
     output_root: Path
-    report_root: Optional[Path]
-    data_export_root: Optional[Path]
+    report_root: Path | None
+    data_export_root: Path | None
     hosts: Sequence[str]
     workloads: Sequence[str]
-    created_at: Optional[datetime]
-    journal_path: Optional[Path]
+    created_at: datetime | None
+    journal_path: Path | None

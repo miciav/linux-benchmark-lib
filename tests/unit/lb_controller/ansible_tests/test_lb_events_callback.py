@@ -1,12 +1,12 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from lb_controller.api import (
     CallbackModule,
     _extract_lb_event,
 )
-
-import pytest
 
 pytestmark = pytest.mark.unit_controller
 
@@ -48,7 +48,8 @@ def test_callback_writes_event(tmp_path: Path, monkeypatch):
     cb = CallbackModule()
     res = _Result(
         "h1",
-        'LB_EVENT {"host": "h1", "workload": "fio", "repetition": 1, "total_repetitions": 3, "status": "done"}',
+        'LB_EVENT {"host": "h1", "workload": "fio", "repetition": 1, '
+        '"total_repetitions": 3, "status": "done"}',
     )
 
     cb.v2_runner_on_ok(res)

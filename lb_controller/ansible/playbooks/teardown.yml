@@ -1,8 +1,9 @@
 - name: Global Teardown and Cleanup
   hosts: all
   become: true
-  vars:
-    # remote_output_root is passed via extravars during execution
+  # remote_output_root is passed via extravars during execution.
+  # NOTE: an empty `vars:` key with only a comment under it parses as null,
+  # which is invalid per the playbook schema (schema[playbook]).
 
   tasks:
     - name: Archive and fetch runner logs

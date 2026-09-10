@@ -17,9 +17,9 @@ __all__ = [
     "DEFAULT_JSONL_TEMPLATE",
     "JsonlLogFormatter",
     "JsonlLogHandler",
-    "resolve_jsonl_path",
     "LokiLogEntry",
     "LokiPushHandler",
     "build_loki_payload",
     "normalize_loki_endpoint",
+    "resolve_jsonl_path",
 ]

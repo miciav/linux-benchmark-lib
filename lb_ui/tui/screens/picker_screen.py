@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 from prompt_toolkit.application import Application
 from prompt_toolkit.key_binding import KeyBindings
@@ -12,12 +13,12 @@ from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.styles import Style
 from prompt_toolkit.widgets import Frame
 
+from lb_ui.tui.core import theme
 from lb_ui.tui.system.components.flat_picker_panel import (
     FlatPickerPanel,
     FlatPickerPanelConfig,
 )
 from lb_ui.tui.system.models import PickItem, SelectionNode
-from lb_ui.tui.core import theme
 
 
 @dataclass
@@ -287,7 +288,10 @@ class PickerScreen:
         else:
             raw = theme.PICKER_KEYBINDINGS_FLAT_SINGLE
 
-        frags: list[tuple[str, str]] = [("class:footer", "  Hints "), ("class:footer", "•   ")]
+        frags: list[tuple[str, str]] = [
+            ("class:footer", "  Hints "),
+            ("class:footer", "•   "),
+        ]
         for segment in raw.split("  "):
             segment = segment.strip()
             if not segment:

@@ -6,7 +6,6 @@ import pytest
 
 from lb_runner.engine.context import RunnerContext
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
 

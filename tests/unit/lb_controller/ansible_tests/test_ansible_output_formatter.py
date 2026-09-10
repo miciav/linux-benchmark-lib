@@ -1,5 +1,6 @@
-from lb_app.api import AnsibleOutputFormatter
 import pytest
+
+from lb_app.api import AnsibleOutputFormatter
 
 
 @pytest.mark.unit_controller
@@ -27,7 +28,8 @@ def test_progress_parsing_from_raw_lb_event():
 
     line = (
         'LB_EVENT {"run_id": "run-1", "host": "h1", '
-        '"workload": "fio", "repetition": 1, "total_repetitions": 3, "status": "running"}'
+        '"workload": "fio", "repetition": 1, "total_repetitions": 3, '
+        '"status": "running"}'
     )
 
     formatter.process(line, log_sink=captured.append)
@@ -98,8 +100,8 @@ def test_task_timing_from_lb_task_event():
     captured: list[str] = []
 
     line = (
-        'LB_TASK {"host": "h1", "task": "workload_runner : [run:dd] Execute dd repetition 1", '
-        '"duration_s": 2.5}'
+        'LB_TASK {"host": "h1", "task": "workload_runner : [run:dd] '
+        'Execute dd repetition 1", "duration_s": 2.5}'
     )
 
     formatter.process(line, log_sink=captured.append)

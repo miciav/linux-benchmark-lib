@@ -1,5 +1,4 @@
-"""
-Ansible callback plugin that captures LB_EVENT payloads and writes them to JSONL.
+"""Ansible callback plugin that captures LB_EVENT payloads and writes them to JSONL.
 
 This runs on the controller side (not on remote hosts) and is enabled via
 ANSIBLE_CALLBACK_PLUGINS + ANSIBLE_CALLBACKS_ENABLED. It looks for LB_EVENT
@@ -12,9 +11,9 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List
-from typing import cast
+from typing import Any, cast
 
 try:
     from ansible.plugins.callback import CallbackBase
@@ -28,7 +27,7 @@ except ModuleNotFoundError:  # pragma: no cover
             return None
 
 
-def _extract_lb_event(text: str) -> Dict[str, Any] | None:
+def _extract_lb_event(text: str) -> dict[str, Any] | None:
     """Extract a JSON object that follows an LB_EVENT token inside text."""
     if "LB_EVENT" not in text:
         return None
@@ -47,9 +46,7 @@ def _debug_enabled() -> bool:
 
 
 class CallbackModule(CallbackBase):
-    """
-    Write LB_EVENT payloads to a JSONL file for consumption by the controller.
-    """
+    """Write LB_EVENT payloads to a JSONL file for consumption by the controller."""
 
     CALLBACK_VERSION = 2.0
     CALLBACK_TYPE = "aggregate"
@@ -61,7 +58,7 @@ class CallbackModule(CallbackBase):
         log_path = os.getenv("LB_EVENT_LOG_PATH") or "lb_events.jsonl"
         self.log_path = Path(log_path).expanduser()
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        self._task_start_times: Dict[str, float] = {}
+        self._task_start_times: dict[str, float] = {}
         self._debug = _debug_enabled()
         self._debug_path = (
             self.log_path.parent / "lb_events.debug.log" if self._debug else None
@@ -105,7 +102,7 @@ class CallbackModule(CallbackBase):
             self._emit_event(event, host, status_override)
         self._emit_task_timing(result, host, status_override)
 
-    def _events_from_result(self, result: Any) -> Iterator[Dict[str, Any]]:
+    def _events_from_result(self, result: Any) -> Iterator[dict[str, Any]]:
         payloads = list(self._candidate_texts(result))
         for text in payloads:
             event = _extract_lb_event(text)
@@ -114,13 +111,13 @@ class CallbackModule(CallbackBase):
 
     def _candidate_texts(self, result: Any) -> Iterable[str]:
         res = getattr(result, "_result", {}) or {}
-        fields: List[str] = []
+        fields: list[str] = []
         fields.extend(_collect_string_fields(res, ("msg", "stdout", "stderr")))
         fields.extend(_collect_list_fields(res, ("stdout_lines", "stderr_lines")))
         fields.extend(_collect_loop_fields(res))
         return fields
 
-    def _write_event(self, event: Dict[str, Any]) -> None:
+    def _write_event(self, event: dict[str, Any]) -> None:
         try:
             with self.log_path.open("a", encoding="utf-8") as fp:
                 fp.write(json.dumps(event) + "\n")
@@ -157,7 +154,7 @@ class CallbackModule(CallbackBase):
 
     def _emit_event(
         self,
-        event: Dict[str, Any],
+        event: dict[str, Any],
         host: str,
         status_override: str | None,
     ) -> None:
@@ -167,13 +164,13 @@ class CallbackModule(CallbackBase):
         self._write_event(event)
         self._log_debug_event(event)
 
-    def _log_debug_event(self, event: Dict[str, Any]) -> None:
+    def _log_debug_event(self, event: dict[str, Any]) -> None:
         if not (self._debug and self._debug_path):
             return
         with self._debug_path.open("a") as f:
             f.write(f"[{time.time()}] Wrote event: {json.dumps(event)}\n")
 
-    def _display_task_payload(self, payload: Dict[str, Any]) -> None:
+    def _display_task_payload(self, payload: dict[str, Any]) -> None:
         try:
             self._display.display(f"LB_TASK {json.dumps(payload)}")
         except Exception:
@@ -200,7 +197,7 @@ def _advance_json_depth(depth: int, ch: str) -> int:
     return depth
 
 
-def _parse_json_candidates(raw: str) -> Dict[str, Any] | None:
+def _parse_json_candidates(raw: str) -> dict[str, Any] | None:
     candidates = (
         raw,
         raw.strip("\"'"),
@@ -209,7 +206,7 @@ def _parse_json_candidates(raw: str) -> Dict[str, Any] | None:
     )
     for candidate in candidates:
         try:
-            return cast(Dict[str, Any], json.loads(candidate))
+            return cast(dict[str, Any], json.loads(candidate))
         except Exception:
             continue
     return None
@@ -239,7 +236,7 @@ def _build_task_timing_payload(
     task_name: str,
     start: float,
     status_override: str | None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     duration_s = max(0.0, time.monotonic() - start)
     return {
         "host": host or "",
@@ -249,8 +246,8 @@ def _build_task_timing_payload(
     }
 
 
-def _collect_string_fields(res: Dict[str, Any], keys: Iterable[str]) -> List[str]:
-    fields: List[str] = []
+def _collect_string_fields(res: dict[str, Any], keys: Iterable[str]) -> list[str]:
+    fields: list[str] = []
     for key in keys:
         val = res.get(key)
         if isinstance(val, str):
@@ -258,8 +255,8 @@ def _collect_string_fields(res: Dict[str, Any], keys: Iterable[str]) -> List[str
     return fields
 
 
-def _collect_list_fields(res: Dict[str, Any], keys: Iterable[str]) -> List[str]:
-    fields: List[str] = []
+def _collect_list_fields(res: dict[str, Any], keys: Iterable[str]) -> list[str]:
+    fields: list[str] = []
     for key in keys:
         val = res.get(key)
         if isinstance(val, list):
@@ -267,8 +264,8 @@ def _collect_list_fields(res: Dict[str, Any], keys: Iterable[str]) -> List[str]:
     return fields
 
 
-def _collect_loop_fields(res: Dict[str, Any]) -> List[str]:
-    fields: List[str] = []
+def _collect_loop_fields(res: dict[str, Any]) -> list[str]:
+    fields: list[str] = []
     loop_results = res.get("results")
     if not isinstance(loop_results, list):
         return fields

@@ -6,9 +6,8 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from lb_runner.models.config import WorkloadConfig
 from lb_plugins.api import WorkloadIntensity, WorkloadPlugin
-
+from lb_runner.models.config import WorkloadConfig
 
 logger = logging.getLogger(__name__)
 

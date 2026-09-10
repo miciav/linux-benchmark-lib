@@ -241,7 +241,7 @@ class TestDfaasConfigRateStrategy:
             DfaasConfig(rate_strategy={"type": "invalid_type"})
 
     def test_legacy_rates_migrated_to_strategy(self) -> None:
-        with pytest.warns(DeprecationWarning):
+        with pytest.warns(DeprecationWarning, match="The 'rates' field is deprecated"):
             config = DfaasConfig(rates={"min_rate": 10, "max_rate": 50, "step": 5})
 
         # Legacy rates should be migrated to rate_strategy

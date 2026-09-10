@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional, Tuple
 
 from lb_controller.api import BenchmarkConfig, PlatformConfig
 
@@ -16,7 +15,7 @@ PLATFORM_CONFIG_NAME = "platform.json"
 class ConfigRepository:
     """Persist and resolve config files in the local filesystem."""
 
-    def __init__(self, config_home: Optional[Path] = None) -> None:
+    def __init__(self, config_home: Path | None = None) -> None:
         xdg = os.environ.get("XDG_CONFIG_HOME")
         base = Path(xdg) if xdg else Path.home() / ".config"
         self.config_home = (config_home or base) / "lb"
@@ -31,8 +30,8 @@ class ConfigRepository:
         path.parent.mkdir(parents=True, exist_ok=True)
 
     def resolve_config_path(
-        self, config_path: Optional[Path]
-    ) -> Tuple[Optional[Path], Optional[Path]]:
+        self, config_path: Path | None
+    ) -> tuple[Path | None, Path | None]:
         if config_path is not None:
             return Path(config_path).expanduser(), None
 
@@ -53,7 +52,7 @@ class ConfigRepository:
             return self.default_target, None
         return None, None
 
-    def read_saved_config_path(self) -> Tuple[Optional[Path], Optional[Path]]:
+    def read_saved_config_path(self) -> tuple[Path | None, Path | None]:
         if not self.pointer.exists():
             return None, None
         try:

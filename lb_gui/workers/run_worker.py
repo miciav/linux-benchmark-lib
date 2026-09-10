@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QObject, QThread, Signal
 
 if TYPE_CHECKING:
-    from lb_app.api import RunRequest, RunResult, RunEvent, RunJournal
+    from lb_app.api import RunEvent, RunJournal, RunRequest, RunResult
     from lb_gui.services.app_client import AppClientService
 
 
@@ -44,10 +44,10 @@ class UIHooksAdapter:
     def on_warning(self, message: str, ttl: float = 10.0) -> None:
         self._signals.warning.emit(message, ttl)
 
-    def on_event(self, event: "RunEvent") -> None:
+    def on_event(self, event: RunEvent) -> None:
         self._signals.event_update.emit(event)
 
-    def on_journal(self, journal: "RunJournal") -> None:
+    def on_journal(self, journal: RunJournal) -> None:
         self._signals.journal_update.emit(journal)
 
 
@@ -63,21 +63,21 @@ class RunWorker(QObject):
 
     def __init__(
         self,
-        app_client: "AppClientService",
-        request: "RunRequest",
+        app_client: AppClientService,
+        request: RunRequest,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._app_client = app_client
         self._request = request
         self._thread: QThread | None = None
-        self._result: "RunResult | None" = None
+        self._result: RunResult | None = None
 
         # Create signals object
         self.signals = RunWorkerSignals()
 
     @property
-    def result(self) -> "RunResult | None":
+    def result(self) -> RunResult | None:
         """Get the run result after completion."""
         return self._result
 
@@ -129,6 +129,7 @@ class RunWorker(QObject):
 
         Returns:
             True if finished, False if timed out
+
         """
         if self._thread is None:
             return True

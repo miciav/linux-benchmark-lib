@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import AbstractContextManager, nullcontext
-from typing import Any, Protocol, Sequence, IO
+from typing import IO, Any, Protocol
 
 
 class DashboardHandle(Protocol):

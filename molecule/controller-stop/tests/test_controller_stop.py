@@ -14,7 +14,7 @@ from controller_stop_runner import run_controller  # type: ignore # noqa: E402
 
 
 @pytest.mark.parametrize(
-    "stop_at,expected",
+    ("stop_at", "expected"),
     [
         (None, {"success": True, "setup": True, "run_done": True, "teardown": True}),
         ("setup", {"teardown": True}),
@@ -26,6 +26,6 @@ def test_controller_stop_scenarios(tmp_path: Path, stop_at, expected):
     markers = run_controller(stop_at)
 
     for key, val in expected.items():
-        assert (
-            markers.get(key) == val
-        ), f"Expected {key}={val} for stop_at={stop_at}, got {markers}"
+        assert markers.get(key) == val, (
+            f"Expected {key}={val} for stop_at={stop_at}, got {markers}"
+        )

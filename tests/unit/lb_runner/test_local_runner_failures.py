@@ -6,9 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lb_runner.api import BenchmarkConfig, WorkloadConfig
-from lb_runner.api import LocalRunner
-
+from lb_runner.api import BenchmarkConfig, LocalRunner, WorkloadConfig
 
 pytestmark = pytest.mark.unit_runner
 
@@ -73,7 +71,7 @@ def test_system_info_write_failure_is_ignored(mocker, tmp_path):
 
 
 def test_mock_generator_without_flag_exits_promptly(monkeypatch, tmp_path):
-    """Ensure MagicMock generators do not force long waits when _is_running is non-bool."""
+    """Ensure MagicMock generators do not force long waits when _is_running is non-bool."""  # noqa: E501
     cfg = BenchmarkConfig(
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",
@@ -89,8 +87,12 @@ def test_mock_generator_without_flag_exits_promptly(monkeypatch, tmp_path):
     def fake_sleep(seconds: int) -> None:
         sleep_calls.append(seconds)
 
+    # sleep_with_stop_checks lives in lb_runner.engine.execution, so that is the
+    # module whose `time.sleep` the runner actually calls. A second patch on
+    # lb_runner.engine.runner.time was vestigial: that module no longer imports
+    # `time` (it delegates sleeping), so patching it either did nothing or, once
+    # the unused import was removed, raised ImportError.
     monkeypatch.setattr("lb_runner.engine.execution.time.sleep", fake_sleep)
-    monkeypatch.setattr("lb_runner.engine.runner.time.sleep", fake_sleep)
 
     generator = MagicMock()
     generator.get_result.return_value = {"returncode": 0}

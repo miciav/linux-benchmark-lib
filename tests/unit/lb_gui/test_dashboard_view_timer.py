@@ -1,19 +1,21 @@
 # tests/unit/lb_gui/test_dashboard_view_timer.py
 """Test warning banner auto-hide via QTimer."""
+
 from __future__ import annotations
+
 import pytest
 
 pytest.importorskip("PySide6")
 
 from PySide6.QtWidgets import QApplication
-from lb_gui.views.dashboard_view import DashboardView
+
 from lb_gui.viewmodels.dashboard_vm import GUIDashboardViewModel
+from lb_gui.views.dashboard_view import DashboardView
 
 
 @pytest.fixture(scope="module")
 def qt_app():
-    app = QApplication.instance() or QApplication([])
-    return app
+    return QApplication.instance() or QApplication([])
 
 
 @pytest.mark.unit

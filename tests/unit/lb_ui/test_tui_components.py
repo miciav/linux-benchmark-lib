@@ -26,8 +26,8 @@ def test_rich_presenter_panel_uses_secondary_title_markup() -> None:
     presenter.panel("Hello world", title="Deploy")
 
     panel = console.renderables[0]
-    assert getattr(panel, "border_style") == theme.RICH_BORDER_STYLE
-    assert theme.RICH_TITLE_SECONDARY in str(getattr(panel, "title"))
+    assert panel.border_style == theme.RICH_BORDER_STYLE
+    assert theme.RICH_TITLE_SECONDARY in str(panel.title)
 
 
 def test_rich_presenter_rule_uses_subtle_rule_style() -> None:
@@ -37,8 +37,8 @@ def test_rich_presenter_rule_uses_subtle_rule_style() -> None:
     presenter.rule("Section")
 
     rule = console.renderables[0]
-    assert getattr(rule, "style") == theme.RICH_BORDER_STYLE
-    assert getattr(rule, "characters") == "─"
+    assert rule.style == theme.RICH_BORDER_STYLE
+    assert rule.characters == "─"
 
 
 def test_rich_table_presenter_uses_quieter_table_chrome() -> None:
@@ -54,17 +54,19 @@ def test_rich_table_presenter_uses_quieter_table_chrome() -> None:
     )
 
     table = console.renderables[0]
-    assert getattr(table, "show_lines") is False
-    assert getattr(table, "row_styles") == ["none", "dim"]
-    title = getattr(table, "title")
-    assert getattr(table, "title_style") == theme.RICH_TITLE_SECONDARY
-    assert getattr(title, "plain") == "Workloads"
+    assert table.show_lines is False
+    assert table.row_styles == ["none", "dim"]
+    title = table.title
+    assert table.title_style == theme.RICH_TITLE_SECONDARY
+    assert title.plain == "Workloads"
 
 
 def test_rich_form_styles_prompt_text(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, str] = {}
 
-    def fake_prompt_ask(prompt: str, *, console: object, default: str, password: bool) -> str:
+    def fake_prompt_ask(
+        prompt: str, *, console: object, default: str, password: bool
+    ) -> str:
         captured["ask"] = prompt
         return "value"
 

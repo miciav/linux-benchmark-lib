@@ -6,8 +6,9 @@ import logging
 import queue
 import threading
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Callable, Mapping, cast
+from typing import cast
 
 from lb_common.logs.handlers.loki_types import LokiLogEntry
 
@@ -51,7 +52,7 @@ class LokiWorker:
 
     queue: queue.Queue
     stop_event: threading.Event
-    push_entries: Callable[[list["LokiLogEntry"]], None]
+    push_entries: Callable[[list[LokiLogEntry]], None]
     batch_size: int = 100
     flush_interval: float = 1.0
 

@@ -1,8 +1,8 @@
 """Tests for the workload plugin registry."""
 
+import importlib.metadata
 from dataclasses import dataclass
 
-import importlib.metadata
 import pytest
 
 from lb_plugins.api import (

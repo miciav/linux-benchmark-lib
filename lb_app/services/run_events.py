@@ -6,9 +6,9 @@ import json
 import os
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import cast
-from typing import Any, Callable
+from typing import Any, cast
 
 
 def _debug_enabled() -> bool:

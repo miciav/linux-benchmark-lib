@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-
 pytestmark = pytest.mark.unit_controller
 
 
@@ -26,10 +25,9 @@ def test_setup_playbook_sync_includes_lb_common() -> None:
     assert archive_task is not None
     cmd = None
     for key, value in archive_task.items():
-        if key.endswith(".command") or key == "command":
-            if isinstance(value, dict):
-                cmd = value.get("cmd")
-                break
+        if (key.endswith(".command") or key == "command") and isinstance(value, dict):
+            cmd = value.get("cmd")
+            break
     assert cmd is not None
     cmd_str = " ".join(cmd) if isinstance(cmd, list) else str(cmd)
     assert "lb_common" in cmd_str

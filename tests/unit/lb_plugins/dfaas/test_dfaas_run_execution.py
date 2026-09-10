@@ -41,7 +41,7 @@ def _make_planner(config: DfaasConfig) -> DfaasRunPlanner:
         metrics_collector=MagicMock(),
         log_manager=MagicMock(spec=DfaasLogManager),
         annotations=MagicMock(spec=DfaasAnnotationService),
-        replicas_provider=lambda names: {name: 0 for name in names},
+        replicas_provider=lambda names: dict.fromkeys(names, 0),
     )
 
 
@@ -116,7 +116,7 @@ def test_handle_execution_error_marks_failure_and_skips_row() -> None:
         duration_seconds=30,
         outputs_provider=lambda: [],
         tags_provider=lambda run_id: {"run_id": run_id},
-        replicas_provider=lambda names: {name: 0 for name in names},
+        replicas_provider=lambda names: dict.fromkeys(names, 0),
     )
     ctx = _make_context(function_names=["figlet"])
 
@@ -150,7 +150,7 @@ def test_execute_public_path_marks_final_payload_failed() -> None:
         duration_seconds=30,
         outputs_provider=lambda: [],
         tags_provider=lambda run_id: {"run_id": run_id},
-        replicas_provider=lambda names: {name: 0 for name in names},
+        replicas_provider=lambda names: dict.fromkeys(names, 0),
     )
     ctx = _make_context(function_names=["figlet"])
     ctx.configs = [[("figlet", 10)]]

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Mapping
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -43,9 +44,9 @@ class StructuredLogEvent(BaseModel):
         scenario: str | None = None,
         repetition: int | None = None,
         tags: Mapping[str, Any] | None = None,
-    ) -> "StructuredLogEvent":
+    ) -> StructuredLogEvent:
         """Build a schema instance from a stdlib LogRecord."""
-        timestamp = datetime.fromtimestamp(record.created, tz=timezone.utc)
+        timestamp = datetime.fromtimestamp(record.created, tz=UTC)
         message = record.getMessage()
         return cls(
             timestamp=timestamp,

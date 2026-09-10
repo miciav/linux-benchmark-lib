@@ -1,4 +1,7 @@
-"""Molecule verification script for controller stop lifecycle (no VM, delegated driver)."""
+"""Molecule verification script for controller stop lifecycle.
+
+Runs with the delegated driver and no VM.
+"""
 
 from controller_stop_runner import run_all_cases  # type: ignore
 

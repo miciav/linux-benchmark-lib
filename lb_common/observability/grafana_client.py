@@ -5,9 +5,10 @@ from __future__ import annotations
 import base64
 import json
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
-from urllib import request, error, parse
+from typing import Any
+from urllib import error, parse, request
 
 
 def _validate_http_url(url: str, label: str) -> str:
@@ -271,9 +272,7 @@ class GrafanaClient:
         message_id = str(data.get("messageId") or "")
         if "already exists" in message:
             return True
-        if "AlreadyExists" in message_id:
-            return True
-        return False
+        return "AlreadyExists" in message_id
 
     @staticmethod
     def _parse_json(body: str) -> dict[str, Any] | None:
@@ -320,9 +319,7 @@ class GrafanaClient:
             headers["Authorization"] = f"Bearer {self.api_key}"
         elif self.basic_auth:
             user, password = self.basic_auth
-            token = base64.b64encode(f"{user}:{password}".encode("utf-8")).decode(
-                "ascii"
-            )
+            token = base64.b64encode(f"{user}:{password}".encode()).decode("ascii")
             headers["Authorization"] = f"Basic {token}"
         if self.org_id:
             headers["X-Grafana-Org-Id"] = str(self.org_id)

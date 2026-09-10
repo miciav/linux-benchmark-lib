@@ -1,7 +1,12 @@
 import pytest
 
-from lb_app.api import RunJournal, RunStatus, TaskState
-from lb_app.api import summarize_progress, target_repetitions
+from lb_app.api import (
+    RunJournal,
+    RunStatus,
+    TaskState,
+    summarize_progress,
+    target_repetitions,
+)
 
 pytestmark = [pytest.mark.unit_ui, pytest.mark.unit_ui]
 

@@ -1,8 +1,9 @@
 from pathlib import Path
 from unittest.mock import MagicMock
+
 import pytest
-from lb_runner.api import BenchmarkConfig
-from lb_runner.api import ensure_run_dirs
+
+from lb_runner.api import BenchmarkConfig, ensure_run_dirs
 
 
 @pytest.mark.unit_runner

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 from typing import Any
 
-from ..config import DfaasOverloadConfig
+from lb_plugins.plugins.dfaas.config import DfaasOverloadConfig
+
 from .cooldown import MetricsSnapshot
 
 
@@ -26,7 +27,7 @@ class DfaasResultBuilder:
         idle_snapshot: MetricsSnapshot,
         rest_seconds: int,
     ) -> tuple[dict[str, Any], bool]:
-        config_map = {name: rate for name, rate in config_pairs}
+        config_map = dict(config_pairs)
         row, overloaded_any, avg_success_rate = self._build_function_rows(
             all_functions, config_map, summary_metrics, replicas, metrics
         )
@@ -53,7 +54,7 @@ class DfaasResultBuilder:
         self, all_functions: list[str], config_pairs: list[tuple[str, int]]
     ) -> dict[str, Any]:
         row: dict[str, Any] = {}
-        config_map = {name: rate for name, rate in config_pairs}
+        config_map = dict(config_pairs)
         for name in all_functions:
             if name in config_map:
                 row[f"function_{name}"] = name

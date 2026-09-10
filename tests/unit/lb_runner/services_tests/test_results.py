@@ -6,7 +6,6 @@ import pytest
 
 from lb_runner.services.results import merge_results
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
 

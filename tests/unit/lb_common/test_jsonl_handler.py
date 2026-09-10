@@ -5,7 +5,6 @@ import pytest
 
 from lb_common.logs.handlers.jsonl_handler import JsonlLogHandler
 
-
 pytestmark = pytest.mark.unit_runner
 
 

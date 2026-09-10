@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import csv
-from importlib import import_module
 import json
+from importlib import import_module
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
-from ...interface import BasePluginConfig, SimpleWorkloadPlugin
+from lb_plugins.interface import BasePluginConfig, SimpleWorkloadPlugin
+
 from .config import DfaasConfig
 from .grafana_assets import GRAFANA_ASSETS
 
@@ -18,7 +19,7 @@ class DfaasPlugin(SimpleWorkloadPlugin):
 
     NAME = "dfaas"
     DESCRIPTION = "DFaaS k6 + OpenFaaS workload"
-    REQUIRED_UV_EXTRAS = ["dfaas"]
+    REQUIRED_UV_EXTRAS: ClassVar[list[str]] = ["dfaas"]
     CONFIG_CLS = DfaasConfig
     GENERATOR_CLS = None
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"

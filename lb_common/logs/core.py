@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
-from typing import Any, Callable, Mapping, MutableMapping, Sequence, cast
+from typing import Any, cast
 
 import structlog
 

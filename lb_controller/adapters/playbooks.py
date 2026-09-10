@@ -2,28 +2,30 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
-from lb_controller.models.state import ControllerState
-from lb_controller.services.journal import RunStatus
-from lb_controller.services.journal_sync import (
-    backfill_timings_from_results,
-    update_all_reps,
-)
 from lb_controller.engine.lifecycle import RunPhase
 from lb_controller.engine.run_state import RunFlags, RunState
+from lb_controller.engine.session import RunSession
+from lb_controller.engine.stop_logic import handle_stop_during_workloads
+from lb_controller.models.state import ControllerState
 from lb_controller.models.types import (
     ExecutionResult,
     InventorySpec,
     RunExecutionSummary,
 )
+from lb_controller.services.journal import RunStatus
+from lb_controller.services.journal_sync import (
+    backfill_timings_from_results,
+    update_all_reps,
+)
+from lb_controller.services.services import ControllerServices
 from lb_plugins.api import PluginAssetConfig
 from lb_runner.api import RemoteHostConfig
-from lb_controller.services.services import ControllerServices
-from lb_controller.engine.session import RunSession
-from lb_controller.engine.stop_logic import handle_stop_during_workloads
 
 logger = logging.getLogger(__name__)
 setup_logger = logging.LoggerAdapter(logger, {"lb_phase": "setup"})
@@ -39,10 +41,8 @@ def _stop_requested(services: ControllerServices, session: RunSession) -> bool:
 
 def _interrupt_executor(services: ControllerServices) -> None:
     if hasattr(services.executor, "interrupt"):
-        try:
+        with contextlib.suppress(Exception):
             services.executor.interrupt()
-        except Exception:
-            pass
 
 
 def _refresh_journal(services: ControllerServices) -> None:
@@ -63,9 +63,9 @@ def _require_playbook_path(playbook_path: Path | None, phase: str) -> Path:
 def build_summary(
     services: ControllerServices,
     session: RunSession,
-    phases: Dict[str, ExecutionResult],
+    phases: dict[str, ExecutionResult],
     flags: RunFlags,
-    success_override: Optional[bool] = None,
+    success_override: bool | None = None,
 ) -> RunExecutionSummary:
     if _stop_requested(services, session):
         final_state = (
@@ -99,7 +99,7 @@ def build_summary(
 def run_global_setup(
     services: ControllerServices,
     session: RunSession,
-    phases: Dict[str, ExecutionResult],
+    phases: dict[str, ExecutionResult],
     flags: RunFlags,
     ui_log: Callable[[str], None],
 ) -> RunExecutionSummary | None:
@@ -137,10 +137,8 @@ def run_global_setup(
         )
         _interrupt_executor(services)
         flags.all_tests_success = False
-        try:
+        with contextlib.suppress(Exception):
             phases["setup_global"].status = "stopped"
-        except Exception:
-            pass
         session.state.test_types = []
         return None
 
@@ -159,9 +157,9 @@ def run_workload_setup(
     plugin_assets: PluginAssetConfig | None,
     plugin_name: str,
     inventory: InventorySpec,
-    extravars: Dict[str, Any],
-    pending_reps: Dict[str, List[int]],
-    phases: Dict[str, ExecutionResult],
+    extravars: dict[str, Any],
+    pending_reps: dict[str, list[int]],
+    phases: dict[str, ExecutionResult],
     flags: RunFlags,
     ui_log: Callable[[str], None],
 ) -> None:
@@ -199,9 +197,9 @@ def run_workload_execution(
     plugin_assets: PluginAssetConfig | None,
     plugin_name: str,
     state: RunState,
-    pending_hosts: List[RemoteHostConfig],
-    pending_reps: Dict[str, List[int]],
-    phases: Dict[str, ExecutionResult],
+    pending_hosts: list[RemoteHostConfig],
+    pending_reps: dict[str, list[int]],
+    phases: dict[str, ExecutionResult],
     flags: RunFlags,
     ui_log: Callable[[str], None],
 ) -> None:
@@ -252,10 +250,10 @@ def execute_run_playbook(
     services: ControllerServices,
     session: RunSession,
     test_name: str,
-    pending_hosts: List[RemoteHostConfig],
-    pending_reps: Dict[str, List[int]],
+    pending_hosts: list[RemoteHostConfig],
+    pending_reps: dict[str, list[int]],
     state: RunState,
-    phases: Dict[str, ExecutionResult],
+    phases: dict[str, ExecutionResult],
     flags: RunFlags,
     ui_log: Callable[[str], None],
 ) -> None:
@@ -301,13 +299,13 @@ def handle_collect_phase(
     services: ControllerServices,
     session: RunSession,
     test_name: str,
-    pending_hosts: List[RemoteHostConfig],
+    pending_hosts: list[RemoteHostConfig],
     state: RunState,
-    phases: Dict[str, ExecutionResult],
+    phases: dict[str, ExecutionResult],
     flags: RunFlags,
     ui_log: Callable[[str], None],
-    plugin_assets: Optional[PluginAssetConfig] = None,
-    plugin_name: Optional[str] = None,
+    plugin_assets: PluginAssetConfig | None = None,
+    plugin_name: str | None = None,
 ) -> None:
     """Execute the collect playbook and backfill timings."""
     res_run = phases.get(f"run_{test_name}")
@@ -329,7 +327,7 @@ def handle_collect_phase(
 def _announce_run_phase(
     services: ControllerServices,
     test_name: str,
-    pending_hosts: List[RemoteHostConfig],
+    pending_hosts: list[RemoteHostConfig],
     ui_log: Callable[[str], None],
 ) -> None:
     ui_log(f"Run: {test_name} on {len(pending_hosts)} host(s)")
@@ -340,7 +338,7 @@ def _announce_run_phase(
 def _update_reps_for_run(
     services: ControllerServices,
     state: RunState,
-    pending_hosts: List[RemoteHostConfig],
+    pending_hosts: list[RemoteHostConfig],
     test_name: str,
     status: str,
     *,
@@ -365,8 +363,8 @@ def _update_reps_for_run(
 def _build_run_extravars(
     state: RunState,
     test_name: str,
-    pending_reps: Dict[str, List[int]],
-) -> Dict[str, Any]:
+    pending_reps: dict[str, list[int]],
+) -> dict[str, Any]:
     loop_extravars = state.extravars.copy()
     loop_extravars["tests"] = [test_name]
     loop_extravars["pending_repetitions"] = pending_reps
@@ -376,10 +374,10 @@ def _build_run_extravars(
 def _run_collect_playbook(
     services: ControllerServices,
     state: RunState,
-    pending_hosts: List[RemoteHostConfig],
+    pending_hosts: list[RemoteHostConfig],
     test_name: str,
     status: str,
-    phases: Dict[str, ExecutionResult],
+    phases: dict[str, ExecutionResult],
     ui_log: Callable[[str], None],
 ) -> None:
     ui_log(f"Collect: {test_name}")
@@ -416,10 +414,10 @@ def _run_collect_playbook(
 def _skip_collect_phase(
     services: ControllerServices,
     state: RunState,
-    pending_hosts: List[RemoteHostConfig],
+    pending_hosts: list[RemoteHostConfig],
     test_name: str,
     status: str,
-    phases: Dict[str, ExecutionResult],
+    phases: dict[str, ExecutionResult],
 ) -> None:
     backfill_timings_from_results(
         state.active_journal,
@@ -445,7 +443,7 @@ def run_teardown_playbook(
     plugin_assets: PluginAssetConfig | None,
     plugin_name: str,
     inventory: InventorySpec,
-    extravars: Dict[str, Any],
+    extravars: dict[str, Any],
 ) -> None:
     """Execute per-workload teardown playbook when configured."""
     teardown_pb = plugin_assets.teardown_playbook if plugin_assets else None
@@ -467,7 +465,7 @@ def run_global_teardown(
     services: ControllerServices,
     session: RunSession,
     state: RunState,
-    phases: Dict[str, ExecutionResult],
+    phases: dict[str, ExecutionResult],
     flags: RunFlags,
     ui_log: Callable[[str], None],
 ) -> None:
@@ -504,9 +502,9 @@ def run_for_hosts(
     services: ControllerServices,
     playbook_path: Path,
     base_inventory: InventorySpec,
-    hosts: List[RemoteHostConfig],
-    extravars: Dict[str, Any],
-    tags: Optional[List[str]] = None,
+    hosts: list[RemoteHostConfig],
+    extravars: dict[str, Any],
+    tags: list[str] | None = None,
 ) -> ExecutionResult:
     """Execute a playbook limited to the provided host list."""
     limit_hosts = [host.name for host in hosts]
@@ -549,7 +547,7 @@ def _transition_teardown_state(session: RunSession, stopping_now: bool) -> None:
 
 def _maybe_record_stop_protocol_failure(
     flags: RunFlags,
-    phases: Dict[str, ExecutionResult],
+    phases: dict[str, ExecutionResult],
     ui_log: Callable[[str], None],
 ) -> None:
     if not flags.stop_protocol_attempted or flags.stop_successful:

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -30,18 +31,18 @@ from PySide6.QtWidgets import (
 from lb_gui.utils import set_widget_role
 
 if TYPE_CHECKING:
-    from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
     from lb_common.api import RunInfo
+    from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
 
 
 class AnalyticsView(QWidget):
     """View for running analytics on benchmark results."""
 
-    RUN_HEADERS = ["Run ID", "Created", "Workloads"]
+    RUN_HEADERS: ClassVar[list[str]] = ["Run ID", "Created", "Workloads"]
 
     def __init__(
         self,
-        viewmodel: "AnalyticsViewModel",
+        viewmodel: AnalyticsViewModel,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -101,7 +102,7 @@ class AnalyticsView(QWidget):
 
         splitter.addWidget(left_widget)
 
-        # Right: Options and execution
+        # Right: Options and execution  # noqa: ERA001 (section header, not dead code)
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
         right_layout.setContentsMargins(0, 0, 0, 0)
@@ -240,7 +241,7 @@ class AnalyticsView(QWidget):
         self._status_label.setText(f"{len(runs)} run(s) available")
         set_widget_role(self._status_label, "muted")
 
-    def _on_vm_run_selected(self, run: "RunInfo | None") -> None:
+    def _on_vm_run_selected(self, run: RunInfo | None) -> None:
         """Handle run selection in viewmodel."""
         # Update filter lists
         self._workloads_list.clear()
@@ -311,7 +312,12 @@ class AnalyticsView(QWidget):
             if sys.platform == "darwin":
                 subprocess.run(["open", str(path)])
             elif sys.platform == "win32":
-                subprocess.run(["start", "", str(path)], shell=True)
+                # os.startfile is the Windows API for "open with the default
+                # application". The previous subprocess.run(["start", ...],
+                # shell=True) needed a shell because `start` is a cmd.exe
+                # builtin, which bandit flags (B602) and which passed the path
+                # through a shell unnecessarily.
+                os.startfile(path)
             else:
                 subprocess.run(["xdg-open", str(path)])
         except Exception as e:

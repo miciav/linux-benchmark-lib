@@ -22,7 +22,7 @@ class LinearRateStrategy(RateStrategy):
     step: int = Field(default=10, gt=0, description="Step between rates")
 
     @model_validator(mode="after")
-    def _validate_bounds(self) -> "LinearRateStrategy":
+    def _validate_bounds(self) -> LinearRateStrategy:
         if self.max_rate < self.min_rate:
             raise ValueError("max_rate must be >= min_rate")
         return self

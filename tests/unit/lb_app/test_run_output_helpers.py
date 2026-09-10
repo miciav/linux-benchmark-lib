@@ -10,7 +10,6 @@ from lb_app.services.run_output_formatting import (
 )
 from lb_app.services.run_output_parsing import _extract_lb_task_data
 
-
 pytestmark = pytest.mark.unit_ui
 
 

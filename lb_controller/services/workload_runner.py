@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict
+from collections.abc import Callable
 
 from lb_controller.adapters.playbooks import (
     run_workload_execution,
@@ -10,14 +10,14 @@ from lb_controller.adapters.playbooks import (
 )
 from lb_controller.engine.lifecycle import RunPhase
 from lb_controller.engine.run_state import RunFlags, RunState
-from lb_controller.models.pending import pending_hosts_for, pending_repetitions
-from lb_controller.models.types import ExecutionResult
-from lb_plugins.api import PluginAssetConfig
-from lb_runner.api import BenchmarkConfig
-from lb_controller.services.services import ControllerServices
 from lb_controller.engine.session import RunSession
 from lb_controller.engine.stop_logic import handle_stop_during_workloads
+from lb_controller.models.pending import pending_hosts_for, pending_repetitions
+from lb_controller.models.types import ExecutionResult
+from lb_controller.services.services import ControllerServices
 from lb_controller.services.ui_notifier import UINotifier
+from lb_plugins.api import PluginAssetConfig
+from lb_runner.api import BenchmarkConfig
 
 
 class WorkloadRunner:
@@ -36,7 +36,7 @@ class WorkloadRunner:
         services: ControllerServices,
         session: RunSession,
         state: RunState,
-        phases: Dict[str, ExecutionResult],
+        phases: dict[str, ExecutionResult],
         flags: RunFlags,
         resume_requested: bool,
         ui_log: Callable[[str], None],
@@ -67,7 +67,7 @@ class WorkloadRunner:
         session: RunSession,
         test_name: str,
         state: RunState,
-        phases: Dict[str, ExecutionResult],
+        phases: dict[str, ExecutionResult],
         flags: RunFlags,
         resume_requested: bool,
         ui_log: Callable[[str], None],

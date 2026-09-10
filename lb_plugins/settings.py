@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import asdict, is_dataclass
 from inspect import isclass
-from typing import Any, Dict, Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel, ValidationError
 
@@ -18,13 +18,13 @@ logger = logging.getLogger(__name__)
 class SupportsPluginSettings(Protocol):
     """Minimal interface for configs that store plugin settings."""
 
-    plugin_settings: Dict[str, Any]
+    plugin_settings: dict[str, Any]
 
 
 class SupportsWorkloads(Protocol):
     """Minimal interface for configs that store workloads."""
 
-    workloads: Dict[str, Any]
+    workloads: dict[str, Any]
 
 
 class SupportsPluginSettingsAndWorkloads(
@@ -36,7 +36,7 @@ class SupportsPluginSettingsAndWorkloads(
 class WorkloadFactory(Protocol):
     """Factory for workload config objects."""
 
-    def __call__(self, *, plugin: str, options: Dict[str, Any]) -> Any: ...
+    def __call__(self, *, plugin: str, options: dict[str, Any]) -> Any: ...
 
 
 def _default_registry() -> PluginRegistry:
@@ -51,8 +51,7 @@ def hydrate_plugin_settings(
     config: SupportsPluginSettings,
     registry: PluginRegistry | None = None,
 ) -> None:
-    """
-    Convert plugin_settings dicts into their respective Pydantic models.
+    """Convert plugin_settings dicts into their respective Pydantic models.
 
     This relies on the plugin registry to get the correct config_cls.
     """
@@ -203,6 +202,7 @@ def _try_instantiate_default(
         logger.debug("Skipping default config for plugin '%s': %s", name, exc)
         return False
 
+
 def _settings_to_options(
     settings: Any,
     *,
@@ -213,7 +213,11 @@ def _settings_to_options(
         if dump_mode:
             return settings.model_dump(mode=dump_mode)
         return settings.model_dump()
-    if convert_dataclasses and not isinstance(settings, type) and is_dataclass(settings):
+    if (
+        convert_dataclasses
+        and not isinstance(settings, type)
+        and is_dataclass(settings)
+    ):
         return asdict(settings)
     return settings
 

@@ -6,12 +6,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from lb_plugins.plugins.peva_faas.config import DfaasConfig, DfaasFunctionConfig
+from lb_plugins.plugins.peva_faas.services.plan_builder import config_key
 from lb_plugins.plugins.peva_faas.services.run_execution import (
     DfaasConfigExecutor,
     DfaasResultWriter,
     DfaasRunContext,
 )
-from lb_plugins.plugins.peva_faas.services.plan_builder import config_key
 
 pytestmark = [pytest.mark.unit_plugins]
 
@@ -80,11 +80,7 @@ def test_executor_requests_sequential_batch_from_scheduler() -> None:
     executed: list[list[tuple[str, int]]] = []
     executor = _make_executor(scheduler=scheduler)
 
-    setattr(
-        executor,
-        "_execute_single_config",
-        lambda *args: executed.append(args[1]),  # type: ignore[misc]
-    )
+    executor._execute_single_config = lambda *args: executed.append(args[1])
 
     executor.execute(ctx)
 
@@ -103,11 +99,7 @@ def test_seen_config_is_skipped_without_replacement() -> None:
     executed: list[list[tuple[str, int]]] = []
     executor = _make_executor()
 
-    setattr(
-        executor,
-        "_execute_single_config",
-        lambda *args: executed.append(args[1]),  # type: ignore[misc]
-    )
+    executor._execute_single_config = lambda *args: executed.append(args[1])
 
     executor.execute(ctx)
 

@@ -19,10 +19,10 @@ class UnhashablePayload:
 
 
 def test_picker_filter_with_unhashable_payload():
-    """
-    Verify that the picker filtering does not crash when items contain unhashable
-    payloads. This reproduces the 'Exception unhashable type: WorkloadConfig'
-    error found with rapidfuzz.
+    """Verify that the picker filtering does not crash for unhashable payloads.
+
+    This reproduces the 'Exception unhashable type: WorkloadConfig' error found
+    with rapidfuzz.
     """
     # Create items with unhashable payload
     items = [

@@ -7,20 +7,20 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QObject, Signal, QCoreApplication
+from PySide6.QtCore import QCoreApplication, QObject, Signal
 
 from lb_app.api import AnalyticsKind
-from lb_gui.workers import AnalyticsWorker
 from lb_gui.utils import format_datetime
+from lb_gui.workers import AnalyticsWorker
 
 if TYPE_CHECKING:
+    from lb_app.api import BenchmarkConfig
     from lb_common.api import RunInfo
     from lb_gui.services import (
         AnalyticsServiceWrapper,
-        RunCatalogServiceWrapper,
         GUIConfigService,
+        RunCatalogServiceWrapper,
     )
-    from lb_app.api import BenchmarkConfig
 
 
 class AnalyticsViewModel(QObject):
@@ -39,9 +39,9 @@ class AnalyticsViewModel(QObject):
 
     def __init__(
         self,
-        analytics_service: "AnalyticsServiceWrapper",
-        run_catalog: "RunCatalogServiceWrapper",
-        config_service: "GUIConfigService | None" = None,
+        analytics_service: AnalyticsServiceWrapper,
+        run_catalog: RunCatalogServiceWrapper,
+        config_service: GUIConfigService | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -50,8 +50,8 @@ class AnalyticsViewModel(QObject):
         self._config_service = config_service
 
         # State
-        self._runs: list["RunInfo"] = []
-        self._selected_run: "RunInfo | None" = None
+        self._runs: list[RunInfo] = []
+        self._selected_run: RunInfo | None = None
         self._selected_workloads: list[str] = []
         self._selected_hosts: list[str] = []
         self._selected_kind: AnalyticsKind = "aggregate"
@@ -60,12 +60,12 @@ class AnalyticsViewModel(QObject):
         self._is_configured: bool = config_service is None
 
     @property
-    def runs(self) -> list["RunInfo"]:
+    def runs(self) -> list[RunInfo]:
         """Available runs for analysis."""
         return self._runs
 
     @property
-    def selected_run(self) -> "RunInfo | None":
+    def selected_run(self) -> RunInfo | None:
         """Currently selected run."""
         return self._selected_run
 
@@ -122,9 +122,8 @@ class AnalyticsViewModel(QObject):
 
     def refresh_runs(self) -> None:
         """Refresh the list of available runs."""
-        if not self._is_configured:
-            if not self.configure():
-                return
+        if not self._is_configured and not self.configure():
+            return
         try:
             self._runs = self._run_catalog.list_runs()
             self._runs.sort(key=_run_sort_key, reverse=True)
@@ -161,7 +160,7 @@ class AnalyticsViewModel(QObject):
             self._is_configured = False
             return False
 
-    def configure_with_config(self, config: "BenchmarkConfig") -> None:
+    def configure_with_config(self, config: BenchmarkConfig) -> None:
         """Configure the run catalog service with a preloaded config."""
         self._run_catalog.configure(config)
         self._is_configured = True
@@ -259,5 +258,5 @@ class AnalyticsViewModel(QObject):
         return rows
 
 
-def _run_sort_key(run: "RunInfo") -> datetime:
+def _run_sort_key(run: RunInfo) -> datetime:
     return run.created_at or datetime.min

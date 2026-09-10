@@ -1,13 +1,17 @@
 """Stress-ng workload generator implementation."""
 
 from pathlib import Path
-from typing import List, Optional, cast
+from typing import ClassVar
 
 from pydantic import Field
 
-from ...base_generator import CommandSpec
-from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
-from ..command_base import StdoutCommandGenerator
+from lb_plugins.base_generator import CommandSpec
+from lb_plugins.interface import (
+    BasePluginConfig,
+    SimpleWorkloadPlugin,
+    WorkloadIntensity,
+)
+from lb_plugins.plugins.command_base import StdoutCommandGenerator
 
 
 class StressNGConfig(BasePluginConfig):
@@ -24,7 +28,7 @@ class StressNGConfig(BasePluginConfig):
     io_workers: int = Field(default=1, ge=0, description="I/O workers")
     timeout: int = Field(default=60, gt=0, description="Timeout in seconds")
     metrics_brief: bool = Field(default=True, description="Use brief metrics output")
-    extra_args: List[str] = Field(
+    extra_args: list[str] = Field(
         default_factory=list, description="Additional stress-ng arguments"
     )
     debug: bool = Field(default=False)
@@ -60,7 +64,7 @@ class StressNGGenerator(StdoutCommandGenerator):
         super().__init__(name, config, command_builder=self._command_builder)
         self.config: StressNGConfig = config
 
-    def _build_command(self) -> List[str]:
+    def _build_command(self) -> list[str]:
         assert self._command_builder is not None
         return self._command_builder.build(self.config).cmd
 
@@ -72,12 +76,12 @@ class StressNGPlugin(SimpleWorkloadPlugin):
     DESCRIPTION = "CPU/IO/memory stress via stress-ng"
     CONFIG_CLS = StressNGConfig
     GENERATOR_CLS = StressNGGenerator
-    REQUIRED_APT_PACKAGES = ["stress-ng"]
-    REQUIRED_LOCAL_TOOLS = ["stress-ng"]
+    REQUIRED_APT_PACKAGES: ClassVar[list[str]] = ["stress-ng"]
+    REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["stress-ng"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     TEARDOWN_PLAYBOOK = Path(__file__).parent / "ansible" / "teardown.yml"
 
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[StressNGConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> StressNGConfig | None:
         if level == WorkloadIntensity.LOW:
             return StressNGConfig(
                 cpu_workers=1,

@@ -1,14 +1,15 @@
 import json
-import pytest
 from pathlib import Path
 
+import pytest
+
+from lb_plugins.api import DDConfig, FIOConfig, StressNGConfig
 from lb_runner.api import (
     BenchmarkConfig,
     MetricCollectorConfig,
     PerfConfig,
     WorkloadConfig,
 )
-from lb_plugins.api import StressNGConfig, DDConfig, FIOConfig
 
 
 def create_reference_config() -> BenchmarkConfig:
@@ -32,7 +33,8 @@ def create_reference_config() -> BenchmarkConfig:
         metrics_interval_seconds=1.0,
         warmup_seconds=2,
         cooldown_seconds=2,
-        # Ensure consistent order for dicts if necessary, but pydantic dump usually handles it.
+        # Ensure consistent order for dicts if necessary, but pydantic dump
+        # usually handles it.
         # However, for snapshot stability, we rely on the JSON serializer's sort_keys.
         plugin_settings={
             "stress_ng": stress_cfg,
@@ -58,9 +60,7 @@ def create_reference_config() -> BenchmarkConfig:
 
 @pytest.mark.inter_generic
 def test_config_snapshot(request):
-    """
-    Verify that the BenchmarkConfig structure/defaults haven't changed unexpectedly.
-    """
+    """Verify that BenchmarkConfig structure and defaults have not changed."""
     cfg = create_reference_config()
 
     # Exclude dynamic paths like output_dir which might change per run/environment

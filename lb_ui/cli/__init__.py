@@ -3,7 +3,7 @@ from typing import Any
 
 from .main import app, ctx_store, main
 
-__all__ = ["app", "main", "ctx_store"]
+__all__ = ["app", "ctx_store", "main"]
 
 # Accessors for testing compatibility (monkeypatching)
 # These map back to the global ctx_store in the main module.

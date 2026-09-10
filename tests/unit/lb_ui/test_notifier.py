@@ -1,9 +1,10 @@
-from unittest.mock import patch, MagicMock
 import os
+from unittest.mock import MagicMock, patch
+
+from lb_ui.notifications.base import NotificationContext
 from lb_ui.notifications.manager import NotificationManager
 from lb_ui.notifications.providers.desktop import DesktopProvider
 from lb_ui.notifications.providers.webhook import WebhookProvider
-from lb_ui.notifications.base import NotificationContext
 
 
 class TestNotificationManager:

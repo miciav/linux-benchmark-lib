@@ -5,14 +5,13 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from urllib import request, error
+from urllib import error, request
 
 from lb_plugins.api import (
     GrafanaAssets,
     GrafanaClient,
     GrafanaDashboardAsset,
 )
-
 
 DEFAULT_LOKI_DATASOURCE_NAME = "loki"
 DEFAULT_GRAFANA_TOKEN_NAME = "lb-observability"
@@ -165,8 +164,8 @@ def configure_grafana(
             except RuntimeError as exc:
                 try:
                     grafana_api_key = bootstrap.create_api_key(name=token_name)
-                except RuntimeError:
-                    raise exc
+                except RuntimeError as fallback_exc:
+                    raise exc from fallback_exc
         client = GrafanaClient(
             base_url=grafana_url,
             api_key=grafana_api_key,

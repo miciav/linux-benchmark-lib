@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, Sequence
+from typing import Protocol
 
-from lb_controller.api import BenchmarkConfig, RunEvent
-from lb_controller.api import RunJournal
 from lb_app.ui_interfaces import UIAdapter
+from lb_controller.api import BenchmarkConfig, RunEvent, RunJournal
 
 
 class UIHooks(Protocol):

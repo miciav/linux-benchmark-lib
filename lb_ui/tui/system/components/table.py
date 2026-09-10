@@ -1,8 +1,9 @@
 from rich.console import Console
-from lb_ui.tui.system.models import TableModel
-from lb_ui.tui.core.protocols import TablePresenter
+
 from lb_ui.tui.core import theme
+from lb_ui.tui.core.protocols import TablePresenter
 from lb_ui.tui.system.components.table_layout import build_rich_table
+from lb_ui.tui.system.models import TableModel
 
 
 class RichTablePresenter(TablePresenter):

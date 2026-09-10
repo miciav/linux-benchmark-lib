@@ -1,20 +1,13 @@
-"Core execution loop for the benchmark controller."
+"""Core execution loop for the benchmark controller."""
 
 from __future__ import annotations
 
+import contextlib
 import queue
 import threading
 import time
 from typing import TYPE_CHECKING, Any
 
-from lb_controller.api import (
-    BenchmarkController,
-    ControllerRunner,
-    DoubleCtrlCStateMachine,
-    RunExecutionSummary,
-    SigintDoublePressHandler,
-    RunStatus,
-)
 from lb_app.services.run_logging import (
     emit_warning,
     log_completion,
@@ -26,6 +19,14 @@ from lb_app.services.run_types import (
     _EventPipeline,
     _RemoteSession,
     _SignalContext,
+)
+from lb_controller.api import (
+    BenchmarkController,
+    ControllerRunner,
+    DoubleCtrlCStateMachine,
+    RunExecutionSummary,
+    RunStatus,
+    SigintDoublePressHandler,
 )
 
 if TYPE_CHECKING:
@@ -60,15 +61,11 @@ class RunExecutionLoop:
             )
         finally:
             self._cleanup_signal_context(signals)
-            try:
+            with contextlib.suppress(Exception):
                 session.log_file.close()
-            except Exception:
-                pass
             if session.ui_stream_log_file:
-                try:
+                with contextlib.suppress(Exception):
                     session.ui_stream_log_file.close()
-                except Exception:
-                    pass
         return summary
 
     def _build_controller_runner(

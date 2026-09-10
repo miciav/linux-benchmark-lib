@@ -1,25 +1,25 @@
-"K6 runner service for executing k6 load tests using Fabric/SSH."
+"""K6 runner service for executing k6 load tests using Fabric/SSH."""
 
 from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import shlex
 import tempfile
 import time
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from fabric import Connection
 from invoke.exceptions import UnexpectedExit
 
-from ..exceptions import K6ExecutionError
+from lb_plugins.plugins.dfaas.exceptions import K6ExecutionError
 
 if TYPE_CHECKING:
-    from ..config import DfaasFunctionConfig
+    from lb_plugins.plugins.dfaas.config import DfaasFunctionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -373,7 +373,7 @@ class K6Runner:
         try:
             conn.put(local_tmp, script_path)
         finally:
-            os.unlink(local_tmp)
+            Path(local_tmp).unlink()
 
     def _run_k6(
         self,
@@ -419,9 +419,7 @@ class K6Runner:
 
     @staticmethod
     def _build_remote_run_command(k6_cmd: str, log_path: str) -> str:
-        shell_cmd = (
-            f"set -o pipefail; {k6_cmd} 2>&1 | tee {shlex.quote(log_path)}"
-        )
+        shell_cmd = f"set -o pipefail; {k6_cmd} 2>&1 | tee {shlex.quote(log_path)}"
         return "bash -lc " + shlex.quote(shell_cmd)
 
     def _build_remote_exec_command(
@@ -445,7 +443,7 @@ class K6Runner:
             conn.get(summary_path, local_summary)
             return cast(dict[str, Any], json.loads(Path(local_summary).read_text()))
         finally:
-            os.unlink(local_summary)
+            Path(local_summary).unlink()
 
     @staticmethod
     def _coerce_execution_error(config_id: str, exc: Exception) -> K6ExecutionError:

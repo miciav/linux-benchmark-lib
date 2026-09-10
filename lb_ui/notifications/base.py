@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -15,9 +14,9 @@ class NotificationContext:
     message: str
     success: bool
     app_name: str
-    icon_path: Optional[str] = None
-    run_id: Optional[str] = None
-    duration_s: Optional[float] = None
+    icon_path: str | None = None
+    run_id: str | None = None
+    duration_s: float | None = None
 
 
 class NotificationProvider(ABC):

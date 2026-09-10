@@ -1,4 +1,5 @@
 import pytest
+
 from lb_ui.tui.system.components import dashboard_helpers
 
 pytestmark = pytest.mark.unit_ui

@@ -8,8 +8,8 @@ import sys
 import threading
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
-from typing import IO, List
+from contextlib import contextmanager, suppress
+from typing import IO
 
 try:
     import termios
@@ -29,8 +29,8 @@ from lb_ui.presenters.dashboard import (
     DashboardViewModel,
     event_status_parts,
 )
-from lb_ui.tui.core.protocols import Dashboard, DashboardFactory
 from lb_ui.tui.core import theme
+from lb_ui.tui.core.protocols import Dashboard, DashboardFactory
 from lb_ui.tui.system.components import dashboard_helpers
 from lb_ui.tui.system.components.dashboard_rollup import PollingRollupHelper
 
@@ -46,8 +46,8 @@ class RichDashboard(Dashboard):
     ) -> None:
         self.console = console
         self.viewmodel = viewmodel
-        self.log_buffer: List[str] = []
-        self.raw_log_buffer: List[str] = []
+        self.log_buffer: list[str] = []
+        self.raw_log_buffer: list[str] = []
         self.max_log_lines = 20
         self._rollup_helper = PollingRollupHelper(self.log_buffer, summary_only=True)
         self.layout = Layout()
@@ -195,10 +195,8 @@ class RichDashboard(Dashboard):
         except Exception:
             return
         finally:
-            try:
+            with suppress(Exception):
                 termios_module.tcsetattr(fd, termios_module.TCSADRAIN, old_attrs)
-            except Exception:
-                pass
 
     def _empty_status_message(self) -> str:
         return "No active warnings"
@@ -219,7 +217,9 @@ class RichDashboard(Dashboard):
             f"controller {self.controller_state}",
             stream,
         ]
-        available_width = available_width or getattr(self.console.size, "width", 120) or 120
+        available_width = (
+            available_width or getattr(self.console.size, "width", 120) or 120
+        )
         if available_width >= 96:
             lines = [" • ".join(summary)]
         else:
@@ -269,7 +269,9 @@ class RichDashboard(Dashboard):
             padding=(0, 1),
             header_style=theme.DASHBOARD_HEADER_STYLE,
         )
-        table.add_column("Host", style=theme.DASHBOARD_HOST_STYLE, width=18, no_wrap=True)
+        table.add_column(
+            "Host", style=theme.DASHBOARD_HOST_STYLE, width=18, no_wrap=True
+        )
         table.add_column("Workload", width=20, no_wrap=True, overflow="ellipsis")
         table.add_column("State", justify="center", width=9, no_wrap=True)
         table.add_column("Prog", justify="left", width=12, no_wrap=True)

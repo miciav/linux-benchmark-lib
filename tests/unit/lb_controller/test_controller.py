@@ -242,7 +242,9 @@ def test_controller_keeps_plugin_asset_overrides_and_fills_required_uv_extras(
         )
     }
 
-    controller = BenchmarkController(config, ControllerOptions(executor=DummyExecutor()))
+    controller = BenchmarkController(
+        config, ControllerOptions(executor=DummyExecutor())
+    )
     merged = controller.config.plugin_assets["dfaas"]
     assert merged.setup_playbook is None
     assert merged.teardown_playbook is None
@@ -276,7 +278,7 @@ def test_controller_summary_includes_run_outputs(tmp_path: Path) -> None:
 
 
 def test_controller_runs_teardown_even_after_stop_requested(tmp_path: Path) -> None:
-    """Stop requests should still allow plugin/global teardown to execute exactly once."""
+    """Stop requests should still allow plugin/global teardown to run exactly once."""
     config = BenchmarkConfig(
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",
@@ -343,7 +345,7 @@ def test_controller_runs_teardown_even_after_stop_requested(tmp_path: Path) -> N
 
 
 def test_controller_interrupt_setup_triggers_teardown(tmp_path: Path) -> None:
-    """When stop is requested during setup, controller should still run global teardown."""
+    """When stop is requested during setup, controller still runs global teardown."""
     config = BenchmarkConfig(
         output_dir=tmp_path / "out",
         report_dir=tmp_path / "rep",

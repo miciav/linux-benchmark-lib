@@ -8,7 +8,6 @@ import pytest
 
 from lb_common.discovery.entrypoints import discover_entrypoints
 
-
 pytestmark = pytest.mark.unit_runner
 
 

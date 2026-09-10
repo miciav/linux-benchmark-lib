@@ -30,8 +30,7 @@ ANSIBLE_ROOT = REPO_ROOT / "lb_controller" / "ansible"
 
 @pytest.mark.inter_generic
 def test_remote_multiple_workloads(multipass_vm, tmp_path):
-    """
-    Run a short multipass-based integration across multiple workloads.
+    """Run a short multipass-based integration across multiple workloads.
 
     Workloads: stress-ng, dd, fio. Durations and sizes are trimmed to keep
     runtime reasonable in CI.

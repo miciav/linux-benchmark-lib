@@ -298,14 +298,14 @@ main() {
 
   target_ip="$(wait_for_ip "$TARGET_NAME")"
   generator_ip="$(wait_for_ip "$GENERATOR_NAME")"
-  
+
   if is_enabled "$ENABLE_LOKI"; then
     if [ -z "$LOKI_ENDPOINT" ]; then
       controller_ip="$(controller_ip_from_vm "$TARGET_NAME")"
       if [ -z "$controller_ip" ]; then
         controller_ip="$(controller_ip_local)"
       fi
-      
+
       if [ -n "$controller_ip" ]; then
         LOKI_ENDPOINT="http://${controller_ip}:3100"
       else

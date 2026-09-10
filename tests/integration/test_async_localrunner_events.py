@@ -104,10 +104,9 @@ def test_async_localrunner_emits_events_to_stream_file(tmp_path: Path) -> None:
         for line in lb_event_lines
         if '"status": "done"' in line or '"status": "failed"' in line
     ]
-    assert (
-        len(final_events) > 0
-    ), "No final done/failed event in stream log.\n" "LB_EVENT lines:\n" + "\n".join(
-        lb_event_lines
+    assert len(final_events) > 0, (
+        "No final done/failed event in stream log.\n"
+        "LB_EVENT lines:\n" + "\n".join(lb_event_lines)
     )
 
 
@@ -189,7 +188,8 @@ def test_async_localrunner_daemonized_emits_events(tmp_path: Path) -> None:
         f"Status file not created within timeout.\n"
         f"PID file content: {pid_path.read_text() if pid_path.exists() else 'N/A'}\n"
         f"Stream log exists: {stream_log_path.exists()}\n"
-        f"Stream log content: {stream_log_path.read_text() if stream_log_path.exists() else 'N/A'}"
+        "Stream log content: "
+        f"{stream_log_path.read_text() if stream_log_path.exists() else 'N/A'}"
     )
 
     status = json.loads(status_path.read_text())
@@ -211,6 +211,7 @@ def test_async_localrunner_daemonized_emits_events(tmp_path: Path) -> None:
 def test_lb_event_handler_attached_when_enabled(tmp_path: Path) -> None:
     """Verify LBEventLogHandler is attached and emits events."""
     import logging
+
     from lb_runner.api import LBEventLogHandler
 
     # Setup environment
@@ -224,9 +225,9 @@ def test_lb_event_handler_attached_when_enabled(tmp_path: Path) -> None:
 
     # Check root logger level is INFO
     root_logger = logging.getLogger()
-    assert (
-        root_logger.level <= logging.INFO
-    ), f"Root logger level is {root_logger.level}, expected <= {logging.INFO}"
+    assert root_logger.level <= logging.INFO, (
+        f"Root logger level is {root_logger.level}, expected <= {logging.INFO}"
+    )
 
     # Create handler and attach
     handler = LBEventLogHandler(
@@ -392,6 +393,6 @@ def test_async_localrunner_merges_plugin_settings_into_workload_options(
 
     # Check stream log for successful completion
     log_content = stream_log_path.read_text()
-    assert (
-        '"status": "done"' in log_content
-    ), f"Run did not complete successfully.\nLog: {log_content}"
+    assert '"status": "done"' in log_content, (
+        f"Run did not complete successfully.\nLog: {log_content}"
+    )

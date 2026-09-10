@@ -69,7 +69,7 @@ def resolve_workload_config(
         if config_obj is None:
             config_obj = _resolve_user_config(workload, plugin)
         return config_obj, None
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return None, str(exc)
 
 

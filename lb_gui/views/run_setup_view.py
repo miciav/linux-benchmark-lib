@@ -23,8 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from lb_gui.widgets import FilePicker
 from lb_gui.utils import set_widget_role
+from lb_gui.widgets import FilePicker
 
 if TYPE_CHECKING:
     from lb_gui.viewmodels.run_setup_vm import RunSetupViewModel
@@ -38,7 +38,7 @@ class RunSetupView(QWidget):
 
     def __init__(
         self,
-        viewmodel: "RunSetupViewModel",
+        viewmodel: RunSetupViewModel,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)

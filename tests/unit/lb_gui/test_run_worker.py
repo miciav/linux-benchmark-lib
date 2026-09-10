@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 class TestUIHooksAdapter:
@@ -10,7 +10,7 @@ class TestUIHooksAdapter:
 
     def test_on_log_emits_signal(self) -> None:
         """Test that on_log emits log_line signal."""
-        from lb_gui.workers.run_worker import UIHooksAdapter, RunWorkerSignals
+        from lb_gui.workers.run_worker import RunWorkerSignals, UIHooksAdapter
 
         signals = RunWorkerSignals()
         signals.log_line = MagicMock()
@@ -22,7 +22,7 @@ class TestUIHooksAdapter:
 
     def test_on_status_emits_signal(self) -> None:
         """Test that on_status emits status_line signal."""
-        from lb_gui.workers.run_worker import UIHooksAdapter, RunWorkerSignals
+        from lb_gui.workers.run_worker import RunWorkerSignals, UIHooksAdapter
 
         signals = RunWorkerSignals()
         signals.status_line = MagicMock()
@@ -34,7 +34,7 @@ class TestUIHooksAdapter:
 
     def test_on_warning_emits_signal_with_ttl(self) -> None:
         """Test that on_warning emits warning signal with TTL."""
-        from lb_gui.workers.run_worker import UIHooksAdapter, RunWorkerSignals
+        from lb_gui.workers.run_worker import RunWorkerSignals, UIHooksAdapter
 
         signals = RunWorkerSignals()
         signals.warning = MagicMock()
@@ -46,7 +46,7 @@ class TestUIHooksAdapter:
 
     def test_on_warning_uses_default_ttl(self) -> None:
         """Test that on_warning uses default TTL of 10.0."""
-        from lb_gui.workers.run_worker import UIHooksAdapter, RunWorkerSignals
+        from lb_gui.workers.run_worker import RunWorkerSignals, UIHooksAdapter
 
         signals = RunWorkerSignals()
         signals.warning = MagicMock()
@@ -58,7 +58,7 @@ class TestUIHooksAdapter:
 
     def test_on_event_emits_signal(self) -> None:
         """Test that on_event emits event_update signal."""
-        from lb_gui.workers.run_worker import UIHooksAdapter, RunWorkerSignals
+        from lb_gui.workers.run_worker import RunWorkerSignals, UIHooksAdapter
 
         signals = RunWorkerSignals()
         signals.event_update = MagicMock()
@@ -71,7 +71,7 @@ class TestUIHooksAdapter:
 
     def test_on_journal_emits_signal(self) -> None:
         """Test that on_journal emits journal_update signal."""
-        from lb_gui.workers.run_worker import UIHooksAdapter, RunWorkerSignals
+        from lb_gui.workers.run_worker import RunWorkerSignals, UIHooksAdapter
 
         signals = RunWorkerSignals()
         signals.journal_update = MagicMock()
@@ -118,5 +118,6 @@ class TestRunWorkerLifecycle:
             t.quit()
 
         thread.quit.assert_called_once()
-        thread.deleteLater.assert_not_called()  # deleteLater is wired via finished signal
+        # deleteLater is wired via finished signal
+        thread.deleteLater.assert_not_called()
         assert worker._thread is None

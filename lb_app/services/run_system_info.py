@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, IO
+from typing import IO, Any
 
-from lb_controller.api import RunJournal
 from lb_app.ui_interfaces import DashboardHandle, UIAdapter
+from lb_controller.api import RunJournal
 
 
 def attach_system_info(

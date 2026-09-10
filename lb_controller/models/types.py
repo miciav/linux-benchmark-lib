@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Protocol
 
 from lb_controller.models.state import ControllerState
-
 from lb_runner.api import RemoteHostConfig
 
 
@@ -15,8 +14,8 @@ from lb_runner.api import RemoteHostConfig
 class InventorySpec:
     """Inventory specification for Ansible execution."""
 
-    hosts: List[RemoteHostConfig]
-    inventory_path: Optional[Path] = None
+    hosts: list[RemoteHostConfig]
+    inventory_path: Path | None = None
 
 
 @dataclass
@@ -25,7 +24,7 @@ class ExecutionResult:
 
     rc: int
     status: str
-    stats: Dict[str, Any] = field(default_factory=dict)
+    stats: dict[str, Any] = field(default_factory=dict)
 
     @property
     def success(self) -> bool:
@@ -38,8 +37,8 @@ class RunExecutionSummary:
     """Summary of a complete controller run."""
 
     run_id: str
-    per_host_output: Dict[str, Path]
-    phases: Dict[str, ExecutionResult]
+    per_host_output: dict[str, Path]
+    phases: dict[str, ExecutionResult]
     success: bool
     output_root: Path
     report_root: Path
@@ -55,9 +54,9 @@ class RemoteExecutor(Protocol):
         self,
         playbook_path: Path,
         inventory: InventorySpec,
-        extravars: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        limit_hosts: Optional[List[str]] = None,
+        extravars: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+        limit_hosts: list[str] | None = None,
         *,
         cancellable: bool = True,
     ) -> ExecutionResult:

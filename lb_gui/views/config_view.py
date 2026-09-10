@@ -31,7 +31,7 @@ class ConfigView(QWidget):
 
     def __init__(
         self,
-        viewmodel: "ConfigViewModel",
+        viewmodel: ConfigViewModel,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)

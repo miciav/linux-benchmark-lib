@@ -8,22 +8,22 @@ from unittest.mock import Mock
 
 import pytest
 
-from lb_plugins.plugins.dfaas.generator import DfaasGenerator
-from lb_plugins.plugins.dfaas.context import ExecutionContext
-from lb_plugins.plugins.dfaas.services.k6_runner import K6Runner
-from lb_plugins.plugins.dfaas.services.annotation_service import DfaasAnnotationService
-from lb_plugins.plugins.dfaas.services.plan_builder import (
-    DfaasPlanBuilder,
-    dominates,
-    generate_configurations,
-    generate_rates_list,
-)
 from lb_plugins.plugins._faas_shared import plan_builder as shared_plan_builder
 from lb_plugins.plugins.dfaas.config import (
     DfaasCombinationConfig,
     DfaasConfig,
     DfaasFunctionConfig,
     LinearRateStrategy,
+)
+from lb_plugins.plugins.dfaas.context import ExecutionContext
+from lb_plugins.plugins.dfaas.generator import DfaasGenerator
+from lb_plugins.plugins.dfaas.services.annotation_service import DfaasAnnotationService
+from lb_plugins.plugins.dfaas.services.k6_runner import K6Runner
+from lb_plugins.plugins.dfaas.services.plan_builder import (
+    DfaasPlanBuilder,
+    dominates,
+    generate_configurations,
+    generate_rates_list,
 )
 
 pytestmark = [pytest.mark.unit_plugins]
@@ -214,8 +214,9 @@ def test_k6_outputs_returns_configured_outputs(
 
 def test_dfaas_annotations_emit_grafana_tags(monkeypatch: pytest.MonkeyPatch) -> None:
     """Annotation service should create Grafana annotations for run events."""
-    from lb_plugins.plugins.dfaas.config import DfaasConfig, GrafanaConfig
     from unittest.mock import MagicMock
+
+    from lb_plugins.plugins.dfaas.config import DfaasConfig, GrafanaConfig
 
     config = DfaasConfig(
         grafana=GrafanaConfig(enabled=True, url="http://grafana", api_key="key"),
@@ -259,8 +260,8 @@ def test_dfaas_annotations_emit_grafana_tags(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_k6_log_event_skips_when_lb_event_handler_present() -> None:
-    from lb_runner.services.log_handler import LBEventLogHandler
     from lb_plugins.plugins.dfaas.services.log_manager import DfaasLogManager
+    from lb_runner.services.log_handler import LBEventLogHandler
 
     cfg = DfaasConfig()
     exec_ctx = ExecutionContext(
@@ -323,20 +324,24 @@ def test_k6_runner_execute_passes_outputs_and_tags(
 
     mock_conn.run.side_effect = capture_run
 
-    with patch.object(k6_runner, "_get_connection", return_value=mock_conn):
-        with patch("tempfile.NamedTemporaryFile") as mock_temp:
-            mock_temp.return_value.__enter__.return_value.name = "/tmp/test"
-            with patch("os.unlink"):
-                with patch("pathlib.Path.read_text", return_value='{"metrics": {}}'):
-                    k6_runner.execute(
-                        "cfg1",
-                        "script",
-                        "target",
-                        "run1",
-                        metric_ids={"fn": "fn_id"},
-                        outputs=["loki=http://loki"],
-                        tags={"custom": "tag"},
-                    )
+    with (
+        patch.object(k6_runner, "_get_connection", return_value=mock_conn),
+        patch("tempfile.NamedTemporaryFile") as mock_temp,
+    ):
+        mock_temp.return_value.__enter__.return_value.name = "/tmp/test"
+        with (
+            patch("os.unlink"),
+            patch("pathlib.Path.read_text", return_value='{"metrics": {}}'),
+        ):
+            k6_runner.execute(
+                "cfg1",
+                "script",
+                "target",
+                "run1",
+                metric_ids={"fn": "fn_id"},
+                outputs=["loki=http://loki"],
+                tags={"custom": "tag"},
+            )
 
     # Find the k6 run command (not mkdir)
     k6_cmd = next((c for c in executed_commands if "k6 run" in c), None)

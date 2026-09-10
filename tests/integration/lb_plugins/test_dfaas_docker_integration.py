@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import socket
@@ -12,8 +13,8 @@ from urllib.request import urlopen
 
 import pytest
 
-from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
 from lb_plugins.plugins.peva_faas.config import DfaasConfig, DfaasFunctionConfig
+from lb_plugins.plugins.peva_faas.generator import DfaasGenerator
 from lb_plugins.plugins.peva_faas.plugin import DfaasPlugin
 
 pytestmark = [pytest.mark.inter_plugins, pytest.mark.inter_docker]
@@ -85,10 +86,8 @@ class _DockerConnection:
         )
         out_stream = kwargs.get("out_stream")
         if out_stream and result.stdout:
-            try:
+            with contextlib.suppress(Exception):
                 out_stream.write(result.stdout)
-            except Exception:
-                pass
         if result.returncode != 0 and not kwargs.get("warn", False):
             raise RuntimeError(result.stderr or result.stdout)
         return _DockerResult(result.stdout, result.stderr, result.returncode)
@@ -161,7 +160,13 @@ def test_dfaas_end_to_end_with_docker(
                         "data": {
                             "resultType": "matrix",
                             "result": [
-                                {"metric": {}, "values": [[now, "1.0"], [now + 1, "1.0"]]}
+                                {
+                                    "metric": {},
+                                    "values": [
+                                        [now, "1.0"],
+                                        [now + 1, "1.0"],
+                                    ],
+                                }
                             ],
                         },
                     }
@@ -241,7 +246,7 @@ def test_dfaas_end_to_end_with_docker(
 
         _wait_for_ready(f"http://127.0.0.1:{host_port}/-/ready")
         monkeypatch.setattr(
-            "lb_plugins.plugins.peva_faas.services.k6_runner.K6Runner._get_connection",
+            "lb_plugins.plugins.dfaas.services.k6_runner.K6Runner._get_connection",
             lambda self: _DockerConnection(k6_name),
         )
 
@@ -265,7 +270,8 @@ def test_dfaas_end_to_end_with_docker(
               exit 1
             fi
             docker cp "$SCRIPT_SRC" {k6_name}:/tmp/script.js
-            docker exec {k6_name} k6 run --summary-export /tmp/summary.json /tmp/script.js > /tmp/k6.log 2>&1
+            docker exec {k6_name} k6 run --summary-export /tmp/summary.json \
+                /tmp/script.js > /tmp/k6.log 2>&1
             if [ -n "$SUMMARY_FETCH_DEST" ]; then
               mkdir -p "$SUMMARY_FETCH_DEST"
               docker cp {k6_name}:/tmp/summary.json "$SUMMARY_FETCH_DEST/summary.json"

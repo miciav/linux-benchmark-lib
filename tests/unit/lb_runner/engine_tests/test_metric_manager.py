@@ -1,12 +1,11 @@
 """Unit tests for MetricManager."""
 
-from unittest.mock import MagicMock, patch
 import logging
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from lb_runner.engine.metrics import MetricManager
-
 
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 

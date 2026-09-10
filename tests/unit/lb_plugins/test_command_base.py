@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from lb_plugins.plugins.sysbench.plugin import SysbenchConfig, SysbenchGenerator
-from lb_plugins.plugins.stress_ng.plugin import StressNGConfig, StressNGGenerator
 from lb_plugins.plugins.dd.plugin import DDConfig, DDGenerator
+from lb_plugins.plugins.stress_ng.plugin import StressNGConfig, StressNGGenerator
+from lb_plugins.plugins.sysbench.plugin import SysbenchConfig, SysbenchGenerator
 from lb_plugins.plugins.unixbench.plugin import UnixBenchConfig, UnixBenchGenerator
 
 pytestmark = [pytest.mark.unit_plugins]

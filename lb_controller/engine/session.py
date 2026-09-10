@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from typing import Optional
 
 from lb_controller.engine.run_state import RunState
 from lb_controller.engine.stops import StopCoordinator
@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class RunSession:
-    """
-    Encapsulates all state for a single benchmark run.
+    """Encapsulates all state for a single benchmark run.
 
     Includes:
     - Static configuration state (RunState)
@@ -25,8 +24,8 @@ class RunSession:
     def __init__(
         self,
         state: RunState,
-        stop_coordinator: Optional[StopCoordinator] = None,
-        state_machine: Optional[ControllerStateMachine] = None,
+        stop_coordinator: StopCoordinator | None = None,
+        state_machine: ControllerStateMachine | None = None,
     ):
         self.state = state
         self.coordinator = stop_coordinator
@@ -49,10 +48,8 @@ class RunSession:
 
     def arm_stop(self, reason: str | None = None) -> None:
         """Arm the stop mechanism."""
-        try:
+        with contextlib.suppress(Exception):
             self.state_machine.transition(ControllerState.STOP_ARMED, reason=reason)
-        except Exception:
-            pass
 
     def allows_cleanup(self) -> bool:
         return self.state_machine.allows_cleanup()

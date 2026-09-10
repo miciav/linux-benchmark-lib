@@ -26,8 +26,8 @@ from PySide6.QtWidgets import (
 from lb_gui.utils import set_widget_role
 
 if TYPE_CHECKING:
-    from lb_gui.viewmodels.results_vm import ResultsViewModel
     from lb_common.api import RunInfo
+    from lb_gui.viewmodels.results_vm import ResultsViewModel
 
 
 class ResultsView(QWidget):
@@ -35,7 +35,7 @@ class ResultsView(QWidget):
 
     def __init__(
         self,
-        viewmodel: "ResultsViewModel",
+        viewmodel: ResultsViewModel,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -47,9 +47,8 @@ class ResultsView(QWidget):
 
     def _initial_load(self) -> None:
         """Load runs on first render."""
-        if not self._vm.is_configured:
-            if not self._vm.configure():
-                return
+        if not self._vm.is_configured and not self._vm.configure():
+            return
         self._vm.refresh_runs()
 
     def _setup_ui(self) -> None:
@@ -157,10 +156,9 @@ class ResultsView(QWidget):
 
     def _on_refresh(self) -> None:
         """Handle refresh button click."""
-        if not self._vm.is_configured:
-            # Try to configure with default
-            if not self._vm.configure():
-                return
+        # Try to configure with default
+        if not self._vm.is_configured and not self._vm.configure():
+            return
         self._vm.refresh_runs()
 
     def _on_selection_changed(self) -> None:
@@ -189,7 +187,7 @@ class ResultsView(QWidget):
         self._status_label.setText(f"{len(runs)} run(s) found")
         set_widget_role(self._status_label, "muted")
 
-    def _on_vm_selection_changed(self, run: "RunInfo | None") -> None:
+    def _on_vm_selection_changed(self, run: RunInfo | None) -> None:
         """Handle viewmodel selection change."""
         if run is None:
             for label in self._detail_labels.values():

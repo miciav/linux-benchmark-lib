@@ -1,6 +1,4 @@
-"""
-HPL (High Performance Linpack) workload plugin.
-"""
+"""HPL (High Performance Linpack) workload plugin."""
 
 import logging
 import math
@@ -10,13 +8,17 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, ClassVar
 
 import pandas as pd
 from pydantic import Field, model_validator
 
-from ...base_generator import CommandGenerator
-from ...interface import BasePluginConfig, SimpleWorkloadPlugin, WorkloadIntensity
+from lb_plugins.base_generator import CommandGenerator
+from lb_plugins.interface import (
+    BasePluginConfig,
+    SimpleWorkloadPlugin,
+    WorkloadIntensity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,7 @@ class HPLConfig(BasePluginConfig):
     )
 
     # Paths (optional override)
-    workspace_dir: Optional[str] = Field(
+    workspace_dir: str | None = Field(
         default=None, description="Custom workspace directory for HPL files"
     )
     debug: bool = Field(default=False, description="Enable debug logging")
@@ -98,9 +100,7 @@ class HPLGenerator(CommandGenerator):
         return True
 
     def _ensure_binary(self) -> bool:
-        """
-        Ensure xhpl exists; remote setup must install the deb.
-        """
+        """Ensure xhpl exists; remote setup must install the deb."""
         # Prefer workspace binary
         if _is_executable(self.xhpl_path):
             return True
@@ -120,9 +120,7 @@ class HPLGenerator(CommandGenerator):
         return False
 
     def prepare(self) -> None:
-        """
-        Build HPL ahead of the run so collectors don't capture setup time.
-        """
+        """Build HPL ahead of the run so collectors don't capture setup time."""
         if self._prepared:
             return
 
@@ -167,13 +165,12 @@ HPL.out      output file name (if any)
 """
         self.working_dir.mkdir(parents=True, exist_ok=True)
         dat_file = self.working_dir / "HPL.dat"
-        with open(dat_file, "w") as file:
+        with dat_file.open("w") as file:
             file.write(content)
         logger.info("Generated HPL.dat at %s", dat_file)
 
     def _launcher_flags(self) -> list[str]:
-        """
-        Translate mpi_launcher config into mpirun flags.
+        """Translate mpi_launcher config into mpirun flags.
 
         "fork" maps to an isolated launcher to avoid ssh requirements,
         any other non-empty value is passed to plm_rsh_agent.
@@ -216,8 +213,10 @@ HPL.out      output file name (if any)
             "env": os.environ.copy(),
         }
 
-    def _timeout_seconds(self) -> Optional[int]:
-        return int(self.config.expected_runtime_seconds) + int(self.config.timeout_buffer)
+    def _timeout_seconds(self) -> int | None:
+        return int(self.config.expected_runtime_seconds) + int(
+            self.config.timeout_buffer
+        )
 
     def _build_result(
         self,
@@ -406,7 +405,7 @@ class HPLPlugin(SimpleWorkloadPlugin):
     DESCRIPTION = "HPL (High Performance Linpack) 2.3 via OpenMPI"
     CONFIG_CLS = HPLConfig
     GENERATOR_CLS = HPLGenerator
-    REQUIRED_APT_PACKAGES = [
+    REQUIRED_APT_PACKAGES: ClassVar[list[str]] = [
         "ansible",
         "build-essential",
         "gfortran",
@@ -417,7 +416,7 @@ class HPLPlugin(SimpleWorkloadPlugin):
         "wget",
         "tar",
     ]
-    REQUIRED_LOCAL_TOOLS = ["mpirun", "make"]
+    REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["mpirun", "make"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
 
     @staticmethod
@@ -436,7 +435,7 @@ class HPLPlugin(SimpleWorkloadPlugin):
         p, q = cls._grid_for_ranks(ranks)
         return HPLConfig(n=n, nb=nb, p=p, q=q, mpi_ranks=ranks)
 
-    def get_preset_config(self, level: WorkloadIntensity) -> Optional[HPLConfig]:
+    def get_preset_config(self, level: WorkloadIntensity) -> HPLConfig | None:
         cpu_count = multiprocessing.cpu_count()
         return _preset_for_level(level, cpu_count)
 
@@ -462,7 +461,7 @@ class HPLPlugin(SimpleWorkloadPlugin):
 PLUGIN = HPLPlugin()
 
 
-def _resolve_workspace(workspace_dir: Optional[str]) -> Path:
+def _resolve_workspace(workspace_dir: str | None) -> Path:
     if workspace_dir:
         return Path(workspace_dir).expanduser()
     return Path.home() / ".lb" / "workspaces" / "hpl"
@@ -492,8 +491,7 @@ def _handle_skipped_tests(stdout: str, result: dict[str, Any]) -> None:
     try:
         if int(skipped.group(1)) > 0:
             msg = (
-                "HPL skipped tests due to illegal input; adjust N/P/Q or "
-                "install deps."
+                "HPL skipped tests due to illegal input; adjust N/P/Q or install deps."
             )
             result["error"] = msg
             logger.error(msg)
@@ -596,7 +594,7 @@ def _grid_for_ranks(ranks: int) -> tuple[int, int]:
     return (p, q)
 
 
-def _preset_for_level(level: WorkloadIntensity, cpu_count: int) -> Optional[HPLConfig]:
+def _preset_for_level(level: WorkloadIntensity, cpu_count: int) -> HPLConfig | None:
     if level == WorkloadIntensity.LOW:
         return HPLConfig(n=5000, nb=128, p=1, q=1, mpi_ranks=1)
     if level == WorkloadIntensity.MEDIUM:

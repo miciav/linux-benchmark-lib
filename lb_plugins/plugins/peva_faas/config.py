@@ -6,14 +6,14 @@ import os
 import re
 import warnings
 from pathlib import Path
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, Discriminator, Field, field_validator, model_validator
 
 from lb_common.api import parse_bool_env, parse_int_env
+from lb_plugins.interface import BasePluginConfig
 
-from ...interface import BasePluginConfig
 from .strategies import (
     CustomRateStrategy,
     ExponentialRateStrategy,
@@ -23,12 +23,10 @@ from .strategies import (
 
 # Discriminated union for rate strategies
 RateStrategyUnion = Annotated[
-    Union[
-        LinearRateStrategy,
-        RandomRateStrategy,
-        ExponentialRateStrategy,
-        CustomRateStrategy,
-    ],
+    LinearRateStrategy
+    | RandomRateStrategy
+    | ExponentialRateStrategy
+    | CustomRateStrategy,
     Discriminator("type"),
 ]
 
@@ -109,7 +107,9 @@ def _looks_like_default_queries_path(path: Path) -> bool:
     """Return True if the path matches the default repo layout."""
     normalized = tuple(part.lower() for part in path.parts)
     tail_peva = ("lb_plugins", "plugins", "peva_faas", "queries.yml")
-    return len(normalized) >= len(tail_peva) and normalized[-len(tail_peva) :] == tail_peva
+    return (
+        len(normalized) >= len(tail_peva) and normalized[-len(tail_peva) :] == tail_peva
+    )
 
 
 class DfaasFunctionConfig(BaseModel):
@@ -153,7 +153,7 @@ class DfaasRatesConfig(BaseModel):
     model_config = {"extra": "ignore"}
 
     @model_validator(mode="after")
-    def _validate_bounds(self) -> "DfaasRatesConfig":
+    def _validate_bounds(self) -> DfaasRatesConfig:
         if self.max_rate < self.min_rate:
             raise ValueError("rates.max_rate must be >= rates.min_rate")
         return self
@@ -170,7 +170,7 @@ class DfaasCombinationConfig(BaseModel):
     model_config = {"extra": "ignore"}
 
     @model_validator(mode="after")
-    def _validate_bounds(self) -> "DfaasCombinationConfig":
+    def _validate_bounds(self) -> DfaasCombinationConfig:
         if self.max_functions <= self.min_functions:
             raise ValueError(
                 "combinations.max_functions must be > combinations.min_functions"
@@ -290,7 +290,8 @@ class MemoryConfig(BaseModel):
         default=None, description="Optional output directory for core Parquet exports"
     )
     export_raw_debug_parquet_dir: str | None = Field(
-        default=None, description="Optional output directory for raw debug Parquet exports"
+        default=None,
+        description="Optional output directory for raw debug Parquet exports",
     )
     preload_raw_debug: bool = Field(
         default=False,
@@ -469,7 +470,7 @@ class DfaasConfig(BasePluginConfig):
         return duration
 
     @model_validator(mode="after")
-    def _migrate_legacy_rates(self) -> "DfaasConfig":
+    def _migrate_legacy_rates(self) -> DfaasConfig:
         """Migrate legacy 'rates' field to 'rate_strategy'."""
         if self.rates is not None:
             # Check if rate_strategy is still at default values
@@ -494,7 +495,7 @@ class DfaasConfig(BasePluginConfig):
         return self
 
     @model_validator(mode="after")
-    def _validate_functions(self) -> "DfaasConfig":
+    def _validate_functions(self) -> DfaasConfig:
         names = [fn.name for fn in self.functions]
         if len(set(names)) != len(names):
             raise ValueError("functions names must be unique")
@@ -508,7 +509,7 @@ class DfaasConfig(BasePluginConfig):
         return self
 
     @model_validator(mode="after")
-    def _validate_ports(self) -> "DfaasConfig":
+    def _validate_ports(self) -> DfaasConfig:
         if self.openfaas_port == self.prometheus_port:
             raise ValueError(
                 f"openfaas_port and prometheus_port must be different "
@@ -522,7 +523,7 @@ class DfaasConfig(BasePluginConfig):
         return self
 
     @model_validator(mode="after")
-    def _normalize_k6_workspace_root(self) -> "DfaasConfig":
+    def _normalize_k6_workspace_root(self) -> DfaasConfig:
         if self.k6_workspace_root != _DEFAULT_K6_WORKSPACE_ROOT:
             return self
         if self.k6_user == "root":
@@ -532,7 +533,7 @@ class DfaasConfig(BasePluginConfig):
         return self
 
     @model_validator(mode="after")
-    def _normalize_queries_path(self) -> "DfaasConfig":
+    def _normalize_queries_path(self) -> DfaasConfig:
         raw_path = Path(self.queries_path).expanduser()
         if raw_path.exists():
             self.queries_path = str(raw_path)

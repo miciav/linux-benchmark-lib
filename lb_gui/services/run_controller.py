@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class RunControllerService:
     """Service for run planning and execution."""
 
-    def __init__(self, app_client: "AppClientService") -> None:
+    def __init__(self, app_client: AppClientService) -> None:
         self._app_client = app_client
 
     def get_run_plan(

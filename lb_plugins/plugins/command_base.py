@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from ..base_generator import CommandGenerator
+from lb_plugins.base_generator import CommandGenerator
 
 
 class ProcessCommandGenerator(CommandGenerator):

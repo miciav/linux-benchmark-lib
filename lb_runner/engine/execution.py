@@ -9,9 +9,8 @@ import time
 from datetime import datetime
 from typing import Any
 
-from lb_runner.engine.stop_token import StopToken
 from lb_runner.engine.stop_context import should_stop
-
+from lb_runner.engine.stop_token import StopToken
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ def resolve_duration(config: Any, generator: Any, logger: logging.Logger) -> int
     duration = int(getattr(config, "test_duration_seconds", 0))
     if hasattr(generator, "expected_runtime_seconds"):
         try:
-            expected = int(getattr(generator, "expected_runtime_seconds"))
+            expected = int(generator.expected_runtime_seconds)
             if expected > duration:
                 logger.info(
                     "Extending test duration to %s seconds based on workload hint",
@@ -162,8 +161,7 @@ def should_log_progress(duration: int, elapsed: int, last_progress_log: int) -> 
 
 
 def generator_running(generator: Any) -> bool:
-    """
-    Safely interpret the generator's running flag.
+    """Safely interpret the generator's running flag.
 
     MagicMock instances used in tests may return a non-bool sentinel for
     `_is_running`; treat any non-bool as False to avoid long sleep loops.
@@ -172,5 +170,5 @@ def generator_running(generator: Any) -> bool:
     return state is True or (isinstance(state, bool) and state)
 
 
-class StopRequested(Exception):
+class StopRequested(Exception):  # noqa: N818  # public exception name used across modules and tests
     """Raised when execution is stopped by user request."""

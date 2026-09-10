@@ -13,7 +13,6 @@ from lb_runner.api import BenchmarkConfig, LocalRunner, WorkloadConfig
 from lb_runner.engine.execution import StopRequested, prepare_generator
 from lb_runner.engine.stop_token import StopToken
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.unit_runner]
 
 

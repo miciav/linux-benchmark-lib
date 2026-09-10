@@ -1,7 +1,8 @@
 from rich.console import Console
-from rich.prompt import Prompt, Confirm
-from lb_ui.tui.core.protocols import Form
+from rich.prompt import Confirm, Prompt
+
 from lb_ui.tui.core import theme
+from lb_ui.tui.core.protocols import Form
 
 
 class RichForm(Form):

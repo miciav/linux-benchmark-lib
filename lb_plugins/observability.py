@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from lb_common.api import RemoteHostSpec
 
@@ -47,7 +48,7 @@ class GrafanaDatasourceAsset:
 
     def resolve(
         self, config: Any | Mapping[str, Any] | None
-    ) -> "GrafanaDatasourceAsset | None":
+    ) -> GrafanaDatasourceAsset | None:
         """Return a copy with URL populated, or None if unavailable."""
         url = self.resolve_url(config)
         if not url:

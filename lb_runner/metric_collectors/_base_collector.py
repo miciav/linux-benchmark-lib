@@ -1,21 +1,20 @@
-"""
-Base collector abstract class for metric collectors.
+"""Base collector abstract class for metric collectors.
 
 This module defines the common interface that all metric collectors must implement.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+import logging
 import threading
 import time
-import logging
+from abc import ABC, abstractmethod
+from datetime import datetime
 from pathlib import Path
 from types import TracebackType
+from typing import Any
+
 import pandas as pd
 
 from lb_common.api import MetricCollectionError
-
 
 logger = logging.getLogger(__name__)
 
@@ -24,41 +23,41 @@ class BaseCollector(ABC):
     """Abstract base class for all metric collectors."""
 
     def __init__(self, name: str, interval_seconds: float = 1.0):
-        """
-        Initialize the base collector.
+        """Initialize the base collector.
 
         Args:
             name: Name of the collector
             interval_seconds: Sampling interval in seconds
+
         """
         self.name = name
         self.interval_seconds = interval_seconds
         self._is_running = False
-        self._thread: Optional[threading.Thread] = None
-        self._data: List[Dict[str, Any]] = []
+        self._thread: threading.Thread | None = None
+        self._data: list[dict[str, Any]] = []
         self._lock = threading.Lock()
-        self._start_time: Optional[datetime] = None
-        self._stop_time: Optional[datetime] = None
+        self._start_time: datetime | None = None
+        self._stop_time: datetime | None = None
         self._errors: list[MetricCollectionError] = []
         self.max_error_records = 100
 
     @abstractmethod
-    def _collect_metrics(self) -> Dict[str, Any]:
-        """
-        Collect metrics at a single point in time.
+    def _collect_metrics(self) -> dict[str, Any]:
+        """Collect metrics at a single point in time.
 
         Returns:
             Dictionary containing metric names and their values
+
         """
         pass
 
     @abstractmethod
     def _validate_environment(self) -> bool:
-        """
-        Validate that the collector can run in the current environment.
+        """Validate that the collector can run in the current environment.
 
         Returns:
             True if the environment is valid, False otherwise
+
         """
         pass
 
@@ -145,12 +144,12 @@ class BaseCollector(ABC):
         if sleep_time > 0:
             time.sleep(sleep_time)
 
-    def get_data(self) -> List[Dict[str, Any]]:
-        """
-        Get the collected data.
+    def get_data(self) -> list[dict[str, Any]]:
+        """Get the collected data.
 
         Returns:
             List of dictionaries containing metric data
+
         """
         with self._lock:
             return self._data.copy()
@@ -160,11 +159,11 @@ class BaseCollector(ABC):
         return list(self._errors)
 
     def get_dataframe(self) -> pd.DataFrame:
-        """
-        Get the collected data as a pandas DataFrame.
+        """Get the collected data as a pandas DataFrame.
 
         Returns:
             DataFrame with metrics data
+
         """
         data = self.get_data()
         if not data:
@@ -178,12 +177,12 @@ class BaseCollector(ABC):
         return df
 
     def save_data(self, filepath: Path, format: str = "csv") -> None:
-        """
-        Save collected data to file.
+        """Save collected data to file.
 
         Args:
             filepath: Path to save the data
             format: Format to save in ('csv', 'json', 'parquet')
+
         """
         df = self.get_dataframe()
 
@@ -203,12 +202,12 @@ class BaseCollector(ABC):
         with self._lock:
             self._data.clear()
 
-    def get_summary_stats(self) -> Dict[str, Dict[str, float]]:
-        """
-        Get summary statistics for all numeric metrics.
+    def get_summary_stats(self) -> dict[str, dict[str, float]]:
+        """Get summary statistics for all numeric metrics.
 
         Returns:
             Dictionary mapping metric names to their statistics
+
         """
         df = self.get_dataframe()
         if df.empty:

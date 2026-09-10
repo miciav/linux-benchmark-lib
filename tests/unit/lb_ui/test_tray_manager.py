@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
+import os
 from unittest.mock import MagicMock
+
+import pytest
+
+# Importing lb_ui.services.tray pulls in pystray, whose Xorg backend resolves
+# the X display at import time and raises Xlib.error.DisplayNameError when there
+# is none. That aborts collection for the entire pytest session rather than
+# failing a single test, so skip the module before the import runs.
+# CI provides a display via xvfb-run, so the tests do run there.
+if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+    pytest.skip("tray tests require an X or Wayland display", allow_module_level=True)
 
 from lb_ui.services import tray
 

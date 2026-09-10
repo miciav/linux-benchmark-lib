@@ -39,7 +39,9 @@ def test_scheduler_skips_seen_without_replacement() -> None:
     seen = {config_key([("a", 10)])}
     scheduler = CartesianScheduler()
 
-    batch = scheduler.propose_batch(candidates=candidates, seen_keys=seen, desired_size=3)
+    batch = scheduler.propose_batch(
+        candidates=candidates, seen_keys=seen, desired_size=3
+    )
 
     assert batch == [
         [("a", 0)],

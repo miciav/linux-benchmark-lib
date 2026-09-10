@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable, Optional
 
 
 class ControllerState(str, Enum):
@@ -104,8 +104,8 @@ class ControllerStateMachine:
     def __init__(self) -> None:
         self._state = ControllerState.INIT
         self._lock = threading.RLock()
-        self._reason: Optional[str] = None
-        self._callbacks: list[Callable[[ControllerState, Optional[str]], None]] = []
+        self._reason: str | None = None
+        self._callbacks: list[Callable[[ControllerState, str | None], None]] = []
 
     @property
     def state(self) -> ControllerState:
@@ -113,7 +113,7 @@ class ControllerStateMachine:
             return self._state
 
     @property
-    def reason(self) -> Optional[str]:
+    def reason(self) -> str | None:
         with self._lock:
             return self._reason
 
@@ -129,13 +129,13 @@ class ControllerStateMachine:
             }
 
     def register_callback(
-        self, callback: Callable[[ControllerState, Optional[str]], None]
+        self, callback: Callable[[ControllerState, str | None], None]
     ) -> None:
         """Register a callback invoked on every transition."""
         self._callbacks.append(callback)
 
     def transition(
-        self, new_state: ControllerState, reason: Optional[str] = None
+        self, new_state: ControllerState, reason: str | None = None
     ) -> ControllerState:
         """Attempt a state transition; raise ValueError if invalid."""
         with self._lock:
@@ -155,6 +155,6 @@ class ControllerStateMachine:
                     continue
             return self._state
 
-    def snapshot(self) -> tuple[ControllerState, Optional[str]]:
+    def snapshot(self) -> tuple[ControllerState, str | None]:
         with self._lock:
             return self._state, self._reason

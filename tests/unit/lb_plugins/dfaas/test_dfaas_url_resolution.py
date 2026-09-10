@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import pytest
 from unittest.mock import patch
-from lb_plugins.plugins.dfaas.generator import DfaasGenerator
-from lb_plugins.plugins.dfaas.context import ExecutionContext
+
+import pytest
+
 from lb_plugins.plugins.dfaas.config import DfaasConfig, DfaasFunctionConfig
+from lb_plugins.plugins.dfaas.context import ExecutionContext
+from lb_plugins.plugins.dfaas.generator import DfaasGenerator
 
 
 @pytest.fixture
@@ -14,7 +16,8 @@ def generator():
         # Minimal required config
         functions=[DfaasFunctionConfig(name="dummy")],
     )
-    # Provide a dummy context, though _resolve_prometheus_url mostly uses arguments or internal methods
+    # Provide a dummy context, though _resolve_prometheus_url mostly uses
+    # arguments or internal methods
     exec_ctx = ExecutionContext(
         host="default-host",
         host_address="192.168.1.99",
@@ -57,7 +60,7 @@ def test_resolve_prometheus_url_no_template():
 
 
 def test_resolve_prometheus_url_with_template_and_target():
-    """Test that {host.address} is replaced by target_name if host_address is missing."""
+    """Test that {host.address} is replaced by target_name if host_address is missing."""  # noqa: E501 - unsplittable docstring summary
     config = DfaasConfig(
         prometheus_url="http://{host.address}:30411",
         functions=[DfaasFunctionConfig(name="dummy")],
@@ -119,8 +122,8 @@ def test_resolve_prometheus_url_localhost_replacement():
 
 
 def test_resolve_prometheus_url_template_precedence():
-    """
-    Test that {host.address} replacement happens before localhost logic.
+    """Test that {host.address} replacement happens before localhost logic.
+
     If template is present, it should be used.
     """
     config = DfaasConfig(

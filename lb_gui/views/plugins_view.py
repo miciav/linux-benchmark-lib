@@ -27,7 +27,7 @@ class PluginsView(QWidget):
 
     def __init__(
         self,
-        viewmodel: "PluginsViewModel",
+        viewmodel: PluginsViewModel,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)

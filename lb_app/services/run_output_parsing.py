@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
-from typing import Any, Pattern
+from dataclasses import dataclass
+from re import Pattern
+from typing import Any
 
 NOISE_TOKENS = {
     "PLAY [",

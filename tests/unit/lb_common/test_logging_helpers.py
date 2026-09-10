@@ -11,7 +11,6 @@ import pytest
 from lb_common.logs.handlers.loki_handler import LokiLogEntry
 from lb_common.logs.handlers.loki_helpers import LokiLabelBuilder, LokiWorker
 
-
 pytestmark = pytest.mark.unit_runner
 
 
