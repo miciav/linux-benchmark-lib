@@ -80,6 +80,14 @@ repos:
     rev: v26.8.0
     hooks:
       - id: ansible-lint
+        # ansible-lint's own hook declares `language_version: python3.14`, which
+        # OVERRIDES the default_language_version above (a hook's own setting
+        # wins). CI installs 3.12, so the hook env could not be created and the
+        # whole pre-commit job died with "failed to find interpreter for
+        # python_spec='python3.14'". ansible-lint 26.8.0 declares
+        # requires-python >=3.10 and classifiers through 3.14, so pinning the
+        # hook env to the interpreter CI actually has is safe.
+        language_version: python3.12
         files: ^(lb_controller/ansible|molecule)/.*\.ya?ml$
         exclude: ^lb_controller/ansible/collections/
         additional_dependencies:
