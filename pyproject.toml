@@ -1,5 +1,7 @@
 [project]
 name = "linux-benchmark-lib"
+license = "MIT"
+license-files = ["LICENSE"]
 version = "0.67.0"
 description = "A robust and configurable Python library for benchmarking Linux computational node performance"
 readme = "README.md"
@@ -76,7 +78,7 @@ gui = [
 
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
