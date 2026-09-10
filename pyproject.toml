@@ -459,7 +459,7 @@ dev = [
     # Pinned exactly, not with >=: .pre-commit-config.yaml pins the matching
     # ruff-pre-commit revision, and a newer ruff in either place makes the hook
     # and the local run disagree about what a violation is. Bump both together.
-    "ruff==0.14.10",
+    "ruff==0.16.6",
     "mypy>=1.0.0",
     "pre-commit>=3.2.0",
     "ansible-runner>=2.4.0",
