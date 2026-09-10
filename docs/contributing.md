@@ -76,6 +76,17 @@ The scripts above make the scope explicit:
 - The docstring rules for *missing* docstrings (D100–D107) are disabled. Ruff
   flags an order of magnitude more of these than pydocstyle did, so documenting
   the public API is tracked as its own task rather than silently enabled.
+- `tests/integration/lb_plugins/test_dfaas_docker_integration.py::test_dfaas_end_to_end_with_docker`
+  fails, and CI excludes it via `-m "not inter_docker"`. The test's own Ansible
+  stub only fetches the k6 summary when `SUMMARY_FETCH_DEST` is non-empty, and
+  the plugin never passes `summary_fetch_dest`, so nothing is collected and the
+  exported `summaries/`, `metrics/` and `k6_scripts/` directories come out
+  empty. Docker and the k6 image both work on this machine, so it is not an
+  environment problem. Tests carrying the `inter_docker` marker need a Docker
+  daemon and belong in their own CI job.
+- The Ansible surface has a pre-existing backlog of 201 ansible-lint findings;
+  see `.ansible-lint` for the per-rule counts. The rules that currently fire are
+  advisory, so a new rule violation still fails the build.
 
 ### PR checklist
 
