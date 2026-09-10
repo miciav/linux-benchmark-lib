@@ -17,7 +17,10 @@ dependencies = [
     "structlog>=24.2.0",
     "plyer>=2.1.0",
     "pystray>=0.19.5",
-    "pillow>=12.0.0",
+    # 12.3.0 is the first release covering the PYSEC advisories reported against
+    # 12.0.0 by pip-audit. pillow is a runtime dependency (icon rendering in
+    # lb_ui), so its audit result is gated rather than advisory.
+    "pillow>=12.3.0",
     "desktop-notifier>=6.2.0",
 ]
 
@@ -112,6 +115,11 @@ stream = "lb_plugins.plugins.stream.plugin:PLUGIN"
 
 [tool.uv]
 package = true
+# Constrain a transitive runtime dependency to a version without the advisory
+# pip-audit reports (PYSEC-2026-2987 against pygments 2.19.2). pygments reaches
+# the runtime set through jc and through rich; neither pins a floor high enough,
+# and a constraint raises it without promoting pygments to a direct dependency.
+constraint-dependencies = ["pygments>=2.20.0"]
 
 # =============================================================================
 # Ruff - linting + formatting

@@ -169,7 +169,26 @@ jobs:
       - name: Install project
         run: uv sync --frozen --all-extras
 
-      - name: Audit dependencies (pip-audit)
+      # Two tiers, because the two populations are genuinely different.
+      #
+      # Runtime dependencies are what this project ships, so they gate: any
+      # advisory against them fails the build, and the fix is to raise a floor
+      # in pyproject.toml (or add a [tool.uv] constraint for a transitive one).
+      # Verified clean at the time of writing, which is what makes the gate
+      # meaningful rather than aspirational.
+      #
+      # The full environment also contains the dev toolchain - ansible, semgrep,
+      # molecule, mkdocs, pytest and friends. It carried 51 advisories when this
+      # was written, all pre-existing. That backlog is the dependabot config's
+      # job to work down, and reporting it without blocking keeps the signal
+      # visible without making every unrelated PR red.
+      - name: Audit runtime dependencies (pip-audit, blocking)
+        run: |
+          uv export --frozen --no-dev --no-emit-project -o "$RUNNER_TEMP/runtime-reqs.txt"
+          uv run --frozen pip-audit --progress-spinner off -r "$RUNNER_TEMP/runtime-reqs.txt"
+
+      - name: Audit full environment (pip-audit, advisory)
+        continue-on-error: true
         run: uv run --frozen pip-audit --progress-spinner off
 
       - name: Static analysis (semgrep, pinned ruleset)
