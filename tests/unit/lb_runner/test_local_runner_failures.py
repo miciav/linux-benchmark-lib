@@ -80,6 +80,12 @@ def test_mock_generator_without_flag_exits_promptly(monkeypatch, tmp_path):
         warmup_seconds=0,
         cooldown_seconds=0,
         test_duration_seconds=300,  # would be long if loop didn't exit early
+        # System-info collection shells out via subprocess, and CPython's
+        # Popen._wait polls a running child with time.sleep(0.001), doubling on
+        # each retry. Those calls land in the patched time.sleep below and made
+        # this test flaky. This test is about the generator wait loop, so keep
+        # the subprocess noise out of it.
+        collect_system_info=False,
     )
 
     sleep_calls: list[int] = []
@@ -111,8 +117,12 @@ def test_mock_generator_without_flag_exits_promptly(monkeypatch, tmp_path):
     runner = LocalRunner(cfg, registry=DummyRegistry())
     runner.run_benchmark("dummy", total_repetitions=1)
 
-    # Without the guard, we'd accumulate ~310 sleep calls; ensure we skipped the loop.
-    assert not sleep_calls
+    # The wait loop in wait_for_generator sleeps one second per iteration, so an
+    # unguarded run would accumulate test_duration_seconds + safety_buffer
+    # (~310) one-second sleeps. Asserting "no sleep at all" also caught
+    # subprocess's own sub-millisecond polling and made this test flaky, so the
+    # assertion is scoped to the durations the runner actually requests.
+    assert not [s for s in sleep_calls if s >= 1]
 
 
 def test_runner_records_error_type_on_failure(tmp_path):
