@@ -3,14 +3,15 @@
 ### Development setup
 
 ```bash
-uv venv
-uv pip install -e ".[dev]"
+uv sync --all-extras
+uv run pre-commit install
 ```
 
 ### Tests
 
 - Run all tests: `uv run pytest tests/`
-- Containerized tests (Docker): `./run_tests.sh`
+- Unit tests only: `uv run pytest tests/unit`
+- With coverage: `./scripts/run_tests_with_cov.sh`
 - Quick smoke run: `uv run python example.py`
 
 ### Documentation
@@ -20,11 +21,42 @@ uv pip install -e ".[dev]"
 
 ### Style and quality
 
-- Format: `uv run black .`
-- Lint: `uv run flake8`
+Everything below is wired into `.pre-commit-config.yaml`, and CI runs the same
+hooks. The shortest correct path is:
+
+```bash
+uv run pre-commit run --all-files
+```
+
+The individual commands, if you want them:
+
+- Lint: `uv run ruff check .` (add `--fix` to apply safe autofixes)
+- Format: `uv run ruff format .`
 - Type check (`core` gate): `./scripts/mypy_core.sh`
 - Type check (`plugins` batch): `./scripts/mypy_plugins.sh`
 - Type check (`all` advisory): `./scripts/mypy_all.sh`
+- Architecture contracts: `uv run lint-imports` and
+  `uv run python scripts/check_api_imports.py`
+- Security: `uv run bandit -c pyproject.toml -r <pkg>`,
+  `uv run semgrep --config .semgrep.yml`, `uv run pip-audit`
+- Dependencies: `uv run deptry .`
+- YAML / Ansible: `uv run yamllint -c .yamllint.yaml .` (or the pre-commit hook)
+
+Ruff replaces what used to be four separate tools — black, flake8,
+flake8-tidy-imports and pydocstyle — so their configs are gone (`.flake8` was
+deleted and the banned-module list moved to
+`[tool.ruff.lint.flake8-tidy-imports.banned-api]`).
+
+Two things worth knowing:
+
+- **Ruff is pinned exactly** (`ruff==0.14.10` in dev dependencies), matching the
+  `ruff-pre-commit` revision. A newer ruff in one place than the other makes the
+  pre-commit hook and a local `ruff check` disagree. Bump both together.
+- **Wildcards do not work in the banned-import list.** Ruff matches module paths
+  component-wise; flake8's `lb_controller.services.*` syntax must be written as
+  `lb_controller.services`. A key containing `*` matches nothing and silently
+  disables the import-boundary check. There is a regression test for the
+  boundary itself in `tests/unit/lint/test_import_boundaries.py`.
 
 `mypy` follows imports by default, so the old one-liner against `lb_runner lb_controller lb_app lb_ui`
 was misleading: it still traversed transitive packages and vendored code under `lb_controller/ansible`.
@@ -34,6 +66,16 @@ The scripts above make the scope explicit:
 - `--follow-imports=silent` is intentional: `skip` suppresses the `pydantic.mypy` plugin and causes false `untyped-decorator` errors on `@model_validator`
 - `mypy_plugins.sh`: checks plugin/provisioning code
 - `mypy_all.sh`: checks the full first-party repo surface as an advisory sweep
+
+### Known gaps
+
+- Ruff has no implementation of flake8-cognitive-complexity, so the old `CCR001`
+  check has no direct replacement. Complexity is covered by the radon/xenon sweep
+  in `scripts/arch_audit.sh`; SonarQube/SonarCloud is the option if cognitive
+  complexity specifically is wanted as a gate.
+- The docstring rules for *missing* docstrings (D100–D107) are disabled. Ruff
+  flags an order of magnitude more of these than pydocstyle did, so documenting
+  the public API is tracked as its own task rather than silently enabled.
 
 ### PR checklist
 

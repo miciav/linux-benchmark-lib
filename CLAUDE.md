@@ -6,7 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Setup
-uv venv && uv pip install -e ".[dev]"
+# Use `uv sync`, not `uv pip install -e ".[dev]"`. The lint/type/security
+# toolchain (ruff, mypy, pre-commit, bandit, semgrep, deptry, yamllint,
+# ansible-lint, import-linter) lives in [dependency-groups].dev, which
+# `uv sync` installs and `uv pip install -e ".[dev]"` does not.
+uv sync --all-extras
+uv run pre-commit install
 
 # Run tests
 uv run pytest tests/                          # all tests
@@ -18,10 +23,20 @@ uv run pytest tests/unit/lb_runner/test_foo.py::test_bar  # single test
 # Quick smoke test
 uv run python example.py
 
-# Linting & formatting
-uv run black .
-uv run flake8
-uv run mypy lb_runner lb_controller lb_app lb_ui
+# Linting & formatting (ruff replaces black, flake8 and pydocstyle)
+uv run ruff check .                           # lint
+uv run ruff check --fix .                     # lint + safe autofixes
+uv run ruff format .                          # format
+
+# Type checking - use the scripts, NOT a bare "mypy <packages>":
+# mypy follows imports transitively, so a bare invocation also traverses
+# vendored Ansible collections and reports misleading results.
+./scripts/mypy_core.sh                        # gate: lb_runner/controller/app/ui
+./scripts/mypy_plugins.sh                     # plugins + provisioning
+./scripts/mypy_all.sh                         # advisory sweep
+
+# Everything at once, the same way CI does it
+uv run pre-commit run --all-files
 
 # Docs
 uv pip install -e ".[docs,controller]"
@@ -52,7 +67,8 @@ lb_ui/           → lb_app/          → lb_controller/  → lb_runner/
 
 **Key rules:**
 - Always use the public `api.py` exports: `lb_runner.api`, `lb_controller.api`, `lb_app.api`
-- Never import internal modules directly (enforced by flake8-tidy-imports in `.flake8`)
+- Never import internal modules directly (enforced by ruff `TID251`, configured in
+  `[tool.ruff.lint.flake8-tidy-imports.banned-api]` in `pyproject.toml`)
 - Configure logging via `lb_common.api.configure_logging()` in entrypoints
 - Keep stdout clean for `LB_EVENT` streaming when building custom UIs
 
@@ -89,9 +105,33 @@ Generated at runtime (gitignored):
 
 ## Style
 
-- Python 3.12+, Black (88 chars), strict MyPy
+- Python 3.12+ (the floor; CI also tests 3.13), ruff for linting and formatting (88 chars), strict MyPy
 - `snake_case` for functions/variables, `PascalCase` for classes
 - Prefer dataclasses for configuration objects
+- Test data files use `snake_case` too; the `tests/` tree is excluded from ruff's
+  docstring rules
+
+## Tooling
+
+Quality is enforced by `.pre-commit-config.yaml` locally and
+`.github/workflows/ci.yml` in CI. CI runs the same pre-commit hooks, so
+local and CI results cannot drift.
+
+| Concern | Tool | Config |
+| --- | --- | --- |
+| Lint + format | ruff | `[tool.ruff]` in `pyproject.toml` |
+| Types | mypy | `[tool.mypy]` + `scripts/mypy_*.sh` |
+| Import layers | import-linter, `scripts/check_api_imports.py` | `[tool.importlinter]` |
+| Security | bandit, semgrep, pip-audit | `[tool.bandit]`, `.semgrep.yml` |
+| Dependencies | deptry | `[tool.deptry]` |
+| Dead code | vulture | `scripts/run_vulture.sh` |
+| YAML / Ansible | yamllint, ansible-lint | `.yamllint.yaml`, `.ansible-lint` |
+| Coverage | pytest-cov | `[tool.coverage.*]` |
+
+Note: ruff has **no** implementation of flake8-cognitive-complexity, so the
+former `CCR001` check has no ruff equivalent. Complexity is covered by the
+radon/xenon sweep in `scripts/arch_audit.sh`; SonarQube/SonarCloud cognitive
+complexity is the option if that specific metric is wanted in CI.
 
 ## Import Boundary Rules
 
@@ -99,5 +139,11 @@ Generated at runtime (gitignored):
 
 Direct imports like `from lb_controller.services.X import Y` or `from lb_controller.engine.X import Y` are violations when done from outside lb_controller/.
 
-This rule is enforced by flake8-tidy-imports in .flake8.
+This rule is enforced by ruff rule `TID251` (configured in
+`[tool.ruff.lint.flake8-tidy-imports.banned-api]`), by the layer contracts in
+`[tool.importlinter]`, and by `tests/unit/lint/test_import_boundaries.py`.
 
+**When editing that banned list:** ruff matches banned module paths
+component-wise and does **not** understand flake8's `a.b.*` wildcard syntax. A
+key containing a wildcard matches nothing and silently disables the rule —
+keep the keys wildcard-free.

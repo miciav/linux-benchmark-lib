@@ -1,0 +1,42 @@
+# Dependency updates.
+#
+# The lockfile pins ansible-core, semgrep, bandit and pip-audit itself, so
+# without this the security tooling never moves and the audit results go stale.
+version: 2
+updates:
+  # Python dependencies via uv (updates uv.lock).
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Runtime deps move together far less often than dev tooling; keep the
+      # review burden low by grouping the noisy ones.
+      dev-tools:
+        patterns:
+          - "ruff"
+          - "mypy"
+          - "pytest*"
+          - "bandit"
+          - "semgrep"
+          - "vulture"
+          - "deptry"
+          - "yamllint"
+          - "ansible-lint"
+          - "pre-commit"
+      ansible:
+        patterns:
+          - "ansible*"
+          - "molecule*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+
+  # The Ansible collections vendored under lb_controller/ansible/collections
+  # are managed by ansible-galaxy, not by a lockfile; dependabot does not
+  # track them. See docs/contributing.md.

@@ -1,0 +1,60 @@
+# yamllint configuration, tuned for Ansible content.
+#
+# Most of the YAML in this repo is Ansible orchestration, so the rules below
+# follow Ansible's own conventions rather than yamllint's stricter defaults:
+# 2-space indent, no "document start" requirement, and a line length generous
+# enough for long module arguments.
+
+extends: default
+
+ignore: |
+  .venv/
+  lb_controller/ansible/collections/
+  molecule/*/controller_artifacts/
+  site/
+  # Kubernetes manifests applied with kubectl, not Ansible content. They come
+  # from the upstream OpenFaaS/cadvisor/node-exporter examples and use a
+  # non-uniform (but valid) 6-space continuation indent. The indentation rule
+  # is meant for Ansible task files; rewriting vendored manifests to satisfy it
+  # would churn them for no functional gain. ansible-lint still reports
+  # yaml[indentation] on these as a warning.
+  lb_plugins/plugins/*/ansible/manifests/
+
+rules:
+  # ansible-lint owns playbook semantics; do not fight it over document markers.
+  document-start: disable
+
+  # Reported, not blocking. Ansible task lines embed Jinja expressions and
+  # quoted paths that cannot be wrapped without changing what they evaluate to
+  # (e.g. the `path:` and `command:` scalars in
+  # lb_controller/ansible/roles/workload_runner/tasks/collect_workload.yml).
+  # ansible-lint's own yaml[line-length] rule is likewise a warning.
+  line-length:
+    max: 160
+    level: warning
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+
+  # Ansible expects unquoted true/false, and keys such as `always_run` or `on`
+  # are legitimate key names.
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false
+
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: false
+
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # mode: 0644 is parsed as an integer in YAML 1.1, which silently produces the
+  # wrong file permission. Ansible wants mode: "0644" - a real bug class here.
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

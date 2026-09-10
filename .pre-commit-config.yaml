@@ -1,0 +1,139 @@
+# Pre-commit hooks for linux-benchmark-lib.
+#
+#   uv run pre-commit install          # enable on commit
+#   uv run pre-commit run --all-files  # run everything once
+#
+# Version policy: the ruff revision below MUST stay in sync with the `ruff`
+# pin in pyproject.toml. A newer ruff in pre-commit than in the dev environment
+# means the hook reports violations that `uv run ruff check` does not, which is
+# exactly the drift this config exists to prevent.
+#
+# Deliberately NOT here (run in CI instead): semgrep and pip-audit. Both need
+# network access and take tens of seconds, which is too slow for a commit hook.
+
+default_language_version:
+  python: python3.12
+
+fail_fast: false
+
+repos:
+  # ---------------------------------------------------------------------------
+  # Ruff - lint + format (replaces black, flake8 and pydocstyle)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+        name: ruff (format)
+
+  # ---------------------------------------------------------------------------
+  # Type checking - reuses the project's own scoped invocations rather than
+  # re-declaring the mypy setup here. See docs/contributing.md for why the
+  # scope is explicit (`--follow-imports=silent` keeps the pydantic plugin
+  # active; `skip` would suppress it and produce false untyped-decorator
+  # errors on @model_validator).
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: mypy-core
+        name: mypy (core)
+        entry: ./scripts/mypy_core.sh
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: mypy-plugins
+        name: mypy (plugins)
+        entry: ./scripts/mypy_plugins.sh
+        language: system
+        pass_filenames: false
+        types: [python]
+
+  # ---------------------------------------------------------------------------
+  # Security
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/PyCQA/bandit
+    rev: "1.9.4"
+    hooks:
+      - id: bandit
+        args: ["-c", "pyproject.toml", "--severity-level", "medium"]
+        additional_dependencies: ["bandit[toml]"]
+        # pre-commit passes explicit filenames, which bypasses bandit's own
+        # exclude_dirs - so the test tree has to be excluded here as well.
+        exclude: ^(tests/|molecule/)
+
+  # ---------------------------------------------------------------------------
+  # YAML - the remote orchestration is mostly Ansible playbooks, so this is
+  # the YAML surface that matters most in this repo.
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: ["-c", ".yamllint.yaml"]
+        files: \.(ya?ml)$
+        exclude: ^(\.github/|lb_controller/ansible/collections/)
+
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v26.8.0
+    hooks:
+      - id: ansible-lint
+        files: ^(lb_controller/ansible|molecule)/.*\.ya?ml$
+        exclude: ^lb_controller/ansible/collections/
+        additional_dependencies:
+          - "ansible-core>=2.15.0"
+
+  # ---------------------------------------------------------------------------
+  # Architecture and dependency hygiene
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: import-linter
+        name: import-linter (layer contracts)
+        entry: uv run --frozen lint-imports
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: api-import-boundaries
+        name: API import boundaries (lb_*.api only)
+        entry: uv run --frozen python scripts/check_api_imports.py
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: deptry
+        name: deptry (dependency hygiene)
+        entry: uv run --frozen deptry .
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: vulture
+        name: vulture (dead code)
+        entry: ./scripts/run_vulture.sh
+        language: system
+        pass_filenames: false
+        types: [python]
+
+  # ---------------------------------------------------------------------------
+  # Generic file hygiene
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        exclude: ^(lb_controller/ansible/collections/|molecule/)
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: end-of-file-fixer
+        exclude: \.(png|jpg|jpeg|gif|ico|svg)$
+      - id: trailing-whitespace
+        exclude: \.(png|jpg|jpeg|gif|ico|svg|md)$
+      - id: mixed-line-ending
+        args: [--fix=lf]

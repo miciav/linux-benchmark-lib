@@ -1,0 +1,73 @@
+# ansible-lint configuration.
+#
+# ---------------------------------------------------------------------------
+# Scope
+# ---------------------------------------------------------------------------
+# The ansible-lint pre-commit hook ships with `pass_filenames: false`, so it
+# always lints the WHOLE project - not just lb_controller/ansible. That means
+# it also covers lb_plugins/plugins/*/ansible/ (per-plugin roles and k8s
+# manifests) and molecule/. The counts below are project-wide.
+#
+# ---------------------------------------------------------------------------
+# Ratchet policy
+# ---------------------------------------------------------------------------
+# At the time this config was written ansible-lint reported 201 findings on
+# this codebase - all pre-existing. A hook that fails on its first run is a
+# hook everyone disables, so the rules that currently fire are advisory
+# (warn_list) rather than blocking.
+#
+# They are still REPORTED on every run, and any rule NOT listed below still
+# fails the build, so a new class of problem is caught immediately. Remove a
+# rule from warn_list once its backlog is cleared; the count is the target.
+#
+#    56  no-changed-when              command/shell without changed_when
+#    29  name[template]               task names built from Jinja
+#    25  command-instead-of-module    a command where a module exists
+#    22  risky-shell-pipe             shell pipeline without pipefail
+#    19  fqcn[action-core]            `command:` instead of `ansible.builtin.command:`
+#    16  yaml[indentation]            manifest indentation
+#    10  name[play]                   plays without a name
+#     5  var-naming[no-role-prefix]   role vars lacking a role prefix
+#     5  ignore-errors               `ignore_errors` masking real failures
+#     5  risky-file-permissions      copy/file/template without `mode:`
+#     5  yaml[line-length]           long Jinja lines (not wrappable)
+#     5  run-once[task]              `run_once` on multi-host tasks
+#     2  yaml[colons]                spacing after a colon
+#     1  key-order[task]             task key ordering
+#     1  jinja[spacing]              Jinja whitespace
+#
+# `run-once[task]` is advisory rather than a defect here: the controller runs
+# the default linear strategy, where run_once is well defined. It only becomes
+# risky under `strategy: free`, which this project does not use.
+#
+# The most mechanical to clear first, in order of ease: key-order[task] (1),
+# jinja[spacing] (1), yaml[colons] (2), fqcn[action-core] (19), name[play] (10).
+
+profile: production
+
+exclude_paths:
+  - lb_controller/ansible/collections/
+  - molecule/*/controller_artifacts/
+  - .venv/
+  - arch_report/
+
+warn_list:
+  - name[template]
+  - name[play]
+  - fqcn[action-core]
+  - var-naming[no-role-prefix]
+  - ignore-errors
+  - risky-file-permissions
+  - risky-shell-pipe
+  - no-changed-when
+  - command-instead-of-module
+  - yaml[line-length]
+  - yaml[indentation]
+  - yaml[colons]
+  - key-order[task]
+  - jinja[spacing]
+  - run-once[task]
+  - experimental
+
+use_default_rules: true
+verbosity: 1

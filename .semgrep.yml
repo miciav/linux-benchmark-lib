@@ -1,0 +1,89 @@
+# Pinned semgrep ruleset.
+#
+# Replaces the previous `semgrep --config auto` invocation in
+# scripts/arch_audit.sh, which fetched rules from the network on every run:
+# that made the result depend on whatever the registry served that day, and it
+# failed outright on an air-gapped or offline machine.
+#
+# Severity convention:
+#   ERROR   - fails the build (CI runs semgrep with --error)
+#   WARNING - reported, does not fail
+#
+# Only patterns that are genuinely dangerous live at ERROR severity.
+
+rules:
+  - id: lb-no-eval-exec
+    languages: [python]
+    severity: ERROR
+    message: >-
+      eval()/exec() executes arbitrary input. In a benchmarking controller that
+      builds commands from user-supplied benchmark config, treat config values
+      as untrusted and never evaluate them as code.
+    metadata:
+      category: security
+      cwe: "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code"
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: exec(...)
+
+  - id: lb-yaml-unsafe-load
+    languages: [python]
+    severity: ERROR
+    message: >-
+      yaml.load() without a Loader uses the unsafe full loader and can construct
+      arbitrary Python objects. Use yaml.safe_load() or pass Loader=SafeLoader.
+    metadata:
+      category: security
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+    patterns:
+      - pattern: yaml.load($X)
+      - pattern: yaml.load($X, ...)
+
+  - id: lb-subprocess-shell-true
+    languages: [python]
+    severity: WARNING
+    message: >-
+      subprocess with shell=True runs the command through a shell. This project
+      generates benchmark commands from config, so prefer an argv list. Where a
+      shell is genuinely required (pipes, redirection), make sure every
+      interpolated value is quoted.
+    metadata:
+      category: security
+      cwe: "CWE-78: OS Command Injection"
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.$F(..., shell=True, ...)
+          - pattern: subprocess.$F(..., shell=True)
+
+  - id: lb-os-system
+    languages: [python]
+    severity: WARNING
+    message: >-
+      os.system() gives no access to the return code and always invokes a shell.
+      Prefer subprocess.run([...], check=...).
+    metadata:
+      category: maintainability
+      cwe: "CWE-78: OS Command Injection"
+    pattern: os.system(...)
+
+  - id: lb-hardcoded-secret
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A credential appears to be hardcoded. The controller talks to remote
+      hosts and to Grafana/Loki endpoints; keep secrets in environment
+      variables or the config file, never in source.
+    metadata:
+      category: security
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+    patterns:
+      - pattern-either:
+          - pattern: $KEY = "..."
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: (?i).*(password|passwd|secret|api_key|apikey|access_token|private_key).*
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: (?!.*(field|label|name|env|var|key_name|placeholder)$).*
+      - pattern-not: $KEY = ""

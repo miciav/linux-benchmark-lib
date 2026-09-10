@@ -41,13 +41,13 @@ For each selected TARGET:
 - Run: ./scripts/arch_audit.sh TARGET
 - Run: uv run python scripts/arch_smells.py TARGET
 - Confirm that arch_report/ contains:
-  ruff_check.txt, ruff_stats.txt,
-  mypy.txt or pyright.txt,
+  ruff_check.txt, ruff_stats.txt, ruff_format.txt,
+  mypy_core.txt, mypy_plugins.txt, mypy_all.txt,
   grimp_cycles.txt,
   radon_cc.txt, radon_mi.txt, xenon.txt, lizard.txt,
   vulture.txt,
-  deptry.txt,
-  pip_audit.txt, bandit.txt, semgrep_auto.txt,
+  deptry.txt, importlinter.txt, api_boundaries.txt,
+  pip_audit.txt, bandit.txt, semgrep.txt,
   hotspots.txt,
   duplication_candidates.txt,
   pydeps.svg (if graphviz present),

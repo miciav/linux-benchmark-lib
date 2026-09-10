@@ -68,7 +68,7 @@ uv run pytest -m tui
 ### Coding Standards
 *   **Style:** `black` (line length 88), `flake8`.
 *   **Typing:** Strict `mypy` (Python 3.12+).
-*   **Docstrings:** `pydocstyle` (subset of rules).
+*   **Docstrings:** Ruff's pydocstyle rules (subset of rules).
 *   **Conventions:** `snake_case` for functions/vars, `PascalCase` for classes. Dataclasses for configuration.
 
 ## File Structure Highlights

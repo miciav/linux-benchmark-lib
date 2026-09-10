@@ -57,7 +57,6 @@ dev = [
     "molecule>=6",
     "molecule-plugins[delegated]",
     "ansible-core>=2.15.0",
-    "flake8-cognitive-complexity>=0.1.0",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -114,24 +113,143 @@ stream = "lb_plugins.plugins.stream.plugin:PLUGIN"
 [tool.uv]
 package = true
 
-[tool.black]
+# =============================================================================
+# Ruff - linting + formatting
+# =============================================================================
+# Replaces black, flake8, flake8-tidy-imports, flake8-cognitive-complexity
+# and pydocstyle.
+#
+#   uv run ruff check .          # lint
+#   uv run ruff check --fix .    # lint + apply safe fixes
+#   uv run ruff format .         # format
+#
+# IMPORTANT - import boundaries: the `banned-modules` option of
+# flake8-tidy-imports is expressed here as `banned-api`. Ruff matches banned
+# paths COMPONENT-WISE (banning `a.b` also bans `a.b.c`) and does NOT
+# understand flake8's `a.b.*` wildcard syntax. A key that contains a wildcard
+# matches nothing at all and silently disables the whole boundary check, so
+# keep the keys below wildcard-free.
+#
+# Deliberately NOT enabled yet (measured violation counts at migration time):
+#   D    1919  docstring coverage - needs a documentation pass
+#   PL    836  pylint - largely overlapping, high churn
+#   S    5167  bandit rules - covered by the bandit + semgrep hooks instead
+#   ARG   317  unused arguments - noisy against Qt slots / ABC overrides
+#   T20   150  print - meaningful only per-package, see note below
+#   C90    34  cyclomatic complexity - see note below
+#   G      27  logging format - assumes %-style logging, this codebase uses structlog
+#   DTZ    17  naive datetimes - fixing changes the on-disk journal format
+#
+# T20 note: the project requires stdout to stay clean for LB_EVENT streaming.
+# Enforcing "no print in lb_runner/lb_app/lb_controller" is worthwhile but needs
+# a per-package decision, since it is legitimate in CLI commands and scripts.
+#
+# C90 note: ruff has no implementation of flake8-cognitive-complexity, so the
+# former CCR001 check cannot be migrated. The cyclomatic equivalent (C901) is
+# dominated by Typer command-registration functions, which are long but linear
+# (register_resume_command scores 63), so gating on it today would be noise
+# rather than signal. Complexity is instead covered by the radon/xenon sweep in
+# scripts/arch_audit.sh.
+
+[tool.ruff]
 line-length = 88
-target-version = ['py312']
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
+target-version = "py312"
+extend-exclude = [
+    # Vendored Ansible collections and generated molecule artifacts.
+    "lb_controller/ansible/collections/ansible_collections",
+    "molecule/*/controller_artifacts",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # Pyflakes
+    "I",     # isort
+    "N",     # pep8-naming
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "SIM",   # flake8-simplify
+    "TID",   # flake8-tidy-imports (import boundaries)
+    "RUF",   # Ruff-specific rules
+    "PERF",  # Perflint
+    "PT",    # flake8-pytest-style
+    "RET",   # flake8-return
+    "PTH",   # flake8-use-pathlib
+    "ERA",   # eradicate (commented-out code)
+    "D",     # pydocstyle (replaces the pydocstyle tool)
+]
+ignore = [
+    # Whitespace before ':' - conflicts with the formatter, which owns this.
+    "E203",
+    # "Split this assertion into multiple parts" - produces worse failure
+    # diagnostics for compound assertions and is not worth the churn.
+    "PT018",
+    # Missing-docstring family. ruff flags far more of these than pydocstyle did
+    # (891 vs 216 on the same scope) because its notion of "public" is broader.
+    # Documenting the public API is its own task, tracked separately; the
+    # docstring rules that remain enabled are the consistency ones (D2xx/D4xx),
+    # which are auto-fixable and now actually enforced.
+    "D100",  # missing docstring in public module
+    "D101",  # missing docstring in public class
+    "D102",  # missing docstring in public method
+    "D103",  # missing docstring in public function
+    "D104",  # missing docstring in public package
+    "D105",  # missing docstring in magic method
+    "D107",  # missing docstring in __init__
+    # Mutually exclusive summary conventions. The project's pydocstyle config
+    # ignored D203/D213, i.e. it opted into D212 semantics - kept identical.
+    "D203",  # blank line before class docstring
+    "D213",  # multi-line summary second line
+    # Nitpicks with low signal.
+    "D401",  # non-imperative mood
+    "D417",  # undocumented-param
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Import boundaries: the .api-only rule is enforced by flake8-tidy-imports'
+# banned-modules successor below (TID251), plus the layer contracts in
+# [tool.importlinter] and tests/unit/lint/test_import_boundaries.py.
+# Modules inside lb_controller are of course allowed to use their own internals.
+"lb_controller/**" = ["TID251"]
+"tests/unit/lb_controller/**" = ["TID251"]
+"tests/unit/common/test_lb_events_callback.py" = ["TID251"]
+"tests/unit/common/test_plugin_installer.py" = ["TID251"]
+"tests/e2e/test_plugin_git_install_e2e.py" = ["TID251", "E501"]
+"tests/e2e/**" = ["E501"]
+# Typer's documented idiom is `param: int = typer.Option(...)` in the signature;
+# B008 flags exactly that pattern. Scoped to the CLI layer where Typer lives.
+"lb_ui/cli/**" = ["B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["lb_common", "lb_plugins", "lb_runner", "lb_controller", "lb_app", "lb_analytics", "lb_provisioner", "lb_ui", "lb_gui"]
+
+# Import boundary rule, ported from the .flake8 `banned-modules` list.
+# Wildcards stripped: ruff matches submodules automatically.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"lb_controller.ansible" = { msg = "Use lb_controller.api instead." }
+"lb_controller.ansible_executor" = { msg = "Use lb_controller.api instead." }
+"lb_controller.controller" = { msg = "Use lb_controller.api instead." }
+"lb_controller.controller_playbooks" = { msg = "Use lb_controller.api instead." }
+"lb_controller.controller_runner" = { msg = "Use lb_controller.api instead." }
+"lb_controller.controller_state" = { msg = "Use lb_controller.api instead." }
+"lb_controller.controller_stop" = { msg = "Use lb_controller.api instead." }
+"lb_controller.contracts" = { msg = "Use lb_controller.api instead." }
+"lb_controller.interrupts" = { msg = "Use lb_controller.api instead." }
+"lb_controller.journal" = { msg = "Use lb_controller.api instead." }
+"lb_controller.journal_sync" = { msg = "Use lb_controller.api instead." }
+"lb_controller.lifecycle" = { msg = "Use lb_controller.api instead." }
+"lb_controller.paths" = { msg = "Use lb_controller.api instead." }
+"lb_controller.pending" = { msg = "Use lb_controller.api instead." }
+"lb_controller.stop_coordinator" = { msg = "Use lb_controller.api instead." }
+"lb_controller.types" = { msg = "Use lb_controller.api instead." }
+"lb_controller.services" = { msg = "Use lb_controller.api instead." }
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -240,10 +358,76 @@ module = [
 ]
 disable_error_code = ["import-untyped"]
 
-[tool.pydocstyle]
-inherit = false
-ignore = "D100,D104,D203,D213"
-match-dir = "(?!tests).*"
+# =============================================================================
+# Bandit - security static analysis
+# =============================================================================
+# Run with: uv run bandit -c pyproject.toml -r <package>
+#
+# The skips below are families that are correct by design in this project.
+# Everything else is left enabled: a new shell=True or a new hardcoded
+# credential must still fail. Sites that are individually justified carry an
+# inline `# nosec Bxxx` with a reason instead of being skipped wholesale.
+
+[tool.bandit]
+exclude_dirs = ["tests", "molecule", ".venv", "arch_report"]
+skips = [
+    # This project exists to shell out to benchmark binaries, so importing
+    # subprocess and using partial paths is the normal mode of operation,
+    # not a finding. B602 (shell=True) is deliberately NOT skipped.
+    "B404",
+    "B603",
+    "B607",
+    # try/except/pass. Ruff's SIM105 covers this pattern with better feedback
+    # (contextlib.suppress), so bandit's copy is duplicate noise.
+    "B110",
+    # Benchmark servers (dfaas/peva_faas generators) intentionally bind all
+    # interfaces: the controller connects to them from other hosts.
+    "B104",
+    # tempfile.gettempdir() under a fixed subdirectory is used for a stable
+    # on-disk asset cache, which is the intent - not for secret material.
+    "B108",
+    # urllib is used for configured Grafana/Loki/webhook endpoints. The scheme
+    # comes from the user's own config, not from remote input.
+    "B310",
+    # SQL built by f-string interpolation of a table name, in
+    # lb_plugins/plugins/peva_faas/services/memory_checkpoint.py (3 sites).
+    # The interpolated value is never user input: it is always one of the
+    # hardcoded CORE_TABLES / DEBUG_TABLES class constants, and every data
+    # value is passed as a `?` parameter. An inline `# nosec` is not usable
+    # there because the comment pushes the already-long SQL line past the
+    # 88-char lint limit; the rule is therefore documented here instead.
+    "B608",
+]
+
+# =============================================================================
+# Coverage
+# =============================================================================
+# Run with: uv run pytest --cov
+#
+# fail_under is a ratchet: it is set to the level the suite actually holds so
+# it prevents regressions. Raise it as coverage improves; never lower it to
+# make a build pass.
+
+[tool.coverage.run]
+branch = true
+source = ["lb_runner", "lb_controller", "lb_app", "lb_ui", "lb_analytics"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+# Measured at 70% on `pytest tests/unit tests/integration -m "not slow and not
+# slowest"` when this was set. The gate sits a few points lower on purpose:
+# CI runs a 3.12/3.13 matrix and branch coverage varies slightly by version,
+# and a gate that flakes is worse than a gate that lags. Raise it as the suite
+# improves; never lower it to make a build pass.
+fail_under = 67
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "\\.\\.\\.",
+]
 
 [dependency-groups]
 dev = [
@@ -261,16 +445,19 @@ dev = [
     "rapidfuzz>=3.0.0",
     "prompt_toolkit>=3.0.0",
     "PySide6>=6.6.0",
-    "black>=23.0.0",
-    "flake8>=6.0.0",
-    "flake8-tidy-imports>=4.12.0",
-    "pydocstyle>=6.3.0",
+    # Linting + formatting. ruff replaces black, flake8, flake8-tidy-imports,
+    # flake8-cognitive-complexity and pydocstyle.
+    #
+    # Pinned exactly, not with >=: .pre-commit-config.yaml pins the matching
+    # ruff-pre-commit revision, and a newer ruff in either place makes the hook
+    # and the local run disagree about what a violation is. Bump both together.
+    "ruff==0.14.10",
     "mypy>=1.0.0",
     "pre-commit>=3.2.0",
     "ansible-runner>=2.4.0",
+    "ansible-lint>=25.0.0",
+    "yamllint>=1.35.0",
     "vulture>=2.10",
-    "flake8-cognitive-complexity>=0.1.0",
-    "ruff>=0.14.10",
     "coverage>=7.13.0",
     "radon>=6.0.1",
     "xenon>=0.9.3",
@@ -290,8 +477,39 @@ dev = [
 ]
 
 [tool.deptry]
-extend_exclude = ["molecule"]
-per_rule_ignores = { DEP001 = ["controller_stop_runner"], DEP002 = ["pytest-cov", "vulture", "molecule", "molecule-plugins", "flake8-cognitive-complexity", "mkdocs", "mkdocs-material", "mkdocstrings"] }
+# scripts/bump_version is a self-contained project with its own pyproject.toml
+# and uv.lock (it depends on questionary, which the root project does not).
+# Scanning it against the root dependencies reports false DEP001 misses.
+extend_exclude = ["molecule", "scripts/bump_version"]
+
+per_rule_ignores = { DEP001 = [
+    "controller_stop_runner",
+], DEP002 = [
+    # Build/docs tooling invoked as executables rather than imported.
+    "pytest-cov",
+    "vulture",
+    "molecule",
+    "molecule-plugins",
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings",
+    # Optional UI dependencies. They are imported lazily / via
+    # importlib.import_module so that a headless controller install works
+    # without a display, which deptry cannot see statically:
+    #   plyer, desktop-notifier  -> lb_ui/notifications/providers/desktop.py
+    #   pystray                  -> lb_ui/services/tray.py
+    #   pillow (PIL.Image)       -> lb_ui/services/assets.py (icon rendering)
+    #   rapidfuzz                -> lb_ui pickers (fuzzy matching)
+    "plyer",
+    "desktop-notifier",
+    "pystray",
+    "pillow",
+    "rapidfuzz",
+    # Not imported in Python at all, but required at runtime: duckdb uses
+    # pyarrow for its parquet reader/writer, which the peva_faas memory
+    # checkpoint relies on (read_parquet / COPY ... FORMAT PARQUET).
+    "pyarrow",
+] }
 
 # =============================================================================
 # Import Linter - Enforces layered architecture import boundaries

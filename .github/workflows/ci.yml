@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Keeps the venv out of the way of any checkout-local tooling.
+  UV_CACHE_DIR: .uv-cache
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Lint, format, types, architecture, YAML and security-static-check.
+  #
+  # This job deliberately runs the SAME hooks as local development via
+  # pre-commit, rather than re-declaring every tool invocations here. One
+  # definition means local and CI can not drift apart. The ruff revision is
+  # pinned in .pre-commit-config.yaml and must match the pin in pyproject.toml.
+  # ---------------------------------------------------------------------------
+  pre-commit:
+    name: pre-commit (ruff, mypy, bandit, ansible-lint, deptry, import-linter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # The lint floor is 3.12: ruff's target-version is py312 and mypy is
+          # configured for 3.12, so linting on the floor is the honest choice.
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install pre-commit
+        run: python -m pip install --upgrade pip pre-commit
+
+      - name: Cache pre-commit environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure --color=always
+
+  # ---------------------------------------------------------------------------
+  # Test suite + coverage gate.
+  # ---------------------------------------------------------------------------
+  test:
+    name: pytest (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.12 is the declared floor (requires-python >=3.12); 3.13 is what the
+        # docs and release workflows run.
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install project
+        run: uv sync --frozen --all-extras
+
+      # pystray's Xorg backend resolves the display at import time, so the tray
+      # tests need a real X display to run (they skip themselves when there is
+      # none - see tests/unit/lb_ui/test_tray_manager.py). Xvfb lets them
+      # actually run here instead of being skipped.
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run unit + integration tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          xvfb-run -a uv run --frozen pytest tests/unit tests/integration \
+            -m "not slow and not slowest" \
+            --cov --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Network-dependent / slow security checks.
+  #
+  # Kept out of pre-commit on purpose (they take tens of seconds and need
+  # network access) but they must still gate the branch, otherwise the pinned
+  # security tooling never actually runs.
+  # ---------------------------------------------------------------------------
+  security:
+    name: security (pip-audit, semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install project
+        run: uv sync --frozen --all-extras
+
+      - name: Audit dependencies (pip-audit)
+        run: uv run --frozen pip-audit --progress-spinner off
+
+      - name: Static analysis (semgrep, pinned ruleset)
+        # --severity ERROR matters: semgrep's --error fails on ANY finding,
+        # including WARNING ones. Without the filter the two known shell=True
+        # sites would fail this job. With it, eval/exec, unsafe yaml.load and
+        # hardcoded credentials block while shell=True stays advisory.
+        run: uv run --frozen semgrep --config .semgrep.yml --severity ERROR --error --quiet

@@ -1,0 +1,36 @@
+# Normalize line endings in the repository.
+#
+# The repo contains shell scripts, Ansible playbooks and PlantUML sources that
+# are consumed on Linux targets; a CRLF leaked in from a Windows editor breaks
+# them in ways that are hard to spot in review.
+* text=auto eol=lf
+
+*.py    text diff=python
+*.sh    text eol=lf
+*.toml  text
+*.yml   text
+*.yaml  text
+*.json  text
+*.md    text diff=markdown
+*.puml  text
+*.ini   text
+*.cfg   text
+
+# Binary assets: never normalize, never try to diff.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.whl   binary
+*.gz    binary
+*.zip   binary
+
+# Generated at runtime (gitignored) - keep them out of language stats.
+benchmark_results/**  linguist-generated=true
+reports/**            linguist-generated=true
+data_exports/**       linguist-generated=true
+arch_report/**        linguist-generated=true
+
+# Vendored third-party code: exclude from diffs and language statistics.
+lb_controller/ansible/collections/**  linguist-vendored=true

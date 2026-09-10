@@ -65,18 +65,22 @@ run_step "3/12 Ruff (lint)" bash -lc "
   uv run ruff check . --output-format=concise > \"$OUT/ruff_check.txt\" 2>&1 || true
 "
 
-run_step "4/12 Ruff (stats)" bash -lc "
+run_step "4/12 Ruff (stats + format)" bash -lc "
   cd \"$ROOT\" || exit 1
   uv run ruff check . --statistics > \"$OUT/ruff_stats.txt\" 2>&1 || true
+  uv run ruff format --check . > \"$OUT/ruff_format.txt\" 2>&1 || true
 "
 
 run_step "5/12 Type checking" bash -lc "
   cd \"$ROOT\" || exit 1
-  if uv run python -c \"import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('pyright') else 1)\"; then
-    uv run pyright > \"$OUT/pyright.txt\" 2>&1 || true
-  else
-    uv run mypy . > \"$OUT/mypy.txt\" 2>&1 || true
-  fi
+  # Uses the project's own scoped invocations. A bare 'mypy .' follows imports
+  # transitively and traverses vendored code under lb_controller/ansible, which
+  # produced misleading results; see docs/contributing.md. pyright is not a
+  # dependency of this project, so the branch that used to probe for it never
+  # fired and has been removed.
+  ./scripts/mypy_core.sh > \"$OUT/mypy_core.txt\" 2>&1 || true
+  ./scripts/mypy_plugins.sh > \"$OUT/mypy_plugins.txt\" 2>&1 || true
+  ./scripts/mypy_all.sh > \"$OUT/mypy_all.txt\" 2>&1 || true
 "
 fi
 
@@ -94,16 +98,23 @@ run_step "7/12 Dead code (vulture)" bash -lc "
 "
 
 if [[ -z "${SKIP_GLOBAL:-}" ]]; then
-run_step "8/12 Dependency hygiene (deptry)" bash -lc "
+run_step "8/12 Dependency hygiene (deptry) + import contracts" bash -lc "
   cd \"$ROOT\" || exit 1
   uv run deptry . > \"$OUT/deptry.txt\" 2>&1 || true
+  # Layer contracts live in [tool.importlinter]; the old importlinter.ini was an
+  # unused placeholder and has been removed.
+  uv run lint-imports > \"$OUT/importlinter.txt\" 2>&1 || true
+  uv run python scripts/check_api_imports.py > \"$OUT/api_boundaries.txt\" 2>&1 || true
 "
 
 run_step "9/12 Security (pip-audit/bandit/semgrep)" bash -lc "
   cd \"$ROOT\" || exit 1
   uv run pip-audit > \"$OUT/pip_audit.txt\" 2>&1 || true
-  uv run bandit -r \"$TARGET\" -q > \"$OUT/bandit.txt\" 2>&1 || true
-  uv run semgrep --config auto \"$TARGET\" > \"$OUT/semgrep_auto.txt\" 2>&1 || true
+  # -c pyproject.toml so the documented skips in [tool.bandit] apply.
+  uv run bandit -c pyproject.toml -r \"$TARGET\" -q > \"$OUT/bandit.txt\" 2>&1 || true
+  # Pinned ruleset, not --config auto: 'auto' fetched rules from the network on
+  # every run, so results varied by day and the step failed offline.
+  uv run semgrep --config .semgrep.yml --quiet \"$TARGET\" > \"$OUT/semgrep.txt\" 2>&1 || true
 "
 fi
 
