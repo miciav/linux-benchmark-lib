@@ -7,6 +7,7 @@ their output.
 import logging
 import shlex
 import subprocess
+from pathlib import Path
 from typing import Any
 
 import jc
@@ -100,7 +101,12 @@ class CLICollector(BaseCollector):
                 )
                 output = result.stdout.strip()
 
-                tool_name = shlex.split(command)[0]
+                # jc resolves parsers by bare tool name, so a quoted path like
+                # "/usr/bin/sar" must be reduced to "sar" here; otherwise jc
+                # raises and the command is disabled for the rest of the run.
+                # _validate_environment deliberately keeps the full token: it
+                # checks the actual binary with `which`, which accepts a path.
+                tool_name = Path(shlex.split(command)[0]).name
                 parsed: Any = None
 
                 # Special-case sar: jc may not ship a parser; fall back to manual

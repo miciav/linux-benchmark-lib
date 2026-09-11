@@ -1,5 +1,8 @@
 """Tests for CLICollector parsing and robustness."""
 
+import subprocess
+
+import jc
 import pandas as pd
 import pytest
 
@@ -55,7 +58,7 @@ def test_no_available_tool_is_still_fatal(monkeypatch):
 
 
 def test_validate_environment_splits_quoted_tool_path(monkeypatch):
-    """A quoted tool path resolves to the same name _collect_metrics uses."""
+    """A quoted tool path is checked against the binary it actually names."""
     monkeypatch.setattr(
         CLICollector,
         "_is_tool_available",
@@ -65,6 +68,72 @@ def test_validate_environment_splits_quoted_tool_path(monkeypatch):
 
     assert collector._validate_environment() is True
     assert collector.commands == ['"/usr/bin/sar" -u 1 1']
+
+
+def test_quoted_path_command_reaches_jc_with_bare_tool_name(monkeypatch):
+    """A quoted tool path must still collect, not silently disable the command."""
+    parsers = []
+
+    def fake_parse(parser, output):
+        parsers.append(parser)
+        if "/" in parser:  # jc resolves parsers by bare tool name only
+            raise jc.exceptions.ParseError("This parser is disabled.")
+        return {"iostat_tps": 1.0}
+
+    def fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args[0], 0, stdout="bare output\n")
+
+    monkeypatch.setattr(jc, "parse", fake_parse)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        CLICollector,
+        "_is_tool_available",
+        lambda self, tool: tool == "/usr/bin/iostat",
+    )
+    collector = CLICollector(
+        interval_seconds=1.0, commands=['"/usr/bin/iostat" -d 1 1']
+    )
+
+    assert collector._validate_environment() is True
+    metrics = collector._collect_metrics()
+
+    assert parsers == ["iostat"]
+    assert collector._failed_commands == set()
+    assert metrics == {"iostat_tps": 1.0}
+
+
+def test_quoted_path_sar_command_is_parsed_not_disabled(monkeypatch):
+    """The sar special case runs before jc, so pin that route separately."""
+
+    def fake_run(*args, **kwargs):
+        stdout = (
+            "Linux 6.17.0 (host)  09/11/26  _x86_64_  (8 CPU)\n"
+            "\n"
+            "12:00:00  CPU  %user  %nice  %system  %iowait  %steal  %idle\n"
+            "12:00:01  all   1.00   0.00     2.00     0.50    0.00   96.50\n"
+        )
+        return subprocess.CompletedProcess(args[0], 0, stdout=stdout)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        CLICollector,
+        "_is_tool_available",
+        lambda self, tool: tool == "/usr/bin/sar",
+    )
+    collector = CLICollector(interval_seconds=1.0, commands=['"/usr/bin/sar" -u 1 1'])
+
+    assert collector._validate_environment() is True
+    metrics = collector._collect_metrics()
+
+    assert collector._failed_commands == set()
+    assert metrics == {
+        "sar_user_pct": 1.0,
+        "sar_nice_pct": 0.0,
+        "sar_system_pct": 2.0,
+        "sar_iowait_pct": 0.5,
+        "sar_steal_pct": 0.0,
+        "sar_idle_pct": 96.5,
+    }
 
 
 def test_unparseable_command_is_dropped_not_fatal(monkeypatch):
