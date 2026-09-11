@@ -17,7 +17,11 @@ from ._base_collector import BaseCollector
 logger = logging.getLogger(__name__)
 
 
-def _merge_parsed(tool_name: str, parsed: Any) -> dict[str, Any]:
+def _merge_parsed(
+    tool_name: str,
+    parsed: Any,
+    warned: set[str] | None = None,
+) -> dict[str, Any]:
     """Flatten one command's jc output into metrics without losing rows.
 
     jc returns one dict per device or per CPU, so a multi-row result cannot be
@@ -28,6 +32,13 @@ def _merge_parsed(tool_name: str, parsed: Any) -> dict[str, Any]:
     Args:
         tool_name: Name of the tool, used to namespace the per-row detail
         parsed: Whatever jc returned
+        warned: Optional set of tool names already reported as multi-row. The
+            multi-row notice is logged at warning level only for the first
+            occurrence per tool and at debug level after that: iostat, mpstat
+            and pidstat all return multiple rows on every collection, and the
+            default interval is one second, so an unguarded warning would emit
+            thousands of identical lines per hour into the run log and the event
+            stream. The information stays available, it just stops repeating.
 
     Returns:
         A flat dict of metrics
@@ -38,13 +49,35 @@ def _merge_parsed(tool_name: str, parsed: Any) -> dict[str, Any]:
         if not rows:
             return {}
         if len(rows) > 1:
-            logger.warning(
-                "Command '%s' produced %d rows; keeping the first flat and all "
-                "of them under '%s_rows'",
-                tool_name,
-                len(rows),
-                tool_name,
-            )
+            if warned is None or tool_name not in warned:
+                if warned is not None:
+                    warned.add(tool_name)
+                logger.warning(
+                    "Command '%s' produced %d rows; keeping the first flat and "
+                    "all of them under '%s_rows'",
+                    tool_name,
+                    len(rows),
+                    tool_name,
+                )
+            else:
+                logger.debug(
+                    "Command '%s' produced %d rows; keeping the first flat and "
+                    "all of them under '%s_rows'",
+                    tool_name,
+                    len(rows),
+                    tool_name,
+                )
+            # The per-row key is retained deliberately, not by oversight: it is
+            # the only place a future per-device aggregator can read the rows
+            # that the flat schema cannot hold. Nothing consumes it today - the
+            # flat merge above is what the aggregators read, and this key is
+            # carried into <workload>_results.json and then list-repr'd into
+            # *_aggregated.csv. That makes it a write-only cost: measured at
+            # roughly 6x the persisted payload against the flat-only shape
+            # (~6.3 KB vs ~1 KB per collection interval on a container), scaling
+            # with device and process count and accumulating for the whole run.
+            # Dropping it would re-introduce the silent data loss it was added
+            # to fix, so it stays until a reader exists.
             return {**rows[0], f"{tool_name}_rows": rows}
         return dict(rows[0])
     if isinstance(parsed, dict):
@@ -72,6 +105,9 @@ class CLICollector(BaseCollector):
         super().__init__(name, interval_seconds)
         self.commands: list[str] = list(commands or [])
         self._failed_commands: set[str] = set()
+        # Tools already reported as returning multiple rows, so the notice is
+        # logged once per tool rather than once per collection interval.
+        self._multi_row_warned: set[str] = set()
 
     def _collect_metrics(self) -> dict[str, Any]:
         """Collect metrics by running CLI commands.
@@ -128,7 +164,7 @@ class CLICollector(BaseCollector):
                         self._failed_commands.add(command)
                         continue
 
-                metrics.update(_merge_parsed(tool_name, parsed))
+                metrics.update(_merge_parsed(tool_name, parsed, self._multi_row_warned))
 
             except subprocess.TimeoutExpired:
                 logger.error(

@@ -16,7 +16,17 @@ pystray: Any | None = None
 try:
     Image = importlib.import_module("PIL.Image")
     pystray = importlib.import_module("pystray")
-except ImportError:
+except Exception:
+    # Broad on purpose - do NOT narrow this back to ImportError. pystray is a
+    # hard runtime dependency, and on Linux importing it connects to the X
+    # display at module scope, raising Xlib.error.DisplayNameError (neither an
+    # ImportError nor even an ImportError subclass) when DISPLAY is unset. That
+    # is the normal case for this library's target deployment - a server over
+    # SSH with no X forwarding - where a narrow handler makes `lb run` and
+    # `lb resume` abort with a traceback before doing any work. Wayland/GTK
+    # backend failures raise other non-ImportError types too. Every consumer
+    # below checks `if pystray is None`, so degrading here is the designed
+    # behaviour; the feature is simply unavailable.
     pass
 
 logger = logging.getLogger(__name__)
