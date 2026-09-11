@@ -13,9 +13,17 @@ def set_table_headers(table: QTableWidget, headers: list[str]) -> None:
 
 
 def clear_layout(layout: QLayout) -> None:
-    """Remove all items from a layout."""
+    """Remove all items from a layout.
+
+    ``takeAt`` is typed as returning ``QLayoutItem`` up to PySide6 6.10 and
+    ``QLayoutItem | None`` from 6.11, where an out-of-range index yields null.
+    The loop condition makes that unreachable here, but the guard keeps the call
+    below honest under either typing.
+    """
     while layout.count():
         item = layout.takeAt(0)
+        if item is None:  # pragma: no cover - unreachable while count() is truthy
+            break
         widget = item.widget()
         if widget is not None:
             widget.setParent(None)
