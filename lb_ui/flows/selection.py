@@ -63,7 +63,7 @@ def select_workloads_interactively(
                 desc = f"(current) {desc}"
             variant_list.append(
                 PickItem(
-                    id=variant.id,
+                    id=f"{name}:{variant.id}",
                     title=label,
                     description=desc,
                     payload=variant.payload,
