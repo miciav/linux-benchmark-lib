@@ -28,6 +28,7 @@
         url: https://get.k3s.io
         dest: /tmp/install-k3s.sh
         mode: "0755"
+        force: true
 
     - name: Install k3s
       ansible.builtin.command:
@@ -56,6 +57,7 @@
         url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
         dest: /tmp/get-helm-3.sh
         mode: "0755"
+        force: true
 
     - name: Install helm
       ansible.builtin.command:
@@ -68,6 +70,7 @@
         url: https://cli.openfaas.com
         dest: /tmp/install-openfaas-cli.sh
         mode: "0755"
+        force: true
 
     - name: Install faas-cli
       ansible.builtin.command:

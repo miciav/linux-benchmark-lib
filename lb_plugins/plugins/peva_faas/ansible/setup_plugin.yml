@@ -44,6 +44,7 @@
         url: https://cli.openfaas.com
         dest: /tmp/install-openfaas-cli.sh
         mode: "0755"
+        force: true
 
     - name: Install faas-cli
       ansible.builtin.command:
