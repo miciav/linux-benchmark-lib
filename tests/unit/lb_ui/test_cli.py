@@ -655,3 +655,4 @@ def test_run_reports_failure_when_start_run_returns_none(
     )
 
     assert result.exit_code == 1, result.output
+    assert "Run did not start" in result.output, result.output
