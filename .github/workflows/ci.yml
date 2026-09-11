@@ -30,7 +30,7 @@ jobs:
     name: pre-commit (ruff, basedpyright, bandit, ansible-lint, deptry, import-linter)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -69,7 +69,7 @@ jobs:
         # docs and release workflows run.
         python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -156,7 +156,7 @@ jobs:
     name: security (pip-audit, semgrep)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
