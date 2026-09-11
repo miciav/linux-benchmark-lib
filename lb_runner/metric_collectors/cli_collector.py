@@ -16,6 +16,41 @@ from ._base_collector import BaseCollector
 logger = logging.getLogger(__name__)
 
 
+def _merge_parsed(tool_name: str, parsed: Any) -> dict[str, Any]:
+    """Flatten one command's jc output into metrics without losing rows.
+
+    jc returns one dict per device or per CPU, so a multi-row result cannot be
+    flattened into a single dict without collision. The first row is merged flat
+    so the existing aggregator schema keeps working, and every row is preserved
+    under ``<tool>_rows`` so nothing is silently discarded.
+
+    Args:
+        tool_name: Name of the tool, used to namespace the per-row detail
+        parsed: Whatever jc returned
+
+    Returns:
+        A flat dict of metrics
+
+    """
+    if isinstance(parsed, list):
+        rows = [row for row in parsed if isinstance(row, dict)]
+        if not rows:
+            return {}
+        if len(rows) > 1:
+            logger.warning(
+                "Command '%s' produced %d rows; keeping the first flat and all "
+                "of them under '%s_rows'",
+                tool_name,
+                len(rows),
+                tool_name,
+            )
+            return {**rows[0], f"{tool_name}_rows": rows}
+        return dict(rows[0])
+    if isinstance(parsed, dict):
+        return dict(parsed)
+    return {}
+
+
 class CLICollector(BaseCollector):
     """Metric collector using CLI commands."""
 
@@ -87,10 +122,7 @@ class CLICollector(BaseCollector):
                         self._failed_commands.add(command)
                         continue
 
-                if isinstance(parsed, list):
-                    parsed = parsed[0] if parsed and isinstance(parsed[0], dict) else {}
-                if isinstance(parsed, dict):
-                    metrics.update(parsed)
+                metrics.update(_merge_parsed(tool_name, parsed))
 
             except subprocess.TimeoutExpired:
                 logger.error(
@@ -165,7 +197,7 @@ class CLICollector(BaseCollector):
         """
         usable = []
         for command in self.commands:
-            tool = command.split()[0]
+            tool = shlex.split(command)[0]
             if self._is_tool_available(tool):
                 usable.append(command)
             else:

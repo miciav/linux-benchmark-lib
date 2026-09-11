@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from lb_runner.api import aggregate_cli
-from lb_runner.metric_collectors.cli_collector import CLICollector
+from lb_runner.metric_collectors.cli_collector import CLICollector, _merge_parsed
 
 pytestmark = pytest.mark.unit_runner
 
@@ -52,3 +52,39 @@ def test_no_available_tool_is_still_fatal(monkeypatch):
     collector = CLICollector(interval_seconds=1.0, commands=["vmstat 1 1"])
 
     assert collector._validate_environment() is False
+
+
+def test_validate_environment_splits_quoted_tool_path(monkeypatch):
+    """A quoted tool path resolves to the same name _collect_metrics uses."""
+    monkeypatch.setattr(
+        CLICollector,
+        "_is_tool_available",
+        lambda self, tool: tool == "/usr/bin/sar",
+    )
+    collector = CLICollector(interval_seconds=1.0, commands=['"/usr/bin/sar" -u 1 1'])
+
+    assert collector._validate_environment() is True
+    assert collector.commands == ['"/usr/bin/sar" -u 1 1']
+
+
+def test_single_row_list_is_merged_flat():
+    """One row keeps the flat schema the aggregators expect."""
+    assert _merge_parsed("vmstat", [{"runnable_procs": 1}]) == {"runnable_procs": 1}
+
+
+def test_multi_row_list_keeps_every_row():
+    """Keep every row jc returns; none may be dropped."""
+    rows = [
+        {"device": "loop0", "tps": 1.0},
+        {"device": "nvme0n1", "tps": 79.42},
+    ]
+
+    merged = _merge_parsed("iostat", rows)
+
+    assert merged["device"] == "loop0"
+    assert merged["iostat_rows"] == rows
+
+
+def test_non_list_passes_through():
+    assert _merge_parsed("sar", {"user_time": 5}) == {"user_time": 5}
+    assert _merge_parsed("sar", None) == {}
