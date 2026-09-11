@@ -153,18 +153,33 @@ class CLICollector(BaseCollector):
         }
 
     def _validate_environment(self) -> bool:
-        """Validate that the CLI tools are available in the environment.
+        """Drop commands whose tool is missing, keeping the ones that work.
+
+        A missing *optional* tool must not abort the benchmark: the metrics it
+        would have produced are worth less than the workload run itself. The
+        collector is only unusable when nothing at all is left to run.
 
         Returns:
-            True if all commands are available, False otherwise
+            True if at least one command can run, False otherwise
 
         """
+        usable = []
         for command in self.commands:
             tool = command.split()[0]
-            if not self._is_tool_available(tool):
-                logger.error("Required tool '%s' is not available", tool)
-                return False
+            if self._is_tool_available(tool):
+                usable.append(command)
+            else:
+                logger.warning(
+                    "Skipping CLI metric command '%s': tool '%s' is not available",
+                    command,
+                    tool,
+                )
 
+        if not usable:
+            logger.error("No CLI metric command can run in this environment")
+            return False
+
+        self.commands = usable
         return True
 
     def _is_tool_available(self, tool: str) -> bool:

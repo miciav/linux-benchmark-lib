@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from lb_runner.api import aggregate_cli
+from lb_runner.metric_collectors.cli_collector import CLICollector
 
 pytestmark = pytest.mark.unit_runner
 
@@ -27,3 +28,27 @@ def test_aggregate_cli_ignores_non_numeric():
     result = aggregate_cli(df)
     assert "note_avg" not in result
     assert result["processes_running_avg"] == 2.0
+
+
+def test_missing_optional_tool_is_dropped_not_fatal(monkeypatch):
+    """One unavailable tool must not stop the collector using the others."""
+    monkeypatch.setattr(
+        CLICollector,
+        "_is_tool_available",
+        lambda self, tool: tool == "vmstat",
+    )
+    collector = CLICollector(
+        interval_seconds=1.0,
+        commands=["vmstat 1 1", "definitely-not-a-tool 1 1"],
+    )
+
+    assert collector._validate_environment() is True
+    assert collector.commands == ["vmstat 1 1"]
+
+
+def test_no_available_tool_is_still_fatal(monkeypatch):
+    """With nothing left to run, the collector cannot start."""
+    monkeypatch.setattr(CLICollector, "_is_tool_available", lambda self, tool: False)
+    collector = CLICollector(interval_seconds=1.0, commands=["vmstat 1 1"])
+
+    assert collector._validate_environment() is False
