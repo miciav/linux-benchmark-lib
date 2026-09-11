@@ -138,22 +138,7 @@ class DockerProvisioner:
             "ssh-keygen -A && "
             "/usr/sbin/sshd -D"
         )
-        cmd = [
-            engine,
-            "run",
-            "-d",
-            "--rm",
-            "--name",
-            name,
-            "--hostname",
-            name,
-            "-p",
-            f"{host_port}:22",
-            image,
-            "bash",
-            "-c",
-            init_script,
-        ]
+        cmd = run_container_argv(engine, name, host_port, image, init_script)
         logger.info("Provisioning container %s via %s", name, engine)
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -249,7 +234,7 @@ class DockerProvisioner:
         self, engine: str, name: str, key_path: Path, pub_path: Path
     ) -> None:
         """Stop and remove a container and its keys; ignore failures."""
-        cmd = [engine, "rm", "-f", name]
+        cmd = delete_container_argv(engine, name)
         try:
             subprocess.run(
                 cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -257,6 +242,37 @@ class DockerProvisioner:
         except Exception:
             logger.debug("Best-effort cleanup failed for container %s", name)
         _best_effort_remove_paths((key_path, pub_path))
+
+
+def run_container_argv(
+    engine: str,
+    name: str,
+    host_port: int,
+    image: str,
+    init_script: str,
+) -> list[str]:
+    """Command that starts one benchmark container with sshd on ``host_port``."""
+    return [
+        engine,
+        "run",
+        "-d",
+        "--rm",
+        "--name",
+        name,
+        "--hostname",
+        name,
+        "-p",
+        f"{host_port}:22",
+        image,
+        "bash",
+        "-c",
+        init_script,
+    ]
+
+
+def delete_container_argv(engine: str, name: str) -> list[str]:
+    """Command that force-removes one container."""
+    return [engine, "rm", "-f", name]
 
 
 def _rollback_nodes(nodes: list[ProvisionedNode]) -> None:
