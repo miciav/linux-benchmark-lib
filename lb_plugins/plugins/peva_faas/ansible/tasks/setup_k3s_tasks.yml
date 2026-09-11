@@ -112,6 +112,7 @@
     get secret basic-auth -o jsonpath="{.data.basic-auth-password}"
   register: openfaas_password_b64
   changed_when: false
+  no_log: true
 
 - name: Decode OpenFaaS admin password
   ansible.builtin.set_fact:
