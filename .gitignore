@@ -82,3 +82,6 @@ test_key.pub
 
 # MkDocs build output
 site/
+
+# Scratch workspace for agentic plan execution (superpowers SDD)
+.superpowers/
