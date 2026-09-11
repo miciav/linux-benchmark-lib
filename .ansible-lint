@@ -34,19 +34,21 @@
 #     1  jinja[spacing]               Jinja whitespace
 #
 # `yaml[indentation]` and `yaml[colons]` have been ratcheted out: both measure
-# zero now. They are subtags of the `yaml` rule, which IS part of the
-# `production` profile, so as blocking rules a regression in either one fails
-# the build immediately.
+# zero, and both are subtags of the `yaml` rule, which IS part of the
+# `production` profile, so they are blocking now and a regression in either one
+# fails the build.
 #
-# `run-once[task]` measured zero for a different reason, which is worth
-# recording. Its rule id is absent from the `production` profile and there is
-# no `enable_list`, so filter_rules_with_profile unloads it and it never runs;
-# the warn_list entry was inert, and dropping it changes nothing today. It
-# would only start to matter if someone added `run-once` to `enable_list` -
-# and at that point a bare `run_once` is still not a defect here, because the
-# controller runs the default linear strategy, where run_once is well defined.
-# It only becomes risky under `strategy: free`, which this project does not
-# use, so blocking on it would be a false positive.
+# `run-once[task]` measures zero too, but it stays in warn_list, because its
+# backlog was never actually measured. The `run-once` rule id is not in the
+# `production` profile and this config sets no `enable_list`, so
+# filter_rules_with_profile unloads the rule and it does not fire either way -
+# the entry is inert today, and the ratchet policy ("remove a rule once its
+# backlog is cleared") does not apply to a rule that never ran. It is kept so
+# that if `run-once` is ever added to `enable_list`, it arrives advisory rather
+# than blocking. A bare `run_once` is not a defect here: the controller runs the
+# default linear strategy, where run_once is well defined, so it only becomes
+# risky under `strategy: free`, which this project does not use. Blocking on it
+# would be a false positive.
 #
 # The most mechanical to clear next, in order of ease: key-order[task] (1),
 # jinja[spacing] (1), fqcn[action-core] (19), name[play] (10).
@@ -72,6 +74,7 @@ warn_list:
   - yaml[line-length]
   - key-order[task]
   - jinja[spacing]
+  - run-once[task]
   - experimental
 
 use_default_rules: true
