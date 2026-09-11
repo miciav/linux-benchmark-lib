@@ -249,7 +249,7 @@ def register_run_command(
 
             run_result = ctx.app_client.start_run(run_request, _Hooks())
             result = run_result
-            run_success = True
+            run_success = run_result is not None
 
         except ValueError as e:
             ctx.ui.present.warning(str(e))
@@ -273,6 +273,13 @@ def register_run_command(
                     run_id=run_id,
                     duration_s=total_duration,
                 )
+
+        if not run_success:
+            ctx.ui.present.error(
+                "Run did not start: start_run returned no result "
+                "(connectivity or provisioning failed)."
+            )
+            raise typer.Exit(1)
 
         if (
             result

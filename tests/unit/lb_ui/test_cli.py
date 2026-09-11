@@ -620,3 +620,38 @@ def test_run_command_saves_ui_stream_log(
     assert "Running rep 1" in content
     assert "completed locally" in content
     assert "System info" in content
+
+
+@pytest.mark.unit_ui
+def test_run_reports_failure_when_start_run_returns_none(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """A run that never started must not exit 0 with a SUCCESS notification.
+
+    start_run returns None when the connectivity check fails or provisioning is
+    rejected. run used to overwrite its own failure flag unconditionally, so
+    that path exited 0 and announced success.
+    """
+    cli = _load_cli(monkeypatch, tmp_path)
+
+    cfg = BenchmarkConfig()
+    _ensure_workload_enabled(cfg, "stress_ng")
+    cfg_path = tmp_path / "cfg.json"
+    cfg.save(cfg_path)
+
+    monkeypatch.setattr(
+        cli.app_client,
+        "_provision",
+        lambda config, execution_mode, node_count, docker_engine=None, resume=None: (
+            config,
+            None,
+        ),
+    )
+    monkeypatch.setattr(cli.app_client, "start_run", lambda *_args, **_kwargs: None)
+
+    result = CliRunner().invoke(
+        cli.app,
+        ["run", "-c", str(cfg_path), "--run-id", "no-connectivity"],
+    )
+
+    assert result.exit_code == 1, result.output
