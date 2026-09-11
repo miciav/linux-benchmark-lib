@@ -158,7 +158,7 @@ pytestmark = pytest.mark.unit_ui
 class _FakePicker:
     """Returns the chosen workload's selected *variant*, like the real picker."""
 
-    def __init__(self, workload: str, variant_index: int = 1) -> None:
+    def __init__(self, workload: str, variant_index: int = 2) -> None:
         self.workload = workload
         self.variant_index = variant_index
         self.seen_items = []
