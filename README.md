@@ -25,7 +25,7 @@
   <a href="https://github.com/miciav/linux-benchmark-lib/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/miciav/linux-benchmark-lib" alt="License" />
   </a>
-  <img src="https://img.shields.io/badge/python-3.13%2B-blue" alt="Python versions" />
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python versions" />
 </p>
 
 ## Highlights
@@ -101,8 +101,15 @@ uv pip install -e ".[ui]"          # CLI/TUI
 uv pip install -e ".[gui]"         # Graphical UI (Qt)
 uv pip install -e ".[controller]"  # Ansible + analytics
 uv pip install -e ".[ui,gui,controller]"  # Full installation
-uv pip install -e ".[dev]"         # test + lint tools
 uv pip install -e ".[docs]"        # mkdocs
+```
+
+Development setup uses the `dev` dependency group (pytest, ruff, mypy, bandit,
+pre-commit, import-linter) rather than an extra:
+
+```bash
+uv sync --all-extras
+uv run pre-commit install
 ```
 
 Switch dependency sets:
@@ -122,7 +129,7 @@ linux-benchmark-lib/
 |-- lb_controller/    # Orchestration and journaling
 |-- lb_app/           # Stable API for CLI/UI integrations
 |-- lb_ui/            # CLI/TUI implementation
-|-- lb_gui/           # Graphical UI (Git Submodule)
+|-- lb_gui/           # Graphical UI (Qt)
 |-- lb_analytics/     # Reporting and analytics
 |-- lb_plugins/       # Workload plugins and registry
 |-- lb_provisioner/   # Docker/Multipass helpers
