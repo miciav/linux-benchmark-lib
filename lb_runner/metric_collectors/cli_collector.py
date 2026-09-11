@@ -197,7 +197,21 @@ class CLICollector(BaseCollector):
         """
         usable = []
         for command in self.commands:
-            tool = shlex.split(command)[0]
+            # A malformed entry must be dropped with a warning, never abort the
+            # run: shlex raises on an unbalanced quote and returns [] for an
+            # empty command, and both are the same class of bad config.
+            try:
+                parts = shlex.split(command)
+            except ValueError:
+                parts = []
+            if not parts:
+                logger.warning(
+                    "Skipping CLI metric command %r: it is not parseable as a "
+                    "command line",
+                    command,
+                )
+                continue
+            tool = parts[0]
             if self._is_tool_available(tool):
                 usable.append(command)
             else:

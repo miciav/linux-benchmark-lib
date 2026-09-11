@@ -67,6 +67,22 @@ def test_validate_environment_splits_quoted_tool_path(monkeypatch):
     assert collector.commands == ['"/usr/bin/sar" -u 1 1']
 
 
+def test_unparseable_command_is_dropped_not_fatal(monkeypatch):
+    """A malformed config entry must warn and drop, never abort the run."""
+    monkeypatch.setattr(
+        CLICollector,
+        "_is_tool_available",
+        lambda self, tool: tool == "sar",
+    )
+    collector = CLICollector(
+        interval_seconds=1.0,
+        commands=["sar -u 1 1", '"unterminated -u 1', ""],
+    )
+
+    assert collector._validate_environment() is True
+    assert collector.commands == ["sar -u 1 1"]
+
+
 def test_single_row_list_is_merged_flat():
     """One row keeps the flat schema the aggregators expect."""
     assert _merge_parsed("vmstat", [{"runnable_procs": 1}]) == {"runnable_procs": 1}
