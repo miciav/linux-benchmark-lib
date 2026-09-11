@@ -130,14 +130,23 @@
     - name: Decode OpenFaaS admin password
       ansible.builtin.set_fact:
         openfaas_admin_password: "{{ openfaas_password_b64.stdout | b64decode }}"
+      no_log: true
 
     - name: Login to OpenFaaS
-      ansible.builtin.command: >
-        faas-cli login --gateway {{ openfaas_gateway_url }}
-        --username {{ openfaas_admin_user }}
-        --password {{ openfaas_admin_password }}
-        --tls-no-verify
+      ansible.builtin.command:
+        argv:
+          - faas-cli
+          - login
+          - --gateway
+          - "{{ openfaas_gateway_url }}"
+          - --username
+          - "{{ openfaas_admin_user }}"
+          - --password-stdin
+          - --tls-no-verify
+      args:
+        stdin: "{{ openfaas_admin_password }}"
       register: faas_login
+      no_log: true
       retries: 10
       delay: 6
       until: faas_login.rc == 0
