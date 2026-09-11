@@ -12,6 +12,7 @@ class DashboardHandle(Protocol):
 
     def live(self) -> AbstractContextManager[None]:
         """Return a context manager that keeps the dashboard live."""
+        ...
 
     def add_log(self, line: str) -> None:
         """Add a log line to the dashboard."""
@@ -63,9 +64,11 @@ class UIAdapter(Protocol):
 
     def status(self, message: str) -> AbstractContextManager[None]:
         """Context manager that shows a status/spinner while work is running."""
+        ...
 
     def create_progress(self, description: str, total: int) -> ProgressHandle:
         """Create a progress task."""
+        ...
 
     def create_dashboard(
         self,
@@ -74,6 +77,7 @@ class UIAdapter(Protocol):
         ui_log_file: IO[str] | None = None,
     ) -> DashboardHandle:
         """Create a run dashboard."""
+        ...
 
     def prompt_multipass_scenario(
         self, options: list[str], default_level: str

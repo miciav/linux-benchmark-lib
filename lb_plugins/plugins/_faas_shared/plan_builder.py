@@ -45,12 +45,14 @@ def generate_rates_list(min_rate: int, max_rate: int, step: int) -> list[int]:
 class _RateStrategyLike(Protocol):
     def generate_rates(self) -> list[int]:
         """Return the concrete rate list."""
+        ...
 
 
 class _FunctionConfigLike(Protocol):
     @property
     def name(self) -> str:
         """Function name."""
+        ...
 
     @property
     def max_rate(self) -> int | None:
@@ -61,32 +63,39 @@ class _CombinationConfigLike(Protocol):
     @property
     def min_functions(self) -> int:
         """Minimum number of functions per combination."""
+        ...
 
     @property
     def max_functions(self) -> int:
         """Maximum number of functions per combination."""
+        ...
 
 
 class _PlanConfigLike(Protocol):
     @property
     def functions(self) -> Sequence[_FunctionConfigLike]:
         """Configured functions."""
+        ...
 
     @property
     def rate_strategy(self) -> _RateStrategyLike:
         """Rate strategy."""
+        ...
 
     @property
     def combinations(self) -> _CombinationConfigLike:
         """Combination settings."""
+        ...
 
     @property
     def duration(self) -> str:
         """Workload duration string."""
+        ...
 
     @property
     def iterations(self) -> int:
         """Iteration count."""
+        ...
 
 
 @dataclass(frozen=True)

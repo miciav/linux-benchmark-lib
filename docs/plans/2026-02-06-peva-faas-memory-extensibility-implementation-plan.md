@@ -110,12 +110,18 @@ Expected: FAIL missing contracts/classes.
 
 ```python
 class ConfigScheduler(Protocol):
-    def propose_batch(self, *, ctx: "DfaasRunContext", desired_size: int) -> list[list[tuple[str, int]]]: ...
+    def propose_batch(
+        self, *, ctx: "DfaasRunContext", desired_size: int
+    ) -> list[list[tuple[str, int]]]: ...
+
 
 class PolicyAlgorithm(Protocol):
-    def choose_batch(self, *, candidates: list[list[tuple[str, int]]], desired_size: int) -> list[list[tuple[str, int]]]: ...
+    def choose_batch(
+        self, *, candidates: list[list[tuple[str, int]]], desired_size: int
+    ) -> list[list[tuple[str, int]]]: ...
     def update_online(self, event: "ExecutionEvent") -> None: ...
     def update_batch(self, events: list["ExecutionEvent"]) -> None: ...
+
 
 class MemoryEngine(Protocol):
     def startup(self) -> None: ...
@@ -172,7 +178,9 @@ class CartesianScheduler:
     def __init__(self, planner: DfaasPlanBuilder) -> None:
         self._planner = planner
 
-    def propose_batch(self, *, ctx: DfaasRunContext, desired_size: int) -> list[list[tuple[str, int]]]:
+    def propose_batch(
+        self, *, ctx: DfaasRunContext, desired_size: int
+    ) -> list[list[tuple[str, int]]]:
         out: list[list[tuple[str, int]]] = []
         for cfg in ctx.configs:
             if len(out) >= desired_size:
@@ -207,7 +215,9 @@ git commit -m "refactor(peva_faas): extract cartesian scheduler strategy"
 
 ```python
 def test_store_bootstrap_creates_schema_meta(tmp_path: Path) -> None:
-    store = DuckDBMemoryStore(tmp_path / "mem.duckdb", schema_version="peva_faas_mem_v1")
+    store = DuckDBMemoryStore(
+        tmp_path / "mem.duckdb", schema_version="peva_faas_mem_v1"
+    )
     store.startup()
     assert store.schema_version() == "peva_faas_mem_v1"
 
@@ -280,7 +290,13 @@ Expected: FAIL.
 
 ```python
 class ParquetCheckpoint:
-    CORE_TABLES = ("memory_schema_meta", "run_sessions", "config_catalog", "execution_events", "policy_updates")
+    CORE_TABLES = (
+        "memory_schema_meta",
+        "run_sessions",
+        "config_catalog",
+        "execution_events",
+        "policy_updates",
+    )
     DEBUG_TABLES = ("k6_raw_summaries",)
 ```
 

@@ -210,14 +210,16 @@ git commit -m "feat: allow per-workload collector disablement"
 ```python
 # tests/unit/lb_plugins/peva_faas/test_dfaas_config.py
 config_path.write_text(
-    "\n".join([
-        "common:",
-        "  timeout_buffer: 5",
-        "plugins:",
-        "  peva_faas:",
-        "    k3s_host: \"10.0.0.50\"",
-        ...
-    ])
+    "\n".join(
+        [
+            "common:",
+            "  timeout_buffer: 5",
+            "plugins:",
+            "  peva_faas:",
+            '    k3s_host: "10.0.0.50"',
+            ...,
+        ]
+    )
 )
 
 config = DfaasConfig(...)

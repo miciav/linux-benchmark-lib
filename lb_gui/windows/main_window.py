@@ -269,11 +269,15 @@ class MainWindow(QMainWindow):
         if not isinstance(run_setup_view, RunSetupView):
             return
 
-        self._orchestrator = RunOrchestrator(self.services.run_controller, dashboard_vm)
+        # Bound to a local as well as the attribute: the None-check narrowing on
+        # ``self._orchestrator`` is not carried into the nested function below,
+        # which may run long after this method returns.
+        orchestrator = RunOrchestrator(self.services.run_controller, dashboard_vm)
+        self._orchestrator = orchestrator
 
         def on_start_run(request: RunRequest) -> None:
             try:
-                worker = self._orchestrator.start_run(request)
+                worker = orchestrator.start_run(request)
             except RuntimeError as exc:
                 QMessageBox.warning(self, "Run In Progress", str(exc))
                 return

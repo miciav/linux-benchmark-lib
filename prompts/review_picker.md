@@ -74,13 +74,14 @@ Flat lists are insufficient.
 from dataclasses import dataclass, field
 from typing import Any
 
+
 @dataclass
 class SelectionNode:
     id: str
     label: str
-    kind: str                      # e.g. "category", "plugin", "profile", "option"
+    kind: str  # e.g. "category", "plugin", "profile", "option"
     children: list["SelectionNode"] = field(default_factory=list)
-    payload: Any | None = None     # domain object
+    payload: Any | None = None  # domain object
     preview: object | None = None  # Rich renderable (optional)
 ```
 
@@ -97,8 +98,8 @@ This model is:
 ```python
 @dataclass
 class PickerState:
-    path: list[SelectionNode]      # breadcrumb
-    current: SelectionNode         # active node
+    path: list[SelectionNode]  # breadcrumb
+    current: SelectionNode  # active node
     filter: str = ""
 ```
 

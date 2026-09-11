@@ -17,7 +17,7 @@ updates:
       dev-tools:
         patterns:
           - "ruff"
-          - "mypy"
+          - "basedpyright"
           - "pytest*"
           - "bandit"
           - "semgrep"

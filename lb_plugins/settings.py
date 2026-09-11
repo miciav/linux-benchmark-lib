@@ -215,8 +215,8 @@ def _settings_to_options(
         return settings.model_dump()
     if (
         convert_dataclasses
-        and not isinstance(settings, type)
         and is_dataclass(settings)
+        and not isinstance(settings, type)
     ):
         return asdict(settings)
     return settings

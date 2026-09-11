@@ -32,9 +32,7 @@ The individual commands, if you want them:
 
 - Lint: `uv run ruff check .` (add `--fix` to apply safe autofixes)
 - Format: `uv run ruff format .`
-- Type check (`core` gate): `./scripts/mypy_core.sh`
-- Type check (`plugins` batch): `./scripts/mypy_plugins.sh`
-- Type check (`all` advisory): `./scripts/mypy_all.sh`
+- Type check: `uv run basedpyright`
 - Architecture contracts: `uv run lint-imports` and
   `uv run python scripts/check_api_imports.py`
 - Security: `uv run bandit -c pyproject.toml -r <pkg>`,
@@ -49,7 +47,7 @@ deleted and the banned-module list moved to
 
 Two things worth knowing:
 
-- **Ruff is pinned exactly** (`ruff==0.14.10` in dev dependencies), matching the
+- **Ruff is pinned exactly** (`ruff==0.16.6` in dev dependencies), matching the
   `ruff-pre-commit` revision. A newer ruff in one place than the other makes the
   pre-commit hook and a local `ruff check` disagree. Bump both together.
 - **Wildcards do not work in the banned-import list.** Ruff matches module paths
@@ -58,14 +56,30 @@ Two things worth knowing:
   disables the import-boundary check. There is a regression test for the
   boundary itself in `tests/unit/lint/test_import_boundaries.py`.
 
-`mypy` follows imports by default, so the old one-liner against `lb_runner lb_controller lb_app lb_ui`
-was misleading: it still traversed transitive packages and vendored code under `lb_controller/ansible`.
-The scripts above make the scope explicit:
+Type checking runs through basedpyright, the same checker the sibling projects
+use. It replaced mypy, which needed three wrapper scripts to be useful:
+`mypy` follows imports transitively, so a bare invocation traversed the vendored
+code under `lb_controller/ansible` and reported misleading results, and the
+scope had to be expressed as `--follow-imports=silent` plus a core/plugins split.
+basedpyright only checks what `[tool.basedpyright]` `include` names, so the same
+scope is now configuration, and the `scripts/mypy_*.sh` wrappers are gone.
 
-- `mypy_core.sh`: checks `lb_runner`, `lb_controller`, `lb_app`, `lb_ui` with `--follow-imports=silent`
-- `--follow-imports=silent` is intentional: `skip` suppresses the `pydantic.mypy` plugin and causes false `untyped-decorator` errors on `@model_validator`
-- `mypy_plugins.sh`: checks plugin/provisioning code
-- `mypy_all.sh`: checks the full first-party repo surface as an advisory sweep
+The `include` list covers every `lb_*` package, `lb_gui` included. That makes the
+gate a strict superset of what mypy gated: mypy's core and plugins scripts
+skipped `lb_gui` entirely and only the advisory `mypy_all` sweep reached it.
+Adding it to the gate surfaced two findings, both fixed rather than silenced —
+a `Literal`-typed worker field that widened to `str` on assignment, and a member
+access on an optional orchestrator that the `None` narrowing did not cover
+inside a nested function.
+
+The mypy settings were not dropped, they were mapped: its strict flags
+(`disallow_untyped_defs`, `warn_return_any`, `disallow_untyped_decorators`,
+`warn_unreachable`, `strict_equality`) are what basedpyright's `standard` mode
+enforces by default — most of what it reported on this codebase is
+`reportReturnType`, which is `warn_return_any`. The `pydantic.mypy` plugin has no
+basedpyright equivalent because basedpyright understands pydantic natively, and
+the four `[[tool.mypy.overrides]]` blocks that silenced missing-stub reports are
+unnecessary because basedpyright resolves those packages against the venv.
 
 ### Known gaps
 

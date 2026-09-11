@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Protocol
 
 from lb_app.services.run_config import hash_config
@@ -23,6 +23,13 @@ class _HostLike(Protocol):
     """Minimal host contract required by resume helpers."""
 
     name: str
+
+
+@dataclass
+class _LocalHost:
+    """Stand-in host entry used when the run is not remote."""
+
+    name: str = "localhost"
 
 
 def load_resume_journal(
@@ -135,7 +142,7 @@ def ensure_resume_tasks(context: RunContext, journal: RunJournal) -> None:
 def _resume_hosts(context: RunContext) -> list[_HostLike]:
     if getattr(context.config, "remote_hosts", None):
         return list(context.config.remote_hosts)
-    return [SimpleNamespace(name="localhost")]
+    return [_LocalHost()]
 
 
 def _ensure_host_tasks(
@@ -369,7 +376,7 @@ def _resolve_host_names(context: RunContext) -> list[str]:
     if getattr(context.config, "remote_hosts", None):
         hosts = list(context.config.remote_hosts)
     else:
-        hosts = [SimpleNamespace(name="localhost")]
+        hosts = [_LocalHost()]
     return [host.name for host in hosts]
 
 

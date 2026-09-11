@@ -40,6 +40,7 @@ class ConfigScheduler(Protocol):
         desired_size: int,
     ) -> list[ConfigPairs]:
         """Return up to ``desired_size`` configs to execute next."""
+        ...
 
 
 @runtime_checkable
@@ -50,6 +51,7 @@ class PolicyAlgorithm(Protocol):
         self, *, candidates: list[ConfigPairs], desired_size: int
     ) -> list[ConfigPairs]:
         """Choose configuration batch from candidate set."""
+        ...
 
     def update_online(self, event: ExecutionEvent) -> None:
         """Update policy state after one new event."""
@@ -67,6 +69,7 @@ class MemoryEngine(Protocol):
 
     def is_seen(self, key: ConfigKey) -> bool:
         """Return whether the config key is already known."""
+        ...
 
     def ingest_event(self, event: ExecutionEvent) -> None:
         """Persist and index one execution event."""

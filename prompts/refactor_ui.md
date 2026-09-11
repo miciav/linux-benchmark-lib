@@ -137,7 +137,7 @@ class PickItem:
     description: str = ""
     search_blob: str = ""
     preview: object | None = None  # Rich renderable
-    payload: Any = None            # domain object
+    payload: Any = None  # domain object
 ```
 
 ---
@@ -181,6 +181,7 @@ class Dashboard(Protocol):
     def add_log(self, line: str) -> None: ...
     def refresh(self) -> None: ...
     def mark_event(self, source: str) -> None: ...
+
 
 class DashboardFactory(Protocol):
     def create(self, plan: list[Any], journal: Any) -> Dashboard: ...

@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 class DateTimeEncoder(JSONEncoder):
     """Custom JSON encoder that handles datetime objects."""
 
-    def default(self, obj: Any) -> Any:
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
+    def default(self, o: Any) -> Any:
+        if isinstance(o, datetime):
+            return o.isoformat()
+        return super().default(o)
 
 
 def build_rep_result(

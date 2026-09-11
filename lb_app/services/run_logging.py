@@ -75,8 +75,9 @@ def _emit_via_dashboard(
         return False
     msg = dashboard_message or message
     try:
-        if dashboard_warning and hasattr(dashboard, "set_warning"):
-            dashboard.set_warning(message, ttl=ttl)
+        set_warning = getattr(dashboard, "set_warning", None)
+        if dashboard_warning and callable(set_warning):
+            set_warning(message, ttl=ttl)
         else:
             dashboard.add_log(msg)
     except Exception:
@@ -174,8 +175,9 @@ def _update_dashboard_state(
     if not session.dashboard:
         return False
     try:
-        if hasattr(session.dashboard, "set_controller_state"):
-            session.dashboard.set_controller_state(new_state.value)
+        set_controller_state = getattr(session.dashboard, "set_controller_state", None)
+        if callable(set_controller_state):
+            set_controller_state(new_state.value)
         session.dashboard.refresh()
     except Exception:
         pass

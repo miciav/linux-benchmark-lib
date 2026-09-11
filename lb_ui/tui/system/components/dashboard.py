@@ -217,9 +217,9 @@ class RichDashboard(Dashboard):
             f"controller {self.controller_state}",
             stream,
         ]
-        available_width = (
-            available_width or getattr(self.console.size, "width", 120) or 120
-        )
+        available_width = available_width or getattr(self.console.size, "width", 120)
+        if not available_width:
+            available_width = 120
         if available_width >= 96:
             lines = [" • ".join(summary)]
         else:
@@ -298,11 +298,11 @@ class RichDashboard(Dashboard):
             border_style=theme.RICH_BORDER_STYLE_ACTIVE,
         )
 
-    def add_log(self, message: str) -> None:
+    def add_log(self, line: str) -> None:
         """Append a message to the log buffer."""
-        if not message or not message.strip():
+        if not line or not line.strip():
             return
-        stripped = message.strip()
+        stripped = line.strip()
         self.raw_log_buffer.append(stripped)
         if self._rollup_helper.maybe_rollup(stripped):
             self._write_ui_log(stripped)
