@@ -106,8 +106,9 @@ Generated at runtime (gitignored):
 - Python 3.12+ (the floor; CI also tests 3.13), ruff for linting and formatting (88 chars), basedpyright in standard mode
 - `snake_case` for functions/variables, `PascalCase` for classes
 - Prefer dataclasses for configuration objects
-- Test data files use `snake_case` too; the `tests/` tree is excluded from ruff's
-  docstring rules
+- Test data files use `snake_case` too. The docstring rules for *missing*
+  docstrings (D100–D107) are disabled, but globally rather than for `tests/`:
+  the consistency rules (D2xx/D4xx) still apply to test modules
 
 ## Tooling
 

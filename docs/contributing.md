@@ -98,7 +98,7 @@ unnecessary because basedpyright resolves those packages against the venv.
   empty. Docker and the k6 image both work on this machine, so it is not an
   environment problem. Tests carrying the `inter_docker` marker need a Docker
   daemon and belong in their own CI job.
-- The Ansible surface has a pre-existing backlog of 201 ansible-lint findings;
+- The Ansible surface has a pre-existing backlog of 155 ansible-lint findings;
   see `.ansible-lint` for the per-rule counts. The rules that currently fire are
   advisory, so a new rule violation still fails the build.
 
