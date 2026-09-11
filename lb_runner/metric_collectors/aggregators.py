@@ -4,6 +4,16 @@ from __future__ import annotations
 
 import pandas as pd
 
+# jc renamed the vmstat/sar keys in 1.25 (r -> runnable_procs, si -> swap_in, ...).
+# Match the current names first and fall back to the legacy ones so data
+# collected before and after the rename aggregates the same way.
+_CLI_COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
+    "processes_running_avg": ("runnable_procs", "r"),
+    "processes_blocked_avg": ("uninterruptible_sleeping_procs", "b"),
+    "swap_in_kbps_avg": ("swap_in", "si"),
+    "swap_out_kbps_avg": ("swap_out", "so"),
+}
+
 
 def aggregate_psutil(df: pd.DataFrame | None) -> dict[str, float]:
     """Aggregate metrics collected by PSUtilCollector.
@@ -68,13 +78,10 @@ def aggregate_cli(df: pd.DataFrame | None) -> dict[str, float]:
         return {}
 
     summary: dict[str, float] = {}
-    if "r" in df.columns:
-        summary["processes_running_avg"] = df["r"].mean()
-    if "b" in df.columns:
-        summary["processes_blocked_avg"] = df["b"].mean()
-    if "si" in df.columns:
-        summary["swap_in_kbps_avg"] = df["si"].mean()
-    if "so" in df.columns:
-        summary["swap_out_kbps_avg"] = df["so"].mean()
+    for metric, candidates in _CLI_COLUMN_ALIASES.items():
+        for column in candidates:
+            if column in df.columns:
+                summary[metric] = df[column].mean()
+                break
 
     return summary
