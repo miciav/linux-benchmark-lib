@@ -73,14 +73,11 @@ run_step "4/12 Ruff (stats + format)" bash -lc "
 
 run_step "5/12 Type checking" bash -lc "
   cd \"$ROOT\" || exit 1
-  # Uses the project's own scoped invocations. A bare 'mypy .' follows imports
-  # transitively and traverses vendored code under lb_controller/ansible, which
-  # produced misleading results; see docs/contributing.md. pyright is not a
-  # dependency of this project, so the branch that used to probe for it never
-  # fired and has been removed.
-  ./scripts/mypy_core.sh > \"$OUT/mypy_core.txt\" 2>&1 || true
-  ./scripts/mypy_plugins.sh > \"$OUT/mypy_plugins.txt\" 2>&1 || true
-  ./scripts/mypy_all.sh > \"$OUT/mypy_all.txt\" 2>&1 || true
+  # One invocation. basedpyright checks exactly what [tool.basedpyright]
+  # 'include' names, so it stays out of the vendored code under
+  # lb_controller/ansible without the scoping flags the previous mypy scripts
+  # needed; see docs/contributing.md.
+  uv run basedpyright > \"$OUT/basedpyright.txt\" 2>&1 || true
 "
 fi
 

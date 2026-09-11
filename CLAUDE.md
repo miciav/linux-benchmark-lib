@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Setup
 # Use `uv sync`, not `uv pip install -e ".[dev]"`. The lint/type/security
-# toolchain (ruff, mypy, pre-commit, bandit, semgrep, deptry, yamllint,
+# toolchain (ruff, basedpyright, pre-commit, bandit, semgrep, deptry, yamllint,
 # ansible-lint, import-linter) lives in [dependency-groups].dev, which
 # `uv sync` installs and `uv pip install -e ".[dev]"` does not.
 uv sync --all-extras
@@ -28,12 +28,10 @@ uv run ruff check .                           # lint
 uv run ruff check --fix .                     # lint + safe autofixes
 uv run ruff format .                          # format
 
-# Type checking - use the scripts, NOT a bare "mypy <packages>":
-# mypy follows imports transitively, so a bare invocation also traverses
-# vendored Ansible collections and reports misleading results.
-./scripts/mypy_core.sh                        # gate: lb_runner/controller/app/ui
-./scripts/mypy_plugins.sh                     # plugins + provisioning
-./scripts/mypy_all.sh                         # advisory sweep
+# Type checking - one invocation, no scripts. basedpyright checks exactly what
+# [tool.basedpyright] `include` names, so it stays out of the vendored Ansible
+# collections without the scoping flags mypy needed.
+uv run basedpyright                           # type check
 
 # Everything at once, the same way CI does it
 uv run pre-commit run --all-files
@@ -105,7 +103,7 @@ Generated at runtime (gitignored):
 
 ## Style
 
-- Python 3.12+ (the floor; CI also tests 3.13), ruff for linting and formatting (88 chars), strict MyPy
+- Python 3.12+ (the floor; CI also tests 3.13), ruff for linting and formatting (88 chars), basedpyright in standard mode
 - `snake_case` for functions/variables, `PascalCase` for classes
 - Prefer dataclasses for configuration objects
 - Test data files use `snake_case` too; the `tests/` tree is excluded from ruff's
@@ -120,7 +118,7 @@ local and CI results cannot drift.
 | Concern | Tool | Config |
 | --- | --- | --- |
 | Lint + format | ruff | `[tool.ruff]` in `pyproject.toml` |
-| Types | mypy | `[tool.mypy]` + `scripts/mypy_*.sh` |
+| Types | basedpyright | `[tool.basedpyright]`, standard mode |
 | Import layers | import-linter, `scripts/check_api_imports.py` | `[tool.importlinter]` |
 | Security | bandit, semgrep, pip-audit | `[tool.bandit]`, `.semgrep.yml` |
 | Dependencies | deptry | `[tool.deptry]` |

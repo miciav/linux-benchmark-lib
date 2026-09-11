@@ -36,7 +36,7 @@ class ProcessCommandGenerator(CommandGenerator):
 class StdoutCommandGenerator(ProcessCommandGenerator):
     """Command generator with standard stdout/stderr handling."""
 
-    tool_name: str = "command"
+    tool_name: str | None = "command"
 
     def _command_workdir(self) -> Path | None:
         return None

@@ -324,7 +324,14 @@ import subprocess
 
 def test_debug_run_dry_smoke() -> None:
     proc = subprocess.run(
-        ["uv", "run", "peva-debug-run", "--config", "config/dev.local.yml", "--dry-run"],
+        [
+            "uv",
+            "run",
+            "peva-debug-run",
+            "--config",
+            "config/dev.local.yml",
+            "--dry-run",
+        ],
         capture_output=True,
         text=True,
     )

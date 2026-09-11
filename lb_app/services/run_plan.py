@@ -90,6 +90,14 @@ def config_to_dict(config_obj: Any) -> dict[str, Any]:
     """Convert config object to a dictionary when possible."""
     if isinstance(config_obj, dict):
         return cast(dict[str, Any], config_obj)
+    dumped = _model_config_dict(config_obj)
+    if dumped is not None:
+        return dumped
+    return _dataclass_config_dict(config_obj)
+
+
+def _model_config_dict(config_obj: Any) -> dict[str, Any] | None:
+    """Return dumped field values when the object is a pydantic model."""
     try:
         from pydantic import BaseModel
 
@@ -97,9 +105,15 @@ def config_to_dict(config_obj: Any) -> dict[str, Any]:
             return config_obj.model_dump()
     except Exception:
         pass
+    return None
+
+
+def _dataclass_config_dict(config_obj: Any) -> dict[str, Any]:
+    """Return field values when the object is a dataclass instance."""
     try:
-        if not isinstance(config_obj, type) and is_dataclass(config_obj):
-            return asdict(config_obj)
+        if not is_dataclass(config_obj) or isinstance(config_obj, type):
+            return {}
+        return asdict(config_obj)
     except Exception:
         pass
     return {}

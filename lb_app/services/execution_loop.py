@@ -192,9 +192,10 @@ class RunExecutionLoop:
     @staticmethod
     def _clear_warning(session: _RemoteSession, signals: _SignalContext) -> None:
         signals.state_machine.reset_arm()
-        if session.dashboard and hasattr(session.dashboard, "clear_warning"):
+        clear_warning = getattr(session.dashboard, "clear_warning", None)
+        if session.dashboard and callable(clear_warning):
             try:
-                session.dashboard.clear_warning()
+                clear_warning()
                 session.dashboard.refresh()
             except Exception:
                 pass

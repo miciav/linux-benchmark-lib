@@ -37,6 +37,7 @@ def test_simple_plugin_exposes_required_uv_extras() -> None:
     class P(SimpleWorkloadPlugin):
         NAME = "p"
         REQUIRED_UV_EXTRAS = ["peva_faas"]
+
     assert P().get_required_uv_extras() == ["peva_faas"]
 ```
 
@@ -52,8 +53,10 @@ class WorkloadPlugin(ABC):
     def get_required_uv_extras(self) -> List[str]:
         return []
 
+
 class SimpleWorkloadPlugin(WorkloadPlugin):
     REQUIRED_UV_EXTRAS: List[str] = []
+
     def get_required_uv_extras(self) -> List[str]:
         return list(self.REQUIRED_UV_EXTRAS)
 ```
@@ -97,7 +100,9 @@ Expected: FAIL (`required_uv_extras` not populated).
 Add to `_build_plugin_assets()`:
 
 ```python
-required_uv_extras=_call_plugin_method(plugin, "get_required_uv_extras", default=[]) or []
+required_uv_extras = (
+    _call_plugin_method(plugin, "get_required_uv_extras", default=[]) or []
+)
 ```
 
 **Step 4: Run tests to verify pass**
@@ -124,7 +129,9 @@ git commit -m "feat(plugins): propagate required uv extras in plugin assets"
 def test_extravars_builder_collects_uv_extras_for_enabled_workloads(tmp_path):
     cfg = BenchmarkConfig(output_dir=tmp_path / "out")
     cfg.workloads = {"w": WorkloadConfig(plugin="peva_faas", enabled=True)}
-    cfg.plugin_assets = {"peva_faas": PluginAssetConfig(required_uv_extras=["peva_faas"])}
+    cfg.plugin_assets = {
+        "peva_faas": PluginAssetConfig(required_uv_extras=["peva_faas"])
+    }
     extravars = ExtravarsBuilder(cfg).build(...)
     assert extravars["lb_uv_extras"] == ["peva_faas"]
 ```

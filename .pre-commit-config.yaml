@@ -21,7 +21,7 @@ repos:
   # Ruff - lint + format (replaces black, flake8 and pydocstyle)
   # ---------------------------------------------------------------------------
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.10
+    rev: v0.16.6
     hooks:
       - id: ruff
         name: ruff (lint)
@@ -30,23 +30,23 @@ repos:
         name: ruff (format)
 
   # ---------------------------------------------------------------------------
-  # Type checking - reuses the project's own scoped invocations rather than
-  # re-declaring the mypy setup here. See docs/contributing.md for why the
-  # scope is explicit (`--follow-imports=silent` keeps the pydantic plugin
-  # active; `skip` would suppress it and produce false untyped-decorator
-  # errors on @model_validator).
+  # Type checking
+  #
+  # One hook, not the two that ran mypy through scripts/mypy_{core,plugins}.sh.
+  # Those scripts existed to keep mypy out of the vendored Ansible collections
+  # (`--follow-imports=silent`) while leaving its pydantic plugin active, and
+  # the core/plugins split was a consequence of that scoping. basedpyright only
+  # checks what [tool.basedpyright] `include` names and understands pydantic
+  # natively, so the same scope is now configuration rather than a script.
+  #
+  # It runs through the project environment because basedpyright has to resolve
+  # the lb_* packages themselves.
   # ---------------------------------------------------------------------------
   - repo: local
     hooks:
-      - id: mypy-core
-        name: mypy (core)
-        entry: ./scripts/mypy_core.sh
-        language: system
-        pass_filenames: false
-        types: [python]
-      - id: mypy-plugins
-        name: mypy (plugins)
-        entry: ./scripts/mypy_plugins.sh
+      - id: basedpyright
+        name: basedpyright
+        entry: uv run --frozen basedpyright
         language: system
         pass_filenames: false
         types: [python]

@@ -158,7 +158,9 @@ Add one test that exercises a `target_name` containing a space and asserts `mkdi
 def test_execute_uses_pipefail_and_quotes_workspace(mock_conn_cls, k6_runner):
     ...
     expected = "bash -lc 'set -o pipefail; k6 run ... | tee ...'"
-    mock_conn.run.assert_any_call(expected, hide=True, out_stream=ANY, warn=True, in_stream=False)
+    mock_conn.run.assert_any_call(
+        expected, hide=True, out_stream=ANY, warn=True, in_stream=False
+    )
 ```
 
 **Step 2: Run tests to verify they fail**

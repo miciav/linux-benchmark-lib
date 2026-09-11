@@ -215,6 +215,17 @@ ignore = [
     # Nitpicks with low signal.
     "D401",  # non-imperative mood
     "D417",  # undocumented-param
+    # "Use StrEnum instead of class X(str, Enum)" - new in the ruff 0.16 series
+    # and deliberately NOT applied. The two are not equivalent: verified on this
+    # interpreter, str() and f-strings on a (str, Enum) member yield
+    # "ControllerState.RUNNING" and on a StrEnum member "running". Five classes
+    # here mix in str, and they are public API (lb_controller.api exports
+    # SigintDecision), so the conversion would change what those enums render as
+    # in logs, reports and any consumer that stringifies them. Nothing in this
+    # repository interpolates them, so no test would catch it. Adopt it as its
+    # own change, with the affected call sites checked, not as a side effect of
+    # a version bump.
+    "UP042",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -298,75 +309,56 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 
-[tool.mypy]
-python_version = "3.12"
-plugins = ["pydantic.mypy"]
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
-exclude = '''(?x)(
-    ^molecule/
-  | ^lb_controller/ansible/collections/ansible_collections/
-  | ^lb_plugins/plugins/_user/
-  | (^|.*/)__pycache__/
-)'''
+# =============================================================================
+# basedpyright - type checking
+# =============================================================================
+# This replaces mypy, which was the last type checker in the sibling projects.
+# The migration was a swap, not a relaxing:
+#
+#   - mypy's strict flags (disallow_untyped_defs, warn_return_any,
+#     disallow_untyped_decorators, warn_unreachable and the rest) are what
+#     basedpyright's "standard" mode enforces by default. It reports the same
+#     class of problem on this codebase - the bulk of what it found is
+#     reportReturnType, which is mypy's warn_return_any.
+#   - `plugins = ["pydantic.mypy"]` is gone because basedpyright understands
+#     pydantic natively; the plugin was a mypy mechanism.
+#   - mypy followed imports transitively, which is why type checking used to run
+#     through scripts/mypy_{core,plugins,all}.sh with --follow-imports=silent to
+#     keep it out of the vendored Ansible collections. basedpyright only checks
+#     what `include` names, so the same scoping is expressed here as data and
+#     the scripts are gone.
+#   - the four [[tool.mypy.overrides]] blocks existed to silence missing-stub
+#     and missing-import reports for third-party packages. basedpyright resolves
+#     all of them against the venv, and reportMissingTypeStubs covers the rest,
+#     so none of them needed a basedpyright equivalent.
+#
+# reportImplicitOverride is left off, as in the projects that support 3.11;
+# turning it on would add findings across the tree for a rule unrelated to this
+# migration.
 
-[[tool.mypy.overrides]]
-module = [
-    "ansible",
-    "ansible.*",
-    "duckdb",
-    "duckdb.*",
-    "fabric",
-    "fabric.*",
-    "invoke",
-    "invoke.*",
-    "matplotlib",
-    "matplotlib.*",
-    "pandas",
-    "pandas.*",
-    "pyarrow",
-    "pyarrow.*",
-    "psutil",
-    "psutil.*",
-    "seaborn",
-    "seaborn.*",
-    "yaml",
-    "yaml.*",
-    "plyer",
-    "plyer.*",
+[tool.basedpyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"
+include = [
+    "lb_analytics",
+    "lb_app",
+    "lb_common",
+    "lb_controller",
+    "lb_gui",
+    "lb_plugins",
+    "lb_provisioner",
+    "lb_runner",
+    "lb_ui",
 ]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = [
-    "lb_controller.ansible.callback_plugins.lb_events",
+exclude = [
+    "molecule",
+    "lb_controller/ansible/collections",
+    "lb_plugins/plugins/_user",
 ]
-disable_error_code = ["import-not-found"]
-
-[[tool.mypy.overrides]]
-module = [
-    "lb_plugins.plugins.peva_faas.services.memory_checkpoint",
-    "lb_plugins.plugins.peva_faas.services.memory_store",
-    "lb_plugins.plugins.dfaas.services.k6_runner",
-]
-disable_error_code = ["import-not-found"]
-
-[[tool.mypy.overrides]]
-module = [
-    "lb_ui.services.tray",
-    "lb_ui.notifications.providers.desktop",
-]
-disable_error_code = ["import-untyped"]
+reportMissingTypeStubs = false
+reportPrivateUsage = false
+venvPath = "."
+venv = ".venv"
 
 # =============================================================================
 # Bandit - security static analysis
@@ -461,8 +453,10 @@ dev = [
     # Pinned exactly, not with >=: .pre-commit-config.yaml pins the matching
     # ruff-pre-commit revision, and a newer ruff in either place makes the hook
     # and the local run disagree about what a violation is. Bump both together.
-    "ruff==0.14.10",
-    "mypy>=1.0.0",
+    "ruff==0.16.6",
+    # The shared type checker across these projects; mypy is no longer used
+    # anywhere. See [tool.basedpyright] for what replaced which mypy setting.
+    "basedpyright>=1.39.3",
     "pre-commit>=3.2.0",
     "ansible-runner>=2.4.0",
     "ansible-lint>=25.0.0",

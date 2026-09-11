@@ -6,7 +6,7 @@ import contextlib
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from lb_controller.engine.lifecycle import RunPhase
 from lb_controller.engine.run_state import RunFlags, RunState
@@ -39,10 +39,24 @@ def _stop_requested(services: ControllerServices, session: RunSession) -> bool:
     return False
 
 
+@runtime_checkable
+class _InterruptibleExecutor(Protocol):
+    """Executor able to interrupt a playbook that is already in flight.
+
+    ``RemoteExecutor`` does not require interruption, so the controller checks
+    for the capability before using it.
+    """
+
+    def interrupt(self) -> None:
+        """Request interruption of the current playbook execution."""
+        ...
+
+
 def _interrupt_executor(services: ControllerServices) -> None:
-    if hasattr(services.executor, "interrupt"):
+    executor = services.executor
+    if isinstance(executor, _InterruptibleExecutor):
         with contextlib.suppress(Exception):
-            services.executor.interrupt()
+            executor.interrupt()
 
 
 def _refresh_journal(services: ControllerServices) -> None:

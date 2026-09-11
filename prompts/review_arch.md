@@ -42,7 +42,7 @@ For each selected TARGET:
 - Run: uv run python scripts/arch_smells.py TARGET
 - Confirm that arch_report/ contains:
   ruff_check.txt, ruff_stats.txt, ruff_format.txt,
-  mypy_core.txt, mypy_plugins.txt, mypy_all.txt,
+  basedpyright.txt,
   grimp_cycles.txt,
   radon_cc.txt, radon_mi.txt, xenon.txt, lizard.txt,
   vulture.txt,

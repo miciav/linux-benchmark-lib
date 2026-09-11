@@ -26,6 +26,7 @@ class ReadableTextStream(Protocol):
 
     def readline(self) -> str:
         """Read the next available line."""
+        ...
 
 
 class InventoryWriter:

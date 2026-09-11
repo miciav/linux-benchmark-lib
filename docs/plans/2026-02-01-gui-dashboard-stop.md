@@ -69,6 +69,7 @@ class GuiDashboardHandle(DashboardHandle):
 
     def live(self):
         from contextlib import nullcontext
+
         return nullcontext()
 
     def add_log(self, line: str) -> None:
@@ -120,7 +121,9 @@ class GuiUIAdapter(QObject, UIAdapter):
     def show_success(self, message: str) -> None:
         self._vm.on_status(message)
 
-    def show_panel(self, message: str, title: str | None = None, border_style: str | None = None) -> None:
+    def show_panel(
+        self, message: str, title: str | None = None, border_style: str | None = None
+    ) -> None:
         _ = (message, title, border_style)
         self._vm.on_log_line(message)
 
@@ -132,6 +135,7 @@ class GuiUIAdapter(QObject, UIAdapter):
 
     def status(self, message: str):
         from contextlib import nullcontext
+
         self._vm.on_status(message)
         return nullcontext()
 
@@ -139,7 +143,9 @@ class GuiUIAdapter(QObject, UIAdapter):
         _ = (description, total)
         return NoOpProgressHandle()
 
-    def create_dashboard(self, plan: list[dict[str, object]], journal: object, ui_log_file=None):
+    def create_dashboard(
+        self, plan: list[dict[str, object]], journal: object, ui_log_file=None
+    ):
         _ = ui_log_file
         self._signals.init_dashboard.emit(plan, journal)
         return GuiDashboardHandle(self._signals)
@@ -199,7 +205,11 @@ Expected: FAIL (run_id/stop_file missing)
 from lb_app.services.run_journal import generate_run_id
 
 run_id = self._run_id or generate_run_id()
-stop_file = Path(self._stop_file) if self._stop_file else (self._config.output_dir / run_id / "STOP")
+stop_file = (
+    Path(self._stop_file)
+    if self._stop_file
+    else (self._config.output_dir / run_id / "STOP")
+)
 
 return RunRequest(
     # ...
@@ -248,10 +258,14 @@ from unittest.mock import patch
 
 def test_stop_button_touches_stop_file(qtbot, tmp_path):
     from lb_gui.windows.main_window import MainWindow
+
     # ... build MainWindow with mocks ...
     win = MainWindow(services_mock)
     win._current_stop_file = tmp_path / "STOP"
-    with patch("lb_gui.windows.main_window.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes):
+    with patch(
+        "lb_gui.windows.main_window.QMessageBox.question",
+        return_value=QMessageBox.StandardButton.Yes,
+    ):
         win._on_stop_clicked()
     assert win._current_stop_file.exists()
 ```
@@ -283,7 +297,10 @@ main_layout.addWidget(self._sidebar_container)
 
 # In _set_ui_busy():
 self._sidebar.setEnabled(not busy)
-self._stop_button.setEnabled(busy and self._current_worker and self._current_worker.is_running())
+self._stop_button.setEnabled(
+    busy and self._current_worker and self._current_worker.is_running()
+)
+
 
 # Handler:
 def _on_stop_clicked(self):

@@ -35,7 +35,10 @@ class AnalyticsWorker(QObject):
         super().__init__(parent)
         self._analytics = analytics_service
         self._run_info = run_info
-        self._kind = kind
+        # Annotated explicitly: assigning a Literal-typed value to a mutable
+        # attribute widens it to its base type, so ``self._kind`` would infer as
+        # plain ``str`` and no longer match ``run_analytics``'s ``AnalyticsKind``.
+        self._kind: AnalyticsKind = kind
         self._workloads = workloads
         self._hosts = hosts
         self._thread: QThread | None = None

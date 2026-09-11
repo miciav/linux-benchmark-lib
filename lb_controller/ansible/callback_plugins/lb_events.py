@@ -13,18 +13,21 @@ import os
 import time
 from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
-try:
+if TYPE_CHECKING:
     from ansible.plugins.callback import CallbackBase
-except ModuleNotFoundError:  # pragma: no cover
-    # Allow importing this module without the heavy `ansible` dependency installed.
-    # The callback plugin itself is only usable when Ansible is present.
-    class CallbackBase:  # type: ignore[no-redef]
-        """Fallback base class used when Ansible isn't installed."""
+else:
+    try:
+        from ansible.plugins.callback import CallbackBase
+    except ModuleNotFoundError:  # pragma: no cover
+        # Allow importing this module without the heavy `ansible` dependency
+        # installed. The callback plugin is only usable when Ansible is present.
+        class CallbackBase:
+            """Fallback base class used when Ansible isn't installed."""
 
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            return None
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                return None
 
 
 def _extract_lb_event(text: str) -> dict[str, Any] | None:
@@ -72,7 +75,10 @@ class CallbackModule(CallbackBase):
     def v2_runner_on_ok(self, result: Any, **kwargs: Any) -> None:
         self._handle_result(result, status_override=None)
 
-    def v2_runner_on_failed(self, result: Any, **kwargs: Any) -> None:
+    def v2_runner_on_failed(
+        self, result: Any, ignore_errors: bool = False, **kwargs: Any
+    ) -> None:
+        _ = ignore_errors
         self._handle_result(result, status_override="failed")
 
     def v2_runner_on_unreachable(self, result: Any, **kwargs: Any) -> None:

@@ -27,15 +27,16 @@ jobs:
   # pinned in .pre-commit-config.yaml and must match the pin in pyproject.toml.
   # ---------------------------------------------------------------------------
   pre-commit:
-    name: pre-commit (ruff, mypy, bandit, ansible-lint, deptry, import-linter)
+    name: pre-commit (ruff, basedpyright, bandit, ansible-lint, deptry, import-linter)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          # The lint floor is 3.12: ruff's target-version is py312 and mypy is
-          # configured for 3.12, so linting on the floor is the honest choice.
+          # The lint floor is 3.12: ruff's target-version is py312 and
+          # basedpyright is pointed at the 3.12 venv, so linting on the floor is
+          # the honest choice.
           python-version: "3.12"
 
       - uses: astral-sh/setup-uv@v5

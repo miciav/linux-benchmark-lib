@@ -40,14 +40,17 @@ class RunnerRegistryLike(Protocol):
 
     def get(self, name: str) -> Any:
         """Return the workload plugin registered under ``name``."""
+        ...
 
     def create_generator(
         self, plugin_name: str, options: dict[str, Any] | None = None
     ) -> Any:
         """Create a workload generator instance."""
+        ...
 
     def create_collectors(self, config: BenchmarkConfig) -> list[Any]:
         """Create metric collectors for the benchmark config."""
+        ...
 
 
 class LocalRunner:

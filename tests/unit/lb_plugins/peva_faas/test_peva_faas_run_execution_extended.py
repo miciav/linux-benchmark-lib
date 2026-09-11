@@ -58,8 +58,8 @@ def _make_executor(
         "log_manager": MagicMock(),
         "scheduler": MagicMock(),
     }
-    deps["scheduler"].propose_batch.side_effect = (
-        lambda candidates, **_kwargs: candidates
+    deps["scheduler"].propose_batch.side_effect = lambda candidates, **_kwargs: (
+        candidates
     )
     executor = DfaasConfigExecutor(
         config=cfg,

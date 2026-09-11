@@ -16,9 +16,9 @@ def _load_project_dependencies() -> list[str]:
     return list(data["project"]["dependencies"])
 
 
-def _load_mypy_config() -> dict:
+def _load_type_checker_config() -> dict:
     data = _load_pyproject()
-    return dict(data["tool"]["mypy"])
+    return dict(data["tool"]["basedpyright"])
 
 
 def test_invoke_is_declared_for_dfaas_extra() -> None:
@@ -27,10 +27,14 @@ def test_invoke_is_declared_for_dfaas_extra() -> None:
     assert any(dep.startswith("invoke") for dep in extras)
 
 
-def test_mypy_excludes_molecule_dir() -> None:
-    config = _load_mypy_config()
-    exclude = config.get("exclude", "")
-    assert "molecule" in exclude
+def test_type_checker_excludes_molecule_dir() -> None:
+    """The vendored molecule scenarios are not ours to type check.
+
+    This asserted the same thing of [tool.mypy] until the project moved to
+    basedpyright; the intent is unchanged, only the config it reads.
+    """
+    config = _load_type_checker_config()
+    assert "molecule" in " ".join(config.get("exclude", []))
 
 
 def test_dfaas_deps_are_not_global() -> None:

@@ -104,7 +104,7 @@ uv pip install -e ".[ui,gui,controller]"  # Full installation
 uv pip install -e ".[docs]"        # mkdocs
 ```
 
-Development setup uses the `dev` dependency group (pytest, ruff, mypy, bandit,
+Development setup uses the `dev` dependency group (pytest, ruff, basedpyright, bandit,
 pre-commit, import-linter) rather than an extra:
 
 ```bash
