@@ -7,6 +7,7 @@ their output.
 import logging
 import shlex
 import subprocess
+from pathlib import Path
 from typing import Any
 
 import jc
@@ -14,6 +15,74 @@ import jc
 from ._base_collector import BaseCollector
 
 logger = logging.getLogger(__name__)
+
+
+def _merge_parsed(
+    tool_name: str,
+    parsed: Any,
+    warned: set[str] | None = None,
+) -> dict[str, Any]:
+    """Flatten one command's jc output into metrics without losing rows.
+
+    jc returns one dict per device or per CPU, so a multi-row result cannot be
+    flattened into a single dict without collision. The first row is merged flat
+    so the existing aggregator schema keeps working, and every row is preserved
+    under ``<tool>_rows`` so nothing is silently discarded.
+
+    Args:
+        tool_name: Name of the tool, used to namespace the per-row detail
+        parsed: Whatever jc returned
+        warned: Optional set of tool names already reported as multi-row. The
+            multi-row notice is logged at warning level only for the first
+            occurrence per tool and at debug level after that: iostat, mpstat
+            and pidstat all return multiple rows on every collection, and the
+            default interval is one second, so an unguarded warning would emit
+            thousands of identical lines per hour into the run log and the event
+            stream. The information stays available, it just stops repeating.
+
+    Returns:
+        A flat dict of metrics
+
+    """
+    if isinstance(parsed, list):
+        rows = [row for row in parsed if isinstance(row, dict)]
+        if not rows:
+            return {}
+        if len(rows) > 1:
+            if warned is None or tool_name not in warned:
+                if warned is not None:
+                    warned.add(tool_name)
+                logger.warning(
+                    "Command '%s' produced %d rows; keeping the first flat and "
+                    "all of them under '%s_rows'",
+                    tool_name,
+                    len(rows),
+                    tool_name,
+                )
+            else:
+                logger.debug(
+                    "Command '%s' produced %d rows; keeping the first flat and "
+                    "all of them under '%s_rows'",
+                    tool_name,
+                    len(rows),
+                    tool_name,
+                )
+            # The per-row key is retained deliberately, not by oversight: it is
+            # the only place a future per-device aggregator can read the rows
+            # that the flat schema cannot hold. Nothing consumes it today - the
+            # flat merge above is what the aggregators read, and this key is
+            # carried into <workload>_results.json and then list-repr'd into
+            # *_aggregated.csv. That makes it a write-only cost: measured at
+            # roughly 6x the persisted payload against the flat-only shape
+            # (~6.3 KB vs ~1 KB per collection interval on a container), scaling
+            # with device and process count and accumulating for the whole run.
+            # Dropping it would re-introduce the silent data loss it was added
+            # to fix, so it stays until a reader exists.
+            return {**rows[0], f"{tool_name}_rows": rows}
+        return dict(rows[0])
+    if isinstance(parsed, dict):
+        return dict(parsed)
+    return {}
 
 
 class CLICollector(BaseCollector):
@@ -36,6 +105,9 @@ class CLICollector(BaseCollector):
         super().__init__(name, interval_seconds)
         self.commands: list[str] = list(commands or [])
         self._failed_commands: set[str] = set()
+        # Tools already reported as returning multiple rows, so the notice is
+        # logged once per tool rather than once per collection interval.
+        self._multi_row_warned: set[str] = set()
 
     def _collect_metrics(self) -> dict[str, Any]:
         """Collect metrics by running CLI commands.
@@ -65,7 +137,12 @@ class CLICollector(BaseCollector):
                 )
                 output = result.stdout.strip()
 
-                tool_name = shlex.split(command)[0]
+                # jc resolves parsers by bare tool name, so a quoted path like
+                # "/usr/bin/sar" must be reduced to "sar" here; otherwise jc
+                # raises and the command is disabled for the rest of the run.
+                # _validate_environment deliberately keeps the full token: it
+                # checks the actual binary with `which`, which accepts a path.
+                tool_name = Path(shlex.split(command)[0]).name
                 parsed: Any = None
 
                 # Special-case sar: jc may not ship a parser; fall back to manual
@@ -87,10 +164,7 @@ class CLICollector(BaseCollector):
                         self._failed_commands.add(command)
                         continue
 
-                if isinstance(parsed, list):
-                    parsed = parsed[0] if parsed and isinstance(parsed[0], dict) else {}
-                if isinstance(parsed, dict):
-                    metrics.update(parsed)
+                metrics.update(_merge_parsed(tool_name, parsed, self._multi_row_warned))
 
             except subprocess.TimeoutExpired:
                 logger.error(
@@ -153,18 +227,47 @@ class CLICollector(BaseCollector):
         }
 
     def _validate_environment(self) -> bool:
-        """Validate that the CLI tools are available in the environment.
+        """Drop commands whose tool is missing, keeping the ones that work.
+
+        A missing *optional* tool must not abort the benchmark: the metrics it
+        would have produced are worth less than the workload run itself. The
+        collector is only unusable when nothing at all is left to run.
 
         Returns:
-            True if all commands are available, False otherwise
+            True if at least one command can run, False otherwise
 
         """
+        usable = []
         for command in self.commands:
-            tool = command.split()[0]
-            if not self._is_tool_available(tool):
-                logger.error("Required tool '%s' is not available", tool)
-                return False
+            # A malformed entry must be dropped with a warning, never abort the
+            # run: shlex raises on an unbalanced quote and returns [] for an
+            # empty command, and both are the same class of bad config.
+            try:
+                parts = shlex.split(command)
+            except ValueError:
+                parts = []
+            if not parts:
+                logger.warning(
+                    "Skipping CLI metric command %r: it is not parseable as a "
+                    "command line",
+                    command,
+                )
+                continue
+            tool = parts[0]
+            if self._is_tool_available(tool):
+                usable.append(command)
+            else:
+                logger.warning(
+                    "Skipping CLI metric command '%s': tool '%s' is not available",
+                    command,
+                    tool,
+                )
 
+        if not usable:
+            logger.error("No CLI metric command can run in this environment")
+            return False
+
+        self.commands = usable
         return True
 
     def _is_tool_available(self, tool: str) -> bool:

@@ -118,19 +118,7 @@ class MultipassProvisioner:
 
     def _launch_vm(self, vm_name: str, image: str) -> None:
         """Launch a Multipass VM."""
-        cmd = [
-            "multipass",
-            "launch",
-            image,
-            "--name",
-            vm_name,
-            "--cpus",
-            "4",
-            "--disk",
-            "20G",
-            "--memory",
-            "8G",
-        ]
+        cmd = launch_argv(vm_name, image)
         logger.info("Launching Multipass VM %s (%s)", vm_name, image)
         try:
             subprocess.run(
@@ -156,7 +144,7 @@ class MultipassProvisioner:
         for _ in range(15):
             try:
                 result = subprocess.run(
-                    ["multipass", "info", vm_name, "--format", "json"],
+                    info_argv(vm_name),
                     capture_output=True,
                     text=True,
                     check=True,
@@ -198,7 +186,7 @@ class MultipassProvisioner:
         """Destroy VM and wipe associated SSH keys."""
         try:
             subprocess.run(
-                ["multipass", "delete", vm_name, "--purge"],
+                delete_argv(vm_name),
                 check=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -207,6 +195,37 @@ class MultipassProvisioner:
             logger.debug("Best-effort cleanup failed for VM %s", vm_name)
 
         _best_effort_remove_paths((key_path, pub_path))
+
+
+def launch_argv(vm_name: str, image: str) -> list[str]:
+    """Command that launches one benchmark VM.
+
+    The image is at index 2; ``_launch_vm``'s ``lts`` fallback rewrites that
+    index, so the position is part of this function's contract.
+    """
+    return [
+        "multipass",
+        "launch",
+        image,
+        "--name",
+        vm_name,
+        "--cpus",
+        "4",
+        "--disk",
+        "20G",
+        "--memory",
+        "8G",
+    ]
+
+
+def info_argv(vm_name: str) -> list[str]:
+    """Command that reports one VM's state as JSON."""
+    return ["multipass", "info", vm_name, "--format", "json"]
+
+
+def delete_argv(vm_name: str) -> list[str]:
+    """Command that deletes one VM and purges its storage."""
+    return ["multipass", "delete", vm_name, "--purge"]
 
 
 def _rollback_nodes(nodes: list[ProvisionedNode]) -> None:

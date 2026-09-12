@@ -11,10 +11,10 @@
 # ---------------------------------------------------------------------------
 # Ratchet policy
 # ---------------------------------------------------------------------------
-# At the time this config was written ansible-lint reported 201 findings on
-# this codebase - all pre-existing. A hook that fails on its first run is a
-# hook everyone disables, so the rules that currently fire are advisory
-# (warn_list) rather than blocking.
+# ansible-lint currently reports 155 findings on this codebase - all
+# pre-existing. A hook that fails on its first run is a hook everyone
+# disables, so the rules that currently fire are advisory (warn_list) rather
+# than blocking.
 #
 # They are still REPORTED on every run, and any rule NOT listed below still
 # fails the build, so a new class of problem is caught immediately. Remove a
@@ -22,26 +22,36 @@
 #
 #    56  no-changed-when              command/shell without changed_when
 #    29  name[template]               task names built from Jinja
-#    25  command-instead-of-module    a command where a module exists
-#    22  risky-shell-pipe             shell pipeline without pipefail
 #    19  fqcn[action-core]            `command:` instead of `ansible.builtin.command:`
-#    16  yaml[indentation]            manifest indentation
+#    11  command-instead-of-module    a command where a module exists
 #    10  name[play]                   plays without a name
+#     8  risky-shell-pipe             shell pipeline without pipefail
+#     5  yaml[line-length]            long Jinja lines (not wrappable)
 #     5  var-naming[no-role-prefix]   role vars lacking a role prefix
-#     5  ignore-errors               `ignore_errors` masking real failures
-#     5  risky-file-permissions      copy/file/template without `mode:`
-#     5  yaml[line-length]           long Jinja lines (not wrappable)
-#     5  run-once[task]              `run_once` on multi-host tasks
-#     2  yaml[colons]                spacing after a colon
-#     1  key-order[task]             task key ordering
-#     1  jinja[spacing]              Jinja whitespace
+#     5  risky-file-permissions       copy/file/template without `mode:`
+#     5  ignore-errors                `ignore_errors` masking real failures
+#     1  key-order[task]              task key ordering
+#     1  jinja[spacing]               Jinja whitespace
 #
-# `run-once[task]` is advisory rather than a defect here: the controller runs
-# the default linear strategy, where run_once is well defined. It only becomes
-# risky under `strategy: free`, which this project does not use.
+# `yaml[indentation]` and `yaml[colons]` have been ratcheted out: both measure
+# zero, and both are subtags of the `yaml` rule, which IS part of the
+# `production` profile, so they are blocking now and a regression in either one
+# fails the build.
 #
-# The most mechanical to clear first, in order of ease: key-order[task] (1),
-# jinja[spacing] (1), yaml[colons] (2), fqcn[action-core] (19), name[play] (10).
+# `run-once[task]` measures zero too, but it stays in warn_list, because its
+# backlog was never actually measured. The `run-once` rule id is not in the
+# `production` profile and this config sets no `enable_list`, so
+# filter_rules_with_profile unloads the rule and it does not fire either way -
+# the entry is inert today, and the ratchet policy ("remove a rule once its
+# backlog is cleared") does not apply to a rule that never ran. It is kept so
+# that if `run-once` is ever added to `enable_list`, it arrives advisory rather
+# than blocking. A bare `run_once` is not a defect here: the controller runs the
+# default linear strategy, where run_once is well defined, so it only becomes
+# risky under `strategy: free`, which this project does not use. Blocking on it
+# would be a false positive.
+#
+# The most mechanical to clear next, in order of ease: key-order[task] (1),
+# jinja[spacing] (1), fqcn[action-core] (19), name[play] (10).
 
 profile: production
 
@@ -62,8 +72,6 @@ warn_list:
   - no-changed-when
   - command-instead-of-module
   - yaml[line-length]
-  - yaml[indentation]
-  - yaml[colons]
   - key-order[task]
   - jinja[spacing]
   - run-once[task]

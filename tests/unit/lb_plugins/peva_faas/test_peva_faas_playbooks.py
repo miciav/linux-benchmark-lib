@@ -381,7 +381,9 @@ def test_setup_target_playbook_has_core_steps() -> None:
         task.get("ansible.builtin.command") or task.get("ansible.builtin.shell") or ""
         for task in tasks
     ]
-    assert any("get.k3s.io" in cmd for cmd in commands)
+    # The k3s installer is downloaded by a get_url task, so its source URL
+    # lives in `url:` rather than in a command string.
+    assert _find_get_url_tasks(tasks, "get.k3s.io"), "k3s installer download missing"
     assert any("helm upgrade --install openfaas" in cmd for cmd in commands)
     assert any("kubectl apply -f" in cmd for cmd in commands)
 

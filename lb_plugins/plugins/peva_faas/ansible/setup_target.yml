@@ -23,8 +23,16 @@
         state: present
         update_cache: true
 
+    - name: Download the k3s installer
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: /tmp/install-k3s.sh
+        mode: "0755"
+        force: true
+
     - name: Install k3s
-      ansible.builtin.shell: "curl -sfL https://get.k3s.io | sh -"
+      ansible.builtin.command:
+        cmd: /tmp/install-k3s.sh
       args:
         creates: "/usr/local/bin/k3s"
       environment:
@@ -44,13 +52,29 @@
         remote_src: true
         mode: "0600"
 
+    - name: Download the helm installer
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        dest: /tmp/get-helm-3.sh
+        mode: "0755"
+        force: true
+
     - name: Install helm
-      ansible.builtin.shell: "curl -sSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
+      ansible.builtin.command:
+        cmd: /tmp/get-helm-3.sh
       args:
         creates: "/usr/local/bin/helm"
 
+    - name: Download the OpenFaaS CLI installer
+      ansible.builtin.get_url:
+        url: https://cli.openfaas.com
+        dest: /tmp/install-openfaas-cli.sh
+        mode: "0755"
+        force: true
+
     - name: Install faas-cli
-      ansible.builtin.shell: "curl -sSL https://cli.openfaas.com | sh"
+      ansible.builtin.command:
+        cmd: /tmp/install-openfaas-cli.sh
       args:
         creates: "/usr/local/bin/faas-cli"
 
@@ -102,18 +126,28 @@
         get secret basic-auth -o jsonpath="{.data.basic-auth-password}"
       register: openfaas_password_b64
       changed_when: false
+      no_log: true
 
     - name: Decode OpenFaaS admin password
       ansible.builtin.set_fact:
         openfaas_admin_password: "{{ openfaas_password_b64.stdout | b64decode }}"
+      no_log: true
 
     - name: Login to OpenFaaS
-      ansible.builtin.command: >
-        faas-cli login --gateway {{ openfaas_gateway_url }}
-        --username {{ openfaas_admin_user }}
-        --password {{ openfaas_admin_password }}
-        --tls-no-verify
+      ansible.builtin.command:
+        argv:
+          - faas-cli
+          - login
+          - --gateway
+          - "{{ openfaas_gateway_url }}"
+          - --username
+          - "{{ openfaas_admin_user }}"
+          - --password-stdin
+          - --tls-no-verify
+      args:
+        stdin: "{{ openfaas_admin_password }}"
       register: faas_login
+      no_log: true
       retries: 10
       delay: 6
       until: faas_login.rc == 0
