@@ -9,21 +9,32 @@
     state: present
     update_cache: true
 
+- name: Create a private staging directory for the k3s installer
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: lb-install-k3s-
+  register: k3s_staging
+
 - name: Download the k3s installer
   ansible.builtin.get_url:
     url: https://get.k3s.io
-    dest: /tmp/install-k3s.sh
-    mode: "0755"
+    dest: "{{ k3s_staging.path }}/install-k3s.sh"
+    mode: "0700"
     force: true
 
 - name: Install k3s
   ansible.builtin.command:
-    cmd: /tmp/install-k3s.sh
+    cmd: "{{ k3s_staging.path }}/install-k3s.sh"
   args:
     creates: "/usr/local/bin/k3s"
   environment:
     INSTALL_K3S_EXEC: "{{ k3s_install_exec }}"
     INSTALL_K3S_VERSION: "{{ k3s_version }}"
+
+- name: Remove the k3s staging directory
+  ansible.builtin.file:
+    path: "{{ k3s_staging.path }}"
+    state: absent
 
 - name: Ensure kubeconfig directory exists
   ansible.builtin.file:
@@ -38,31 +49,53 @@
     remote_src: true
     mode: "0600"
 
+- name: Create a private staging directory for the helm installer
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: lb-install-helm-
+  register: helm_staging
+
 - name: Download the helm installer
   ansible.builtin.get_url:
     url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-    dest: /tmp/get-helm-3.sh
-    mode: "0755"
+    dest: "{{ helm_staging.path }}/get-helm-3.sh"
+    mode: "0700"
     force: true
 
 - name: Install helm
   ansible.builtin.command:
-    cmd: /tmp/get-helm-3.sh
+    cmd: "{{ helm_staging.path }}/get-helm-3.sh"
   args:
     creates: "/usr/local/bin/helm"
+
+- name: Remove the helm staging directory
+  ansible.builtin.file:
+    path: "{{ helm_staging.path }}"
+    state: absent
+
+- name: Create a private staging directory for the OpenFaaS CLI installer
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: lb-install-openfaas-
+  register: openfaas_staging
 
 - name: Download the OpenFaaS CLI installer
   ansible.builtin.get_url:
     url: https://cli.openfaas.com
-    dest: /tmp/install-openfaas-cli.sh
-    mode: "0755"
+    dest: "{{ openfaas_staging.path }}/install-openfaas-cli.sh"
+    mode: "0700"
     force: true
 
 - name: Install faas-cli
   ansible.builtin.command:
-    cmd: /tmp/install-openfaas-cli.sh
+    cmd: "{{ openfaas_staging.path }}/install-openfaas-cli.sh"
   args:
     creates: "/usr/local/bin/faas-cli"
+
+- name: Remove the OpenFaaS CLI staging directory
+  ansible.builtin.file:
+    path: "{{ openfaas_staging.path }}"
+    state: absent
 
 - name: Ensure OpenFaaS namespaces exist
   ansible.builtin.shell: |
