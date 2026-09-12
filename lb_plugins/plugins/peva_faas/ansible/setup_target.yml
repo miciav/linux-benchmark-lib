@@ -200,32 +200,43 @@
         - openfaas_functions | length == 0
         - benchmark_config is defined
 
+    - name: Create a private staging directory for the Prometheus manifests
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: lb-prometheus-
+      register: prometheus_staging
+
     - name: Copy Prometheus manifests
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/manifests/"
-        dest: "{{ prometheus_manifests_dir }}/"
+        dest: "{{ prometheus_staging.path }}/"
         mode: "0644"
 
     - name: Copy Prometheus deployment manifest
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/manifests/prometheus-deployment.yaml"
-        dest: "{{ prometheus_manifests_dir }}/prometheus-deployment.yaml"
+        dest: "{{ prometheus_staging.path }}/prometheus-deployment.yaml"
         mode: "0644"
 
     - name: Copy Prometheus service account manifest
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/manifests/prometheus-serviceaccount.yaml"
-        dest: "{{ prometheus_manifests_dir }}/prometheus-serviceaccount.yaml"
+        dest: "{{ prometheus_staging.path }}/prometheus-serviceaccount.yaml"
         mode: "0644"
 
     - name: Render Prometheus NodePort service
       ansible.builtin.template:
         src: "{{ playbook_dir }}/templates/prometheus-nodeport-service.yaml.j2"
-        dest: "{{ prometheus_manifests_dir }}/nodeport-service.yaml"
+        dest: "{{ prometheus_staging.path }}/nodeport-service.yaml"
         mode: "0644"
 
     - name: Apply Prometheus and exporter manifests
-      ansible.builtin.command: "kubectl apply -f {{ prometheus_manifests_dir }}"
+      ansible.builtin.command: "kubectl apply -f {{ prometheus_staging.path }}"
+
+    - name: Remove the Prometheus staging directory
+      ansible.builtin.file:
+        path: "{{ prometheus_staging.path }}"
+        state: absent
 
     - name: Wait for node-exporter daemonset
       ansible.builtin.command: >

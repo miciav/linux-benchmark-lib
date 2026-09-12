@@ -1,6 +1,17 @@
+- name: "{{ run_prefix }} Create a private archive directory"
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: lb-collect-
+  register: workload_runner_archive_dir
+  ignore_errors: "{{ workload_runner_collect_ignore_errors | default(false) | bool }}"
+
 - name: "{{ run_prefix }} Archive workload directory (workload-only collect)"
+  # Alias so the tar line stays under the 160-column limit; the archive name is
+  # unchanged and still derived from the same facts the local side uses.
+  vars:
+    archive_dir: "{{ workload_runner_archive_dir.path }}"
   ansible.builtin.command: >
-    tar -czf /tmp/{{ inventory_hostname }}-{{ run_id }}-{{ workload_runner_current_workload }}-rep{{ workload_runner_current_rep }}.tar.gz
+    tar -czf {{ archive_dir }}/{{ inventory_hostname }}-{{ run_id }}-{{ workload_runner_current_workload }}-rep{{ workload_runner_current_rep }}.tar.gz
     -C {{ workload_runner_output_dir }} {{ workload_runner_current_workload }}
   register: workload_runner_archive
   changed_when: true
@@ -17,8 +28,10 @@
   ignore_errors: "{{ workload_runner_collect_ignore_errors | default(false) | bool }}"
 
 - name: "{{ run_prefix }} Fetch workload archive"
+  vars:
+    archive_dir: "{{ workload_runner_archive_dir.path }}"
   ansible.builtin.fetch:
-    src: "/tmp/{{ inventory_hostname }}-{{ run_id }}-{{ workload_runner_current_workload }}-rep{{ workload_runner_current_rep }}.tar.gz"
+    src: "{{ archive_dir }}/{{ inventory_hostname }}-{{ run_id }}-{{ workload_runner_current_workload }}-rep{{ workload_runner_current_rep }}.tar.gz"
     dest: "{{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}/"
     flat: true
   register: workload_runner_fetch
@@ -43,8 +56,8 @@
   run_once: false
   ignore_errors: "{{ workload_runner_collect_ignore_errors | default(false) | bool }}"
 
-- name: "{{ run_prefix }} Remove remote workload archive"
+- name: "{{ run_prefix }} Remove the remote archive directory"
   ansible.builtin.file:
-    path: "/tmp/{{ inventory_hostname }}-{{ run_id }}-{{ workload_runner_current_workload }}-rep{{ workload_runner_current_rep }}.tar.gz"
+    path: "{{ workload_runner_archive_dir.path }}"
     state: absent
   ignore_errors: "{{ workload_runner_collect_ignore_errors | default(false) | bool }}"

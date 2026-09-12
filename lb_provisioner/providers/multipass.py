@@ -28,8 +28,9 @@ class MultipassProvisioner:
     """Manage ephemeral Multipass VMs."""
 
     def __init__(self, base_state_dir: Path | None = None):
-        self.base_state_dir = (
-            base_state_dir or Path(tempfile.gettempdir()) / "lb_multipass"
+        # mkdtemp: unique 0700 dir a local user cannot pre-create or take over
+        self.base_state_dir = base_state_dir or Path(
+            tempfile.mkdtemp(prefix="lb_multipass-")
         )
         self.base_state_dir.mkdir(parents=True, exist_ok=True)
 

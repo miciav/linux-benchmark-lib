@@ -19,7 +19,6 @@ openfaas_functions: []
 prometheus_namespace: "openfaas"
 prometheus_node_port: 30411
 prometheus_url: ""
-prometheus_manifests_dir: "/tmp/peva_faas-prometheus"
 
 # Scaphandre (power monitoring) configuration
 scaphandre_enabled: false

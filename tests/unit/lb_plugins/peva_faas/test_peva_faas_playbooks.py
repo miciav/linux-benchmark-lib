@@ -26,7 +26,6 @@ K3S_REQUIRED_VARS = {
     "openfaas_gateway_node_port",
     "prometheus_namespace",
     "prometheus_node_port",
-    "prometheus_manifests_dir",
 }
 
 

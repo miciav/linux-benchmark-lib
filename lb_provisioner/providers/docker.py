@@ -6,6 +6,7 @@ import logging
 import shutil
 import socket
 import subprocess
+import tempfile
 import time
 import uuid
 from collections.abc import Callable, Iterable
@@ -39,7 +40,10 @@ class DockerProvisioner:
             names = []
             count = max(1, min(request.count, MAX_NODES))
 
-        state_root = request.state_dir or Path("/tmp/lb_docker_keys")
+        # mkdtemp: unique 0700 dir a local user cannot pre-create or take over
+        state_root = request.state_dir or Path(
+            tempfile.mkdtemp(prefix="lb_docker_keys-")
+        )
         state_root.mkdir(parents=True, exist_ok=True)
         nodes: list[ProvisionedNode] = []
 
