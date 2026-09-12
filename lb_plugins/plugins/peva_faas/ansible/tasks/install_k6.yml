@@ -7,6 +7,12 @@
     state: present
     update_cache: true
 
+- name: Create a private staging directory
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: lb-k6-
+  register: k6_staging
+
 - name: Ensure keyring directory exists
   ansible.builtin.file:
     path: "/usr/share/keyrings"
@@ -35,7 +41,7 @@
 - name: Download k6 repository key (fallback)
   ansible.builtin.get_url:
     url: "{{ k6_key_url }}"
-    dest: "/tmp/k6-archive-key.gpg"
+    dest: "{{ k6_staging.path }}/k6-archive-key.gpg"
     mode: "0644"
     timeout: 30
     force: true
@@ -49,7 +55,7 @@
 
 - name: Dearmor k6 repository key
   ansible.builtin.command: >-
-    gpg --dearmor --yes --output {{ k6_keyring_path }} /tmp/k6-archive-key.gpg
+    gpg --dearmor --yes --output {{ k6_keyring_path }} {{ k6_staging.path }}/k6-archive-key.gpg
   register: k6_key_dearmor
   changed_when: true
   when:
@@ -110,7 +116,7 @@
 - name: Download k6 tarball (primary)
   ansible.builtin.get_url:
     url: "{{ k6_tarball_url }}"
-    dest: "/tmp/k6.tar.gz"
+    dest: "{{ k6_staging.path }}/k6.tar.gz"
     mode: "0644"
     timeout: 60
     force: true
@@ -124,7 +130,7 @@
 - name: Download k6 tarball (fallback mirror)
   ansible.builtin.get_url:
     url: "{{ k6_tarball_url_fallback }}"
-    dest: "/tmp/k6.tar.gz"
+    dest: "{{ k6_staging.path }}/k6.tar.gz"
     mode: "0644"
     timeout: 60
     force: true
@@ -146,14 +152,14 @@
 
 - name: Extract k6 tarball
   ansible.builtin.unarchive:
-    src: "/tmp/k6.tar.gz"
-    dest: "/tmp"
+    src: "{{ k6_staging.path }}/k6.tar.gz"
+    dest: "{{ k6_staging.path }}"
     remote_src: true
   when: k6_apt_failed | bool
 
 - name: Install k6 binary
   ansible.builtin.copy:
-    src: "{{ k6_extract_dir }}/k6"
+    src: "{{ k6_staging.path }}/k6-v{{ k6_version }}-linux-{{ k6_arch }}/k6"
     dest: "/usr/local/bin/k6"
     mode: "0755"
     remote_src: true
@@ -166,3 +172,8 @@
     mode: "0755"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
+
+- name: Remove the k6 staging directory
+  ansible.builtin.file:
+    path: "{{ k6_staging.path }}"
+    state: absent

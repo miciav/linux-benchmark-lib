@@ -14,11 +14,9 @@
     stream_arch: "{{ stream_arch_map.get(ansible_facts['architecture'] | default('amd64'), 'amd64') }}"
     stream_deb_default: "{{ playbook_dir + '/../stream-benchmark_' + stream_version + '-1_' + stream_arch + '.deb' }}"
     stream_deb_src_resolved: "{{ stream_deb_src | default(stream_deb_default, true) }}"
-    stream_deb_dest: "/tmp/stream-benchmark_{{ stream_version }}.deb"
     stream_workspace: "{{ ansible_facts['env']['HOME'] + '/.lb/workspaces/stream' }}"
     stream_install_intel_compiler: false
     stream_intel_key_url: "https://apt.repos.intel.com/oneapi/gpgkey"
-    stream_intel_key_tmp: "/tmp/oneapi.gpg"
     stream_intel_keyring: "/usr/share/keyrings/oneapi-archive-keyring.gpg"
     stream_intel_repo_file: "/etc/apt/sources.list.d/oneapi.list"
     stream_intel_repo: >-
@@ -65,15 +63,22 @@
         - stream_install_intel_compiler
         - stream_arch == "amd64"
       block:
+        - name: Create a private staging directory
+          ansible.builtin.tempfile:
+            state: directory
+            prefix: lb-intel-
+          register: stream_intel_staging
+
         - name: Download Intel oneAPI GPG key
           ansible.builtin.get_url:
             url: "{{ stream_intel_key_url }}"
-            dest: "{{ stream_intel_key_tmp }}"
+            dest: "{{ stream_intel_staging.path }}/oneapi.gpg"
             mode: "0644"
+            force: true
 
         - name: Install Intel oneAPI keyring
           ansible.builtin.command:
-            cmd: "gpg --dearmor --yes -o {{ stream_intel_keyring }} {{ stream_intel_key_tmp }}"
+            cmd: "gpg --dearmor --yes -o {{ stream_intel_keyring }} {{ stream_intel_staging.path }}/oneapi.gpg"
           args:
             creates: "{{ stream_intel_keyring }}"
 
@@ -104,6 +109,11 @@
           loop: "{{ stream_intel_symlinks }}"
           when: stream_intel_bin_stat.stat.isdir
 
+        - name: Remove the Intel staging directory
+          ansible.builtin.file:
+            path: "{{ stream_intel_staging.path }}"
+            state: absent
+
     - name: Validate STREAM package source exists on controller
       delegate_to: localhost
       run_once: true
@@ -119,17 +129,28 @@
           Build it via Docker Buildx (see plugin README) or override stream_deb_src.
       when: not stream_deb_src_stat.stat.exists
 
+    - name: Create a private staging directory
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: lb-stream-
+      register: stream_staging
+
     - name: Copy STREAM package to target
       ansible.builtin.copy:
         src: "{{ stream_deb_src_resolved }}"
-        dest: "{{ stream_deb_dest }}"
+        dest: "{{ stream_staging.path }}/stream-benchmark_{{ stream_version }}.deb"
         mode: "0644"
 
     - name: Install STREAM package
       ansible.builtin.apt:
-        deb: "{{ stream_deb_dest }}"
+        deb: "{{ stream_staging.path }}/stream-benchmark_{{ stream_version }}.deb"
         state: present
         update_cache: true
+
+    - name: Remove the STREAM staging directory
+      ansible.builtin.file:
+        path: "{{ stream_staging.path }}"
+        state: absent
 
     - name: Ensure workspace bin directory exists
       ansible.builtin.file:

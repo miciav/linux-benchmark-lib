@@ -15,7 +15,6 @@ K6_REQUIRED_VARS = {
     "k6_repo",
     "k6_tarball_url",
     "k6_tarball_url_fallback",
-    "k6_extract_dir",
 }
 
 # Variables required by tasks/setup_target_tasks.yml

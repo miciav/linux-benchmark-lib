@@ -16,7 +16,6 @@
     hpl_arch: "{{ hpl_arch_map.get(ansible_facts['architecture'] | default('amd64'), 'amd64') }}"
     hpl_deb_default: "{{ playbook_dir + '/../hpl_2.3-1_' + hpl_arch + '.deb' }}"
     hpl_deb_src_resolved: "{{ hpl_deb_src | default(hpl_deb_default, true) }}"
-    hpl_deb_dest: "/tmp/hpl_{{ hpl_version }}.deb"
     hpl_packages:
       - openmpi-bin
       - libopenmpi-dev
@@ -66,32 +65,32 @@
           Override hpl_deb_src with a valid path or URL.
       when: not hpl_deb_src_stat.stat.exists
 
+    - name: Create a private staging directory
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: lb-hpl-
+      register: hpl_staging
+
     - name: Copy HPL package to target
       ansible.builtin.copy:
         src: "{{ hpl_deb_src_resolved }}"
-        dest: "{{ hpl_deb_dest }}"
+        dest: "{{ hpl_staging.path }}/hpl_{{ hpl_version }}.deb"
         mode: "0644"
 
-    - name: Prepare temp dir for HPL package repack
-      ansible.builtin.file:
-        path: /tmp/hpl-deb-unpacked
-        state: absent
-      when: hpl_should_repack | bool
-
     - name: Unpack HPL package for dependency relaxation
-      ansible.builtin.command: dpkg-deb -R {{ hpl_deb_dest }} /tmp/hpl-deb-unpacked
+      ansible.builtin.command: dpkg-deb -R {{ hpl_staging.path }}/hpl_{{ hpl_version }}.deb {{ hpl_staging.path }}/unpacked
       when: hpl_should_repack | bool
 
     - name: Relax libopenmpi dependency constraint
       ansible.builtin.replace:
-        path: /tmp/hpl-deb-unpacked/DEBIAN/control
+        path: "{{ hpl_staging.path }}/unpacked/DEBIAN/control"
         regexp: 'libopenmpi3t64 \\(>= [^)]+\\)'
         replace: "{{ hpl_openmpi_runtime_pkg }}"
       when: hpl_should_repack | bool
 
     - name: Replace libopenmpi runtime dependency when needed
       ansible.builtin.replace:
-        path: /tmp/hpl-deb-unpacked/DEBIAN/control
+        path: "{{ hpl_staging.path }}/unpacked/DEBIAN/control"
         regexp: '\\blibopenmpi3t64\\b'
         replace: "{{ hpl_openmpi_runtime_pkg }}"
       when:
@@ -99,14 +98,19 @@
         - hpl_openmpi_runtime_pkg != 'libopenmpi3t64'
 
     - name: Repack HPL package after dependency relaxation
-      ansible.builtin.command: dpkg-deb -b /tmp/hpl-deb-unpacked {{ hpl_deb_dest }}
+      ansible.builtin.command: dpkg-deb -b {{ hpl_staging.path }}/unpacked {{ hpl_staging.path }}/hpl_{{ hpl_version }}.deb
       when: hpl_should_repack | bool
 
     - name: Install HPL package
       ansible.builtin.apt:
-        deb: "{{ hpl_deb_dest }}"
+        deb: "{{ hpl_staging.path }}/hpl_{{ hpl_version }}.deb"
         state: present
         update_cache: true
+
+    - name: Remove the HPL staging directory
+      ansible.builtin.file:
+        path: "{{ hpl_staging.path }}"
+        state: absent
 
     - name: Ensure workspace bin directory exists
       ansible.builtin.file:
