@@ -453,7 +453,7 @@ dev = [
     # Pinned exactly, not with >=: .pre-commit-config.yaml pins the matching
     # ruff-pre-commit revision, and a newer ruff in either place makes the hook
     # and the local run disagree about what a violation is. Bump both together.
-    "ruff==0.16.6",
+    "ruff==0.16.7",
     # The shared type checker across these projects; mypy is no longer used
     # anywhere. See [tool.basedpyright] for what replaced which mypy setting.
     "basedpyright>=1.39.3",
