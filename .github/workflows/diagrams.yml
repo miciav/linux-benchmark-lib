@@ -55,7 +55,7 @@ jobs:
           mv "${packages_puml[0]}" docs/diagrams/packages.puml
 
       - name: Upload diagrams artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: diagrams-${{ github.ref_name }}
           path: docs/diagrams
