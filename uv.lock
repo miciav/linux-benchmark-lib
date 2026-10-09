@@ -3673,16 +3673,16 @@ wheels = [
 
 [[package]]
 name = "types-seaborn"
-version = "0.13.2.20251221"
+version = "0.13.2.20261006"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas-stubs" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a3/5e/5363e5f29d68e2c92d9459d463fa956692e7f857455f42f6a8f25dc3426b/types_seaborn-0.13.2.20251221.tar.gz", hash = "sha256:20c2d17e62624627eacecf546cf412147dcd4652d6eba3ab393f3380aaa82075", size = 29316, upload-time = "2025-12-21T03:20:39.925Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a4/34/edc30350ef36e0de71ee2e5f76f54d3d2c2073fe0d6872f4272f9ec24abe/types_seaborn-0.13.2.20261006.tar.gz", hash = "sha256:159c8e572dcec89263de2a84eb4071519c655383bbee66767061566880eb3a8c", size = 30080, upload-time = "2026-10-06T08:16:01.119Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f7/72/3cf7f8c123ae813dad6ccbe496bc9cc3571229355c6c86da232e010cbbee/types_seaborn-0.13.2.20251221-py3-none-any.whl", hash = "sha256:c060ceab93174c2625bdd3734e2e35a4e10f7d2c041b17b92a2ee26efa8bf30e", size = 40854, upload-time = "2025-12-21T03:20:39.093Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/2e/c463d868786f726004be726d5042ace43c49a156a48d53d3ca43d56888ab/types_seaborn-0.13.2.20261006-py3-none-any.whl", hash = "sha256:3bc4c6fdfa9f5a2d5d5d8fe99cba6b3c501fec702cfc57ba10604d2d59ac4570", size = 40860, upload-time = "2026-10-06T08:16:00.116Z" },
 ]
 
 [[package]]
