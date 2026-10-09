@@ -150,7 +150,7 @@ class RunJournal:
             data = json.load(f)
 
         metadata = data.get("metadata", {}) or {}
-        _validate_config(metadata, config, data.get("run_id"))
+        _validate_config(metadata, config)
         tasks_data = data.pop("tasks", [])
         journal = cls(**data)
         journal.tasks = _load_tasks(tasks_data)
@@ -315,18 +315,9 @@ def _valid_test_names(config: Any, test_types: list[str]) -> Iterable[str]:
     return (name for name in test_types if name in config.workloads)
 
 
-def _validate_config(
-    metadata: dict[str, Any], config: Any | None, run_id: str | None = None
-) -> None:
+def _validate_config(metadata: dict[str, Any], config: Any | None) -> None:
     if config is None:
         return
-    requested = getattr(config, "experiment_id", None)
-    recorded = metadata.get("experiment_id")
-    if requested and recorded and requested != recorded:
-        raise ValueError(
-            f"{run_id or 'This run'} belongs to experiment {recorded!r}, not "
-            f"{requested!r}; aborting resume."
-        )
     expected_reps = metadata.get("repetitions")
     if expected_reps and getattr(config, "repetitions", None) != expected_reps:
         raise ValueError("Config does not match journal repetitions; aborting resume.")

@@ -30,7 +30,7 @@ folder.
 | Declaration | `BenchmarkConfig.experiment_id: str \| None`; `lb run --experiment` sets `RunRequest.experiment_id`, which overrides the config value before the run starts | `lb_runner` (model), `lb_app` (`RunRequest`), `lb_ui` (option) |
 | Generation | `RunJournal.initialize()` is the single place every journal is born (new runs, rebuilt journals). Its `_build_metadata(config)` records `config.experiment_id` or, when empty, `generate_experiment_id()` | `lb_controller/services/journal.py`, `generate_experiment_id()` next to `generate_run_id()` in `lb_controller/services/paths.py` |
 | Recording | `metadata.experiment_id` in `run_journal.json` — already read by `load_experiment` into the `runs` table | `lb_controller` |
-| Resume | The journal's id stands. A resume that asks for a different `experiment_id` fails with "run X belongs to experiment Y" | `_validate_config` in `lb_controller/services/journal.py` |
+| Resume | The journal's id stands. `lb resume` has no `--experiment`, so the only "request" is the config file, whose `experiment_id` is for new runs: a different value is logged as a warning, never an error (an error would make a run started with `--experiment B` under a config pinning `A` impossible to resume) | `load_resume_journal` in `lb_app/services/run_journal.py` |
 | Reporting | At the end of `lb run`: `Experiment: exp-… — to add runs to it: lb run --experiment exp-…` | `lb_ui` |
 
 Rules:
@@ -77,7 +77,7 @@ folder. Merging folders is left out until it is needed.
 | Situation | Behaviour |
 |---|---|
 | Invalid `--experiment` or config `experiment_id` | Validation error before anything starts, naming the allowed characters; no run is created |
-| `lb resume` with an `experiment_id` different from the journal's | Error: "run X belongs to experiment Y" |
+| `lb resume` with a config whose `experiment_id` differs from the journal's | The run stays in the journal's experiment; a warning names both ids |
 | Journal without `experiment_id` (older runs) or unreadable | The run is a one-run experiment named after its `run_id` |
 | `get_experiment` with an unknown id | Returns `None`; the user-facing message belongs to C |
 | Two runs without an id started in the same second | They receive the same generated id and share an experiment; documented, unlikely |
@@ -89,7 +89,8 @@ journal is written on the controller).
 
 - Validation: valid and invalid ids; shape of the generated id.
 - Resume: a run with a generated id resumes with its original config file
-  (proves the hash exclusion); a different id on resume is rejected.
+  (proves the hash exclusion); a different id in the config on resume keeps
+  the journal's id and warns.
 - Journal: `metadata.experiment_id` is written; `--experiment` beats the config
   value, which beats generation.
 - Catalog: on run folders built in the test (two runs in one experiment, one in

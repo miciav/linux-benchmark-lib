@@ -38,21 +38,3 @@ def test_a_generated_id_run_resumes_with_its_original_config(tmp_path: Path) -> 
     journal.save(path)
     loaded = RunJournal.load(path, config=BenchmarkConfig())
     assert loaded.metadata["experiment_id"] == journal.metadata["experiment_id"]
-
-
-def test_resume_rejects_a_different_experiment(tmp_path: Path) -> None:
-    journal = RunJournal.initialize("run-1", BenchmarkConfig(experiment_id="a"), [])
-    path = tmp_path / "run_journal.json"
-    journal.save(path)
-    with pytest.raises(ValueError, match="run-1 belongs to experiment 'a'"):
-        RunJournal.load(path, config=BenchmarkConfig(experiment_id="b"))
-
-
-def test_resume_of_a_journal_without_id_accepts_a_configured_one(
-    tmp_path: Path,
-) -> None:
-    journal = RunJournal.initialize("run-1", BenchmarkConfig(), [])
-    del journal.metadata["experiment_id"]  # a journal from before this change
-    path = tmp_path / "run_journal.json"
-    journal.save(path)
-    RunJournal.load(path, config=BenchmarkConfig(experiment_id="b"))

@@ -74,6 +74,7 @@ from lb_plugins.api import (
     reset_registry_cache,
 )
 from lb_provisioner.api import MAX_NODES
+from lb_runner.api import validate_experiment_id
 
 AppClient = ApplicationClient
 
@@ -143,4 +144,5 @@ __all__ = [
     "summarize_system_info",
     "target_repetitions",
     "test_service_module",
+    "validate_experiment_id",
 ]

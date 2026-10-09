@@ -656,3 +656,14 @@ def test_run_reports_failure_when_start_run_returns_none(
 
     assert result.exit_code == 1, result.output
     assert "Run did not start" in result.output, result.output
+
+
+@pytest.mark.unit_ui
+def test_an_invalid_experiment_is_rejected_before_the_run_starts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cli = _load_cli(monkeypatch, tmp_path)
+    result = CliRunner().invoke(cli.app, ["run", "--experiment", "a b"])
+    assert result.exit_code == 2, result.output
+    assert "letters, digits" in result.output
+    assert "Benchmark starting" not in result.output
