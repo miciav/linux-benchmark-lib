@@ -1,0 +1,3 @@
+timestamp,time,uptime,users,load_1m,load_5m,load_15m,time_hour,time_minute,time_second,uptime_days,uptime_hours,uptime_minutes,uptime_total_seconds,collector
+2026-10-08 22:35:50.496522,22:35:50,5 min,3,0.44,0.7,0.34,22,35,50,0,0,5,300,CLICollector
+2026-10-08 22:35:51.491554,22:35:51,5 min,3,0.48,0.7,0.35,22,35,51,0,0,5,300,CLICollector

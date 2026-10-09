@@ -78,3 +78,24 @@ def test_unixbench_validate_environment_missing(tmp_path: Path) -> None:
     cfg = UnixBenchConfig(workdir=tmp_path / "missing")
     gen = UnixBenchGenerator(cfg)
     assert gen._validate_environment() is False
+
+
+def test_unixbench_parses_results_and_index() -> None:
+    # Report tail of a real UnixBench 5.1.3 run captured from a Multipass VM.
+    stdout = (
+        "1 x Dhrystone 2 using register variables  1\n\n"
+        "0 CPUs in system; running 1 parallel copy of tests\n\n"
+        "Dhrystone 2 using register variables       77592446.5 lps   "
+        "(10.0 s, 1 samples)\n\n"
+        "System Benchmarks Partial Index              BASELINE       RESULT    INDEX\n"
+        "Dhrystone 2 using register variables         116700.0   77592446.5   6648.9\n"
+        "                                                                   ========\n"
+        "System Benchmarks Index Score (Partial Only)                         6648.9\n"
+    )
+    gen = UnixBenchGenerator(UnixBenchConfig())
+    assert gen._result_parser is not None
+    result = gen._result_parser.parse({"stdout": stdout})
+    assert result["dhrystone_2_using_register_variables_result"] == 77592446.5
+    assert result["dhrystone_2_using_register_variables_unit"] == "lps"
+    assert result["dhrystone_2_using_register_variables_index"] == 6648.9
+    assert result["index_score"] == 6648.9

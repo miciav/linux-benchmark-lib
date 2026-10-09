@@ -1,0 +1,52 @@
+[
+ {
+  "test_name": "unixbench",
+  "repetition": 1,
+  "start_time": "2026-10-08T22:46:23.152929",
+  "end_time": "2026-10-08T22:46:51.159957",
+  "duration_seconds": 28.007028,
+  "generator_result": {
+   "stdout": "",
+   "stderr": "",
+   "returncode": 0,
+   "command": "./Run -c 1 -i 1 dhry2reg whetstone-double",
+   "max_retries": 0,
+   "tags": [],
+   "dhrystone_2_using_register_variables_result": 77523624.3,
+   "dhrystone_2_using_register_variables_unit": "lps",
+   "double_precision_whetstone_result": 12127.4,
+   "double_precision_whetstone_unit": "MWIPS",
+   "dhrystone_2_using_register_variables_index": 6643.0,
+   "double_precision_whetstone_index": 2205.0,
+   "index_score": 3827.2
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-unixbench/lb-worker-verify/unixbench/rep1",
+  "success": true
+ },
+ {
+  "test_name": "unixbench",
+  "repetition": 2,
+  "start_time": "2026-10-08T22:46:59.239837",
+  "end_time": "2026-10-08T22:47:27.246806",
+  "duration_seconds": 28.006969,
+  "generator_result": {
+   "stdout": "",
+   "stderr": "",
+   "returncode": 0,
+   "command": "./Run -c 1 -i 1 dhry2reg whetstone-double",
+   "max_retries": 0,
+   "tags": [],
+   "dhrystone_2_using_register_variables_result": 76944384.7,
+   "dhrystone_2_using_register_variables_unit": "lps",
+   "double_precision_whetstone_result": 12104.7,
+   "double_precision_whetstone_unit": "MWIPS",
+   "dhrystone_2_using_register_variables_index": 6593.3,
+   "double_precision_whetstone_index": 2200.8,
+   "index_score": 3809.3
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-unixbench/lb-worker-verify/unixbench/rep2",
+  "success": true
+ }
+]

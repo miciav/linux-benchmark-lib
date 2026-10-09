@@ -32,7 +32,11 @@ spec:
       - name: cadvisor
         image: gcr.io/cadvisor/cadvisor:v0.52.1
         args:
-          - --docker_only
+          # k3s runs pods on its own containerd, not Docker: without this
+          # cAdvisor only sees the root cgroup and the per-function queries
+          # (container_label_io_kubernetes_container_name) return nothing.
+          - --containerd=/var/run/k3s/containerd/containerd.sock
+          - --containerd-namespace=k8s.io
           - --enable_metrics=app,cpu,memory,process
         volumeMounts:
         - name: rootfs

@@ -1,0 +1,29 @@
+[
+ {
+  "test_name": "geekbench",
+  "repetition": 1,
+  "start_time": "2026-10-08T22:55:18.666177",
+  "end_time": "2026-10-08T22:59:48.739855",
+  "duration_seconds": 270.073678,
+  "generator_result": {
+   "stdout": "",
+   "stderr": "",
+   "returncode": 255,
+   "command": "/opt/geekbench/Geekbench-6.3.0-LinuxARMPreview/geekbench6 --cpu",
+   "max_retries": 0,
+   "tags": [],
+   "error_type": "WorkloadError",
+   "error": "GeekbenchGenerator returned non-zero exit code",
+   "error_context": {
+    "workload": "GeekbenchGenerator",
+    "returncode": 255,
+    "command": "/opt/geekbench/Geekbench-6.3.0-LinuxARMPreview/geekbench6 --cpu"
+   },
+   "log_path": "/tmp/lb_geekbench/geekbench.log",
+   "export_json_supported": false
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-geekbench/lb-worker-verify/geekbench/rep1",
+  "success": false
+ }
+]

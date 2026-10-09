@@ -10,6 +10,9 @@
     # This is used as PTS_USER_PATH_OVERRIDE (must be a directory path with trailing slash).
     pts_home_root: "{{ pts_home_root | default(lb_workdir + '/.phoronix-test-suite/') }}"
     pts_apt_packages: "{{ pts_apt_packages | default(['gdebi-core', 'unzip']) }}"
+    # The controller passes home_root unexpanded: resolve "~" for the become
+    # user, the same user the workload runner executes PTS as.
+    pts_user_path: "{{ pts_home_root | regex_replace('^~', ansible_facts['env']['HOME']) }}"
 
   tasks:
     - name: Validate required vars
@@ -47,18 +50,18 @@
 
     - name: Ensure PTS home root exists
       ansible.builtin.file:
-        path: "{{ pts_home_root }}"
+        path: "{{ pts_user_path }}"
         state: directory
         mode: "0755"
 
     - name: Configure PTS batch mode (non-interactive)
       ansible.builtin.shell: |
         set -e
-        export PTS_USER_PATH_OVERRIDE="{{ pts_home_root }}"
+        export PTS_USER_PATH_OVERRIDE="{{ pts_user_path }}"
         if [ -f /etc/phoronix-test-suite.xml ] && grep -qi "<Configured>TRUE</Configured>" /etc/phoronix-test-suite.xml; then
           exit 0
         fi
-        if [ -f "{{ pts_home_root }}/user-config.xml" ] && grep -qi "<Configured>TRUE</Configured>" "{{ pts_home_root }}/user-config.xml"; then
+        if [ -f "{{ pts_user_path }}/user-config.xml" ] && grep -qi "<Configured>TRUE</Configured>" "{{ pts_user_path }}/user-config.xml"; then
           exit 0
         fi
         phoronix-test-suite batch-setup <<'EOF'
@@ -76,7 +79,7 @@
     - name: Install PTS profile (idempotent best-effort, non-interactive)
       ansible.builtin.shell: |
         set -e
-        export PTS_USER_PATH_OVERRIDE="{{ pts_home_root }}"
+        export PTS_USER_PATH_OVERRIDE="{{ pts_user_path }}"
         if phoronix-test-suite batch-install "{{ pts_profile }}" </dev/null; then
           exit 0
         fi

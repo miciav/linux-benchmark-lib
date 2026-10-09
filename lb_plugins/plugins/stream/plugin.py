@@ -18,8 +18,9 @@ from typing import Any, ClassVar
 
 from pydantic import Field, model_validator
 
-from lb_common.api import WorkloadError
+from lb_common.api import DatasetDescriptor, MetricSpec, WorkloadError
 from lb_plugins.base_generator import CommandGenerator
+from lb_plugins.datasets import plugin_csv_dataset
 from lb_plugins.interface import (
     BasePluginConfig,
     SimpleWorkloadPlugin,
@@ -736,6 +737,9 @@ class StreamGenerator(CommandGenerator):
         self._process = None
 
 
+_KERNEL = r"^(?P<kernel>copy|scale|add|triad)_"
+
+
 class StreamPlugin(SimpleWorkloadPlugin):
     """STREAM Plugin definition."""
 
@@ -748,6 +752,27 @@ class StreamPlugin(SimpleWorkloadPlugin):
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     TEARDOWN_PLAYBOOK = Path(__file__).parent / "ansible" / "teardown.yml"
     PRESET_COMPILERS: ClassVar[list[str]] = ["gcc", "icc"]
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        return [
+            plugin_csv_dataset(
+                test_name,
+                keys=["compiler", "stream_array_size", "ntimes", "threads"],
+                metrics=[
+                    MetricSpec(
+                        pattern=_KERNEL + r"(?P<metric>best_rate_mb_s)$", unit="MB/s"
+                    ),
+                    MetricSpec(
+                        pattern=_KERNEL
+                        + r"(?P<metric>avg_time_s|min_time_s|max_time_s)$",
+                        unit="s",
+                    ),
+                ],
+                exclude=[r"(copy|scale|add|triad)_(avg|min|max)_time_ms", "validated"],
+            )
+        ]
 
     def get_preset_config(self, level: WorkloadIntensity) -> StreamConfig | None:
         import multiprocessing

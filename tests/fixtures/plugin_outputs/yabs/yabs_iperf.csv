@@ -1,0 +1,15 @@
+run_id,workload,repetition,mode,provider,location,send_mbits,recv_mbits,latency_ms
+verify-yabs,yabs,1,IPv4,Clouvider,"London, UK (10G)",936.0,856.0,37.5
+verify-yabs,yabs,1,IPv4,Eranium,"Amsterdam, NL (100G)",933.0,929.0,30.7
+verify-yabs,yabs,1,IPv4,Uztelecom,"Tashkent, UZ (10G)",847.0,292.0,86.0
+verify-yabs,yabs,1,IPv4,Leaseweb,"Singapore, SG (10G)",781.0,613.0,157.0
+verify-yabs,yabs,1,IPv4,Clouvider,"Los Angeles, CA, US (10G)",777.0,175.0,172.0
+verify-yabs,yabs,1,IPv4,Leaseweb,"NYC, NY, US (10G)",841.0,612.0,115.0
+verify-yabs,yabs,1,IPv4,Edgoo,"Sao Paulo, BR (1G)",720.0,239.0,194.0
+verify-yabs,yabs,2,IPv4,Clouvider,"London, UK (10G)",936.0,919.0,37.2
+verify-yabs,yabs,2,IPv4,Eranium,"Amsterdam, NL (100G)",933.0,612.0,30.9
+verify-yabs,yabs,2,IPv4,Uztelecom,"Tashkent, UZ (10G)",887.0,385.0,86.3
+verify-yabs,yabs,2,IPv4,Leaseweb,"Singapore, SG (10G)",788.0,620.0,158.0
+verify-yabs,yabs,2,IPv4,Clouvider,"Los Angeles, CA, US (10G)",787.0,202.0,172.0
+verify-yabs,yabs,2,IPv4,Leaseweb,"NYC, NY, US (10G)",816.0,606.0,115.0
+verify-yabs,yabs,2,IPv4,Edgoo,"Sao Paulo, BR (1G)",730.0,258.0,194.0

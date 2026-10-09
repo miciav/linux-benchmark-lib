@@ -1,0 +1,47 @@
+Module                  Size  Used by
+tls                   159744  0
+isofs                  57344  0
+binfmt_misc            28672  1
+nls_iso8859_1          12288  1
+sch_fq_codel           24576  2
+dm_multipath           49152  0
+efi_pstore             12288  0
+nfnetlink              20480  2
+dmi_sysfs              24576  0
+ip_tables              36864  0
+x_tables               69632  1 ip_tables
+autofs4                57344  2
+btrfs                1941504  0
+blake2b_generic        24576  0
+raid10                 77824  0
+raid456               212992  0
+async_raid6_recov      24576  1 raid456
+async_memcpy           16384  2 raid456,async_raid6_recov
+async_pq               16384  2 raid456,async_raid6_recov
+async_xor              16384  3 async_pq,raid456,async_raid6_recov
+async_tx               16384  5 async_pq,async_memcpy,async_xor,raid456,async_raid6_recov
+xor                    12288  2 async_xor,btrfs
+xor_neon               16384  1 xor
+raid6_pq              110592  4 async_pq,btrfs,raid456,async_raid6_recov
+libcrc32c              12288  2 btrfs,raid456
+raid1                  61440  0
+raid0                  28672  0
+crct10dif_ce           12288  1
+polyval_ce             12288  0
+polyval_generic        12288  1 polyval_ce
+ghash_ce               24576  0
+sm4_ce_gcm             16384  0
+sm4_ce_ccm             16384  0
+sm4_ce                 28672  2 sm4_ce_gcm,sm4_ce_ccm
+sm4_ce_cipher          12288  0
+sm4                    12288  4 sm4_ce,sm4_ce_cipher,sm4_ce_gcm,sm4_ce_ccm
+sm3_ce                 12288  0
+sm3                    20480  1 sm3_ce
+sha3_ce                16384  0
+sha2_ce                20480  0
+sha256_arm64           24576  1 sha2_ce
+sha1_ce                12288  0
+aes_neon_bs            24576  0
+aes_neon_blk           28672  1 aes_neon_bs
+aes_ce_blk             36864  0
+aes_ce_cipher          12288  1 aes_ce_blk

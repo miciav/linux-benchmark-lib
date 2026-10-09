@@ -16,7 +16,9 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
+from lb_common.api import DatasetDescriptor, MetricSpec
 from lb_plugins.base_generator import CommandSpec
+from lb_plugins.datasets import plugin_csv_dataset
 from lb_plugins.interface import (
     BasePluginConfig,
     SimpleWorkloadPlugin,
@@ -59,40 +61,27 @@ class _SysbenchCommandBuilder:
         return CommandSpec(cmd=cmd)
 
 
+# The "General statistics" and "Latency" blocks are printed by every sysbench test.
+_SYSBENCH_METRICS = {
+    "events_per_second": r"events per second:\s*([0-9.]+)",
+    "total_time_seconds": r"total time:\s*([0-9.]+)s",
+    "total_events": r"total number of events:\s*([0-9.]+)",
+    "latency_min_ms": r"^\s*min:\s*([0-9.]+)",
+    "latency_avg_ms": r"^\s*avg:\s*([0-9.]+)",
+    "latency_max_ms": r"^\s*max:\s*([0-9.]+)",
+    "latency_p95_ms": r"95th percentile:\s*([0-9.]+)",
+    "latency_sum_ms": r"^\s*sum:\s*([0-9.]+)",
+}
+
+
 class _SysbenchResultParser:
     def parse(self, result: dict[str, Any]) -> dict[str, Any]:
         stdout = result.get("stdout")
         if not isinstance(stdout, str):
             return result
-        _update_float_metric(
-            result,
-            stdout,
-            "events_per_second",
-            r"events per second:\\s*([0-9.]+)",
-        )
-        _update_float_metric(
-            result,
-            stdout,
-            "total_time_seconds",
-            r"total time:\\s*([0-9.]+)s",
-        )
+        for key, pattern in _SYSBENCH_METRICS.items():
+            _update_float_metric(result, stdout, key, pattern)
         return result
-
-    @staticmethod
-    def _update_metric(
-        result: dict[str, Any],
-        stdout: str,
-        *,
-        key: str,
-        pattern: str,
-    ) -> None:
-        match = re.search(pattern, stdout, re.I)
-        if not match:
-            return
-        try:
-            result[key] = float(match.group(1))
-        except ValueError:
-            return
 
 
 class SysbenchGenerator(StdoutCommandGenerator):
@@ -145,6 +134,36 @@ class SysbenchPlugin(SimpleWorkloadPlugin):
     REQUIRED_APT_PACKAGES: ClassVar[list[str]] = ["sysbench"]
     REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["sysbench"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        return [
+            plugin_csv_dataset(
+                test_name,
+                metrics=[
+                    MetricSpec(
+                        column="generator_events_per_second",
+                        name="events_per_second",
+                        unit="events/s",
+                    ),
+                    MetricSpec(
+                        column="generator_total_time_seconds",
+                        name="total_time_seconds",
+                        unit="s",
+                    ),
+                    MetricSpec(
+                        column="generator_total_events",
+                        name="total_events",
+                        unit="events",
+                    ),
+                    MetricSpec(
+                        pattern=r"^generator_(?P<metric>latency_(?:min|avg|max|p95|sum)_ms)$",
+                        unit="ms",
+                    ),
+                ],
+            )
+        ]
 
     def create_generator(
         self, config: BasePluginConfig | dict[str, Any]
@@ -230,7 +249,7 @@ def _update_float_metric(
     key: str,
     pattern: str,
 ) -> None:
-    match = re.search(pattern, stdout, re.I)
+    match = re.search(pattern, stdout, re.I | re.M)
     if not match:
         return
     try:

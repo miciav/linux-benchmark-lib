@@ -21,6 +21,10 @@ from lb_runner.models.events import RunEvent, StdoutEmitter
 from lb_runner.registry import RunnerRegistry
 from lb_runner.services import storage as storage_module
 from lb_runner.services import system_info as system_info_module
+from lb_runner.services.dataset_manifest import (
+    write_host_manifest,
+    write_workload_manifest,
+)
 from lb_runner.services.log_handler import LBEventLogHandler
 from lb_runner.services.results import collect_metrics
 from lb_runner.services.storage import ensure_run_dirs, workload_output_dir
@@ -51,5 +55,7 @@ __all__ = [
     "storage_module",
     "system_info_module",
     "workload_output_dir",
+    "write_host_manifest",
     "write_outputs",
+    "write_workload_manifest",
 ]

@@ -8,6 +8,7 @@ reduce external dependencies/licensing friction.
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import os
 import shutil
@@ -18,7 +19,9 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
+from lb_common.api import DatasetDescriptor, MetricSpec, ValueColumn
 from lb_plugins.base_generator import CommandGenerator, CommandSpec
+from lb_plugins.datasets import plugin_csv_dataset
 from lb_plugins.interface import (
     BasePluginConfig,
     SimpleWorkloadPlugin,
@@ -73,7 +76,8 @@ class _YabsCommandBuilder:
     def build(
         self, config: YabsConfig, include_skip_cleanup: bool = True
     ) -> CommandSpec:
-        args: list[str] = [str(self._script_path)]
+        # -j prints the whole result as one JSON line at the end of stdout.
+        args: list[str] = [str(self._script_path), "-j"]
         if config.skip_disk:
             args.append("-f")  # skip fio
         if config.skip_network:
@@ -283,6 +287,9 @@ class YabsGenerator(CommandGenerator):
             )
 
 
+_BLOCK = r"^fio_(?P<block_size>[^_]+)_"
+
+
 class YabsPlugin(SimpleWorkloadPlugin):
     """Plugin wrapper for YABS."""
 
@@ -300,6 +307,58 @@ class YabsPlugin(SimpleWorkloadPlugin):
     ]
     REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["bash", "curl", "wget"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        plugin_csv = output_dir / f"{test_name}_plugin.csv"
+        header = ""
+        if plugin_csv.exists():
+            with plugin_csv.open() as handle:
+                header = handle.readline()
+        # Each yabs section can be skipped (skip_disk, skip_geekbench): declare
+        # only the families the run produced, so every pattern matches a column.
+        metrics: list[MetricSpec] = []
+        if "fio_" in header:
+            metrics += [
+                MetricSpec(
+                    pattern=_BLOCK + r"(?P<metric>speed_(?:r|w|rw))$", unit="KB/s"
+                ),
+                MetricSpec(
+                    pattern=_BLOCK + r"(?P<metric>iops_(?:r|w|rw))$", unit="IOPS"
+                ),
+            ]
+        if "geekbench" in header:
+            metrics.append(
+                MetricSpec(
+                    pattern=r"^geekbench(?P<geekbench_version>\d+)_"
+                    r"(?P<metric>single|multi)$",
+                    unit="points",
+                )
+            )
+        datasets = [
+            plugin_csv_dataset(
+                test_name,
+                metrics=metrics,
+                # Host facts duplicated from system_info, which owns them.
+                exclude=["cpu_cores", "ram_kib", "swap_kib", "disk_kb", "cpu_aes"],
+            )
+        ]
+        if (output_dir / f"{test_name}_iperf.csv").exists():
+            datasets.append(
+                DatasetDescriptor(
+                    name=f"{test_name}_iperf",
+                    path=f"{test_name}_iperf.csv",
+                    shape="long",
+                    keys=["mode", "provider", "location"],
+                    value_columns=[
+                        ValueColumn(column="send_mbits", unit="Mbit/s"),
+                        ValueColumn(column="recv_mbits", unit="Mbit/s"),
+                        ValueColumn(column="latency_ms", unit="ms"),
+                    ],
+                )
+            )
+        return datasets
 
     def get_preset_config(self, level: WorkloadIntensity) -> YabsConfig | None:
         # Intensities map to which portions we run; Geekbench remains skipped.
@@ -337,24 +396,33 @@ class YabsPlugin(SimpleWorkloadPlugin):
         run_id: str,
         test_name: str,
     ) -> list[Path]:
-        """Export YABS summary metrics parsed from stdout to CSV."""
+        """Export the JSON summary YABS prints with -j.
+
+        One summary row per repetition (system, fio per block size, Geekbench)
+        and one iperf row per repetition, direction and server.
+        """
         import pandas as pd
 
         rows: list[dict[str, Any]] = []
+        iperf_rows: list[dict[str, Any]] = []
         for entry in results:
             gen_result = entry.get("generator_result") or {}
-            stdout = gen_result.get("stdout") or ""
-            if not isinstance(stdout, str):
-                stdout = ""
+            payload = _yabs_json(gen_result.get("stdout"))
+            base = {
+                "run_id": run_id,
+                "workload": test_name,
+                "repetition": entry.get("repetition"),
+            }
             rows.append(
-                self._build_yabs_export_row(
-                    entry,
-                    gen_result,
-                    stdout,
-                    run_id,
-                    test_name,
-                )
+                {
+                    **base,
+                    "returncode": gen_result.get("returncode"),
+                    "success": entry.get("success"),
+                    "duration_seconds": entry.get("duration_seconds"),
+                    **_yabs_summary(payload),
+                }
             )
+            iperf_rows.extend({**base, **row} for row in _yabs_iperf(payload))
 
         if not rows:
             return []
@@ -362,75 +430,99 @@ class YabsPlugin(SimpleWorkloadPlugin):
         output_dir.mkdir(parents=True, exist_ok=True)
         csv_path = output_dir / f"{test_name}_plugin.csv"
         pd.DataFrame(rows).to_csv(csv_path, index=False)
-        return [csv_path]
+        paths = [csv_path]
+        if iperf_rows:
+            iperf_path = output_dir / f"{test_name}_iperf.csv"
+            pd.DataFrame(iperf_rows).to_csv(iperf_path, index=False)
+            paths.append(iperf_path)
+        return paths
 
-    def _build_yabs_export_row(
-        self,
-        entry: dict[str, Any],
-        gen_result: dict[str, Any],
-        stdout: str,
-        run_id: str,
-        test_name: str,
-    ) -> dict[str, Any]:
-        import re
 
-        return {
-            "run_id": run_id,
-            "workload": test_name,
-            "repetition": entry.get("repetition"),
-            "returncode": gen_result.get("returncode"),
-            "success": entry.get("success"),
-            "duration_seconds": entry.get("duration_seconds"),
-            "cpu_events_per_sec": self._last_float(
-                r"Events per second:\s*([0-9.]+)", stdout
-            ),
-            "cpu_total_time_sec": self._last_float(
-                r"total time:\s*([0-9.]+)\s*s", stdout, flags=re.IGNORECASE
-            ),
-            "disk_read_mb_s": self._last_float(
-                r"Read:\s*([0-9.]+)\s*MB/s", stdout, flags=re.IGNORECASE
-            ),
-            "disk_write_mb_s": self._last_float(
-                r"Write:\s*([0-9.]+)\s*MB/s", stdout, flags=re.IGNORECASE
-            ),
-            "net_download_mbits": self._last_float(
-                r"Download:\s*([0-9.]+)\s*Mbits/sec",
-                stdout,
-                flags=re.IGNORECASE,
-            ),
-            "net_upload_mbits": self._last_float(
-                r"Upload:\s*([0-9.]+)\s*Mbits/sec",
-                stdout,
-                flags=re.IGNORECASE,
-            ),
-            "cpu_model": self._last_str(r"CPU Model:\s*(.+)", stdout),
-            "arch": self._last_str(r"Architecture:\s*(.+)", stdout),
-            "virt": self._last_str(r"Virtualization:\s*(.+)", stdout),
-            "max_retries": gen_result.get("max_retries"),
-            "tags": gen_result.get("tags"),
+def _yabs_json(stdout: Any) -> dict[str, Any]:
+    """Return the JSON summary printed by `yabs.sh -j`, or {} if absent.
+
+    yabs builds it by string concatenation, so values can carry raw newlines
+    (e.g. a multi-line CPU model on ARM): the blob may span several lines and
+    needs strict=False.
+    """
+    if not isinstance(stdout, str):
+        return {}
+    start = stdout.rfind('{"version":')
+    if start < 0:
+        return {}
+    try:
+        payload = json.loads(stdout[start:].strip(), strict=False)
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _yabs_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    os_info = payload.get("os") or {}
+    cpu = payload.get("cpu") or {}
+    mem = payload.get("mem") or {}
+    row: dict[str, Any] = {
+        "yabs_version": payload.get("version"),
+        "arch": os_info.get("arch"),
+        "distro": os_info.get("distro"),
+        "kernel": os_info.get("kernel"),
+        "virt": os_info.get("vm"),
+        "cpu_model": cpu.get("model"),
+        "cpu_cores": cpu.get("cores"),
+        "cpu_freq": cpu.get("freq"),
+        "cpu_aes": cpu.get("aes"),
+        "ram_kib": mem.get("ram"),
+        "swap_kib": mem.get("swap"),
+        "disk_kb": mem.get("disk"),
+    }
+    # fio speeds are reported in KB/s.
+    for fio in payload.get("fio") or []:
+        bs = fio.get("bs")
+        for key in ("speed_r", "speed_w", "speed_rw", "iops_r", "iops_w", "iops_rw"):
+            row[f"fio_{bs}_{key}"] = fio.get(key)
+    for geekbench in payload.get("geekbench") or []:
+        version = geekbench.get("version")
+        row[f"geekbench{version}_single"] = geekbench.get("single")
+        row[f"geekbench{version}_multi"] = geekbench.get("multi")
+    return row
+
+
+_BITRATE_SCALE_TO_MBITS = {"Kbits/sec": 1e-3, "Mbits/sec": 1.0, "Gbits/sec": 1e3}
+
+
+def _to_mbits(value: Any) -> float | None:
+    """'931 Mbits/sec' -> 931.0; 'busy' or empty -> None."""
+    parts = str(value or "").split()
+    if len(parts) != 2 or parts[1] not in _BITRATE_SCALE_TO_MBITS:
+        return None
+    try:
+        return float(parts[0]) * _BITRATE_SCALE_TO_MBITS[parts[1]]
+    except ValueError:
+        return None
+
+
+def _to_ms(value: Any) -> float | None:
+    parts = str(value or "").split()
+    if len(parts) != 2 or parts[1] != "ms":
+        return None
+    try:
+        return float(parts[0])
+    except ValueError:
+        return None
+
+
+def _yabs_iperf(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {
+            "mode": item.get("mode"),
+            "provider": item.get("provider"),
+            "location": item.get("loc"),
+            "send_mbits": _to_mbits(item.get("send")),
+            "recv_mbits": _to_mbits(item.get("recv")),
+            "latency_ms": _to_ms(item.get("latency")),
         }
-
-    @staticmethod
-    def _last_float(pattern: str, text: str, flags: int = 0) -> float | None:
-        import re
-
-        matches = re.findall(pattern, text, flags=flags)
-        if not matches:
-            return None
-        try:
-            return float(matches[-1])
-        except Exception:
-            return None
-
-    @staticmethod
-    def _last_str(pattern: str, text: str) -> str | None:
-        import re
-
-        matches = re.findall(pattern, text)
-        if not matches:
-            return None
-        val = matches[-1]
-        return val.strip() if isinstance(val, str) else str(val).strip()
+        for item in payload.get("iperf") or []
+    ]
 
 
 PLUGIN = YabsPlugin()

@@ -14,6 +14,7 @@ import shutil
 import signal
 import subprocess
 import time
+import xml.etree.ElementTree as ET  # nosec B405
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ from typing import Any
 import yaml
 from pydantic import Field, model_validator
 
+from lb_common.api import DatasetDescriptor
 from lb_plugins.base_generator import CommandGenerator
 from lb_plugins.interface import BasePluginConfig, WorkloadPlugin
 from lb_plugins.utils.csv_export import write_csv_rows
@@ -35,18 +37,14 @@ def _derive_plugin_name(profile: str) -> str:
 
 
 def _ensure_trailing_sep(path_value: str) -> str:
+    # PTS concatenates PTS_USER_PATH_OVERRIDE with file names as plain strings,
+    # so the trailing separator is load-bearing. No "~" expansion here: the
+    # manifest is read on the controller, and "~" must resolve on the host that
+    # runs PTS (see PhoronixGenerator._prepare_env and the setup playbook).
     stripped = path_value.strip()
     if not stripped:
         return stripped
-    # PTH111 deliberately not applied. pathlib's expanduser() is NOT equivalent
-    # to os.path.expanduser() here, and this value comes from the user's
-    # home_root config:
-    #   - Path("~nosuchuser/x").expanduser() raises RuntimeError, whereas
-    #     os.path.expanduser() returns the path unchanged
-    #   - Path() also collapses redundant separators ("/a//b" -> "/a/b")
-    # Both would change behaviour for a user-supplied home_root.
-    expanded = os.path.expanduser(stripped)  # noqa: PTH111
-    return expanded if expanded.endswith(os.sep) else expanded + os.sep
+    return stripped if stripped.endswith(os.sep) else stripped + os.sep
 
 
 def _looks_like_menu_prompt(line: str) -> bool:
@@ -468,10 +466,14 @@ class PhoronixGenerator(CommandGenerator):
         self._ensure_profile_ready(env)
 
     def _prepare_env(self) -> tuple[dict[str, str], Path]:
-        pts_user_path = Path(_ensure_trailing_sep(self.home_root))
+        # PTH111 deliberately not applied: os.path.expanduser leaves
+        # "~nosuchuser/x" unchanged where Path.expanduser() raises.
+        user_path = _ensure_trailing_sep(os.path.expanduser(self.home_root))  # noqa: PTH111
+        pts_user_path = Path(user_path)
         pts_user_path.mkdir(parents=True, exist_ok=True)
         env = os.environ.copy()
-        env["PTS_USER_PATH_OVERRIDE"] = str(pts_user_path)
+        # str(Path) would drop the trailing separator PTS relies on.
+        env["PTS_USER_PATH_OVERRIDE"] = user_path
         return env, pts_user_path
 
     def _ensure_profile_ready(self, env: dict[str, str]) -> None:
@@ -733,7 +735,44 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
                 "returncode",
             ],
         )
-        return [csv_path]
+        paths = [csv_path]
+        value_rows = [
+            {"run_id": run_id, "workload": test_name, **row}
+            for row in _pts_result_rows(results, output_dir)
+        ]
+        if value_rows:
+            values_path = output_dir / f"{test_name}_pts_results.csv"
+            write_csv_rows(value_rows, values_path, list(value_rows[0]))
+            paths.append(values_path)
+        return paths
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        # The _pts.csv summary holds no measurement: declared, not loaded.
+        datasets = [
+            DatasetDescriptor(
+                name=f"{test_name}_pts",
+                path=f"{test_name}_pts.csv",
+                shape="wide",
+                table="ignore",
+            )
+        ]
+        if (output_dir / f"{test_name}_pts_results.csv").exists():
+            datasets.append(
+                DatasetDescriptor(
+                    name=f"{test_name}_pts_results",
+                    path=f"{test_name}_pts_results.csv",
+                    shape="long",
+                    # app_version parses as a number for some profiles (7zip: 26.01).
+                    keys=["description", "arguments", "system", "app_version"],
+                    metric_column="test",
+                    value_column="value",
+                    unit_column="scale",
+                    exclude=["samples"],
+                )
+            )
+        return datasets
 
     def _copy_result_artifacts(
         self, results: list[dict[str, Any]], output_dir: Path
@@ -765,9 +804,12 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
         if not isinstance(src, str) or not src:
             return None
         src_path = Path(src)
-        if not src_path.exists() or not src_path.is_dir():
+        # On the controller this is the remote host's path (often under /root):
+        # exists()/is_dir() raise PermissionError there instead of returning False.
+        try:
+            return src_path if src_path.is_dir() else None
+        except OSError:
             return None
-        return src_path
 
     @staticmethod
     def _build_summary_rows(
@@ -790,6 +832,51 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
                 }
             )
         return rows
+
+
+def _pts_result_rows(
+    results: list[dict[str, Any]], output_dir: Path
+) -> list[dict[str, Any]]:
+    """One row per repetition, PTS result and result entry from composite.xml.
+
+    Reads the copy under output_dir/pts_results, which is what the controller
+    collects, so the export can be re-run from the collected files. The XML is
+    PTS's own output for this run, hence the stdlib parser (nosec B405/B314).
+    """
+    rows: list[dict[str, Any]] = []
+    for entry in results:
+        rep = entry.get("repetition")
+        src = (entry.get("generator_result") or {}).get("pts_result_dir")
+        if not isinstance(src, str) or not src:
+            continue
+        composite = output_dir / "pts_results" / f"rep{rep}" / Path(src).name
+        composite = composite / "composite.xml"
+        if not composite.is_file():
+            continue
+        root = ET.parse(composite).getroot()  # nosec B314
+        for result in root.iter("Result"):
+            meta = {
+                "repetition": rep,
+                "test": result.findtext("Identifier"),
+                "title": result.findtext("Title"),
+                "app_version": result.findtext("AppVersion"),
+                "arguments": result.findtext("Arguments"),
+                "description": result.findtext("Description"),
+                "scale": result.findtext("Scale"),
+                "proportion": result.findtext("Proportion"),
+            }
+            for data in result.iter("Entry"):
+                raw = data.findtext("RawString") or ""
+                rows.append(
+                    {
+                        **meta,
+                        "system": data.findtext("Identifier"),
+                        "value": data.findtext("Value"),
+                        "samples": len(raw.split(":")) if raw else 0,
+                        "raw_values": raw,
+                    }
+                )
+    return rows
 
 
 def _load_manifest(path: Path) -> tuple[PtsDefaults, list[PtsWorkloadSpec]]:

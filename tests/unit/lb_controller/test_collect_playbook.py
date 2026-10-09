@@ -89,3 +89,15 @@ def test_collect_playbook_has_log_collection_tasks() -> None:
     assert _has_logs_dir_task(tasks)
     assert _has_stream_log_fetch_task(tasks)
     assert _has_plugin_derive_task(tasks)
+
+
+def test_a_missing_host_manifest_does_not_fail_collection() -> None:
+    tasks = _load_playbook("playbooks/collect.yml")
+    fetches = [
+        t["ansible.builtin.fetch"]
+        for t in tasks
+        if "datasets.json" in str(t.get("ansible.builtin.fetch", {}).get("src", ""))
+        or "datasets.json" in t.get("loop", [])
+    ]
+    assert len(fetches) == 1
+    assert fetches[0].get("fail_on_missing") is False

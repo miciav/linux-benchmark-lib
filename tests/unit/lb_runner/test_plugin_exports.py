@@ -74,22 +74,54 @@ def test_hpl_export_results_to_csv_writes_gflops(tmp_path: Path) -> None:
     assert df.loc[0, "gflops"] == 42.5
 
 
-def test_yabs_export_results_to_csv_parses_stdout(tmp_path: Path) -> None:
+def test_yabs_export_results_to_csv_parses_json_summary(tmp_path: Path) -> None:
     plugin = YabsPlugin()
     output_dir = tmp_path / "yabs"
-    sample_stdout = """
-CPU Model: Intel(R) Xeon(R)
-Architecture: x86_64
-Virtualization: KVM
-Events per second: 1234.56
-total time: 10.0s
-Disk Speed:
-Read: 789.0 MB/s
-Write: 456.0 MB/s
-iperf3 Network Speed:
-Download: 900.1 Mbits/sec
-Upload: 800.2 Mbits/sec
-"""
+    # `yabs.sh -j` ends its human-readable report with one JSON line.
+    summary = {
+        "version": "v2026-10-07",
+        "os": {"arch": "aarch64", "distro": "Ubuntu 24.04.5 LTS", "vm": "KVM"},
+        "cpu": {"model": "Cortex-X925\nBIOS virt-8.2", "cores": 4, "aes": True},
+        "mem": {"ram": 8092000, "ram_units": "KiB"},
+        "fio": [
+            {
+                "bs": "4k",
+                "speed_r": 290662,
+                "iops_r": 72665,
+                "speed_w": 290467,
+                "iops_w": 72616,
+                "speed_rw": 581129,
+                "iops_rw": 145281,
+                "speed_units": "KBps",
+            },
+        ],
+        "iperf": [
+            {
+                "mode": "IPv4",
+                "provider": "Clouvider",
+                "loc": "London, UK (10G)",
+                "send": "931 Mbits/sec",
+                "recv": "937 Mbits/sec",
+                "latency": "37.3 ms",
+            },
+            {
+                "mode": "IPv4",
+                "provider": "Eranium",
+                "loc": "Amsterdam, NL (100G)",
+                "send": "150 Kbits/sec",
+                "recv": "busy",
+                "latency": "30.9 ms",
+            },
+        ],
+    }
+    sample_stdout = (
+        "fio Disk Speed Tests (Mixed R/W 50/50) (Partition /dev/sda1):\n"
+        "Read       | 283.85 MB/s  (69.2k) | 2.75 GB/s    (42.0k)\n\n"
+        "YABS completed in 3 min 2 sec\n"
+        # yabs does not escape values: a multi-line CPU model breaks the line.
+        + json.dumps(summary).replace("\\n", "\n")
+        + "\n"
+    )
     results = [
         {
             "repetition": 1,
@@ -101,9 +133,14 @@ Upload: 800.2 Mbits/sec
     paths = plugin.export_results_to_csv(results, output_dir, "run-1", "yabs")
     assert (output_dir / "yabs_plugin.csv") in paths
     df = pd.read_csv(output_dir / "yabs_plugin.csv")
-    assert df.loc[0, "cpu_events_per_sec"] == 1234.56
-    assert df.loc[0, "disk_read_mb_s"] == 789.0
-    assert df.loc[0, "net_download_mbits"] == 900.1
+    assert df.loc[0, "cpu_model"] == "Cortex-X925\nBIOS virt-8.2"
+    assert df.loc[0, "fio_4k_speed_r"] == 290662
+    assert df.loc[0, "fio_4k_iops_rw"] == 145281
+    iperf = pd.read_csv(output_dir / "yabs_iperf.csv")
+    assert list(iperf["send_mbits"]) == [931.0, 0.15]
+    assert iperf.loc[0, "recv_mbits"] == 937.0
+    assert pd.isna(iperf.loc[1, "recv_mbits"])
+    assert iperf.loc[1, "latency_ms"] == 30.9
 
 
 def test_stream_export_results_to_csv_writes_triad(tmp_path: Path) -> None:

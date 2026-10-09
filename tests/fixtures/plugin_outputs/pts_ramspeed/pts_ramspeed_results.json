@@ -1,0 +1,40 @@
+[
+ {
+  "test_name": "pts_ramspeed",
+  "repetition": 1,
+  "start_time": "2026-10-08T23:47:08.912114",
+  "end_time": "2026-10-08T23:55:15.021462",
+  "duration_seconds": 486.109348,
+  "generator_result": {
+   "command": "phoronix-test-suite batch-benchmark ramspeed",
+   "profile": "ramspeed",
+   "returncode": 0,
+   "stdout": "",
+   "pts_result_dir": "/root/.lb/.phoronix-test-suite/test-results/2026-10-08-2147",
+   "pts_result_id": "2026-10-08-2147",
+   "duration_seconds": 485.194
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-pts_ramspeed/lb-worker-verify/pts_ramspeed/rep1",
+  "success": true
+ },
+ {
+  "test_name": "pts_ramspeed",
+  "repetition": 2,
+  "start_time": "2026-10-08T23:55:24.695461",
+  "end_time": "2026-10-09T00:03:48.811284",
+  "duration_seconds": 504.115823,
+  "generator_result": {
+   "command": "phoronix-test-suite batch-benchmark ramspeed",
+   "profile": "ramspeed",
+   "returncode": 0,
+   "stdout": "",
+   "pts_result_dir": "/root/.lb/.phoronix-test-suite/test-results/2026-10-08-2155",
+   "pts_result_id": "2026-10-08-2155",
+   "duration_seconds": 503.254
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-pts_ramspeed/lb-worker-verify/pts_ramspeed/rep2",
+  "success": true
+ }
+]

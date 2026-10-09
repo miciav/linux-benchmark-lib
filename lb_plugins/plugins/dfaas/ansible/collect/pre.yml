@@ -35,6 +35,13 @@
         )
         .k6_workspace_root | default('/home/ubuntu/.dfaas-k6')
       }}
+  delegate_to: localhost
+  run_once: true
+
+# Separate task: set_fact templates all its args before setting any of them,
+# so these cannot see the facts defined just above in the same task.
+- name: Derive DFaaS k6 connection facts
+  ansible.builtin.set_fact:
     dfaas_k6_ssh_key_path: >-
       {{
         (
@@ -45,13 +52,10 @@
             ''
           )
       }}
-    dfaas_k6_host_normalized: >-
-      {{
-        dfaas_k6_host | default('') | string | trim | lower
-      }}
     dfaas_k6_is_remote: >-
       {{
-        dfaas_k6_host_normalized not in ['', '127.0.0.1', 'localhost', '::1']
+        (dfaas_k6_host | default('') | string | trim | lower)
+        not in ['', '127.0.0.1', 'localhost', '::1']
       }}
   delegate_to: localhost
   run_once: true

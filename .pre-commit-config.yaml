@@ -139,9 +139,11 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=1024]
+      # Captured plugin outputs stay byte-for-byte real.
       - id: end-of-file-fixer
-        exclude: \.(png|jpg|jpeg|gif|ico|svg)$
+        exclude: (\.(png|jpg|jpeg|gif|ico|svg)$|^tests/fixtures/plugin_outputs/)
       - id: trailing-whitespace
-        exclude: \.(png|jpg|jpeg|gif|ico|svg|md)$
+        exclude: (\.(png|jpg|jpeg|gif|ico|svg|md)$|^tests/fixtures/plugin_outputs/)
       - id: mixed-line-ending
         args: [--fix=lf]
+        exclude: ^tests/fixtures/plugin_outputs/

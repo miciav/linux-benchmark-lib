@@ -1,0 +1,9 @@
+run_id,workload,repetition,returncode,success,duration_seconds,yabs_version,arch,distro,kernel,virt,cpu_model,cpu_cores,cpu_freq,cpu_aes,ram_kib,swap_kib,disk_kb,fio_4k_speed_r,fio_4k_speed_w,fio_4k_speed_rw,fio_4k_iops_r,fio_4k_iops_w,fio_4k_iops_rw,fio_64k_speed_r,fio_64k_speed_w,fio_64k_speed_rw,fio_64k_iops_r,fio_64k_iops_w,fio_64k_iops_rw,fio_512k_speed_r,fio_512k_speed_w,fio_512k_speed_rw,fio_512k_iops_r,fio_512k_iops_w,fio_512k_iops_rw,fio_1m_speed_r,fio_1m_speed_w,fio_1m_speed_rw,fio_1m_iops_r,fio_1m_iops_w,fio_1m_iops_rw
+verify-yabs,yabs,1,0,True,183.026416,v2026-10-07,aarch64,Ubuntu 24.04.5 LTS,6.8.0-142-generic,KVM,"Cortex-X925
+BIOS virt-8.2  CPU @ 2.0GHz
+Cortex-A725
+BIOS virt-8.2  CPU @ 2.0GHz",4,??? MHz,True,8107876,0,40546471,246109,245948,492057,61527,61487,123014,2369761,2440220,4809981,37027,38128,75155,5237333,5685333,10922666,10229,11104,21333,6273620,6999493,13273113,6126,6835,12961
+verify-yabs,yabs,2,0,True,182.031582,v2026-10-07,aarch64,Ubuntu 24.04.5 LTS,6.8.0-142-generic,KVM,"Cortex-X925
+BIOS virt-8.2  CPU @ 2.0GHz
+Cortex-A725
+BIOS virt-8.2  CPU @ 2.0GHz",4,??? MHz,True,8107876,0,40546471,301240,301043,602283,75310,75260,150570,2807652,2891130,5698782,43869,45173,89042,5348765,5806297,11155062,10446,11340,21786,5900190,6582857,12483047,5761,6428,12189

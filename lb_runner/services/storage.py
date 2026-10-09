@@ -8,6 +8,7 @@ from pathlib import Path
 
 from lb_runner.models.config import BenchmarkConfig
 from lb_runner.services import system_info
+from lb_runner.services.dataset_manifest import write_host_manifest
 from lb_runner.services.system_info_io import write_outputs
 
 
@@ -79,5 +80,6 @@ def write_system_info_artifacts(
     csv_path = output_root / "system_info.csv"
     try:
         write_outputs(collected, json_path, csv_path)
+        write_host_manifest(output_root)
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug("Failed to write system info artifacts: %s", exc)

@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<!--Phoronix Test Suite v10.8.4-->
+<PhoronixTestSuite>
+  <Generated>
+    <Title>2026-10-08-2230</Title>
+    <LastModified>2026-10-08 22:35:40</LastModified>
+    <TestClient>Phoronix Test Suite v10.8.4</TestClient>
+    <Description>KVM testing on Ubuntu 24.04 via the Phoronix Test Suite.</Description>
+  </Generated>
+  <System>
+    <Identifier>ARMv8</Identifier>
+    <Hardware>Processor: ARMv8 (2 Cores / 4 Threads), Motherboard: QEMU KVM Virtual Machine (0.0.0 BIOS), Chipset: Red Hat QEMU PCIe, Memory: 1 x 8 GB RAM QEMU, Disk: 43GB QEMU HDD, Network: Red Hat Virtio device</Hardware>
+    <Software>OS: Ubuntu 24.04, Kernel: 6.8.0-142-generic (aarch64), Compiler: GCC 13.3.0, File-System: ext4, System Layer: KVM</Software>
+    <User>root</User>
+    <TimeStamp>2026-10-08 22:30:49</TimeStamp>
+    <TestClientVersion>10.8.4</TestClientVersion>
+    <Notes></Notes>
+    <JSON>{"compiler-configuration":"--build=aarch64-linux-gnu --disable-libquadmath --disable-libquadmath-support --disable-werror --enable-bootstrap --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-fix-cortex-a53-843419 --enable-gnu-unique-object --enable-languages=c,ada,c++,go,d,fortran,objc,obj-c++,m2 --enable-libphobos-checking=release --enable-libstdcxx-backtrace --enable-libstdcxx-debug --enable-libstdcxx-time=yes --enable-link-serialization=4 --enable-multiarch --enable-nls --enable-objc-gc=auto --enable-offload-defaulted --enable-offload-targets=nvptx-none=\/build\/gcc-13-f9pAEi\/gcc-13-13.3.0\/debian\/tmp-nvptx\/usr --enable-plugin --enable-shared --enable-threads=posix --host=aarch64-linux-gnu --program-prefix=aarch64-linux-gnu- --target=aarch64-linux-gnu --with-build-config=bootstrap-lto-lean --with-default-libstdcxx-abi=new --with-gcc-major-version-only --with-target-system-zlib=auto --without-cuda-driver -v","kernel-extra-details":"Transparent Huge Pages: madvise","security":"gather_data_sampling: Not affected + indirect_target_selection: Not affected + itlb_multihit: Not affected + l1tf: Not affected + mds: Not affected + meltdown: Not affected + mmio_stale_data: Not affected + reg_file_data_sampling: Not affected + retbleed: Not affected + spec_rstack_overflow: Not affected + spec_store_bypass: Mitigation of SSB disabled via prctl + spectre_v1: Mitigation of __user pointer sanitization + spectre_v2: Mitigation of CSV2 BHB + srbds: Not affected + tsa: Not affected + tsx_async_abort: Not affected + vmscape: Not affected"}</JSON>
+  </System>
+  <Result>
+    <Identifier>pts/compress-7zip-1.13.1</Identifier>
+    <Title>7-Zip Compression</Title>
+    <AppVersion>26.01</AppVersion>
+    <Arguments></Arguments>
+    <Description>Test: Compression Rating</Description>
+    <Scale>MIPS</Scale>
+    <Proportion>HIB</Proportion>
+    <DisplayFormat>BAR_GRAPH</DisplayFormat>
+    <Data>
+      <Entry>
+        <Identifier>ARMv8</Identifier>
+        <Value>46066</Value>
+        <RawString>49213:48309:45771:47008:45071:45424:45687:46581:45750:44218:45882:46497:44004:45610:45967</RawString>
+        <JSON>{"compiler-options":{"compiler-type":"CXX","compiler":"g++","compiler-options":"-lpthread -ldl -O2 -fPIC"},"test-run-times":"15.17:15.27:15.34:15.22:15.66:15.41:15.31:15.33:15.37:15.54:15.56:15.34:15.56:15.42:15.36"}</JSON>
+      </Entry>
+    </Data>
+  </Result>
+  <Result>
+    <Identifier>pts/compress-7zip-1.13.1</Identifier>
+    <Title>7-Zip Compression</Title>
+    <AppVersion>26.01</AppVersion>
+    <Arguments></Arguments>
+    <Description>Test: Decompression Rating</Description>
+    <Scale>MIPS</Scale>
+    <Proportion>HIB</Proportion>
+    <DisplayFormat>BAR_GRAPH</DisplayFormat>
+    <Data>
+      <Entry>
+        <Identifier>ARMv8</Identifier>
+        <Value>28165</Value>
+        <RawString>28751:28014:28319:28356:27703:28267:28331:28116:28287:28249:27705:28157:27908:28098:28220</RawString>
+        <JSON>{"compiler-options":{"compiler-type":"CXX","compiler":"g++","compiler-options":"-lpthread -ldl -O2 -fPIC"},"test-run-times":"15.17:15.27:15.34:15.22:15.66:15.41:15.31:15.33:15.37:15.54:15.56:15.34:15.56:15.42:15.36"}</JSON>
+      </Entry>
+    </Data>
+  </Result>
+</PhoronixTestSuite>

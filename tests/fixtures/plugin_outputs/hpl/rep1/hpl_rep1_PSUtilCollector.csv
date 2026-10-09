@@ -1,0 +1,3 @@
+timestamp,cpu_percent,memory_usage,disk_read_bytes,disk_write_bytes,net_bytes_sent,net_bytes_recv,collector
+2026-10-08 22:53:32.589931,0.0,5.7,7259267072,10501072896,6962431,1036338678,PSUtilCollector
+2026-10-08 22:53:33.589688,17.5,6.0,7293558784,10501081088,6982887,1036595166,PSUtilCollector

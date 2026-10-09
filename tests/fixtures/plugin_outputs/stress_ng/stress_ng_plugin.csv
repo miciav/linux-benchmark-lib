@@ -1,0 +1,31 @@
+run_id,workload,repetition,duration_seconds,success,generator_stdout,generator_stderr,generator_returncode,generator_command,generator_max_retries,generator_tags,generator_cpu_bogo_ops,generator_cpu_real_time_s,generator_cpu_usr_time_s,generator_cpu_sys_time_s,generator_cpu_bogo_ops_per_s_real,generator_cpu_bogo_ops_per_s_cpu,generator_vm_bogo_ops,generator_vm_real_time_s,generator_vm_usr_time_s,generator_vm_sys_time_s,generator_vm_bogo_ops_per_s_real,generator_vm_bogo_ops_per_s_cpu,generator_io_bogo_ops,generator_io_real_time_s,generator_io_usr_time_s,generator_io_sys_time_s,generator_io_bogo_ops_per_s_real,generator_io_bogo_ops_per_s_cpu
+verify-stress_ng,stress_ng,1,21.00617,True,"stress-ng: info:  [18477] setting to a 20 secs run per stressor
+stress-ng: info:  [18477] dispatching hogs: 2 cpu, 1 vm, 1 io
+stress-ng: info:  [18477] note: /proc/sys/kernel/sched_autogroup_enabled is 1 and this can impact scheduling throughput for processes not attached to a tty. Setting this to 0 may improve performance metrics
+stress-ng: info:  [18481] io: this is a legacy I/O sync stressor, consider using iomix instead
+stress-ng: metrc: [18477] stressor       bogo ops real time  usr time  sys time   bogo ops/s     bogo ops/s
+stress-ng: metrc: [18477]                           (secs)    (secs)    (secs)   (real time) (usr+sys time)
+stress-ng: metrc: [18477] cpu               18800     20.03     40.02      0.00       938.42         469.76
+stress-ng: metrc: [18477] vm              2630433     20.05     14.52      5.47    131226.22      131623.97
+stress-ng: metrc: [18477] io               239090     20.00      0.24      4.06     11954.46       55509.28
+stress-ng: info:  [18477] skipped: 0
+stress-ng: info:  [18477] passed: 4: cpu (2) vm (1) io (1)
+stress-ng: info:  [18477] failed: 0
+stress-ng: info:  [18477] metrics untrustworthy: 0
+stress-ng: info:  [18477] successful run completed in 20.05 secs
+",,0,stress-ng --cpu 2 --cpu-method all --vm 1 --vm-bytes 256M --io 1 --timeout 20s --metrics-brief,0,[],18800.0,20.03,40.02,0.0,938.42,469.76,2630433.0,20.05,14.52,5.47,131226.22,131623.97,239090.0,20.0,0.24,4.06,11954.46,55509.28
+verify-stress_ng,stress_ng,2,21.007136,True,"stress-ng: info:  [18878] setting to a 20 secs run per stressor
+stress-ng: info:  [18878] dispatching hogs: 2 cpu, 1 vm, 1 io
+stress-ng: info:  [18878] note: /proc/sys/kernel/sched_autogroup_enabled is 1 and this can impact scheduling throughput for processes not attached to a tty. Setting this to 0 may improve performance metrics
+stress-ng: info:  [18882] io: this is a legacy I/O sync stressor, consider using iomix instead
+stress-ng: metrc: [18878] stressor       bogo ops real time  usr time  sys time   bogo ops/s     bogo ops/s
+stress-ng: metrc: [18878]                           (secs)    (secs)    (secs)   (real time) (usr+sys time)
+stress-ng: metrc: [18878] cpu               18794     20.02     40.00      0.01       938.77         469.84
+stress-ng: metrc: [18878] vm              2669951     20.14     14.84      5.28    132599.46      132718.24
+stress-ng: metrc: [18878] io               241262     20.00      0.22      4.09     12063.06       55958.80
+stress-ng: info:  [18878] skipped: 0
+stress-ng: info:  [18878] passed: 4: cpu (2) vm (1) io (1)
+stress-ng: info:  [18878] failed: 0
+stress-ng: info:  [18878] metrics untrustworthy: 0
+stress-ng: info:  [18878] successful run completed in 20.14 secs
+",,0,stress-ng --cpu 2 --cpu-method all --vm 1 --vm-bytes 256M --io 1 --timeout 20s --metrics-brief,0,[],18794.0,20.02,40.0,0.01,938.77,469.84,2669951.0,20.14,14.84,5.28,132599.46,132718.24,241262.0,20.0,0.22,4.09,12063.06,55958.8

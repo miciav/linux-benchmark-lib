@@ -7,6 +7,8 @@ import pandas as pd
 import yaml
 from pydantic import BaseModel, Field
 
+from lb_common.api import DatasetDescriptor, MetricSpec
+from lb_plugins.datasets import plugin_csv_dataset
 from lb_plugins.observability import GrafanaAssets
 
 
@@ -219,6 +221,25 @@ class WorkloadPlugin(ABC):
         csv_path = output_dir / f"{test_name}_plugin.csv"
         df.to_csv(csv_path, index=False)
         return [csv_path]
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        """Declare the datasets this plugin exported into ``output_dir``.
+
+        The runner writes them into ``datasets.json`` for ``lb_analytics``.
+        The default matches the default ``export_results_to_csv``: every
+        ``generator_*`` field is a metric. Plugins with string fields or their
+        own export override this.
+        """
+        if not (output_dir / f"{test_name}_plugin.csv").exists():
+            return []
+        return [
+            plugin_csv_dataset(
+                test_name,
+                metrics=[MetricSpec(pattern=r"^generator_(?P<metric>.+)$")],
+            )
+        ]
 
     @staticmethod
     def _build_export_row(

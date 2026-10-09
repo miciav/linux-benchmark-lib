@@ -1,0 +1,3 @@
+run_id,workload,repetition,returncode,read_iops,read_bw_mb,read_lat_ms,write_iops,write_bw_mb,write_lat_ms,max_retries,tags
+verify-fio,fio,1,0,10132.524498,39.580078125,0.088322023231,10140.723952,39.611328125,0.001893224111,0,[]
+verify-fio,fio,2,0,9884.807679,38.6123046875,0.089113152196,9898.0068,38.6640625,0.001938548842,0,[]

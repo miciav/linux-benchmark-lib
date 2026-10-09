@@ -13,7 +13,9 @@ from typing import Any, ClassVar
 import pandas as pd
 from pydantic import Field
 
+from lb_common.api import DatasetDescriptor, MetricSpec
 from lb_plugins.base_generator import CommandSpec
+from lb_plugins.datasets import plugin_csv_dataset
 from lb_plugins.interface import (
     BasePluginConfig,
     SimpleWorkloadPlugin,
@@ -229,6 +231,22 @@ class DDPlugin(SimpleWorkloadPlugin):
     REQUIRED_APT_PACKAGES: ClassVar[list[str]] = ["coreutils"]
     REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["dd"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        # dd_rate repeats dd_bytes_per_sec in a unit that varies per run.
+        return [
+            plugin_csv_dataset(
+                test_name,
+                metrics=[
+                    MetricSpec(column="dd_bytes", unit="B"),
+                    MetricSpec(column="dd_seconds", unit="s"),
+                    MetricSpec(column="dd_bytes_per_sec", unit="B/s"),
+                ],
+                exclude=["dd_rate"],
+            )
+        ]
 
     def get_preset_config(self, level: WorkloadIntensity) -> DDConfig | None:
         if level == WorkloadIntensity.LOW:

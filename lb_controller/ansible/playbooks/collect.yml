@@ -40,6 +40,15 @@
         - system_info.json
         - system_info.csv
 
+    # Host manifest; workload manifests travel inside the workload archive.
+    # Analytics reports a missing one, so its absence must not fail collection.
+    - name: Fetch host dataset manifest
+      ansible.builtin.fetch:
+        src: "{{ remote_output_root }}/{{ inventory_hostname }}/datasets.json"
+        dest: "{{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}/"
+        flat: true
+        fail_on_missing: false
+
     - name: Ensure controller log output dir exists
       ansible.builtin.file:
         path: "{{ output_root }}/logs"

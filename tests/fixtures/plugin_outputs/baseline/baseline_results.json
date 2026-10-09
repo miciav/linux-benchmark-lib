@@ -1,0 +1,38 @@
+[
+ {
+  "test_name": "baseline",
+  "repetition": 1,
+  "start_time": "2026-10-08T22:47:49.019528",
+  "end_time": "2026-10-08T22:47:59.023404",
+  "duration_seconds": 10.003876,
+  "generator_result": {
+   "status": "completed",
+   "target_duration": 10.0,
+   "actual_duration": 10.00022554397583,
+   "workload": "idle",
+   "max_retries": 0,
+   "tags": []
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-baseline/lb-worker-verify/baseline/rep1",
+  "success": true
+ },
+ {
+  "test_name": "baseline",
+  "repetition": 2,
+  "start_time": "2026-10-08T22:48:24.689464",
+  "end_time": "2026-10-08T22:48:34.693248",
+  "duration_seconds": 10.003784,
+  "generator_result": {
+   "status": "completed",
+   "target_duration": 10.0,
+   "actual_duration": 10.000101089477539,
+   "workload": "idle",
+   "max_retries": 0,
+   "tags": []
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-baseline/lb-worker-verify/baseline/rep2",
+  "success": true
+ }
+]

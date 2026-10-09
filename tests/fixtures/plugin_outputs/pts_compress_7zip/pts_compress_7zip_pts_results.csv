@@ -1,0 +1,5 @@
+run_id,workload,repetition,test,title,app_version,arguments,description,scale,proportion,system,value,samples,raw_values
+verify-pts_compress_7zip,pts_compress_7zip,1,pts/compress-7zip-1.13.1,7-Zip Compression,26.01,,Test: Compression Rating,MIPS,HIB,ARMv8,46066,15,49213:48309:45771:47008:45071:45424:45687:46581:45750:44218:45882:46497:44004:45610:45967
+verify-pts_compress_7zip,pts_compress_7zip,1,pts/compress-7zip-1.13.1,7-Zip Compression,26.01,,Test: Decompression Rating,MIPS,HIB,ARMv8,28165,15,28751:28014:28319:28356:27703:28267:28331:28116:28287:28249:27705:28157:27908:28098:28220
+verify-pts_compress_7zip,pts_compress_7zip,2,pts/compress-7zip-1.13.1,7-Zip Compression,26.01,,Test: Compression Rating,MIPS,HIB,ARMv8,49147,7,49071:46687:50246:49298:49831:50067:48832
+verify-pts_compress_7zip,pts_compress_7zip,2,pts/compress-7zip-1.13.1,7-Zip Compression,26.01,,Test: Decompression Rating,MIPS,HIB,ARMv8,28649,7,28629:28144:28879:28832:28686:28726:28646
