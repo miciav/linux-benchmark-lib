@@ -1,0 +1,35 @@
+Slot:	00:00.0
+Class:	Host bridge [0600]
+Vendor:	Red Hat, Inc. [1b36]
+Device:	QEMU PCIe Host bridge [0008]
+SVendor:	Red Hat, Inc. [1af4]
+SDevice:	QEMU PCIe Host bridge [1100]
+ProgIf:	00
+
+Slot:	00:01.0
+Class:	Ethernet controller [0200]
+Vendor:	Red Hat, Inc. [1af4]
+Device:	Virtio network device [1000]
+SVendor:	Red Hat, Inc. [1af4]
+SDevice:	Virtio network device [0001]
+ProgIf:	00
+Driver:	virtio-pci
+
+Slot:	00:02.0
+Class:	SCSI storage controller [0100]
+Vendor:	Red Hat, Inc. [1af4]
+Device:	Virtio SCSI [1004]
+SVendor:	Red Hat, Inc. [1af4]
+SDevice:	Virtio SCSI [0008]
+ProgIf:	00
+Driver:	virtio-pci
+
+Slot:	00:03.0
+Class:	SCSI storage controller [0100]
+Vendor:	Red Hat, Inc. [1af4]
+Device:	Virtio block device [1001]
+SVendor:	Red Hat, Inc. [1af4]
+SDevice:	Virtio block device [0002]
+ProgIf:	00
+Driver:	virtio-pci
+

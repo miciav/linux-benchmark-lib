@@ -1,0 +1,185 @@
+category,name,value
+meta,timestamp,2026-10-08T20:43:54.183726+00:00
+meta,fingerprint,e152d04be79d908b5190032b370ac1a654b457759ac256282da4f5ecc917192b
+platform,system,Linux
+platform,node,lb-worker-verify
+platform,release,6.8.0-142-generic
+platform,version,#142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:30:29 UTC 2026
+platform,machine,aarch64
+platform,processor,aarch64
+python,version,3.12.3
+python,implementation,CPython
+python,executable,/home/ubuntu/.lb/.venv/bin/python
+os,name,Ubuntu 24.04.5 LTS
+os,id,ubuntu
+os,version,24.04.5 LTS (Noble Numbat)
+os,version_id,24.04
+kernel,release,6.8.0-142-generic
+kernel,version,#142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:30:29 UTC 2026
+kernel,machine,aarch64
+kernel,system,Linux
+kernel,processor,aarch64
+cpu,architecture,aarch64
+cpu,cpu_op-mode(s),64-bit
+cpu,byte_order,Little Endian
+cpu,cpu(s),4
+cpu,on-line_cpu(s)_list,0-3
+cpu,vendor_id,ARM
+cpu,bios_vendor_id,QEMU
+cpu,model_name,Cortex-A725
+cpu,bios_model_name,virt-8.2  CPU @ 2.0GHz
+cpu,bios_cpu_family,1
+cpu,model,1
+cpu,thread(s)_per_core,1
+cpu,core(s)_per_socket,2
+cpu,socket(s),1
+cpu,stepping,r0p1
+cpu,bogomips,2000.00
+cpu,flags,fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 sm3 sm4 asimddp sha512 sve asimdfhm dit uscat ilrcpc flagm ssbs sb paca pacg dcpodp sve2 sveaes svepmull svebitperm svesha3 svesm4 flagm2 frint svei8mm svebf16 i8mm bf16 dgh bti ecv afp wfxt
+cpu,numa_node(s),1
+cpu,numa_node0_cpu(s),0-3
+cpu,vulnerability_gather_data_sampling,Not affected
+cpu,vulnerability_indirect_target_selection,Not affected
+cpu,vulnerability_itlb_multihit,Not affected
+cpu,vulnerability_l1tf,Not affected
+cpu,vulnerability_mds,Not affected
+cpu,vulnerability_meltdown,Not affected
+cpu,vulnerability_mmio_stale_data,Not affected
+cpu,vulnerability_reg_file_data_sampling,Not affected
+cpu,vulnerability_retbleed,Not affected
+cpu,vulnerability_spec_rstack_overflow,Not affected
+cpu,vulnerability_spec_store_bypass,Mitigation; Speculative Store Bypass disabled via prctl
+cpu,vulnerability_spectre_v1,Mitigation; __user pointer sanitization
+cpu,vulnerability_spectre_v2,"Mitigation; CSV2, BHB"
+cpu,vulnerability_srbds,Not affected
+cpu,vulnerability_tsa,Not affected
+cpu,vulnerability_tsx_async_abort,Not affected
+cpu,vulnerability_vmscape,Not affected
+cpu,logical_cpus,4
+cpu,physical_cpus,4
+memory,total_bytes,8302465024
+memory,available_bytes,7837286400
+memory,swap_total_bytes,0
+memory,memtotal,8107876 kB
+memory,memfree,7586160 kB
+memory,memavailable,7653600 kB
+memory,buffers,31244 kB
+memory,cached,179536 kB
+memory,swapcached,0 kB
+memory,active,237672 kB
+memory,inactive,100012 kB
+memory,active(anon),135564 kB
+memory,inactive(anon),0 kB
+memory,active(file),102108 kB
+memory,inactive(file),100012 kB
+memory,unevictable,26484 kB
+memory,mlocked,26484 kB
+memory,swaptotal,0 kB
+memory,swapfree,0 kB
+memory,zswap,0 kB
+memory,zswapped,0 kB
+memory,dirty,1608 kB
+memory,writeback,0 kB
+memory,anonpages,153468 kB
+memory,mapped,97896 kB
+memory,shmem,1172 kB
+memory,kreclaimable,17616 kB
+memory,slab,70340 kB
+memory,sreclaimable,17616 kB
+memory,sunreclaim,52724 kB
+memory,kernelstack,2492 kB
+memory,shadowcallstack,636 kB
+memory,pagetables,3044 kB
+memory,secpagetables,0 kB
+memory,nfs_unstable,0 kB
+memory,bounce,0 kB
+memory,writebacktmp,0 kB
+memory,commitlimit,4053936 kB
+memory,committed_as,546468 kB
+memory,vmalloctotal,133141626880 kB
+memory,vmallocused,8832 kB
+memory,vmallocchunk,0 kB
+memory,percpu,1632 kB
+memory,hardwarecorrupted,0 kB
+memory,anonhugepages,0 kB
+memory,shmemhugepages,0 kB
+memory,shmempmdmapped,0 kB
+memory,filehugepages,0 kB
+memory,filepmdmapped,0 kB
+memory,cmatotal,32768 kB
+memory,cmafree,29696 kB
+memory,hugepages_total,0
+memory,hugepages_free,0
+memory,hugepages_rsvd,0
+memory,hugepages_surp,0
+memory,hugepagesize,2048 kB
+memory,hugetlb,0 kB
+disk,sda,"{""name"": ""sda"", ""size_bytes"": 42949672960, ""rotational"": true, ""model"": ""QEMU HARDDISK"", ""serial"": ""hda""}"
+disk,vda,"{""name"": ""vda"", ""size_bytes"": 55296, ""rotational"": true, ""transport"": ""virtio""}"
+nic,enp0s1,"{""name"": ""enp0s1"", ""up"": true, ""mac"": ""52:54:00:12:44:1e""}"
+smart,/dev/sda,"{""device"": ""/dev/sda""}"
+module,aes_ce_blk,36864
+module,aes_ce_cipher,12288
+module,aes_neon_blk,28672
+module,aes_neon_bs,24576
+module,async_memcpy,16384
+module,async_pq,16384
+module,async_raid6_recov,24576
+module,async_tx,16384
+module,async_xor,16384
+module,autofs4,57344
+module,binfmt_misc,28672
+module,blake2b_generic,24576
+module,btrfs,1941504
+module,crct10dif_ce,12288
+module,dm_multipath,49152
+module,dmi_sysfs,24576
+module,efi_pstore,12288
+module,ghash_ce,24576
+module,ip_tables,36864
+module,isofs,57344
+module,libcrc32c,12288
+module,nfnetlink,20480
+module,nls_iso8859_1,12288
+module,polyval_ce,12288
+module,polyval_generic,12288
+module,raid0,28672
+module,raid1,61440
+module,raid10,77824
+module,raid456,212992
+module,raid6_pq,110592
+module,sch_fq_codel,24576
+module,sha1_ce,12288
+module,sha256_arm64,24576
+module,sha2_ce,20480
+module,sha3_ce,16384
+module,sm3,20480
+module,sm3_ce,12288
+module,sm4,12288
+module,sm4_ce,28672
+module,sm4_ce_ccm,16384
+module,sm4_ce_cipher,12288
+module,sm4_ce_gcm,16384
+module,tls,159744
+module,x_tables,69632
+module,xor,12288
+module,xor_neon,16384
+service,ModemManager.service,running
+service,cron.service,running
+service,dbus.service,running
+service,getty@tty1.service,running
+service,multipathd.service,running
+service,packagekit.service,running
+service,polkit.service,running
+service,rsyslog.service,running
+service,serial-getty@ttyAMA0.service,running
+service,ssh.service,running
+service,systemd-journald.service,running
+service,systemd-logind.service,running
+service,systemd-networkd.service,running
+service,systemd-resolved.service,running
+service,systemd-timesyncd.service,running
+service,systemd-udevd.service,running
+service,udisks2.service,running
+service,unattended-upgrades.service,running
+service,user@1000.service,running

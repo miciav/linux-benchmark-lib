@@ -1,0 +1,2 @@
+cpu_usage_node,ram_usage_node,ram_usage_node_pct,power_usage_node,cpu_usage_function_env,ram_usage_function_env,power_usage_function_env,cpu_usage_function_figlet,ram_usage_function_figlet,power_usage_function_figlet
+15.733333333334187,1406590293.3333333,15.410127140572941,nan,,,,0.11722492393185507,2825557.3333333335,nan

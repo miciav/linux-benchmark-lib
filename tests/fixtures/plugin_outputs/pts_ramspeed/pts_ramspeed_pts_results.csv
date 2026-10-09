@@ -1,0 +1,3 @@
+run_id,workload,repetition,test,title,app_version,arguments,description,scale,proportion,system,value,samples,raw_values
+verify-pts_ramspeed,pts_ramspeed,1,pts/ramspeed-1.4.3,RAMspeed SMP,3.5.0,COPY -b 3,Type: Copy - Benchmark: Integer,MB/s,HIB,1 x 8 GB RAM QEMU,79431.58,15,61398.01:66971.76:84198.28:76788.34:93713.71:81865.39:85568.87:57873.18:93800.3:85148.07:94809.23:72768.18:55265.6:90390.61:90914.21
+verify-pts_ramspeed,pts_ramspeed,2,pts/ramspeed-1.4.3,RAMspeed SMP,3.5.0,COPY -b 3,Type: Copy - Benchmark: Integer,MB/s,HIB,1 x 8 GB RAM QEMU,73600.00,15,96798.83:58149.16:55710.75:61597.56:58862.17:91787.79:72921.67:94502.28:76487.15:87486.54:55621.27:60555.94:52497.08:89818.5:91203.34

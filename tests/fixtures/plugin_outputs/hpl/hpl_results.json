@@ -1,0 +1,56 @@
+[
+ {
+  "test_name": "hpl",
+  "repetition": 1,
+  "start_time": "2026-10-08T22:53:32.599142",
+  "end_time": "2026-10-08T22:53:33.601354",
+  "duration_seconds": 1.002212,
+  "generator_result": {
+   "stdout": "",
+   "stderr": "",
+   "returncode": 0,
+   "command": "mpirun --allow-run-as-root -np 1 --mca plm isolated ./xhpl",
+   "max_retries": 0,
+   "tags": [],
+   "residual": 0.00737190645,
+   "residual_passed": true,
+   "result_line": "WR11C2R4",
+   "n": 2000,
+   "nb": 128,
+   "p": 1,
+   "q": 1,
+   "time_seconds": 0.1,
+   "gflops": 55.43
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-hpl/lb-worker-verify/hpl/rep1",
+  "success": true
+ },
+ {
+  "test_name": "hpl",
+  "repetition": 2,
+  "start_time": "2026-10-08T22:54:08.457049",
+  "end_time": "2026-10-08T22:54:09.459114",
+  "duration_seconds": 1.002065,
+  "generator_result": {
+   "stdout": "",
+   "stderr": "",
+   "returncode": 0,
+   "command": "mpirun --allow-run-as-root -np 1 --mca plm isolated ./xhpl",
+   "max_retries": 0,
+   "tags": [],
+   "residual": 0.00737190645,
+   "residual_passed": true,
+   "result_line": "WR11C2R4",
+   "n": 2000,
+   "nb": 128,
+   "p": 1,
+   "q": 1,
+   "time_seconds": 0.09,
+   "gflops": 57.466
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-hpl/lb-worker-verify/hpl/rep2",
+  "success": true
+ }
+]

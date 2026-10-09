@@ -1,0 +1,9 @@
+functions;rates;results_file
+['env'];[1];results.csv
+['env'];[5];results.csv
+['figlet'];[1];results.csv
+['figlet'];[5];results.csv
+['env', 'figlet'];[1, 1];results.csv
+['env', 'figlet'];[1, 5];results.csv
+['env', 'figlet'];[5, 1];results.csv
+['env', 'figlet'];[5, 5];results.csv

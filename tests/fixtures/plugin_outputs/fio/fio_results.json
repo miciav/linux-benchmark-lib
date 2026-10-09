@@ -1,0 +1,54 @@
+[
+ {
+  "test_name": "fio",
+  "repetition": 1,
+  "start_time": "2026-10-08T22:37:25.201932",
+  "end_time": "2026-10-08T22:37:41.207276",
+  "duration_seconds": 16.005344,
+  "generator_result": {
+   "stdout": "",
+   "stderr": "",
+   "returncode": 0,
+   "command": "fio --name=benchmark --rw=randrw --bs=4k --runtime=15 --iodepth=4 --numjobs=1 --size=256M --directory=/tmp --time_based --group_reporting --output-format=json",
+   "max_retries": 0,
+   "tags": [],
+   "parsed": {
+    "read_iops": 10132.524498,
+    "read_bw_mb": 39.580078125,
+    "read_lat_ms": 0.088322023231,
+    "write_iops": 10140.723952,
+    "write_bw_mb": 39.611328125,
+    "write_lat_ms": 0.001893224111
+   }
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-fio/lb-worker-verify/fio/rep1",
+  "success": true
+ },
+ {
+  "test_name": "fio",
+  "repetition": 2,
+  "start_time": "2026-10-08T22:38:01.187786",
+  "end_time": "2026-10-08T22:38:17.192930",
+  "duration_seconds": 16.005144,
+  "generator_result": {
+   "stdout": "",
+   "stderr": "",
+   "returncode": 0,
+   "command": "fio --name=benchmark --rw=randrw --bs=4k --runtime=15 --iodepth=4 --numjobs=1 --size=256M --directory=/tmp --time_based --group_reporting --output-format=json",
+   "max_retries": 0,
+   "tags": [],
+   "parsed": {
+    "read_iops": 9884.807679,
+    "read_bw_mb": 38.6123046875,
+    "read_lat_ms": 0.089113152196,
+    "write_iops": 9898.0068,
+    "write_bw_mb": 38.6640625,
+    "write_lat_ms": 0.001938548842
+   }
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-fio/lb-worker-verify/fio/rep2",
+  "success": true
+ }
+]

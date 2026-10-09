@@ -1,0 +1,3 @@
+run_id,workload,repetition,success,duration_seconds,profile,returncode
+verify-pts_compress_7zip,pts_compress_7zip,1,True,295.092634,compress-7zip,0
+verify-pts_compress_7zip,pts_compress_7zip,2,True,138.042755,compress-7zip,0

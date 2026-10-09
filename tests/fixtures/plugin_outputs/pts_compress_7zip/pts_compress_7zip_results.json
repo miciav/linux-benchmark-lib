@@ -1,0 +1,40 @@
+[
+ {
+  "test_name": "pts_compress_7zip",
+  "repetition": 1,
+  "start_time": "2026-10-09T00:30:46.596733",
+  "end_time": "2026-10-09T00:35:41.689367",
+  "duration_seconds": 295.092634,
+  "generator_result": {
+   "command": "phoronix-test-suite batch-benchmark compress-7zip",
+   "profile": "compress-7zip",
+   "returncode": 0,
+   "stdout": "",
+   "pts_result_dir": "/root/.lb/.phoronix-test-suite/test-results/2026-10-08-2230",
+   "pts_result_id": "2026-10-08-2230",
+   "duration_seconds": 294.953
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-pts_compress_7zip/lb-worker-verify/pts_compress_7zip/rep1",
+  "success": true
+ },
+ {
+  "test_name": "pts_compress_7zip",
+  "repetition": 2,
+  "start_time": "2026-10-09T00:35:59.748178",
+  "end_time": "2026-10-09T00:38:17.790933",
+  "duration_seconds": 138.042755,
+  "generator_result": {
+   "command": "phoronix-test-suite batch-benchmark compress-7zip",
+   "profile": "compress-7zip",
+   "returncode": 0,
+   "stdout": "",
+   "pts_result_dir": "/root/.lb/.phoronix-test-suite/test-results/2026-10-08-2236",
+   "pts_result_id": "2026-10-08-2236",
+   "duration_seconds": 137.316
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-pts_compress_7zip/lb-worker-verify/pts_compress_7zip/rep2",
+  "success": true
+ }
+]

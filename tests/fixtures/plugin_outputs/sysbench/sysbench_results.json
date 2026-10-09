@@ -1,0 +1,54 @@
+[
+ {
+  "test_name": "sysbench",
+  "repetition": 1,
+  "start_time": "2026-10-08T22:44:50.346001",
+  "end_time": "2026-10-08T22:45:06.377709",
+  "duration_seconds": 16.031708,
+  "generator_result": {
+   "stdout": "",
+   "stderr": "",
+   "returncode": 0,
+   "command": "sysbench cpu --threads=2 --time=15 --cpu-max-prime=20000 run",
+   "max_retries": 0,
+   "tags": [],
+   "events_per_second": 4044.37,
+   "total_time_seconds": 15.0005,
+   "total_events": 60677.0,
+   "latency_min_ms": 0.49,
+   "latency_avg_ms": 0.49,
+   "latency_max_ms": 0.77,
+   "latency_p95_ms": 0.5,
+   "latency_sum_ms": 29993.73
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-sysbench/lb-worker-verify/sysbench/rep1",
+  "success": true
+ },
+ {
+  "test_name": "sysbench",
+  "repetition": 2,
+  "start_time": "2026-10-08T22:45:26.137938",
+  "end_time": "2026-10-08T22:45:42.168462",
+  "duration_seconds": 16.030524,
+  "generator_result": {
+   "stdout": "",
+   "stderr": "",
+   "returncode": 0,
+   "command": "sysbench cpu --threads=2 --time=15 --cpu-max-prime=20000 run",
+   "max_retries": 0,
+   "tags": [],
+   "events_per_second": 4042.74,
+   "total_time_seconds": 15.0003,
+   "total_events": 60652.0,
+   "latency_min_ms": 0.49,
+   "latency_avg_ms": 0.49,
+   "latency_max_ms": 0.85,
+   "latency_p95_ms": 0.5,
+   "latency_sum_ms": 29988.22
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-sysbench/lb-worker-verify/sysbench/rep2",
+  "success": true
+ }
+]

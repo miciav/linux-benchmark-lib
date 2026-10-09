@@ -1,0 +1,2 @@
+run_id,workload,repetition,returncode,success,duration_seconds,single_core_score,multi_core_score,geekbench_version,export_json_supported
+verify-geekbench,geekbench,1,255,False,270.073678,,,6.3.0,False

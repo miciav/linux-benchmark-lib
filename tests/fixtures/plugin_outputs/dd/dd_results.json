@@ -1,0 +1,38 @@
+[
+ {
+  "test_name": "dd",
+  "repetition": 1,
+  "start_time": "2026-10-08T22:35:50.488699",
+  "end_time": "2026-10-08T22:35:51.490349",
+  "duration_seconds": 1.00165,
+  "generator_result": {
+   "stdout": "",
+   "stderr": "512+0 records in\n512+0 records out\n536870912 bytes (537 MB, 512 MiB) copied, 0.352635 s, 1.5 GB/s\n",
+   "returncode": 0,
+   "command": "dd if=/dev/zero of=/tmp/dd_test bs=1M count=512 conv=fdatasync oflag=direct status=progress",
+   "max_retries": 0,
+   "tags": []
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-dd/lb-worker-verify/dd/rep1",
+  "success": true
+ },
+ {
+  "test_name": "dd",
+  "repetition": 2,
+  "start_time": "2026-10-08T22:36:26.452904",
+  "end_time": "2026-10-08T22:36:27.454639",
+  "duration_seconds": 1.001735,
+  "generator_result": {
+   "stdout": "",
+   "stderr": "512+0 records in\n512+0 records out\n536870912 bytes (537 MB, 512 MiB) copied, 0.316844 s, 1.7 GB/s\n",
+   "returncode": 0,
+   "command": "dd if=/dev/zero of=/tmp/dd_test bs=1M count=512 conv=fdatasync oflag=direct status=progress",
+   "max_retries": 0,
+   "tags": []
+  },
+  "metrics": {},
+  "artifacts_dir": "/tmp/benchmark_results/verify-dd/lb-worker-verify/dd/rep2",
+  "success": true
+ }
+]

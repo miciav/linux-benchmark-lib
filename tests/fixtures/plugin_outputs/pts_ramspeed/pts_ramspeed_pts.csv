@@ -1,0 +1,3 @@
+run_id,workload,repetition,success,duration_seconds,profile,returncode
+verify-pts_ramspeed,pts_ramspeed,1,True,486.109348,ramspeed,0
+verify-pts_ramspeed,pts_ramspeed,2,True,504.115823,ramspeed,0

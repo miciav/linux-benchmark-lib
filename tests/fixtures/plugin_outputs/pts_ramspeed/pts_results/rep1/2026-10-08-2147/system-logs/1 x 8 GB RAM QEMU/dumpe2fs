@@ -1,0 +1,56 @@
+dumpe2fs 1.47.0 (5-Feb-2023)
+Filesystem volume name:   cloudimg-rootfs
+Last mounted on:          /
+Filesystem magic number:  0xEF53
+Filesystem revision #:    1 (dynamic)
+Filesystem features:      has_journal ext_attr resize_inode dir_index filetype needs_recovery extent 64bit flex_bg sparse_super large_file huge_file dir_nlink extra_isize metadata_csum
+Filesystem flags:         unsigned_directory_hash 
+Default mount options:    user_xattr acl
+Filesystem state:         clean
+Errors behavior:          Continue
+Filesystem OS type:       Linux
+Inode count:              5111808
+Block count:              10223355
+Reserved block count:     0
+Overhead clusters:        339580
+Free blocks:              8402002
+Free inodes:              4944057
+First block:              0
+Block size:               4096
+Fragment size:            4096
+Group descriptor size:    64
+Reserved GDT blocks:      251
+Blocks per group:         32768
+Fragments per group:      32768
+Inodes per group:         16384
+Inode blocks per group:   1024
+Flex block group size:    16
+Filesystem created:       Sat Sep 26 14:59:33 2026
+Last mount time:          Thu Oct  8 22:29:58 2026
+Last write time:          Thu Oct  8 23:30:30 2026
+Mount count:              3
+Maximum mount count:      -1
+Last checked:             Sat Sep 26 14:59:33 2026
+Check interval:           0 ()
+Lifetime writes:          19 GB
+Reserved blocks uid:      0 (user root)
+Reserved blocks gid:      0 (group root)
+First inode:              11
+Inode size:	          256
+Required extra isize:     32
+Desired extra isize:      32
+Journal inode:            8
+Default directory hash:   half_md4
+Journal backup:           inode blocks
+Checksum type:            crc32c
+Checksum:                 0x0e208a91
+Journal features:         journal_incompat_revoke journal_64bit journal_checksum_v3
+Total journal size:       64M
+Total journal blocks:     16384
+Max transaction length:   16384
+Fast commit length:       0
+Journal sequence:         0x000019ee
+Journal start:            2076
+Journal checksum type:    crc32c
+Journal checksum:         0xbf0122fe
+
