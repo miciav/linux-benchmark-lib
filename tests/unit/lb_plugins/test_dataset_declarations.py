@@ -178,3 +178,32 @@ SAME_CLASS_AS_DECLARED = {"pts_blosc", "pts_gmpbench", "pts_build_linux_kernel"}
 def test_every_registered_plugin_is_declared() -> None:
     registered = set(create_registry().available())
     assert registered - SAME_CLASS_AS_DECLARED == set(DECLARED)
+
+
+def test_stress_ng_closes_the_csv_it_inspects(tmp_path: Path) -> None:
+    import gc
+    import warnings
+
+    work = _export(tmp_path, "stress_ng")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        create_registry().get("stress_ng").describe_datasets(work, "stress_ng")
+        gc.collect()
+    assert not [w for w in caught if issubclass(w.category, ResourceWarning)]
+
+
+def test_yabs_declares_geekbench_scores_when_yabs_ran_it(tmp_path: Path) -> None:
+    (tmp_path / "yabs_plugin.csv").write_text(
+        "repetition,geekbench6_single,geekbench6_multi\n1,1200,4800\n"
+    )
+    [d] = create_registry().get("yabs").describe_datasets(tmp_path, "yabs")
+    plan = plan_wide(d, ["repetition", "geekbench6_single", "geekbench6_multi"])
+    found = {(m.metric, tuple(m.dims.items()), m.unit) for m in plan.metrics}
+    assert ("single", (("geekbench_version", "6"),), "points") in found
+    assert not plan.unmatched_specs
+
+
+def test_yabs_without_disk_tests_declares_no_fio_patterns(tmp_path: Path) -> None:
+    (tmp_path / "yabs_plugin.csv").write_text("repetition,cpu_model\n1,x\n")
+    [d] = create_registry().get("yabs").describe_datasets(tmp_path, "yabs")
+    assert not plan_wide(d, ["repetition", "cpu_model"]).unmatched_specs

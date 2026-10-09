@@ -55,3 +55,18 @@ def test_export_plugin_results_writes_the_manifest(tmp_path: Path) -> None:
     plugin = create_registry().get("sysbench")
     export_plugin_results(plugin, results, work, "sysbench", "r1")
     assert (work / "datasets.json").exists()
+
+
+def test_collector_clock_fields_are_excluded(tmp_path: Path) -> None:
+    from lb_runner.services.dataset_manifest import collector_datasets
+
+    work = tmp_path / "stress_ng"
+    shutil.copytree(FIXTURES / "stress_ng", work)
+    [cli] = [
+        d for d in collector_datasets(work, "stress_ng") if "CLICollector" in d.name
+    ]
+    import re
+
+    for column in ("time_hour", "time_second", "uptime_days", "uptime_total_seconds"):
+        assert any(re.fullmatch(p, column) for p in cli.exclude), column
+    assert not any(re.fullmatch(p, "load_1m") for p in cli.exclude)

@@ -138,7 +138,8 @@ class StressNGPlugin(SimpleWorkloadPlugin):
             ),
         ]
         # These two columns exist only with --metrics, not --metrics-brief.
-        header = path.open().readline()
+        with path.open() as handle:
+            header = handle.readline()
         if "_cpu_used_per_instance_pct" in header:
             metrics.append(
                 MetricSpec(

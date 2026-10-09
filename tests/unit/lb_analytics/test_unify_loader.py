@@ -144,3 +144,62 @@ def test_unreadable_repetitions_file_is_a_report_error(tmp_path: Path) -> None:
     (run.output_root / "h1" / "fio" / "fio_results.json").write_text('{"a": 1}')
     data = load_experiment([run])
     assert any("repetitions" in e["message"] for e in data.report.errors)
+
+
+def test_custom_journal_path_is_honoured(tmp_path: Path) -> None:
+    run = _run(tmp_path, "r1", {"h1": ["fio"]}, journal=False)
+    journal = tmp_path / "elsewhere.json"
+    shutil.copy(FIXTURES / "_run" / "run_journal.json", journal)
+    from dataclasses import replace
+
+    data = load_experiment([replace(run, journal_path=journal)])
+    assert not pd.isna(data.runs.iloc[0]["config_hash"])
+
+
+def test_repetition_times_are_datetimes(tmp_path: Path) -> None:
+    data = load_experiment([_run(tmp_path, "r1", {"h1": ["fio"]})])
+    assert pd.api.types.is_datetime64_any_dtype(data.repetitions["start_time"])
+    assert pd.api.types.is_datetime64_any_dtype(data.repetitions["end_time"])
+
+
+def test_a_bad_file_in_a_multi_file_dataset_rejects_the_whole_dataset(
+    tmp_path: Path,
+) -> None:
+    from lb_common.api import (
+        DatasetDescriptor,
+        DatasetManifest,
+        MetricSpec,
+        write_manifest,
+    )
+
+    work = tmp_path / "r1" / "h1" / "w"
+    work.mkdir(parents=True)
+    (work / "part-1.csv").write_text("repetition,x\n1,1.0\n")
+    (work / "part-2.csv").write_text("repetition,x\n2,bad\n")
+    write_manifest(
+        work,
+        DatasetManifest(
+            workload="w",
+            datasets=[
+                DatasetDescriptor(
+                    name="parts",
+                    path="part-*.csv",
+                    shape="wide",
+                    metrics=[MetricSpec(column="x")],
+                )
+            ],
+        ),
+    )
+    run = RunInfo(
+        run_id="r1",
+        output_root=tmp_path / "r1",
+        report_root=None,
+        data_export_root=None,
+        hosts=["h1"],
+        workloads=["w"],
+        created_at=None,
+        journal_path=None,
+    )
+    data = load_experiment([run])
+    assert data.results.empty
+    assert data.report.errors

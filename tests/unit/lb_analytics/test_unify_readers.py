@@ -200,3 +200,18 @@ def test_numeric_looking_keys_stay_exact_text(tmp_path: Path) -> None:
     assert frame["dim_rate"].tolist()[0] == "5"
     assert pd.isna(frame["dim_rate"].tolist()[1])
     assert set(frame["dim_app_version"]) == {"26.10"}
+
+
+def test_timeseries_reports_a_partly_numeric_column(tmp_path: Path) -> None:
+    d = DatasetDescriptor(
+        name="ps",
+        path="data.csv",
+        shape="timeseries",
+        time_column="timestamp",
+        fixed={"repetition": 1, "collector": "PSUtilCollector"},
+    )
+    text = "timestamp,cpu,mem\n2026-10-08 22:43:18,1.0,5\n2026-10-08 22:43:19,oops,6\n"
+    report = LoadReport()
+    frame = read_dataset(d, _csv(tmp_path, text), CTX, report)
+    assert frame is not None and set(frame.metric) == {"mem"}
+    assert any("cpu" in w["message"] for w in report.warnings)

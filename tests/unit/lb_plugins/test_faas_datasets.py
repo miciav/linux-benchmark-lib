@@ -59,3 +59,11 @@ def test_long_rows_tolerate_a_missing_rate() -> None:
     figlet = [r for r in rows if r["function"] == "figlet"]
     assert figlet and {r["rate"] for r in figlet} == {""}
     assert {r["metric"] for r in rows if r["function"] == ""} == {"rest_seconds"}
+
+
+def test_results_long_is_declared_only_when_exported(tmp_path) -> None:
+    from lb_plugins.plugins._faas_shared.datasets import faas_datasets
+
+    assert "results_long.csv" not in {d.path for d in faas_datasets(tmp_path)}
+    (tmp_path / "results_long.csv").write_text("repetition\n")
+    assert "results_long.csv" in {d.path for d in faas_datasets(tmp_path)}

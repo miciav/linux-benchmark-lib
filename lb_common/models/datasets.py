@@ -85,6 +85,16 @@ class DatasetDescriptor(BaseModel):
     def _check_shape(self) -> DatasetDescriptor:
         for pattern in self.exclude:
             re.compile(pattern)
+        named = {*self.keys, *self.fixed}
+        for spec in self.metrics:
+            if spec.pattern is None:
+                continue
+            clash = named & (set(re.compile(spec.pattern).groupindex) - {"metric"})
+            if clash:
+                raise ValueError(
+                    f"{self.name}: {sorted(clash)} is both a key and a pattern "
+                    "dimension"
+                )
         if self.shape == "timeseries" and not self.time_column:
             raise ValueError(f"{self.name}: a timeseries needs 'time_column'")
         if self.shape == "long" and self.target_table == "host_info":

@@ -121,3 +121,11 @@ def test_plan_wide_resolves_unit_column_template_and_reports_unmatched() -> None
 def test_plan_wide_column_metric_uses_explicit_name() -> None:
     d = _wide(metrics=[MetricSpec(column="generator_x", name="x", unit="s")])
     assert plan_wide(d, ["generator_x"]).metrics[0].metric == "x"
+
+
+def test_a_key_cannot_share_a_name_with_a_pattern_dimension() -> None:
+    with pytest.raises(ValidationError, match="test"):
+        _wide(
+            keys=["test"],
+            metrics=[MetricSpec(pattern=r"^g_(?P<test>.+)_(?P<metric>result)$")],
+        )

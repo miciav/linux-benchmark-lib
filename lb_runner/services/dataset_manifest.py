@@ -37,6 +37,9 @@ def collector_datasets(workload_dir: Path, test_name: str) -> list[DatasetDescri
                 path=path.relative_to(workload_dir).as_posix(),
                 shape="timeseries",
                 time_column="timestamp",
+                # Wall-clock and uptime fields describe when, not how the host
+                # performed; they are noise as performance samples.
+                exclude=[r"time_.*", r"uptime_.*"],
                 fixed={
                     "repetition": int(match["rep"]),
                     "collector": match["collector"],

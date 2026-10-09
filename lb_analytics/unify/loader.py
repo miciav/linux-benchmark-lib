@@ -65,7 +65,7 @@ def load_experiment(runs: Sequence[RunInfo]) -> ExperimentData:
     return ExperimentData(
         runs=_runs_frame(run_rows),
         host_info=_concat(frames["host_info"], HOST_INFO_COLUMNS),
-        repetitions=pd.DataFrame(repetition_rows, columns=REPETITION_COLUMNS),
+        repetitions=_repetitions_frame(repetition_rows),
         results=_concat(frames["results"], RESULTS_COLUMNS),
         samples=_concat(frames["samples"], SAMPLES_COLUMNS),
         report=report,
@@ -103,11 +103,12 @@ def _load_manifest(
                 f"{descriptor.name}: declared file {descriptor.path!r} not found",
             )
             continue
-        for path in files:
-            frame = read_dataset(descriptor, path, ctx, report)
-            if frame is not None:
-                frames[descriptor.target_table].append(frame)
-                report.files_read.append(str(path))
+        # All files of a dataset load, or none does: no partial datasets.
+        loaded = [read_dataset(descriptor, path, ctx, report) for path in files]
+        if any(frame is None for frame in loaded):
+            continue
+        frames[descriptor.target_table].extend(f for f in loaded if f is not None)
+        report.files_read.extend(str(path) for path in files)
     _report_undeclared(manifest, manifest_dir, report)
 
 
@@ -164,7 +165,7 @@ def _repetitions(
 
 
 def _run_row(run: RunInfo, report: LoadReport) -> dict[str, Any]:
-    journal = run.output_root / "run_journal.json"
+    journal = run.journal_path or run.output_root / "run_journal.json"
     metadata: dict[str, Any] = {}
     try:
         metadata = json.loads(journal.read_text()).get("metadata", {})
@@ -177,6 +178,13 @@ def _run_row(run: RunInfo, report: LoadReport) -> dict[str, Any]:
         "config_hash": metadata.get("config_hash"),
         "repetitions": metadata.get("repetitions"),
     }
+
+
+def _repetitions_frame(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    frame = pd.DataFrame(rows, columns=REPETITION_COLUMNS)
+    for column in ("start_time", "end_time"):
+        frame[column] = pd.to_datetime(frame[column], errors="coerce")
+    return frame
 
 
 def _runs_frame(rows: list[dict[str, Any]]) -> pd.DataFrame:

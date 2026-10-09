@@ -59,7 +59,7 @@ def read_dataset(
         if descriptor.target_table == "host_info":
             return _host_info(descriptor, frame, ctx)
         if descriptor.shape == "timeseries":
-            return _timeseries(descriptor, frame, ctx)
+            return _timeseries(descriptor, frame, ctx, source, report)
         long = (
             _wide(descriptor, frame, source, report)
             if descriptor.shape == "wide"
@@ -170,18 +170,31 @@ def _finish_results(
 
 
 def _timeseries(
-    d: DatasetDescriptor, frame: pd.DataFrame, ctx: SourceContext
+    d: DatasetDescriptor,
+    frame: pd.DataFrame,
+    ctx: SourceContext,
+    source: str,
+    report: LoadReport,
 ) -> pd.DataFrame:
     assert d.time_column is not None
     excluded = [re.compile(p) for p in d.exclude]
-    metrics = [
+    candidates = [
         c
         for c in frame.columns
         if c != d.time_column
         and c not in d.keys
         and not any(p.fullmatch(c) for p in excluded)
-        and pd.api.types.is_numeric_dtype(frame[c])
     ]
+    metrics = [c for c in candidates if pd.api.types.is_numeric_dtype(frame[c])]
+    text = [c for c in candidates if c not in metrics]
+    for column in text:
+        # A numeric column with a stray string is read as text: say so.
+        if pd.to_numeric(frame[column], errors="coerce").notna().any():
+            report.warn(
+                source, f"{d.name}: column {column} mixes numbers and text; not loaded"
+            )
+    if text:
+        report.ignored_columns[source] = text
     melted = frame[[d.time_column, *metrics]].melt(
         id_vars=[d.time_column], var_name="metric", value_name="value"
     )

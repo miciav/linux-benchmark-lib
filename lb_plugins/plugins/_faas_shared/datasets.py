@@ -118,16 +118,20 @@ def faas_datasets(output_dir: Path) -> list[DatasetDescriptor]:
             name="skipped", path="skipped.csv", shape="wide", table="ignore"
         ),
         DatasetDescriptor(name="index", path="index.csv", shape="wide", table="ignore"),
-        DatasetDescriptor(
-            name="results_long",
-            path="results_long.csv",
-            shape="long",
-            keys=["config_id", "function", "rate"],
-            metric_column="metric",
-            value_column="value",
-            unit_column="unit",
-        ),
     ]
+    # The export writes nothing when no repetition produced functions.
+    if (output_dir / "results_long.csv").exists():
+        datasets.append(
+            DatasetDescriptor(
+                name="results_long",
+                path="results_long.csv",
+                shape="long",
+                keys=["config_id", "function", "rate"],
+                metric_column="metric",
+                value_column="value",
+                unit_column="unit",
+            )
+        )
     for path in sorted((output_dir / "metrics").glob("metrics-*.csv")):
         match = _METRICS_FILE.match(path.name)
         if match is None:

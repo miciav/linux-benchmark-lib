@@ -311,17 +311,35 @@ class YabsPlugin(SimpleWorkloadPlugin):
     def describe_datasets(
         self, output_dir: Path, test_name: str
     ) -> list[DatasetDescriptor]:
+        plugin_csv = output_dir / f"{test_name}_plugin.csv"
+        header = ""
+        if plugin_csv.exists():
+            with plugin_csv.open() as handle:
+                header = handle.readline()
+        # Each yabs section can be skipped (skip_disk, skip_geekbench): declare
+        # only the families the run produced, so every pattern matches a column.
+        metrics: list[MetricSpec] = []
+        if "fio_" in header:
+            metrics += [
+                MetricSpec(
+                    pattern=_BLOCK + r"(?P<metric>speed_(?:r|w|rw))$", unit="KB/s"
+                ),
+                MetricSpec(
+                    pattern=_BLOCK + r"(?P<metric>iops_(?:r|w|rw))$", unit="IOPS"
+                ),
+            ]
+        if "geekbench" in header:
+            metrics.append(
+                MetricSpec(
+                    pattern=r"^geekbench(?P<geekbench_version>\d+)_"
+                    r"(?P<metric>single|multi)$",
+                    unit="points",
+                )
+            )
         datasets = [
             plugin_csv_dataset(
                 test_name,
-                metrics=[
-                    MetricSpec(
-                        pattern=_BLOCK + r"(?P<metric>speed_(?:r|w|rw))$", unit="KB/s"
-                    ),
-                    MetricSpec(
-                        pattern=_BLOCK + r"(?P<metric>iops_(?:r|w|rw))$", unit="IOPS"
-                    ),
-                ],
+                metrics=metrics,
                 # Host facts duplicated from system_info, which owns them.
                 exclude=["cpu_cores", "ram_kib", "swap_kib", "disk_kb", "cpu_aes"],
             )
