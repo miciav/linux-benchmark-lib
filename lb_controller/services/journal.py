@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from lb_controller.services.paths import generate_experiment_id
 from lb_runner.api import BenchmarkConfig, RunEvent
 
 
@@ -149,7 +150,7 @@ class RunJournal:
             data = json.load(f)
 
         metadata = data.get("metadata", {}) or {}
-        _validate_config(metadata, config)
+        _validate_config(metadata, config, data.get("run_id"))
         tasks_data = data.pop("tasks", [])
         journal = cls(**data)
         journal.tasks = _load_tasks(tasks_data)
@@ -252,11 +253,16 @@ def _config_dump(config: Any) -> dict[str, Any]:
 
 
 def _config_hash(cfg_dump: dict[str, Any]) -> str:
-    """Stable hash for config dumps."""
+    """Stable hash for config dumps.
+
+    The experiment id is a label, not an execution parameter: hashing it would
+    make a run with a generated id impossible to resume with its own config.
+    """
+    hashed = {k: v for k, v in cfg_dump.items() if k != "experiment_id"}
     try:
-        payload = json.dumps(cfg_dump, sort_keys=True, default=str).encode("utf-8")
+        payload = json.dumps(hashed, sort_keys=True, default=str).encode("utf-8")
     except Exception:
-        payload = str(cfg_dump).encode("utf-8")
+        payload = str(hashed).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 
 
@@ -269,6 +275,8 @@ def _build_metadata(config: Any) -> dict[str, Any]:
         "system_info": {},
         "config_dump": cfg_dump,
         "config_hash": _config_hash(cfg_dump),
+        "experiment_id": getattr(config, "experiment_id", None)
+        or generate_experiment_id(),
     }
 
 
@@ -307,9 +315,18 @@ def _valid_test_names(config: Any, test_types: list[str]) -> Iterable[str]:
     return (name for name in test_types if name in config.workloads)
 
 
-def _validate_config(metadata: dict[str, Any], config: Any | None) -> None:
+def _validate_config(
+    metadata: dict[str, Any], config: Any | None, run_id: str | None = None
+) -> None:
     if config is None:
         return
+    requested = getattr(config, "experiment_id", None)
+    recorded = metadata.get("experiment_id")
+    if requested and recorded and requested != recorded:
+        raise ValueError(
+            f"{run_id or 'This run'} belongs to experiment {recorded!r}, not "
+            f"{requested!r}; aborting resume."
+        )
     expected_reps = metadata.get("repetitions")
     if expected_reps and getattr(config, "repetitions", None) != expected_reps:
         raise ValueError("Config does not match journal repetitions; aborting resume.")
