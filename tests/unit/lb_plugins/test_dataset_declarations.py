@@ -33,6 +33,8 @@ DECLARED: list[str] = [
     "geekbench",
     "pts_ramspeed",
     "pts_compress_7zip",
+    "dfaas",
+    "peva_faas",
 ]
 
 
@@ -157,3 +159,13 @@ def test_pts_reads_values_and_units_from_composite_rows(tmp_path: Path) -> None:
         "value",
         "scale",
     )
+
+
+def test_faas_metrics_files_carry_config_and_iteration(tmp_path: Path) -> None:
+    work = _export(tmp_path, "dfaas")
+    descriptors = create_registry().get("dfaas").describe_datasets(work, "dfaas")
+    metrics_files = [d for d in descriptors if d.path.startswith("metrics/")]
+    assert metrics_files
+    assert {"config_id", "iteration", "repetition"} <= set(metrics_files[0].fixed)
+    ignored = {d.path for d in descriptors if d.target_table == "ignore"}
+    assert {"results.csv", "skipped.csv", "index.csv"} <= ignored

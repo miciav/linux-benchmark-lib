@@ -8,7 +8,13 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any, ClassVar
 
+from lb_common.api import DatasetDescriptor
 from lb_plugins.interface import BasePluginConfig, SimpleWorkloadPlugin
+from lb_plugins.plugins._faas_shared.datasets import (
+    faas_datasets,
+    long_rows,
+    write_results_long,
+)
 
 from .config import DfaasConfig
 from .grafana_assets import GRAFANA_ASSETS
@@ -32,6 +38,11 @@ class DfaasPlugin(SimpleWorkloadPlugin):
             "lb_plugins.plugins.peva_faas.generator"
         ).DfaasGenerator
         return generator_cls(config)
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        return faas_datasets(output_dir)
 
     def export_results_to_csv(
         self,
@@ -61,6 +72,10 @@ class DfaasPlugin(SimpleWorkloadPlugin):
         index_path = output_dir / "index.csv"
         _write_index_csv(index_path, index_rows)
         paths.append(index_path)
+
+        long_path = output_dir / "results_long.csv"
+        write_results_long(long_path, long_rows(results, "peva_faas"))
+        paths.append(long_path)
 
         summary_dir = output_dir / "summaries"
         metrics_dir = output_dir / "metrics"
