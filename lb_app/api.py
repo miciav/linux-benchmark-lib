@@ -1,6 +1,13 @@
 """Stable application-layer API surface."""
 
-from lb_analytics.api import AnalyticsKind, AnalyticsRequest, AnalyticsService
+from lb_analytics.api import (
+    AnalyticsKind,
+    AnalyticsRequest,
+    AnalyticsService,
+    ExperimentData,
+    LoadReport,
+    load_experiment,
+)
 from lb_app.client import ApplicationClient
 from lb_app.interfaces import RunRequest, UIHooks
 from lb_app.services import run_service as run_service_module
@@ -90,6 +97,8 @@ __all__ = [
     "DoctorCheckItem",
     "DoctorReport",
     "DoctorService",
+    "ExperimentData",
+    "LoadReport",
     "NoOpDashboardHandle",
     "NoOpProgressHandle",
     "NoOpUIAdapter",
@@ -124,6 +133,7 @@ __all__ = [
     "event_status_line",
     "generate_run_id",
     "journal_rows",
+    "load_experiment",
     "plan_rows",
     "reset_registry_cache",
     "results_exist_for_run",

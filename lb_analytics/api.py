@@ -11,14 +11,20 @@ from lb_analytics.engine.service import (
     AnalyticsService,
 )
 from lb_analytics.reporting.generator import Reporter
+from lb_analytics.unify.experiment import ExperimentData
+from lb_analytics.unify.loader import load_experiment
+from lb_analytics.unify.report import LoadReport
 
 __all__ = [
     "AnalyticsKind",
     "AnalyticsRequest",
     "AnalyticsService",
     "DataHandler",
+    "ExperimentData",
+    "LoadReport",
     "Reporter",
     "TestResult",
     "aggregate_cli",
     "aggregate_psutil",
+    "load_experiment",
 ]

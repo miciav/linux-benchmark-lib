@@ -46,6 +46,7 @@ controller = [
     "ansible-core>=2.15.0",
     "matplotlib>=3.7.0",
     "seaborn>=0.12.0",
+    "pyarrow>=17.0.0",
 ]
 dev = [
     "fabric>=3.2.2",
@@ -511,7 +512,8 @@ per_rule_ignores = { DEP001 = [
     "rapidfuzz",
     # Not imported in Python at all, but required at runtime: duckdb uses
     # pyarrow for its parquet reader/writer, which the peva_faas memory
-    # checkpoint relies on (read_parquet / COPY ... FORMAT PARQUET).
+    # checkpoint relies on (read_parquet / COPY ... FORMAT PARQUET), and
+    # pandas uses it as the to_parquet engine for lb_analytics exports.
     "pyarrow",
 ] }
 
