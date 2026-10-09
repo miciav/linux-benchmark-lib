@@ -131,3 +131,16 @@ def test_parquet_round_trip(tmp_path: Path) -> None:
     ]
     back = pd.read_parquet(tmp_path / "out" / "results.parquet")
     assert len(back) == len(data.results)
+
+
+def test_faas_rate_dimension_is_an_integer_string(tmp_path: Path) -> None:
+    data = load_experiment([_run(tmp_path, "r1", {"h1": ["dfaas"]})])
+    rates = set(data.results["dim_rate"].dropna())
+    assert rates and rates <= {"1", "5"}
+
+
+def test_unreadable_repetitions_file_is_a_report_error(tmp_path: Path) -> None:
+    run = _run(tmp_path, "r1", {"h1": ["fio"]})
+    (run.output_root / "h1" / "fio" / "fio_results.json").write_text('{"a": 1}')
+    data = load_experiment([run])
+    assert any("repetitions" in e["message"] for e in data.report.errors)

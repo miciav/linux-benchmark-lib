@@ -142,19 +142,20 @@ def _repetitions(
     path = manifest_dir / manifest.repetitions
     try:
         entries = json.loads(path.read_text())
+        rows = [
+            {
+                "run_id": ctx.run_id,
+                "host": ctx.host,
+                "workload": ctx.workload,
+                "plugin": ctx.plugin,
+                **{k: entry.get(k) for k in REPETITION_COLUMNS[4:]},
+            }
+            for entry in entries
+        ]
     except Exception as exc:
         report.error(str(path), f"cannot read repetitions: {exc}")
         return []
-    rows = []
-    for entry in entries:
-        row = {
-            "run_id": ctx.run_id,
-            "host": ctx.host,
-            "workload": ctx.workload,
-            "plugin": ctx.plugin,
-            **{k: entry.get(k) for k in REPETITION_COLUMNS[4:]},
-        }
-        rows.append(row)
+    for row in rows:
         if row["success"] is False:
             report.failed_repetitions.append(
                 {k: row[k] for k in ("run_id", "host", "workload", "repetition")}

@@ -46,25 +46,31 @@ class SourceContext:
 def read_dataset(
     descriptor: DatasetDescriptor, path: Path, ctx: SourceContext, report: LoadReport
 ) -> pd.DataFrame | None:
-    """Read one file of ``descriptor`` into its target table's shape."""
-    source = path.name
+    """Read one file of ``descriptor`` into its target table's shape.
+
+    Any problem with the file becomes a report error for this dataset only: a
+    localized fault never stops the rest of the experiment from loading.
+    """
+    source = str(path)
     try:
-        frame = pd.read_csv(path)
+        # Keys are identities, not quantities: "5" must not become "5.0".
+        keys_as_text = dict.fromkeys(descriptor.keys, "string")
+        frame = pd.read_csv(path, dtype=keys_as_text)
+        if descriptor.target_table == "host_info":
+            return _host_info(descriptor, frame, ctx)
+        if descriptor.shape == "timeseries":
+            return _timeseries(descriptor, frame, ctx)
+        long = (
+            _wide(descriptor, frame, source, report)
+            if descriptor.shape == "wide"
+            else _long(descriptor, frame)
+        )
+        if long is None:
+            return None
+        return _finish_results(descriptor, long, ctx, source, report)
     except Exception as exc:
-        report.error(source, f"{descriptor.name}: cannot read CSV: {exc}")
+        report.error(source, f"{descriptor.name}: {exc}")
         return None
-    if descriptor.target_table == "host_info":
-        return _host_info(descriptor, frame, ctx)
-    if descriptor.shape == "timeseries":
-        return _timeseries(descriptor, frame, ctx)
-    long = (
-        _wide(descriptor, frame, source, report)
-        if descriptor.shape == "wide"
-        else _long(descriptor, frame)
-    )
-    if long is None:
-        return None
-    return _finish_results(descriptor, long, ctx, source, report)
 
 
 def _numeric(

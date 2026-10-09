@@ -38,8 +38,8 @@ def test_wide_turns_columns_into_metric_rows_with_dims(tmp_path: Path) -> None:
     assert set(frame["unit"]) == {"ops"}
     row = frame[(frame.repetition == 2) & (frame.dim_stressor == "cpu")].iloc[0]
     assert (row["metric"], row["value"], row["dataset"]) == ("ops", 11.0, "s")
-    assert report.missing_values == {"data.csv": 1}
-    assert report.ignored_columns == {"data.csv": ["run_id"]}
+    assert report.missing_values == {str(path): 1}
+    assert report.ignored_columns == {str(path): ["run_id"]}
 
 
 def test_wide_rejects_a_non_numeric_metric_without_partial_rows(
@@ -159,3 +159,44 @@ def test_host_info_keeps_text_values(tmp_path: Path) -> None:
     assert frame is not None
     assert frame.columns.tolist() == ["run_id", "host", "category", "name", "value"]
     assert frame["value"].tolist() == ["Cortex-X925", "8"]
+
+
+def test_a_missing_declared_column_is_a_report_error_not_an_exception(
+    tmp_path: Path,
+) -> None:
+    d = DatasetDescriptor(
+        name="l",
+        path="data.csv",
+        shape="long",
+        value_columns=[ValueColumn(column="absent")],
+    )
+    report = LoadReport()
+    path = _csv(tmp_path, "repetition,v\n1,2\n")
+    assert read_dataset(d, path, CTX, report) is None
+    assert report.errors and report.errors[0]["source"] == str(path)
+
+
+def test_a_bad_repetition_cell_is_a_report_error(tmp_path: Path) -> None:
+    d = DatasetDescriptor(
+        name="s", path="data.csv", shape="wide", metrics=[MetricSpec(column="x")]
+    )
+    report = LoadReport()
+    assert read_dataset(d, _csv(tmp_path, "repetition,x\nfoo,1\n"), CTX, report) is None
+    assert report.errors
+
+
+def test_numeric_looking_keys_stay_exact_text(tmp_path: Path) -> None:
+    d = DatasetDescriptor(
+        name="l",
+        path="data.csv",
+        shape="long",
+        keys=["rate", "app_version"],
+        metric_column="m",
+        value_column="v",
+    )
+    text = "repetition,rate,app_version,m,v\n1,5,26.10,a,1\n1,,26.10,b,2\n"
+    frame = read_dataset(d, _csv(tmp_path, text), CTX, LoadReport())
+    assert frame is not None
+    assert frame["dim_rate"].tolist()[0] == "5"
+    assert pd.isna(frame["dim_rate"].tolist()[1])
+    assert set(frame["dim_app_version"]) == {"26.10"}
