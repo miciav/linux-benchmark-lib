@@ -169,3 +169,12 @@ def test_faas_metrics_files_carry_config_and_iteration(tmp_path: Path) -> None:
     assert {"config_id", "iteration", "repetition"} <= set(metrics_files[0].fixed)
     ignored = {d.path for d in descriptors if d.target_table == "ignore"}
     assert {"results.csv", "skipped.csv", "index.csv"} <= ignored
+
+
+# Same plugin class as pts_ramspeed and covered by its declaration; no fixture.
+SAME_CLASS_AS_DECLARED = {"pts_blosc", "pts_gmpbench", "pts_build_linux_kernel"}
+
+
+def test_every_registered_plugin_is_declared() -> None:
+    registered = set(create_registry().available())
+    assert registered - SAME_CLASS_AS_DECLARED == set(DECLARED)
