@@ -43,7 +43,7 @@ from lb_common.models.datasets import (
     write_manifest,
 )
 from lb_common.models.hosts import RemoteHostSpec
-from lb_common.models.run_info import RunInfo
+from lb_common.models.run_info import ExperimentInfo, RunInfo
 from lb_common.observability.grafana_client import GrafanaClient
 
 __all__ = [
@@ -51,6 +51,7 @@ __all__ = [
     "ConfigurationError",
     "DatasetDescriptor",
     "DatasetManifest",
+    "ExperimentInfo",
     "GrafanaClient",
     "JsonlLogFormatter",
     "LBError",

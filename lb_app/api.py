@@ -53,7 +53,7 @@ from lb_app.viewmodels.run_viewmodels import (
     summarize_progress,
     target_repetitions,
 )
-from lb_common.api import RemoteHostSpec, RunInfo
+from lb_common.api import ExperimentInfo, RemoteHostSpec, RunInfo
 from lb_controller.api import (
     BenchmarkConfig,
     PlatformConfig,
@@ -98,6 +98,7 @@ __all__ = [
     "DoctorReport",
     "DoctorService",
     "ExperimentData",
+    "ExperimentInfo",
     "LoadReport",
     "NoOpDashboardHandle",
     "NoOpProgressHandle",
