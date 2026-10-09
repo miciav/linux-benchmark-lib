@@ -13,7 +13,9 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
+from lb_common.api import DatasetDescriptor, MetricSpec
 from lb_plugins.base_generator import CommandSpec
+from lb_plugins.datasets import plugin_csv_dataset
 from lb_plugins.interface import (
     BasePluginConfig,
     SimpleWorkloadPlugin,
@@ -142,6 +144,28 @@ class UnixBenchPlugin(SimpleWorkloadPlugin):
     ]
     REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["make", "gcc", "wget"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        return [
+            plugin_csv_dataset(
+                test_name,
+                metrics=[
+                    MetricSpec(
+                        pattern=r"^generator_(?P<test>.+)_(?P<metric>result)$",
+                        unit_column="generator_{test}_unit",
+                    ),
+                    MetricSpec(
+                        pattern=r"^generator_(?P<test>.+)_(?P<metric>index)$",
+                        unit="index",
+                    ),
+                    MetricSpec(
+                        column="generator_index_score", name="index_score", unit="index"
+                    ),
+                ],
+            )
+        ]
 
     def create_generator(
         self, config: BasePluginConfig | dict[str, Any]

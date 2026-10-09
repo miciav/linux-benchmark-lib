@@ -6,7 +6,9 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
+from lb_common.api import DatasetDescriptor, MetricSpec
 from lb_plugins.base_generator import CommandSpec
+from lb_plugins.datasets import plugin_csv_dataset
 from lb_plugins.interface import (
     BasePluginConfig,
     SimpleWorkloadPlugin,
@@ -102,6 +104,9 @@ class StressNGGenerator(StdoutCommandGenerator):
         return self._command_builder.build(self.config).cmd
 
 
+_STRESSOR = r"^generator_(?P<stressor>.+?)_"
+
+
 class StressNGPlugin(SimpleWorkloadPlugin):
     """Plugin definition for StressNG."""
 
@@ -113,6 +118,39 @@ class StressNGPlugin(SimpleWorkloadPlugin):
     REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["stress-ng"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
     TEARDOWN_PLAYBOOK = Path(__file__).parent / "ansible" / "teardown.yml"
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        path = output_dir / f"{test_name}_plugin.csv"
+        if not path.exists():
+            return []
+        metrics = [
+            MetricSpec(pattern=_STRESSOR + r"(?P<metric>bogo_ops)$", unit="ops"),
+            MetricSpec(
+                pattern=_STRESSOR + r"(?P<metric>real_time_s|usr_time_s|sys_time_s)$",
+                unit="s",
+            ),
+            MetricSpec(
+                pattern=_STRESSOR
+                + r"(?P<metric>bogo_ops_per_s_real|bogo_ops_per_s_cpu)$",
+                unit="ops/s",
+            ),
+        ]
+        # These two columns exist only with --metrics, not --metrics-brief.
+        header = path.open().readline()
+        if "_cpu_used_per_instance_pct" in header:
+            metrics.append(
+                MetricSpec(
+                    pattern=_STRESSOR + r"(?P<metric>cpu_used_per_instance_pct)$",
+                    unit="%",
+                )
+            )
+        if "_rss_max_kb" in header:
+            metrics.append(
+                MetricSpec(pattern=_STRESSOR + r"(?P<metric>rss_max_kb)$", unit="KB")
+            )
+        return [plugin_csv_dataset(test_name, metrics=metrics)]
 
     def get_preset_config(self, level: WorkloadIntensity) -> StressNGConfig | None:
         if level == WorkloadIntensity.LOW:

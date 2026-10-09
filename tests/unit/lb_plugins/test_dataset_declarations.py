@@ -20,7 +20,16 @@ pytestmark = pytest.mark.unit_plugins
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "plugin_outputs"
 
 # Workloads whose declarations are complete. Later tasks extend this list.
-DECLARED: list[str] = ["sysbench"]
+DECLARED: list[str] = [
+    "sysbench",
+    "baseline",
+    "stress_ng",
+    "unixbench",
+    "fio",
+    "dd",
+    "hpl",
+    "stream",
+]
 
 
 def _export(tmp_path: Path, workload: str) -> Path:
@@ -77,3 +86,41 @@ def test_plugin_declares_every_file_and_numeric_column(
     }
     undeclared = sorted(exported - declared_files)
     assert not undeclared, f"undeclared: {undeclared}"
+
+
+def _metrics(tmp_path: Path, workload: str) -> dict[tuple, str | None]:
+    """Map (metric, sorted dims) -> unit for the plugin's main CSV."""
+    work = _export(tmp_path, workload)
+    [d, *_] = create_registry().get(workload).describe_datasets(work, workload)
+    frame = pd.read_csv(work / d.path)
+    return {
+        (m.metric, tuple(sorted(m.dims.items()))): m.unit
+        for m in plan_wide(d, list(frame.columns)).metrics
+    }
+
+
+def test_stress_ng_declares_per_stressor_metrics(tmp_path: Path) -> None:
+    metrics = _metrics(tmp_path, "stress_ng")
+    assert metrics[("bogo_ops", (("stressor", "cpu"),))] == "ops"
+    assert metrics[("bogo_ops_per_s_real", (("stressor", "vm"),))] == "ops/s"
+
+
+def test_unixbench_reads_units_from_its_unit_columns(tmp_path: Path) -> None:
+    work = _export(tmp_path, "unixbench")
+    [d] = create_registry().get("unixbench").describe_datasets(work, "unixbench")
+    plan = plan_wide(d, list(pd.read_csv(work / d.path).columns))
+    result = next(m for m in plan.metrics if m.metric == "result")
+    assert result.unit_column == f"generator_{result.dims['test']}_unit"
+    assert any(m.metric == "index_score" for m in plan.metrics)
+
+
+def test_fio_splits_direction_into_a_dimension(tmp_path: Path) -> None:
+    metrics = _metrics(tmp_path, "fio")
+    assert metrics[("iops", (("direction", "read"),))] == "IOPS"
+    assert metrics[("lat_ms", (("direction", "write"),))] == "ms"
+
+
+def test_stream_keeps_seconds_and_drops_millisecond_copies(tmp_path: Path) -> None:
+    metrics = _metrics(tmp_path, "stream")
+    assert metrics[("best_rate_mb_s", (("kernel", "triad"),))] == "MB/s"
+    assert ("avg_time_ms", (("kernel", "copy"),)) not in metrics

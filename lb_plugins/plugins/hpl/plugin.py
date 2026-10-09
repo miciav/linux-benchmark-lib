@@ -13,7 +13,9 @@ from typing import Any, ClassVar
 import pandas as pd
 from pydantic import Field, model_validator
 
+from lb_common.api import DatasetDescriptor, MetricSpec
 from lb_plugins.base_generator import CommandGenerator
+from lb_plugins.datasets import plugin_csv_dataset
 from lb_plugins.interface import (
     BasePluginConfig,
     SimpleWorkloadPlugin,
@@ -325,6 +327,22 @@ class HPLPlugin(SimpleWorkloadPlugin):
     ]
     REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["mpirun", "make"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        return [
+            plugin_csv_dataset(
+                test_name,
+                keys=["n", "nb", "p", "q"],
+                metrics=[
+                    MetricSpec(column="time_seconds", unit="s"),
+                    MetricSpec(column="gflops", unit="GFLOPS"),
+                    MetricSpec(column="residual"),
+                ],
+                exclude=["residual_passed"],
+            )
+        ]
 
     @staticmethod
     def _grid_for_ranks(ranks: int) -> tuple[int, int]:

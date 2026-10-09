@@ -3,11 +3,14 @@
 import logging
 import threading
 import time
+from pathlib import Path
 from typing import ClassVar
 
 from pydantic import Field
 
+from lb_common.api import DatasetDescriptor, MetricSpec
 from lb_plugins.base_generator import BaseGenerator
+from lb_plugins.datasets import plugin_csv_dataset
 from lb_plugins.interface import (
     BasePluginConfig,
     SimpleWorkloadPlugin,
@@ -71,6 +74,27 @@ class BaselinePlugin(SimpleWorkloadPlugin):
     GENERATOR_CLS = BaselineGenerator
     REQUIRED_APT_PACKAGES: ClassVar[list[str]] = []
     REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = []
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        return [
+            plugin_csv_dataset(
+                test_name,
+                metrics=[
+                    MetricSpec(
+                        column="generator_target_duration",
+                        name="target_duration",
+                        unit="s",
+                    ),
+                    MetricSpec(
+                        column="generator_actual_duration",
+                        name="actual_duration",
+                        unit="s",
+                    ),
+                ],
+            )
+        ]
 
     def get_preset_config(self, level: WorkloadIntensity) -> BaselineConfig | None:
         if level == WorkloadIntensity.LOW:
