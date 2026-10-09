@@ -13,3 +13,10 @@ DataFrames plus a `LoadReport`; `ExperimentData.to_parquet(dir)` writes them.
 
 ::: lb_analytics.unify.loader.load_experiment
 ::: lb_analytics.unify.experiment.ExperimentData
+
+Runs are grouped into experiments by `RunCatalogService`: `list_experiments()`,
+`get_experiment(id)` and `folder_experiment()` return `ExperimentInfo` objects
+whose `runs` feed `load_experiment` directly:
+
+    experiment = RunCatalogService(output_dir).get_experiment("exp-20261009-151200")
+    data = load_experiment(experiment.runs)
