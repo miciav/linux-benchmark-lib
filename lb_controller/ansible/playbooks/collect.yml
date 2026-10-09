@@ -39,6 +39,8 @@
       loop:
         - system_info.json
         - system_info.csv
+        # Host manifest; workload manifests travel inside the workload archive.
+        - datasets.json
 
     - name: Ensure controller log output dir exists
       ansible.builtin.file:

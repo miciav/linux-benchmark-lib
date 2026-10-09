@@ -15,6 +15,7 @@ from lb_common.api import (
     error_to_payload,
 )
 from lb_plugins.api import WorkloadPlugin
+from lb_runner.services.dataset_manifest import write_workload_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -195,16 +196,21 @@ def export_plugin_results(
     test_name: str,
     run_id: str,
 ) -> None:
-    if not plugin:
-        return
+    if plugin:
+        try:
+            exported = plugin.export_results_to_csv(
+                results=merged_results,
+                output_dir=target_root,
+                run_id=run_id,
+                test_name=test_name,
+            )
+            for path in exported:
+                logger.info("Plugin exported CSV: %s", path)
+        except Exception as exc:
+            logger.warning(
+                "Plugin '%s' export_results_to_csv failed: %s", plugin.name, exc
+            )
     try:
-        exported = plugin.export_results_to_csv(
-            results=merged_results,
-            output_dir=target_root,
-            run_id=run_id,
-            test_name=test_name,
-        )
-        for path in exported:
-            logger.info("Plugin exported CSV: %s", path)
+        write_workload_manifest(plugin, target_root, test_name)
     except Exception as exc:
-        logger.warning("Plugin '%s' export_results_to_csv failed: %s", plugin.name, exc)
+        logger.warning("Writing datasets.json for '%s' failed: %s", test_name, exc)
