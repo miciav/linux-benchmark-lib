@@ -19,7 +19,9 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
+from lb_common.api import DatasetDescriptor, MetricSpec, ValueColumn
 from lb_plugins.base_generator import CommandGenerator, CommandSpec
+from lb_plugins.datasets import plugin_csv_dataset
 from lb_plugins.interface import (
     BasePluginConfig,
     SimpleWorkloadPlugin,
@@ -285,6 +287,9 @@ class YabsGenerator(CommandGenerator):
             )
 
 
+_BLOCK = r"^fio_(?P<block_size>[^_]+)_"
+
+
 class YabsPlugin(SimpleWorkloadPlugin):
     """Plugin wrapper for YABS."""
 
@@ -302,6 +307,40 @@ class YabsPlugin(SimpleWorkloadPlugin):
     ]
     REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["bash", "curl", "wget"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        datasets = [
+            plugin_csv_dataset(
+                test_name,
+                metrics=[
+                    MetricSpec(
+                        pattern=_BLOCK + r"(?P<metric>speed_(?:r|w|rw))$", unit="KB/s"
+                    ),
+                    MetricSpec(
+                        pattern=_BLOCK + r"(?P<metric>iops_(?:r|w|rw))$", unit="IOPS"
+                    ),
+                ],
+                # Host facts duplicated from system_info, which owns them.
+                exclude=["cpu_cores", "ram_kib", "swap_kib", "disk_kb", "cpu_aes"],
+            )
+        ]
+        if (output_dir / f"{test_name}_iperf.csv").exists():
+            datasets.append(
+                DatasetDescriptor(
+                    name=f"{test_name}_iperf",
+                    path=f"{test_name}_iperf.csv",
+                    shape="long",
+                    keys=["mode", "provider", "location"],
+                    value_columns=[
+                        ValueColumn(column="send_mbits", unit="Mbit/s"),
+                        ValueColumn(column="recv_mbits", unit="Mbit/s"),
+                        ValueColumn(column="latency_ms", unit="ms"),
+                    ],
+                )
+            )
+        return datasets
 
     def get_preset_config(self, level: WorkloadIntensity) -> YabsConfig | None:
         # Intensities map to which portions we run; Geekbench remains skipped.

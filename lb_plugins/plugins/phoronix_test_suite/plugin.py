@@ -22,6 +22,7 @@ from typing import Any
 import yaml
 from pydantic import Field, model_validator
 
+from lb_common.api import DatasetDescriptor
 from lb_plugins.base_generator import CommandGenerator
 from lb_plugins.interface import BasePluginConfig, WorkloadPlugin
 from lb_plugins.utils.csv_export import write_csv_rows
@@ -744,6 +745,34 @@ class PhoronixTestSuiteWorkloadPlugin(WorkloadPlugin):
             write_csv_rows(value_rows, values_path, list(value_rows[0]))
             paths.append(values_path)
         return paths
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        # The _pts.csv summary holds no measurement: declared, not loaded.
+        datasets = [
+            DatasetDescriptor(
+                name=f"{test_name}_pts",
+                path=f"{test_name}_pts.csv",
+                shape="wide",
+                table="ignore",
+            )
+        ]
+        if (output_dir / f"{test_name}_pts_results.csv").exists():
+            datasets.append(
+                DatasetDescriptor(
+                    name=f"{test_name}_pts_results",
+                    path=f"{test_name}_pts_results.csv",
+                    shape="long",
+                    # app_version parses as a number for some profiles (7zip: 26.01).
+                    keys=["description", "arguments", "system", "app_version"],
+                    metric_column="test",
+                    value_column="value",
+                    unit_column="scale",
+                    exclude=["samples"],
+                )
+            )
+        return datasets
 
     def _copy_result_artifacts(
         self, results: list[dict[str, Any]], output_dir: Path

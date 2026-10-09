@@ -29,6 +29,10 @@ DECLARED: list[str] = [
     "dd",
     "hpl",
     "stream",
+    "yabs",
+    "geekbench",
+    "pts_ramspeed",
+    "pts_compress_7zip",
 ]
 
 
@@ -124,3 +128,32 @@ def test_stream_keeps_seconds_and_drops_millisecond_copies(tmp_path: Path) -> No
     metrics = _metrics(tmp_path, "stream")
     assert metrics[("best_rate_mb_s", (("kernel", "triad"),))] == "MB/s"
     assert ("avg_time_ms", (("kernel", "copy"),)) not in metrics
+
+
+def test_yabs_declares_iperf_as_long(tmp_path: Path) -> None:
+    work = _export(tmp_path, "yabs")
+    descriptors = create_registry().get("yabs").describe_datasets(work, "yabs")
+    iperf = {d.name: d for d in descriptors}["yabs_iperf"]
+    assert iperf.shape == "long"
+    assert {v.column: v.unit for v in iperf.value_columns} == {
+        "send_mbits": "Mbit/s",
+        "recv_mbits": "Mbit/s",
+        "latency_ms": "ms",
+    }
+
+
+def test_pts_reads_values_and_units_from_composite_rows(tmp_path: Path) -> None:
+    work = _export(tmp_path, "pts_compress_7zip")
+    descriptors = (
+        create_registry()
+        .get("pts_compress_7zip")
+        .describe_datasets(work, "pts_compress_7zip")
+    )
+    by_name = {d.name: d for d in descriptors}
+    assert by_name["pts_compress_7zip_pts"].target_table == "ignore"
+    values = by_name["pts_compress_7zip_pts_results"]
+    assert (values.metric_column, values.value_column, values.unit_column) == (
+        "test",
+        "value",
+        "scale",
+    )

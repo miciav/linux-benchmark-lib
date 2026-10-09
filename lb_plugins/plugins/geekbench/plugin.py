@@ -25,7 +25,9 @@ from urllib.parse import urlparse
 
 from pydantic import Field
 
+from lb_common.api import DatasetDescriptor, MetricSpec, ValueColumn
 from lb_plugins.base_generator import CommandGenerator, CommandSpec
+from lb_plugins.datasets import plugin_csv_dataset
 from lb_plugins.interface import (
     BasePluginConfig,
     SimpleWorkloadPlugin,
@@ -755,6 +757,31 @@ class GeekbenchPlugin(SimpleWorkloadPlugin):
     ]
     REQUIRED_LOCAL_TOOLS: ClassVar[list[str]] = ["curl", "wget", "tar"]
     SETUP_PLAYBOOK = Path(__file__).parent / "ansible" / "setup_plugin.yml"
+
+    def describe_datasets(
+        self, output_dir: Path, test_name: str
+    ) -> list[DatasetDescriptor]:
+        datasets = [
+            plugin_csv_dataset(
+                test_name,
+                metrics=[
+                    MetricSpec(column="single_core_score", unit="points"),
+                    MetricSpec(column="multi_core_score", unit="points"),
+                ],
+                exclude=["export_json_supported"],
+            )
+        ]
+        if (output_dir / f"{test_name}_subtests.csv").exists():
+            datasets.append(
+                DatasetDescriptor(
+                    name=f"{test_name}_subtests",
+                    path=f"{test_name}_subtests.csv",
+                    shape="long",
+                    keys=["subtest"],
+                    value_columns=[ValueColumn(column="score", unit="points")],
+                )
+            )
+        return datasets
 
     def get_preset_config(self, level: WorkloadIntensity) -> GeekbenchConfig | None:
         if level == WorkloadIntensity.LOW:
