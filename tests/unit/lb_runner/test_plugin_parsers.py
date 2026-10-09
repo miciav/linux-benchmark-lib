@@ -79,8 +79,7 @@ def test_hpl_parses_stdout_metrics(tmp_path):
 T/V                N    NB     P     Q               Time                 Gflops
 --------------------------------------------------------------------------------
 WR00C2R4        10000   256     1     1            12.34              54.321
-||Ax-b||_oo / ( eps * ( ||A||_oo * ||x||_oo + ||b||_oo ) * N ) = 0.1234
-PASSED
+||Ax-b||_oo/(eps*(||A||_oo*||x||_oo+||b||_oo)*N)=   1.234e-01 ...... PASSED
 """
     metrics = gen._parse_output(sample)  # type: ignore[attr-defined]
     assert metrics["gflops"] == 54.321

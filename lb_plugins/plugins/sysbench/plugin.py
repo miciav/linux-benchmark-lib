@@ -59,40 +59,27 @@ class _SysbenchCommandBuilder:
         return CommandSpec(cmd=cmd)
 
 
+# The "General statistics" and "Latency" blocks are printed by every sysbench test.
+_SYSBENCH_METRICS = {
+    "events_per_second": r"events per second:\s*([0-9.]+)",
+    "total_time_seconds": r"total time:\s*([0-9.]+)s",
+    "total_events": r"total number of events:\s*([0-9.]+)",
+    "latency_min_ms": r"^\s*min:\s*([0-9.]+)",
+    "latency_avg_ms": r"^\s*avg:\s*([0-9.]+)",
+    "latency_max_ms": r"^\s*max:\s*([0-9.]+)",
+    "latency_p95_ms": r"95th percentile:\s*([0-9.]+)",
+    "latency_sum_ms": r"^\s*sum:\s*([0-9.]+)",
+}
+
+
 class _SysbenchResultParser:
     def parse(self, result: dict[str, Any]) -> dict[str, Any]:
         stdout = result.get("stdout")
         if not isinstance(stdout, str):
             return result
-        _update_float_metric(
-            result,
-            stdout,
-            "events_per_second",
-            r"events per second:\\s*([0-9.]+)",
-        )
-        _update_float_metric(
-            result,
-            stdout,
-            "total_time_seconds",
-            r"total time:\\s*([0-9.]+)s",
-        )
+        for key, pattern in _SYSBENCH_METRICS.items():
+            _update_float_metric(result, stdout, key, pattern)
         return result
-
-    @staticmethod
-    def _update_metric(
-        result: dict[str, Any],
-        stdout: str,
-        *,
-        key: str,
-        pattern: str,
-    ) -> None:
-        match = re.search(pattern, stdout, re.I)
-        if not match:
-            return
-        try:
-            result[key] = float(match.group(1))
-        except ValueError:
-            return
 
 
 class SysbenchGenerator(StdoutCommandGenerator):
@@ -230,7 +217,7 @@ def _update_float_metric(
     key: str,
     pattern: str,
 ) -> None:
-    match = re.search(pattern, stdout, re.I)
+    match = re.search(pattern, stdout, re.I | re.M)
     if not match:
         return
     try:

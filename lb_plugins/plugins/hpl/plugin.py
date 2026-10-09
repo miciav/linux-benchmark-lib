@@ -291,99 +291,6 @@ HPL.out      output file name (if any)
 
         return metrics
 
-    def _parse_output_lines(
-        self, output: str
-    ) -> tuple[dict[str, Any], tuple[str, int, int, int, int, float, float] | None]:
-        metrics: dict[str, Any] = {}
-        last_wr: tuple[str, int, int, int, int, float, float] | None = None
-
-        # Typical summary line:
-        # WR00C2R4        N    NB     P     Q        Time       Gflops
-        wr_pattern = re.compile(
-            r"^(W[A-Z0-9]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+"
-            r"([\d\.Ee\+\-]+)\s+([\d\.Ee\+\-]+)"
-        )
-        residual_pattern = re.compile(
-            r"\|\|Ax-b\|\|.*=\s*([\d\.Ee\+\-]+)", flags=re.IGNORECASE
-        )
-
-        for raw in output.splitlines():
-            line = raw.strip()
-            if not line:
-                continue
-            parsed_wr = self._parse_wr_line(line, wr_pattern)
-            if parsed_wr:
-                last_wr = parsed_wr
-                continue
-            self._update_metrics_from_line(line, residual_pattern, metrics)
-
-        return metrics, last_wr
-
-    def _update_metrics_from_line(
-        self,
-        line: str,
-        residual_pattern: re.Pattern[str],
-        metrics: dict[str, Any],
-    ) -> None:
-        residual = self._parse_residual(line, residual_pattern)
-        if residual is not None and "residual" not in metrics:
-            metrics["residual"] = residual
-
-        residual_passed = self._parse_residual_passed(line)
-        if residual_passed is not None:
-            metrics["residual_passed"] = residual_passed
-
-    @staticmethod
-    def _parse_wr_line(
-        line: str, pattern: re.Pattern[str]
-    ) -> tuple[str, int, int, int, int, float, float] | None:
-        match = pattern.match(line)
-        if not match:
-            return None
-        try:
-            return (
-                match.group(1),
-                int(match.group(2)),
-                int(match.group(3)),
-                int(match.group(4)),
-                int(match.group(5)),
-                float(match.group(6)),
-                float(match.group(7)),
-            )
-        except ValueError:
-            return None
-
-    @staticmethod
-    def _parse_residual(line: str, pattern: re.Pattern[str]) -> float | None:
-        match = pattern.search(line)
-        if not match:
-            return None
-        try:
-            return float(match.group(1))
-        except ValueError:
-            return None
-
-    @staticmethod
-    def _parse_residual_passed(line: str) -> bool | None:
-        upper = line.upper()
-        if upper.startswith("PASSED"):
-            return True
-        if upper.startswith("FAILED"):
-            return False
-        return None
-
-    @staticmethod
-    def _fallback_gflops(output: str) -> float | None:
-        fallbacks = re.findall(
-            r"([0-9]+(?:\.[0-9]+)?)\s*Gflops", output, flags=re.IGNORECASE
-        )
-        if not fallbacks:
-            return None
-        try:
-            return float(fallbacks[-1])
-        except ValueError:
-            return None
-
     def _stop_workload(self) -> None:
         proc = self._process
         if proc and proc.poll() is None:
@@ -547,8 +454,10 @@ def _update_residual(
 
 
 def _update_pass_fail(metrics: dict[str, Any], line: str) -> None:
-    if line.upper().startswith(("PASSED", "FAILED")):
-        metrics["residual_passed"] = line.upper().startswith("PASSED")
+    # HPL ends the residual line with the verdict: "...= 7.37e-03 ...... PASSED".
+    verdict = line.upper().rsplit(maxsplit=1)[-1]
+    if verdict in ("PASSED", "FAILED"):
+        metrics["residual_passed"] = verdict == "PASSED"
 
 
 def _apply_wr_metrics(

@@ -779,6 +779,7 @@ class GeekbenchPlugin(SimpleWorkloadPlugin):
         if parsing fails.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
+        _copy_json_exports(results, output_dir)
         parser = GeekbenchResultParser(output_dir, GeekbenchConfig().version)
         summary_rows, subtest_rows = parser.collect_rows(
             results,
@@ -818,6 +819,23 @@ class GeekbenchPlugin(SimpleWorkloadPlugin):
             csv_paths.append(sub_path)
 
         return csv_paths
+
+
+def _copy_json_exports(results: list[dict[str, Any]], output_dir: Path) -> None:
+    """Copy each repetition's JSON export next to the CSVs.
+
+    Geekbench writes it under config.output_dir, outside the workload directory
+    the controller collects; keeping the file name lets _resolve_json_path find
+    the copy when the export is re-run on the controller.
+    """
+    for entry in results:
+        raw_json = (entry.get("generator_result") or {}).get("json_result")
+        if not isinstance(raw_json, str):
+            continue
+        src = Path(raw_json)
+        dest = output_dir / src.name
+        if src.is_file() and not dest.exists():
+            shutil.copy2(src, dest)
 
 
 PLUGIN = GeekbenchPlugin()

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -53,6 +54,37 @@ class _UnixBenchCommandBuilder:
         return CommandSpec(cmd=cmd)
 
 
+# Per-test result line, e.g. "<test name>  77592446.5 lps  (10.0 s, 1 samples)".
+_RAW_RESULT = re.compile(
+    r"^(\S.*?)\s{2,}([0-9.]+) (\S+)\s+\([0-9.]+ s, \d+ samples\)$", re.M
+)
+# Rows of the "System Benchmarks [Partial ]Index  BASELINE  RESULT  INDEX" table.
+_INDEX_ROW = re.compile(r"^(\S.*?)\s{2,}[0-9.]+\s+[0-9.]+\s+([0-9.]+)$", re.M)
+_INDEX_SCORE = re.compile(r"^System Benchmarks Index Score.*?([0-9.]+)\s*$", re.M)
+
+
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
+class _UnixBenchResultParser:
+    """Lift per-test results, index values and the index score out of stdout."""
+
+    def parse(self, result: dict[str, Any]) -> dict[str, Any]:
+        stdout = result.get("stdout")
+        if not isinstance(stdout, str):
+            return result
+        for name, value, unit in _RAW_RESULT.findall(stdout):
+            result[f"{_slug(name)}_result"] = float(value)
+            result[f"{_slug(name)}_unit"] = unit
+        table = stdout.split("BASELINE", 1)[1] if "BASELINE" in stdout else ""
+        for name, index in _INDEX_ROW.findall(table):
+            result[f"{_slug(name)}_index"] = float(index)
+        if score := _INDEX_SCORE.search(stdout):
+            result["index_score"] = float(score.group(1))
+        return result
+
+
 class UnixBenchGenerator(StdoutCommandGenerator):
     """Run UnixBench as a workload generator."""
 
@@ -60,7 +92,12 @@ class UnixBenchGenerator(StdoutCommandGenerator):
 
     def __init__(self, config: UnixBenchConfig, name: str = "UnixBenchGenerator"):
         self._command_builder = _UnixBenchCommandBuilder()
-        super().__init__(name, config, command_builder=self._command_builder)
+        super().__init__(
+            name,
+            config,
+            command_builder=self._command_builder,
+            result_parser=_UnixBenchResultParser(),
+        )
         self.config: UnixBenchConfig = config
 
     def _build_command(self) -> list[str]:

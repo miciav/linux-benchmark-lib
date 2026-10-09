@@ -81,3 +81,29 @@ def test_sysbench_validate_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     gen = SysbenchGenerator(cfg)
     assert gen._validate_environment() is True
     assert calls and calls[0][:2] == ["sysbench", "--version"]
+
+
+def test_sysbench_parses_summary_and_latency() -> None:
+    # Tail of real sysbench 1.0.20 cpu output captured from a Multipass run.
+    stdout = (
+        "CPU speed:\n"
+        "    events per second:  4040.35\n\n"
+        "General statistics:\n"
+        "    total time:                          15.0004s\n"
+        "    total number of events:              60616\n\n"
+        "Latency (ms):\n"
+        "         min:                                    0.49\n"
+        "         avg:                                    0.49\n"
+        "         max:                                    0.85\n"
+        "         95th percentile:                        0.50\n"
+        "         sum:                                29988.49\n"
+    )
+    gen = SysbenchGenerator(SysbenchConfig())
+    assert gen._result_parser is not None
+    result = gen._result_parser.parse({"stdout": stdout})
+    assert result["events_per_second"] == 4040.35
+    assert result["total_time_seconds"] == 15.0004
+    assert result["total_events"] == 60616.0
+    assert result["latency_max_ms"] == 0.85
+    assert result["latency_p95_ms"] == 0.50
+    assert result["latency_sum_ms"] == 29988.49

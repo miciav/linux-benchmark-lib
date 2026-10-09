@@ -1,7 +1,8 @@
 """Stress-ng workload generator implementation."""
 
+import re
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import Field
 
@@ -54,6 +55,33 @@ class _StressNGCommandBuilder:
         return CommandSpec(cmd=cmd)
 
 
+# One "metrc:" row per stressor; --metrics adds the last two columns to --metrics-brief.
+_METRIC_ROW = re.compile(r"metrc: \[\d+\]\s+(\S+)((?:\s+[0-9.]+){6,8})\s*$", re.M)
+_METRIC_COLUMNS = (
+    "bogo_ops",
+    "real_time_s",
+    "usr_time_s",
+    "sys_time_s",
+    "bogo_ops_per_s_real",
+    "bogo_ops_per_s_cpu",
+    "cpu_used_per_instance_pct",
+    "rss_max_kb",
+)
+
+
+class _StressNGResultParser:
+    """Lift the per-stressor metrics table out of stress-ng's output."""
+
+    def parse(self, result: dict[str, Any]) -> dict[str, Any]:
+        stdout = result.get("stdout")
+        if not isinstance(stdout, str):
+            return result
+        for stressor, values in _METRIC_ROW.findall(stdout):
+            for column, value in zip(_METRIC_COLUMNS, values.split(), strict=False):
+                result[f"{stressor}_{column}"] = float(value)
+        return result
+
+
 class StressNGGenerator(StdoutCommandGenerator):
     """Workload generator using stress-ng."""
 
@@ -61,7 +89,12 @@ class StressNGGenerator(StdoutCommandGenerator):
 
     def __init__(self, config: StressNGConfig, name: str = "StressNGGenerator"):
         self._command_builder = _StressNGCommandBuilder()
-        super().__init__(name, config, command_builder=self._command_builder)
+        super().__init__(
+            name,
+            config,
+            command_builder=self._command_builder,
+            result_parser=_StressNGResultParser(),
+        )
         self.config: StressNGConfig = config
 
     def _build_command(self) -> list[str]:

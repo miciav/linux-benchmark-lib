@@ -10,13 +10,13 @@
       block:
         - name: Check if runner log exists
           ansible.builtin.stat:
-            path: "{{ remote_output_root }}/runner.log"
+            path: "{{ remote_output_root }}/{{ inventory_hostname }}/runner.log"
           register: runner_log
 
         - name: Fetch runner log
           ansible.builtin.fetch:
-            src: "{{ remote_output_root }}/runner.log"
-            dest: "{{ output_root }}/{{ inventory_hostname }}/runner.log"
+            src: "{{ remote_output_root }}/{{ inventory_hostname }}/runner.log"
+            dest: "{{ per_host_output[inventory_hostname] | default(output_root ~ '/' ~ inventory_hostname) }}/runner.log"
             flat: true
           when: runner_log.stat.exists
       ignore_errors: true # Do not fail teardown if logs are missing
