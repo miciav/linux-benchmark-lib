@@ -16,6 +16,7 @@ from lb_runner.models.config import (
     RemoteExecutionConfig,
     RemoteHostConfig,
     WorkloadConfig,
+    validate_experiment_id,
 )
 from lb_runner.models.events import RunEvent, StdoutEmitter
 from lb_runner.registry import RunnerRegistry
@@ -54,6 +55,7 @@ __all__ = [
     "ensure_run_dirs",
     "storage_module",
     "system_info_module",
+    "validate_experiment_id",
     "workload_output_dir",
     "write_host_manifest",
     "write_outputs",
