@@ -30,21 +30,40 @@ from lb_common.logs.core import (
 )
 from lb_common.logs.handlers.jsonl_handler import JsonlLogFormatter
 from lb_common.logs.handlers.loki_handler import normalize_loki_endpoint
+from lb_common.models.datasets import (
+    MANIFEST_FILENAME,
+    DatasetDescriptor,
+    DatasetManifest,
+    MetricColumn,
+    MetricSpec,
+    ValueColumn,
+    WidePlan,
+    plan_wide,
+    read_manifest,
+    write_manifest,
+)
 from lb_common.models.hosts import RemoteHostSpec
 from lb_common.models.run_info import RunInfo
 from lb_common.observability.grafana_client import GrafanaClient
 
 __all__ = [
+    "MANIFEST_FILENAME",
     "ConfigurationError",
+    "DatasetDescriptor",
+    "DatasetManifest",
     "GrafanaClient",
     "JsonlLogFormatter",
     "LBError",
     "MetricCollectionError",
+    "MetricColumn",
+    "MetricSpec",
     "OutputParseError",
     "RemoteExecutionError",
     "RemoteHostSpec",
     "ResultPersistenceError",
     "RunInfo",
+    "ValueColumn",
+    "WidePlan",
     "WorkloadError",
     "attach_jsonl_handler",
     "attach_loki_handler",
@@ -59,5 +78,8 @@ __all__ = [
     "parse_float_env",
     "parse_int_env",
     "parse_labels_env",
+    "plan_wide",
+    "read_manifest",
     "wrap_error",
+    "write_manifest",
 ]
