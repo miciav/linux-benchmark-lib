@@ -241,6 +241,7 @@ class ApplicationClient:
             run_id=request.run_id,
             resume=request.resume,
             repetitions=request.repetitions,
+            experiment_id=request.experiment_id,
             debug=request.debug,
             intensity=request.intensity,
             ui_adapter=request.ui_adapter,

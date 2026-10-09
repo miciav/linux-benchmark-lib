@@ -40,6 +40,15 @@ def register_run_command(
             "--run-id",
             help="Optional run identifier for tracking results.",
         ),
+        experiment: str | None = typer.Option(
+            None,
+            "--experiment",
+            "-e",
+            help=(
+                "Experiment to add this run to; a new exp-<date>-<time> id is "
+                "generated when omitted."
+            ),
+        ),
         remote: bool | None = typer.Option(
             None,
             "--remote/--no-remote",
@@ -218,6 +227,7 @@ def register_run_command(
                 stop_file=stop_file_resolved,
                 execution_mode=execution_mode,
                 repetitions=repetitions,
+                experiment_id=experiment,
                 node_count=resolved_node_count,
                 docker_engine=docker_engine,
                 ui_adapter=ctx.ui_adapter,

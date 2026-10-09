@@ -30,6 +30,12 @@ def print_run_journal_summary(
         return
 
     ctx.ui.tables.show(build_journal_table(journal))
+    experiment_id = (journal.metadata or {}).get("experiment_id")
+    if experiment_id:
+        ctx.ui.present.info(
+            f"Experiment: {experiment_id} — to add runs to it: "
+            f"lb run --experiment {experiment_id}"
+        )
 
     ctx.ui.present.info(f"Journal saved to {journal_path}")
     if log_path:

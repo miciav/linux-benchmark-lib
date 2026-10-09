@@ -35,6 +35,7 @@ class RunRequest:
     stop_file: Path | None = None
     execution_mode: str = "remote"
     repetitions: int | None = None
+    experiment_id: str | None = None
     node_count: int = 1
     docker_engine: str = "docker"
     ui_adapter: UIAdapter | None = None
