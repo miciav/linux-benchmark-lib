@@ -62,7 +62,7 @@ jobs:
           if-no-files-found: error
 
       - name: Attach diagrams to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             docs/diagrams/*.png
