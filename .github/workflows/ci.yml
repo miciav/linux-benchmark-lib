@@ -13,6 +13,12 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    # GitHub's default is `bash -e`, without pipefail: a failure inside a pipe
+    # passes unnoticed. Set once here rather than per step.
+    shell: bash -euo pipefail {0}
+
 env:
   # Keeps the venv out of the way of any checkout-local tooling.
   UV_CACHE_DIR: .uv-cache
@@ -29,26 +35,22 @@ jobs:
   pre-commit:
     name: pre-commit (ruff, basedpyright, bandit, ansible-lint, deptry, import-linter)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      # The lint floor is 3.12: ruff's target-version is py312 and basedpyright
+      # is pointed at the 3.12 venv, so linting on the floor is the honest choice.
+      # The hooks build their own environments, so no project sync here.
+      - uses: ./.github/actions/setup-project
         with:
-          # The lint floor is 3.12: ruff's target-version is py312 and
-          # basedpyright is pointed at the 3.12 venv, so linting on the floor is
-          # the honest choice.
-          python-version: "3.12"
-
-      - uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          cache-dependency-glob: uv.lock
+          sync: "false"
 
       - name: Install pre-commit
         run: python -m pip install --upgrade pip pre-commit
 
       - name: Cache pre-commit environments
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -62,6 +64,7 @@ jobs:
   test:
     name: pytest (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -69,19 +72,11 @@ jobs:
         # docs and release workflows run.
         python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: ./.github/actions/setup-project
         with:
           python-version: ${{ matrix.python-version }}
-
-      - uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          cache-dependency-glob: uv.lock
-
-      - name: Install project
-        run: uv sync --frozen --all-extras
 
       # Two distinct sets of system libraries, for two distinct reasons.
       #
@@ -139,7 +134,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-${{ matrix.python-version }}
           path: coverage.xml
@@ -155,20 +150,11 @@ jobs:
   security:
     name: security (pip-audit, semgrep)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-
-      - uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          cache-dependency-glob: uv.lock
-
-      - name: Install project
-        run: uv sync --frozen --all-extras
+      - uses: ./.github/actions/setup-project
 
       # Two tiers, because the two populations are genuinely different.
       #
@@ -198,3 +184,42 @@ jobs:
         # sites would fail this job. With it, eval/exec, unsafe yaml.load and
         # hardcoded credentials block while shell=True stays advisory.
         run: uv run --frozen semgrep --config .semgrep.yml --severity ERROR --error --quiet
+
+  # ---------------------------------------------------------------------------
+  # Build the wheel and smoke-test the INSTALLED copy.
+  #
+  # The tests run against the source tree, where every asset exists. The wheel
+  # is assembled from the package-data globs in pyproject.toml, so a playbook,
+  # the PTS .deb or a manifest the globs miss only fails after an install - in
+  # front of a user. scripts/smoke_installed_wheel.py checks imports, every
+  # tracked package-data file, all 17 plugins and their declared playbooks, and
+  # the `lb` console script, from outside the checkout.
+  # ---------------------------------------------------------------------------
+  package:
+    name: package (build + installed-wheel smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-project
+        with:
+          sync: "false"
+
+      - name: Build the wheel
+        run: uv build --wheel --out-dir dist
+
+      - name: Smoke-test the installed wheel
+        run: |
+          venv="$RUNNER_TEMP/wheel-smoke"
+          uv venv "$venv"
+          # Glob, not a name: the file name carries the version, and a version
+          # bump must not break CI.
+          wheels=(dist/*.whl)
+          uv pip install --python "$venv/bin/python" \
+            "${wheels[0]}[controller,ui,dfaas,peva_faas]"
+          # Run from outside the checkout with -I, so the installed copy is the
+          # one imported.
+          cd "$RUNNER_TEMP"
+          "$venv/bin/python" -I "$GITHUB_WORKSPACE/scripts/smoke_installed_wheel.py" \
+            --source "$GITHUB_WORKSPACE"

@@ -413,17 +413,18 @@ skips = [
 
 [tool.coverage.run]
 branch = true
-source = ["lb_runner", "lb_controller", "lb_app", "lb_ui", "lb_analytics"]
+source = ["lb_common", "lb_plugins", "lb_runner", "lb_controller", "lb_app", "lb_ui", "lb_analytics"]
 
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
-# Measured at 70% on `pytest tests/unit tests/integration -m "not slow and not
-# slowest"` when this was set. The gate sits a few points lower on purpose:
-# CI runs a 3.12/3.13 matrix and branch coverage varies slightly by version,
-# and a gate that flakes is worse than a gate that lags. Raise it as the suite
-# improves; never lower it to make a build pass.
-fail_under = 67
+# Measured at 73.2% on `pytest tests/unit tests/integration -m "not slow and
+# not slowest and not inter_docker"` (2026-10-09, lb_common and lb_plugins now
+# in `source`). The gate sits a few points lower on purpose: CI runs a
+# 3.12/3.13 matrix and branch coverage varies slightly by version, and a gate
+# that flakes is worse than a gate that lags. Raise it as the suite improves;
+# never lower it to make a build pass.
+fail_under = 70
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",
