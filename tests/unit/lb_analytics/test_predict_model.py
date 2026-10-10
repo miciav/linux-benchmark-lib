@@ -178,3 +178,30 @@ def test_evaluate_filters_targets_by_text() -> None:
     other = targets.assign(target="dd/dd/results/bw")
     report = evaluate(machines, pd.concat([targets, other]), ["physical_cpus"], "dd/")
     assert set(report.target) == {"dd/dd/results/bw"}
+
+
+def test_fit_refuses_collinear_features() -> None:
+    machines, targets = _frames()
+    machines["mem_bytes"] = machines["physical_cpus"] * 2 * 1024**3
+    with pytest.raises(PredictionError, match="collinear"):
+        fit(machines, targets, TARGET, ["physical_cpus", "mem_bytes"])
+
+
+def test_a_fold_blind_to_a_feature_predicts_the_mean() -> None:
+    names = ["a", "b", "c", "d"]
+    machines = pd.DataFrame({"machine": names, "physical_cpus": [2.0, 2.0, 2.0, 4.0]})
+    targets = pd.DataFrame(
+        {
+            "machine": names,
+            "target": TARGET,
+            "workload": "fio",
+            "metric": "iops",
+            "unit": "op/s",
+            "median": [100.0, 110.0, 90.0, 190.0],
+            "iqr": 0.0,
+            "n": 1,
+        }
+    )
+    held_out = loo_predictions(machines, targets, TARGET, ["physical_cpus"])
+    d = held_out[held_out.machine == "d"].set_index("method")["predicted"]
+    assert d["model"] == pytest.approx(d["mean"])

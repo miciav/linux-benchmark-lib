@@ -36,12 +36,18 @@ different experiments or folders.
 
 ### `machines(*data) -> pd.DataFrame`
 
-One row per machine. A machine is `host` plus the values of the feature columns
-below: the same hostname re-created with another size is a different machine.
-The `meta/fingerprint` value is not used: it hashes memory usage, services and
-modules too, so it changes on every run. A `machine` column holds a stable,
-readable id: the host name, suffixed with `#2`, `#3`… when the same host appears
-with different features (in order of first run).
+One row per machine. A machine is `host` plus the features that do not drift
+between its runs: logical and physical CPUs, threads per core, sockets, L2 and
+L3 cache, `disk_rotational`, and memory and disk size in whole GiB (MemTotal
+moves by a few KiB across kernels). `bogomips`, the current MHz and swap are
+left out of the identity. The same hostname re-created with another size is a
+different machine. The `meta/fingerprint` value is not used: it hashes memory
+usage, services and modules too, so it changes on every run. The `machine`
+column is the host name when the host has one identity in the data, and
+`host#<4 hex digits of a hash of its identity>` when it has several, so a
+variant's name does not depend on which experiments are passed. Feature values
+come from the machine's first run (by `created_at`). Missing values in
+`host_info` (`pd.NA`, empty cells) count as absent.
 
 Numeric features (NaN when absent):
 
@@ -98,7 +104,10 @@ the cores multiplies the metric by about 1.87.
 - fewer than `len(features) + 2` machines have the target;
 - a feature is NaN for a training machine, or constant across them (the
   message names the feature);
-- a log-transformed feature or the target median is ≤ 0.
+- a log-transformed feature or the target median is ≤ 0;
+- the features are collinear on the training machines (the design matrix has
+  rank below `len(features) + 1`, e.g. cores and memory on VM sizes that scale
+  both), so their effects cannot be told apart.
 
 `Model` is a frozen dataclass: `target`, `unit`, `features`, `intercept`,
 `coefficients` (feature → value), `machines` (training machine ids),
@@ -112,7 +121,9 @@ fitted model always carries its validation error.
 ### `evaluate(machines, targets, features, targets_filter=None) -> pd.DataFrame`
 
 For each target (all, or those whose name contains `targets_filter`) with
-enough machines: leave each machine out, fit on the rest, predict it. The same
+enough machines: leave each machine out, fit on the rest, predict it. Features
+are centred on the remaining machines before the fit, so a fold where a feature
+is constant on the rest predicts their mean instead of an arbitrary value. The same
 loop runs for the two baselines:
 
 - `mean`: the geometric mean of the other machines' medians;
@@ -168,7 +179,10 @@ unless stated:
 - One test per `fit` refusal: unknown target, too few machines, NaN feature,
   constant feature, non-positive value.
 - `nearest` picks the expected machine.
-- The same host with two different sizes yields two machines (`h1`, `h1#2`).
+- The same host with two different sizes yields two machines (`h1#…`), with
+  names independent of the other experiments passed; small drifts do not split
+  a host; `pd.NA` values in `host_info` count as absent.
+- Collinear features are refused; a fold blind to a feature predicts the mean.
 - Failed repetitions are excluded from `targets`; `dim_*` values appear in the
   target name.
 - `predict` on an out-of-range feature warns and sets `extrapolated`.

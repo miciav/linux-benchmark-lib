@@ -143,9 +143,53 @@ def test_machines_leaves_missing_categories_as_nan() -> None:
 def test_same_host_with_another_size_is_another_machine() -> None:
     info = _info("r1", "h1", 2) + _info("r2", "h1", 4) + _info("r3", "h1", 2)
     found = machines(_data(info))
-    assert found["machine"].tolist() == ["h1", "h1#2"]
+    names = found["machine"].tolist()
+    assert len(set(names)) == 2
+    assert all(name.startswith("h1#") for name in names)
     assert found["physical_cpus"].tolist() == [2, 4]
     assert found["runs"].tolist() == [["r1", "r3"], ["r2"]]
+
+
+def test_a_host_with_one_size_keeps_its_name() -> None:
+    info = _info("r1", "h1", 2) + _info("r2", "h1", 2)
+    assert machines(_data(info))["machine"].tolist() == ["h1"]
+
+
+def test_variant_names_do_not_depend_on_the_other_experiments() -> None:
+    small = _data(_info("r1", "h1", 2), [("r1", "h1", 1, 10.0)])
+    large = _data(_info("r2", "h1", 4), [("r2", "h1", 1, 40.0)])
+    both = machines(small, large)
+    joined = targets(large).merge(both, on="machine")
+    assert (joined["physical_cpus"] == 4).all()
+    assert set(machines(large, small)["machine"]) == set(both["machine"])
+
+
+def test_feature_drift_does_not_split_a_machine() -> None:
+    info = _info("r1", "h1", 2, mem=8_000_000_000) + _info(
+        "r2", "h1", 2, mem=8_000_300_000
+    )
+    info += [("r1", "h1", "cpu", "bogomips", "4000.00")]
+    info += [("r2", "h1", "cpu", "bogomips", "3990.00")]
+    info += [("r2", "h1", "memory", "swap_total_bytes", "2147483648")]
+    found = machines(_data(info))
+    assert found["machine"].tolist() == ["h1"]
+    assert found["runs"].tolist() == [["r1", "r2"]]
+
+
+def test_machines_ignore_missing_values() -> None:
+    info = [
+        ("r1", "h1", "cpu", "logical_cpus", None),
+        ("r1", "h1", "cpu", "cpu(s)", "4"),
+        ("r1", "h1", "cpu", "hypervisor_vendor", None),
+        ("r1", "h1", "cpu", "bios_vendor_id", None),
+        ("r1", "h1", "cpu", "cpu_max_mhz", None),
+    ]
+    data = _data(info)
+    data.host_info["value"] = data.host_info["value"].astype("string")
+    row = machines(data).iloc[0]
+    assert row["logical_cpus"] == 4
+    assert math.isnan(row["cpu_mhz"])
+    assert not row["virtualized"]
 
 
 def test_machines_of_nothing_is_an_empty_frame() -> None:

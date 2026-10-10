@@ -243,6 +243,12 @@ def _table(
             f"'{target}' is not positive on {', '.join(bad)}; "
             "a log model needs positive values."
         )
+    if np.linalg.matrix_rank(_design(table, features)) < len(features) + 1:
+        raise PredictionError(
+            f"Features {', '.join(features)} are collinear on these machines "
+            "(one follows from the others), so their effects cannot be told "
+            "apart; drop one."
+        )
     return table.reset_index(drop=True)
 
 
@@ -263,11 +269,13 @@ def _solve(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 def _loo(table: pd.DataFrame, features: list[str]) -> pd.DataFrame:
     """Predict each machine from the others with the model and both baselines."""
     y = np.log(table["median"].to_numpy(float))
-    x = _design(table, features)
-    z = x[:, 1:]
+    z = _design(table, features)[:, 1:]
     rows = []
     for i in range(len(table)):
         rest = np.arange(len(table)) != i
+        # Centred on the fold, a feature constant on the rest gets coefficient
+        # 0 from lstsq, so the model falls back to the fold's mean.
+        x = np.column_stack([np.ones(len(table)), z - z[rest].mean(axis=0)])
         sd = z[rest].std(axis=0)
         use = sd > 0
         # ponytail: with every feature constant on the rest, nearest is the first one

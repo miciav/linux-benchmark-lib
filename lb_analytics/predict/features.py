@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
+from collections import Counter
 from typing import Any
 
 import pandas as pd
@@ -39,6 +41,19 @@ TARGET_COLUMNS = [
     "n",
 ]
 
+# What identifies a machine: features that do not drift between its runs.
+# Memory and disk are compared in whole GiB (MemTotal moves a little across
+# kernels); bogomips, the current MHz and swap are left out.
+_IDENTITY = (
+    "logical_cpus",
+    "physical_cpus",
+    "threads_per_core",
+    "sockets",
+    "l2_bytes",
+    "l3_bytes",
+    "disk_rotational",
+)
+_GIB = 1024**3
 _HYPERVISORS = {"QEMU", "KVM"}
 _SIZE = re.compile(r"^\s*([\d.]+)\s*([KMG]i?B?|B)?", re.IGNORECASE)
 _UNIT_BYTES = {"": 1, "k": 1024, "ki": 1024, "m": 1024**2, "mi": 1024**2}
@@ -65,11 +80,12 @@ def parse_size(text: Any) -> float:
 
 
 def machines(*data: ExperimentData) -> pd.DataFrame:
-    """One row per machine: a host with one set of feature values.
+    """One row per machine: a host with one set of identifying features.
 
-    The same host seen with different features (a VM re-created with another
-    size) is a different machine, named ``host#2``, ``host#3``… in order of
-    first run.
+    A host seen with one size is named after the host. A host seen with
+    several sizes (a VM re-created) gives one machine per size, named
+    ``host#<hash of its features>`` so the name does not depend on which
+    experiments are passed. Feature values come from the machine's first run.
     """
     info = pd.concat([d.host_info for d in data], ignore_index=True)
     if info.empty:
@@ -83,6 +99,7 @@ def machines(*data: ExperimentData) -> pd.DataFrame:
             for category, name, value in group[
                 ["category", "name", "value"]
             ].itertuples(index=False)
+            if not pd.isna(value)
         }
         rows.append(
             {
@@ -95,13 +112,17 @@ def machines(*data: ExperimentData) -> pd.DataFrame:
     frame = pd.DataFrame(rows).sort_values(
         ["started", "run_id"], na_position="last", kind="stable"
     )
-    seen: dict[str, int] = {}
+    frame["mem_gib"] = (frame["mem_bytes"] / _GIB).round()
+    frame["disk_gib"] = (frame["disk_bytes"] / _GIB).round()
+    keys = ["host", *_IDENTITY, "mem_gib", "disk_gib"]
+    groups = list(frame.groupby(keys, dropna=False, sort=False))
+    sizes = Counter(key[0] for key, _ in groups)
     out = []
-    for _, group in frame.groupby(["host", *FEATURES], dropna=False, sort=False):
-        first = group.iloc[0]
-        count = seen[first["host"]] = seen.get(first["host"], 0) + 1
-        name = first["host"] if count == 1 else f"{first['host']}#{count}"
-        out.append({**first.to_dict(), "machine": name, "runs": list(group["run_id"])})
+    for key, group in groups:
+        host = str(key[0])
+        name = host if sizes[host] == 1 else f"{host}#{_digest(key[1:])}"
+        first = group.iloc[0].to_dict()
+        out.append({**first, "machine": name, "runs": list(group["run_id"])})
     return pd.DataFrame(out, columns=MACHINE_COLUMNS)
 
 
@@ -174,6 +195,11 @@ def _features(values: dict[tuple[str, str], Any]) -> dict[str, Any]:
         or bios.upper() in _HYPERVISORS,
         "kernel": values.get(("kernel", "release")),
     }
+
+
+def _digest(values: tuple[Any, ...]) -> str:
+    text = repr(tuple(to_number(v) for v in values))
+    return hashlib.sha256(text.encode()).hexdigest()[:4]
 
 
 def _largest_disk(raw: list[Any]) -> dict[str, Any]:
