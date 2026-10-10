@@ -72,6 +72,9 @@ even on SSD-backed hosts, so it is unreliable on VMs. The docs say so.
 One row per machine and target. A target is `workload`, `plugin`, `dataset`,
 `metric` plus every non-null `dim_*` column of the result row, rendered as one
 string `target` (`fio/fio/results/iops[block_size=4k,mode=randread]`).
+A trailing `-rep<N>` is dropped from the dataset name: dfaas and peva_faas
+write one dataset per repetition (`metrics-<config>-iter1-rep2`), and without
+this each repetition would be a target of its own.
 Repetitions whose `repetitions.success` is false are excluded. Columns:
 `machine`, `target`, `workload`, `metric`, `unit`, `median`, `iqr`, `n`
 (repetitions used). Targets are not pre-filtered: the notebook chooses which
