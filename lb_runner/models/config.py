@@ -230,6 +230,12 @@ _EXPERIMENT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 def validate_experiment_id(value: str | None) -> str | None:
     """Return ``value`` if it is a valid experiment id (or None), else raise."""
+    if value is not None and value.startswith("run-"):
+        # Older runs without an id are listed as experiments named by run_id.
+        raise ValueError(
+            f"invalid experiment id {value!r}: the 'run-' prefix is reserved "
+            "for run ids"
+        )
     if value is None or _EXPERIMENT_ID.fullmatch(value):
         return value
     raise ValueError(

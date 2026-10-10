@@ -39,6 +39,8 @@ Rules:
    letters, digits, `.`, `_`, `-`, at most 64 characters, alphanumeric first.
    It also names a folder (`data_exports/<experiment>/` in C), so spaces, `/`
    and `..` are rejected with a message stating the allowed characters. The
+   `run-` prefix is reserved: older runs without an id are listed as
+   experiments named by their `run_id`, so a user id may not take that shape. The
    check is a pydantic validator on `BenchmarkConfig`, so it covers both the
    config file and the command line, and it fails before anything runs.
 2. **The id is not part of the config hash.** Resume compares a hash of the

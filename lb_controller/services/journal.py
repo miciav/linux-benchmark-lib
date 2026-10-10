@@ -266,6 +266,13 @@ def _config_hash(cfg_dump: dict[str, Any]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def hash_config(config: Any | None) -> str:
+    """The config hash a journal records; the single definition for resume."""
+    if config is None:
+        return ""
+    return _config_hash(_config_dump(config))
+
+
 def _build_metadata(config: Any) -> dict[str, Any]:
     cfg_dump = _config_dump(config)
     return {

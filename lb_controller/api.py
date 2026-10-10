@@ -40,7 +40,13 @@ from lb_controller.services.connectivity_service import (
     ConnectivityService,
     HostConnectivityResult,
 )
-from lb_controller.services.journal import LogSink, RunJournal, RunStatus, TaskState
+from lb_controller.services.journal import (
+    LogSink,
+    RunJournal,
+    RunStatus,
+    TaskState,
+    hash_config,
+)
 from lb_controller.services.journal_sync import backfill_timings_from_results
 from lb_controller.services.paths import apply_playbook_defaults, prepare_run_dirs
 from lb_runner.api import RunEvent, StopToken, workload_output_dir
@@ -87,6 +93,7 @@ __all__ = [
     "_extract_lb_event",
     "apply_playbook_defaults",
     "backfill_timings_from_results",
+    "hash_config",
     "pending_exists",
     "prepare_run_dirs",
     "workload_output_dir",

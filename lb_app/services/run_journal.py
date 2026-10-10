@@ -9,13 +9,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from lb_app.services.run_config import hash_config
 from lb_app.services.run_types import RunContext
 from lb_controller.api import (
     BenchmarkConfig,
     RunJournal,
     RunStatus,
     TaskState,
+    hash_config,
     workload_output_dir,
 )
 

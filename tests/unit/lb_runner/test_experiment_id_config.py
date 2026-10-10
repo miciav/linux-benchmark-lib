@@ -25,3 +25,12 @@ def test_invalid_experiment_ids_are_rejected(value: str) -> None:
 def test_experiment_id_defaults_to_none() -> None:
     assert BenchmarkConfig().experiment_id is None
     assert validate_experiment_id(None) is None
+
+
+def test_the_run_prefix_is_reserved_for_run_ids() -> None:
+    # Older runs without an id are listed as experiments named by run_id.
+    with pytest.raises(ValueError, match="reserved"):
+        validate_experiment_id("run-20261001-090000")
+    with pytest.raises(ValidationError, match="reserved"):
+        BenchmarkConfig(experiment_id="run-x")
+    assert validate_experiment_id("running-tests") == "running-tests"
