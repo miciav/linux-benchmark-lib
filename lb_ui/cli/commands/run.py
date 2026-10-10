@@ -323,6 +323,8 @@ def register_run_command(
             )
 
         ctx.ui.present.success("Run completed.")
+        if analyze and not (result and result.journal_path):
+            ctx.ui.present.warning("--analyze: no run journal, so nothing to unify.")
         if (
             analyze is not False
             and result

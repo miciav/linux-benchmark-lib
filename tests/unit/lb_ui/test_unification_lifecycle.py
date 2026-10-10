@@ -188,3 +188,29 @@ def test_a_write_failure_after_yes_is_reported_not_raised(cfg, tmp_path, monkeyp
     ctx = _ctx(headless=False, confirm=True)
     assert not unification.unify_after_run(ctx, cfg, _journal(cfg), None, forced=False)
     assert any("Could not write" in m for m in ctx.ui.recorded_messages)
+
+
+def test_analyze_without_a_journal_warns(cfg, tmp_path, monkeypatch):
+    cli = _load_cli(monkeypatch, tmp_path)
+    from lb_runner.api import WorkloadConfig
+
+    cfg.workloads["stress_ng"] = WorkloadConfig(plugin="stress_ng", options={})
+    cfg_path = tmp_path / "cfg.json"
+    cfg.save(cfg_path)
+    monkeypatch.setattr(
+        cli.app_client,
+        "_provision",
+        lambda config, execution_mode, node_count, docker_engine=None, resume=None: (
+            config,
+            None,
+        ),
+    )
+    monkeypatch.setattr(
+        cli.app_client,
+        "start_run",
+        lambda *_a, **_k: SimpleNamespace(
+            journal_path=None, log_path=None, ui_log_path=None
+        ),
+    )
+    result = CliRunner().invoke(cli.app, ["run", "-c", str(cfg_path), "--analyze"])
+    assert "no run journal" in " ".join(result.output.split())

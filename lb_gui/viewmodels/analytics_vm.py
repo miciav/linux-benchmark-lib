@@ -144,8 +144,8 @@ class AnalyticsViewModel(QObject):
                 self.configure_with_config(cached)
                 return True
         try:
-            config, _, _ = self._config_service.load_config(config_path)
-            self._run_catalog.configure(config)
+            config, resolved, _ = self._config_service.load_config(config_path)
+            self._run_catalog.configure(config, resolved)
             self._is_configured = True
             return True
         except Exception as e:
@@ -155,8 +155,20 @@ class AnalyticsViewModel(QObject):
 
     def configure_with_config(self, config: BenchmarkConfig) -> None:
         """Configure the run catalog service with a preloaded config."""
-        self._run_catalog.configure(config)
+        self._run_catalog.configure(config, self._current_config_path())
         self._is_configured = True
+
+    def _current_config_path(self) -> Path | None:
+        """Where the loaded config came from, for the equivalent command."""
+        if self._config_service is None:
+            return None
+        try:
+            current = self._config_service.get_current_config()
+        except Exception:
+            return None
+        if isinstance(current, tuple) and len(current) > 1:
+            return current[1]
+        return None
 
     def select_experiment(self, index: int | None) -> None:
         """Select by row; the filters default to every host and workload."""
@@ -174,6 +186,10 @@ class AnalyticsViewModel(QObject):
         experiment = self._selected
         if experiment is None:
             self.analytics_failed.emit("No experiment selected")
+            return
+        if not self._selected_hosts or not self._selected_workloads:
+            # Nothing selected is not "all": the summary would say otherwise.
+            self.analytics_failed.emit("Select at least one host and one workload")
             return
         service = self._run_catalog.unification()
         hosts, workloads = list(self._selected_hosts), list(self._selected_workloads)

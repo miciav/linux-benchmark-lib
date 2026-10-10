@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 import pandas as pd
@@ -106,9 +107,10 @@ def test_an_empty_preview_offers_no_unify(service, monkeypatch):
     monkeypatch.setattr(
         service,
         "prepare",
-        lambda experiment, hosts=(), workloads=(): real_prepare(
-            experiment, ["nobody"], workloads
-        ),
+        lambda experiment, hosts=(), workloads=(): (
+            preview := real_prepare(experiment, hosts, workloads),
+            replace(preview, data=preview.data.filter(hosts=["nobody"])),
+        )[1],
     )
     picker = ScriptedPicker(["cancel"])
     ctx, _ = _ctx(picker)

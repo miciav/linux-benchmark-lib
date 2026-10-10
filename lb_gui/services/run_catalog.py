@@ -18,10 +18,14 @@ class RunCatalogServiceWrapper:
         self._service: RunCatalogService | None = None
         self._config: BenchmarkConfig | None = None
         self._export_root: Path | None = None
+        self._config_path: Path | None = None
 
-    def configure(self, config: BenchmarkConfig) -> None:
-        """Configure the service with a benchmark config."""
+    def configure(
+        self, config: BenchmarkConfig, config_path: Path | None = None
+    ) -> None:
+        """Configure the service with a benchmark config (and where it came from)."""
         self._config = config
+        self._config_path = config_path
         self._export_root = Path(config.data_export_dir)
         self._service = RunCatalogService(
             config.output_dir,
@@ -56,4 +60,8 @@ class RunCatalogServiceWrapper:
     def unification(self) -> UnificationService:
         """The unification service over the configured output folder."""
         service = self._ensure_configured()
-        return UnificationService(service, self._export_root or service.output_dir)
+        return UnificationService(
+            service,
+            self._export_root or service.output_dir,
+            config_path=self._config_path,
+        )

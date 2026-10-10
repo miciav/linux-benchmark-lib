@@ -76,7 +76,7 @@ def test_filters_that_leave_nothing_fail(setup):
     invoke, exports = setup
     result = invoke("--experiment", "tuning", "--host", "nobody")
     assert result.exit_code == 1
-    assert "Nothing to unify" in result.output
+    assert "Unknown host 'nobody'" in result.output
     assert not (exports / "tuning").exists()
 
 

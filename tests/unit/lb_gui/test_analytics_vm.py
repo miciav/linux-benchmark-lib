@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -68,8 +69,13 @@ def test_changing_a_filter_drops_the_preview(vm):
 def test_an_empty_preview_cannot_be_unified(vm, tmp_path):
     failed: list[str] = []
     vm.analytics_failed.connect(failed.append)
+    service = vm._run_catalog.unification.return_value
+    real_prepare = service.prepare
+    service.prepare = lambda *args: (
+        preview := real_prepare(*args),
+        replace(preview, data=preview.data.filter(hosts=["nobody"])),
+    )[1]
     vm.select_experiment(1)
-    vm.selected_hosts = ["nobody"]
     vm.prepare()
     assert vm.preview is not None and vm.preview.is_empty
     assert not vm.can_unify
@@ -117,3 +123,31 @@ def test_the_written_preview_is_kept_for_the_result(vm):
     prepared = vm.preview
     vm.unify()
     assert vm.last_written is prepared
+
+
+def test_deselecting_every_host_is_not_all_hosts(vm):
+    failed: list[str] = []
+    vm.analytics_failed.connect(failed.append)
+    vm.select_experiment(1)
+    vm.selected_hosts = []
+    vm.prepare()
+    assert vm.preview is None
+    assert failed == ["Select at least one host and one workload"]
+
+
+def test_the_gui_command_names_the_loaded_config(tmp_path):
+    from lb_gui.services.run_catalog import RunCatalogServiceWrapper
+    from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
+    from lb_runner.api import BenchmarkConfig
+
+    root = tmp_path / "benchmark_results"
+    collected_run(root, "run-1", "tuning", "fio")
+    cfg = BenchmarkConfig(output_dir=root, data_export_dir=tmp_path / "exports")
+    config_service = MagicMock()
+    config_service.get_current_config.return_value = (cfg, tmp_path / "lb.yaml")
+    model = AnalyticsViewModel(RunCatalogServiceWrapper(), config_service)
+    model.configure_with_config(cfg)
+    model.refresh_runs()
+    model.select_experiment(1)
+    model.prepare()
+    assert f"--config {tmp_path / 'lb.yaml'}" in model.preview.command

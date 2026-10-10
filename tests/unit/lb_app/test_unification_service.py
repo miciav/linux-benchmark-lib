@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import pandas as pd
@@ -85,7 +86,9 @@ def test_a_narrower_unification_rewrites_every_table(root, tmp_path):
 
 def test_an_empty_preview_is_refused(root, tmp_path):
     service = _service(root, tmp_path)
-    preview = service.prepare(service.find("tuning"), hosts=["nobody"])
+    tuning = service.find("tuning")
+    preview = service.prepare(tuning, workloads=["fio"])
+    preview = replace(preview, data=preview.data.filter(hosts=["nobody"]))
     assert preview.is_empty
     assert ("Nothing to unify", "no results or samples after the filters") in (
         preview.summary_rows()
@@ -141,3 +144,44 @@ def test_a_folder_and_an_experiment_with_one_name_write_apart(tmp_path):
     experiment = service.prepare(service.find("tuning"))
     assert experiment.out_dir == tmp_path / "exports" / "tuning"
     assert folder.out_dir == tmp_path / "exports" / "_folders" / "tuning"
+
+
+def test_the_output_folder_is_absolute(root, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    service = UnificationService(RunCatalogService(root), Path("exports"))
+    out_dir = service.prepare(service.find("tuning")).out_dir
+    assert out_dir == tmp_path / "exports" / "tuning"
+
+
+def test_unknown_filter_names_are_rejected_with_the_valid_ones(root, tmp_path):
+    service = _service(root, tmp_path)
+    tuning = service.find("tuning")
+    with pytest.raises(UnificationError, match=r"Unknown host 'typo'.*h1"):
+        service.prepare(tuning, hosts=["h1", "typo"])
+    with pytest.raises(UnificationError, match=r"Unknown workload 'fo'.*fio"):
+        service.prepare(tuning, workloads=["fo"])
+
+
+def test_an_experiment_without_data_says_so_without_mentioning_filters(tmp_path):
+    root = tmp_path / "benchmark_results"
+    (root / "run-1").mkdir(parents=True)
+    (root / "run-1" / "run_journal.json").write_text(
+        '{"run_id": "run-1", "metadata": {"experiment_id": "empty"},'
+        ' "tasks": [{"host": "h1", "workload": "fio"}]}'
+    )
+    service = _service(root, tmp_path)
+    preview = service.prepare(service.find("empty"))
+    assert ("Nothing to unify", "no results or samples") in preview.summary_rows()
+    with pytest.raises(UnificationError) as error:
+        service.write(preview)
+    assert "after the filters" not in str(error.value)
+
+
+def test_a_long_error_list_is_capped_in_the_summary(root, tmp_path):
+    service = _service(root, tmp_path)
+    preview = service.prepare(service.find("tuning"))
+    for n in range(15):
+        preview.data.report.error(f"file-{n}.csv", "broken")
+    rows = preview.summary_rows()
+    assert len([label for label, _ in rows if label.startswith("Error:")]) == 10
+    assert ("More errors", "5 more in load_report.json") in rows

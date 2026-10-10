@@ -12,6 +12,8 @@ from lb_analytics.api import ExperimentData, load_experiment
 from lb_common.api import ExperimentInfo
 from lb_controller.api import RunCatalogService
 
+MAX_SUMMARY_ERRORS = 10
+
 
 class UnificationError(Exception):
     """A user-facing reason the unification cannot go ahead."""
@@ -36,6 +38,11 @@ class UnificationPreview:
     def is_empty(self) -> bool:
         return self.data.is_empty
 
+    @property
+    def empty_reason(self) -> str:
+        filtered = " after the filters" if self.hosts or self.workloads else ""
+        return f"no results or samples{filtered}"
+
     def summary_rows(self) -> list[tuple[str, str]]:
         """Label/value pairs every UI shows before the user confirms."""
         report = self.data.report
@@ -54,9 +61,13 @@ class UnificationPreview:
             ("Load errors", str(len(report.errors))),
             ("Load warnings", str(len(report.warnings))),
         ]
-        rows += [(f"Error: {e['source']}", e["message"]) for e in report.errors]
+        shown = report.errors[:MAX_SUMMARY_ERRORS]
+        rows += [(f"Error: {e['source']}", e["message"]) for e in shown]
+        hidden = len(report.errors) - len(shown)
+        if hidden:
+            rows.append(("More errors", f"{hidden} more in load_report.json"))
         if self.is_empty:
-            rows.append(("Nothing to unify", "no results or samples after the filters"))
+            rows.append(("Nothing to unify", self.empty_reason))
         rows.append(("Output", str(self.out_dir)))
         return rows
 
@@ -71,7 +82,8 @@ class UnificationService:
         config_path: Path | None = None,
     ) -> None:
         self._catalog = catalog
-        self._export_root = export_root
+        # Absolute, so the printed output folder means the same from anywhere.
+        self._export_root = export_root.resolve()
         self._config_path = config_path
 
     @property
@@ -113,6 +125,8 @@ class UnificationService:
                 "Writing Parquet needs pyarrow: "
                 "pip install 'linux-benchmark-lib[controller]'"
             )
+        _check_names("host", hosts, experiment.hosts)
+        _check_names("workload", workloads, experiment.workloads)
         host_filter = _effective(hosts, experiment.hosts)
         workload_filter = _effective(workloads, experiment.workloads)
         data = load_experiment(experiment.runs).filter(host_filter, workload_filter)
@@ -129,8 +143,7 @@ class UnificationService:
         """Write the previewed tables, replacing an earlier unification."""
         if preview.is_empty:
             raise UnificationError(
-                f"Nothing to unify for {preview.experiment.id}: "
-                "no results or samples after the filters"
+                f"Nothing to unify for {preview.experiment.id}: {preview.empty_reason}"
             )
         try:
             return preview.data.to_parquet(preview.out_dir)
@@ -169,6 +182,15 @@ def _effective(selected: Sequence[str], available: Sequence[str]) -> tuple[str, 
     """The filter to apply: empty when everything available is selected."""
     chosen = tuple(sorted(set(selected)))
     return () if set(chosen) >= set(available) else chosen
+
+
+def _check_names(kind: str, selected: Sequence[str], available: Sequence[str]) -> None:
+    """A typo'd filter name is an error, not a silently empty result."""
+    unknown = sorted(set(selected) - set(available))
+    if unknown:
+        raise UnificationError(
+            f"Unknown {kind} {unknown[0]!r}; available: {', '.join(available)}"
+        )
 
 
 def _has_pyarrow() -> bool:
