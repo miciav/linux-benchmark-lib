@@ -8,6 +8,7 @@ import typer
 
 from lb_app.api import MAX_NODES, validate_experiment_id
 from lb_ui.cli.commands.run_helpers import print_run_journal_summary, resolve_stop_file
+from lb_ui.flows.unification import unify_after_run
 from lb_ui.presenters.plan import build_run_plan_table
 from lb_ui.wiring.dependencies import UIContext
 
@@ -57,6 +58,11 @@ def register_run_command(
                 "Experiment to add this run to; a new exp-<date>-<time> id is "
                 "generated when omitted."
             ),
+        ),
+        analyze: bool = typer.Option(
+            False,
+            "--analyze",
+            help="Unify the run's experiment into Parquet tables when the run ends.",
         ),
         remote: bool | None = typer.Option(
             None,
@@ -313,3 +319,12 @@ def register_run_command(
             )
 
         ctx.ui.present.success("Run completed.")
+        if (
+            result
+            and result.journal_path
+            and not unify_after_run(
+                ctx, cfg, result.journal_path, resolved, forced=analyze
+            )
+            and analyze
+        ):
+            raise typer.Exit(1)

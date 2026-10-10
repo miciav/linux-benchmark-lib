@@ -65,7 +65,7 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
         ),
     ) -> None:
         """List available benchmark runs."""
-        cfg, _, _ = ctx.config_service.load_for_read(config)
+        cfg, resolved, _ = ctx.config_service.load_for_read(config)
         output_root = root or cfg.output_dir
         catalog = RunCatalogService(
             output_dir=output_root,
@@ -124,7 +124,17 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
         if action.id == "show":
             _show_run_details(ctx, selected.id, catalog)
         elif action.id == "analyze":
-            ctx.ui.present.info(f"Run: lb runs analyze {selected.id}")
+            run = catalog.get_run(selected.id)
+            if run is None:
+                return
+            service = build_unification_service(cfg, output_root, resolved)
+            try:
+                run_unification_flow(
+                    ctx, service, service.find(run.experiment_id or run.run_id)
+                )
+            except UnificationError as exc:
+                ctx.ui.present.error(str(exc))
+                raise typer.Exit(1) from exc
 
     @app.command("show")
     def runs_show(

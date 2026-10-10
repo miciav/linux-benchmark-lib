@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -150,3 +151,42 @@ def _pick_subset(
     ]
     chosen = ctx.ui.picker.pick_many(items, title=f"Select {label} to unify")
     return tuple(item.id for item in chosen) if chosen else current
+
+
+def unify_after_run(
+    ctx: UIContext,
+    cfg: BenchmarkConfig,
+    journal_path: Path,
+    config_path: Path | None,
+    *,
+    forced: bool,
+) -> bool:
+    """End of ``lb run``: unify the run's experiment if asked to, or if agreed.
+
+    Returns False only when a unification was attempted and failed.
+    """
+    if not forced and not is_interactive(ctx):
+        return True
+    try:
+        metadata = json.loads(journal_path.read_text()).get("metadata") or {}
+    except (OSError, ValueError, AttributeError):
+        metadata = {}
+    experiment_id = metadata.get("experiment_id")
+    if not experiment_id:
+        ctx.ui.present.warning(
+            "The run's journal has no experiment id; nothing to unify."
+        )
+        return True
+    if not forced and not ctx.ui.form.confirm(
+        f"Unify experiment {experiment_id} now?", default=False
+    ):
+        return True
+    service = build_unification_service(cfg, None, config_path)
+    try:
+        preview = service.prepare(service.find(experiment_id))
+        show_summary(ctx, preview)
+        write_and_report(ctx, service, preview)
+    except UnificationError as exc:
+        ctx.ui.present.error(str(exc))
+        return False
+    return True
