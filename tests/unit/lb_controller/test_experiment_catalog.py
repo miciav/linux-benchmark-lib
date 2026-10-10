@@ -69,3 +69,15 @@ def test_an_empty_folder_has_no_experiments(tmp_path: Path) -> None:
     empty = RunCatalogService(tmp_path / "nothing-here")
     assert empty.list_experiments() == []
     assert empty.folder_experiment().runs == []
+
+
+def test_a_run_with_a_custom_run_id_is_listed(tmp_path: Path) -> None:
+    # lb run --run-id accepts any name; the journal is what makes a run.
+    root = tmp_path / "benchmark_results"
+    _run(root, "nightly-fio", "2026-10-09T10:00:00", "tuning", "h1")
+    (root / "notes").mkdir()  # an unrelated folder without a journal
+    catalog = RunCatalogService(root)
+    assert [run.run_id for run in catalog.list_runs()] == ["nightly-fio"]
+    experiment = catalog.get_experiment("tuning")
+    assert experiment is not None
+    assert [run.run_id for run in experiment.runs] == ["nightly-fio"]

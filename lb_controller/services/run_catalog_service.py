@@ -217,8 +217,11 @@ class RunCatalogService:
         return not has_children
 
     def _iter_run_ids(self) -> Iterable[str]:
+        # lb run --run-id accepts any name, so a journal also marks a run.
         for item in self.output_dir.iterdir():
-            if item.is_dir() and item.name.startswith("run-"):
+            if item.is_dir() and (
+                item.name.startswith("run-") or (item / "run_journal.json").is_file()
+            ):
                 yield item.name
 
 

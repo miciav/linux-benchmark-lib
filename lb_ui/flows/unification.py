@@ -29,7 +29,9 @@ def build_unification_service(
         report_dir=cfg.report_dir,
         data_export_dir=cfg.data_export_dir,
     )
-    return UnificationService(catalog, cfg.data_export_dir, config_path=config_path)
+    # Absolute, so the equivalent command works from any folder.
+    absolute = config_path.resolve() if config_path else None
+    return UnificationService(catalog, cfg.data_export_dir, config_path=absolute)
 
 
 def is_interactive(ctx: UIContext) -> bool:

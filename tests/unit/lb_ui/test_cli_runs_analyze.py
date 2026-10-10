@@ -88,3 +88,16 @@ def test_load_errors_warn_but_still_write(setup, tmp_path):
     assert result.exit_code == 0, result.output
     assert "load error" in result.output
     assert (exports / "tuning" / "results.parquet").exists()
+
+
+def test_the_equivalent_command_works_from_any_folder(setup, tmp_path, monkeypatch):
+    import lb_ui.api as cli
+
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        cli.app, ["runs", "analyze", "--experiment", "tuning", "-c", "config.json"]
+    )
+    assert result.exit_code == 0, result.output
+    # Rich wraps long paths, so compare without whitespace.
+    flat = "".join(result.output.split())
+    assert f"--config{tmp_path / 'config.json'}" in flat
