@@ -28,11 +28,23 @@ FEATURES = (
 BINARY_FEATURES = frozenset({"disk_rotational"})
 DESCRIPTIVE = ("arch", "cpu_model", "cpu_vendor", "virtualized", "kernel")
 MACHINE_COLUMNS = ["machine", "host", *FEATURES, *DESCRIPTIVE, "runs"]
+TARGET_COLUMNS = [
+    "machine",
+    "target",
+    "workload",
+    "metric",
+    "unit",
+    "median",
+    "iqr",
+    "n",
+]
 
 _HYPERVISORS = {"QEMU", "KVM"}
 _SIZE = re.compile(r"^\s*([\d.]+)\s*([KMG]i?B?|B)?", re.IGNORECASE)
 _UNIT_BYTES = {"": 1, "k": 1024, "ki": 1024, "m": 1024**2, "mi": 1024**2}
 _UNIT_BYTES |= {"g": 1024**3, "gi": 1024**3}
+# dfaas and peva_faas name one dataset per repetition: metrics-<id>-iter1-rep2
+_REPETITION_SUFFIX = re.compile(r"-rep\d+$")
 
 
 def to_number(value: Any) -> float:
@@ -93,6 +105,49 @@ def machines(*data: ExperimentData) -> pd.DataFrame:
     return pd.DataFrame(out, columns=MACHINE_COLUMNS)
 
 
+def targets(*data: ExperimentData) -> pd.DataFrame:
+    """Median, IQR and count of every target on every machine.
+
+    Failed repetitions are left out, and so are results of hosts with no
+    ``host_info`` (they have no features to model).
+    """
+    found = machines(*data)
+    owner = {
+        (run_id, host): machine
+        for machine, host, run_ids in zip(
+            found["machine"], found["host"], found["runs"], strict=True
+        )
+        for run_id in run_ids
+    }
+    results = pd.concat([d.results for d in data], ignore_index=True)
+    reps = pd.concat([d.repetitions for d in data], ignore_index=True)
+    keys = ["run_id", "host", "workload", "repetition"]
+    failed_rows = reps.loc[reps["success"].eq(False), keys]
+    failed = set(failed_rows.itertuples(index=False, name=None))
+    keep = [
+        key not in failed for key in results[keys].itertuples(index=False, name=None)
+    ]
+    results = results[keep].copy()
+    results["machine"] = [
+        owner.get(key) for key in zip(results["run_id"], results["host"], strict=True)
+    ]
+    results["value"] = pd.to_numeric(results["value"], errors="coerce")
+    results = results.dropna(subset=["machine", "value"])
+    if results.empty:
+        return pd.DataFrame(columns=TARGET_COLUMNS)
+    results["target"] = _target_names(results)
+    grouped = results.groupby(["machine", "target"], sort=True)
+    out = grouped.agg(
+        workload=("workload", "first"),
+        metric=("metric", "first"),
+        unit=("unit", "first"),
+        median=("value", "median"),
+        n=("value", "size"),
+    )
+    out["iqr"] = grouped["value"].quantile(0.75) - grouped["value"].quantile(0.25)
+    return out.reset_index()[TARGET_COLUMNS]
+
+
 def _features(values: dict[tuple[str, str], Any]) -> dict[str, Any]:
     def cpu(name: str) -> Any:
         return values.get(("cpu", name))
@@ -131,3 +186,20 @@ def _largest_disk(raw: list[Any]) -> dict[str, Any]:
         if isinstance(disk, dict):
             disks.append(disk)
     return max(disks, key=lambda d: to_number(d.get("size_bytes")), default={})
+
+
+def _target_names(results: pd.DataFrame) -> list[str]:
+    dims = sorted(c for c in results.columns if c.startswith("dim_"))
+    names = []
+    columns = ["workload", "plugin", "dataset", "metric", *dims]
+    for row in results[columns].itertuples(index=False, name=None):
+        workload, plugin, dataset, metric = (str(part) for part in row[:4])
+        dataset = _REPETITION_SUFFIX.sub("", dataset)
+        base = f"{workload}/{plugin}/{dataset}/{metric}"
+        parts = [
+            f"{dim[4:]}={value}"
+            for dim, value in zip(dims, row[4:], strict=True)
+            if pd.notna(value)
+        ]
+        names.append(f"{base}[{','.join(parts)}]" if parts else base)
+    return names

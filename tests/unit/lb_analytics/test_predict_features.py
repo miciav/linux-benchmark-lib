@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from lb_analytics.api import ExperimentData, LoadReport, machines
+from lb_analytics.api import ExperimentData, LoadReport, machines, targets
 from lb_analytics.predict.features import parse_size
 
 pytestmark = pytest.mark.unit_analytics
@@ -152,3 +152,54 @@ def test_machines_of_nothing_is_an_empty_frame() -> None:
     found = machines(_data([]))
     assert found.empty
     assert "physical_cpus" in found.columns
+
+
+def test_targets_summarise_repetitions_per_machine() -> None:
+    info = _info("r1", "h1", 2) + _info("r2", "h2", 4)
+    results = [("r1", "h1", 1, 10.0), ("r1", "h1", 2, 20.0), ("r1", "h1", 3, 30.0)]
+    results += [("r2", "h2", 1, 40.0)]
+    found = targets(_data(info, results)).set_index("machine")
+    assert found.loc["h1", "target"] == "fio/fio/results/iops"
+    assert found.loc["h1", "median"] == 20.0
+    assert found.loc["h1", "iqr"] == 10.0
+    assert found.loc["h1", "n"] == 3
+    assert found.loc["h1", "unit"] == "op/s"
+    assert found.loc["h2", "median"] == 40.0
+
+
+def test_targets_leave_out_failed_repetitions() -> None:
+    results = [("r1", "h1", 1, 10.0), ("r1", "h1", 2, 1000.0)]
+    found = targets(_data(_info("r1", "h1", 2), results, failed={("r1", "h1", 2)}))
+    assert found["median"].tolist() == [10.0]
+    assert found["n"].tolist() == [1]
+
+
+def test_targets_name_includes_dimensions() -> None:
+    data = _data(_info("r1", "h1", 2), [("r1", "h1", 1, 10.0), ("r1", "h1", 1, 20.0)])
+    data.results["dim_mode"] = ["randread", "write"]
+    data.results["dim_block_size"] = ["4k", None]
+    names = sorted(targets(data)["target"])
+    assert names == [
+        "fio/fio/results/iops[block_size=4k,mode=randread]",
+        "fio/fio/results/iops[mode=write]",
+    ]
+
+
+def test_targets_skip_hosts_without_host_info() -> None:
+    results = [("r1", "h1", 1, 10.0), ("r1", "load-generator", 1, 99.0)]
+    found = targets(_data(_info("r1", "h1", 2), results))
+    assert found["machine"].tolist() == ["h1"]
+
+
+def test_targets_combine_several_experiments() -> None:
+    first = _data(_info("r1", "h1", 2), [("r1", "h1", 1, 10.0)])
+    second = _data(_info("r9", "h2", 4), [("r9", "h2", 1, 20.0)])
+    assert sorted(targets(first, second)["machine"]) == ["h1", "h2"]
+
+
+def test_targets_merge_datasets_named_per_repetition() -> None:
+    data = _data(_info("r1", "h1", 2), [("r1", "h1", 1, 10.0), ("r1", "h1", 2, 30.0)])
+    data.results["dataset"] = ["metrics-abc-iter1-rep1", "metrics-abc-iter1-rep2"]
+    found = targets(data)
+    assert found["target"].tolist() == ["fio/fio/metrics-abc-iter1/iops"]
+    assert found["n"].tolist() == [2]
