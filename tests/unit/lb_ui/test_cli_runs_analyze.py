@@ -1,8 +1,7 @@
-"""CLI unit tests for runs/analyze commands."""
+"""CLI tests for lb runs analyze (experiment unification)."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -10,98 +9,82 @@ from typer.testing import CliRunner
 
 from lb_app.api import ConfigService
 from lb_runner.api import BenchmarkConfig
-from lb_ui.api import app
+from tests.helpers.analytics_runs import collected_run
 
 pytestmark = [pytest.mark.unit_ui]
 
 
-def test_cli_runs_list_and_analyze(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    runner = CliRunner()
-    # Avoid reading user-level config defaults (non-hermetic).
+@pytest.fixture
+def setup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     import lb_ui.api as cli
 
     monkeypatch.setattr(
-        cli.ctx_store,
-        "config_service",
-        ConfigService(config_home=tmp_path / "config"),
+        cli.ctx_store, "config_service", ConfigService(config_home=tmp_path / "cfg")
     )
+    root = tmp_path / "benchmark_results"
+    collected_run(root, "run-1", "tuning", "fio", "2026-10-09T10:00:00")
+    collected_run(root, "run-2", "tuning", "stress_ng", "2026-10-09T11:00:00")
+    collected_run(root, "run-3", "other", "dd", "2026-10-09T09:00:00")
+    config = tmp_path / "config.json"
+    BenchmarkConfig(output_dir=root, data_export_dir=tmp_path / "exports").save(config)
 
-    output_root = tmp_path / "benchmark_results"
-    run_root = output_root / "run-20240101-000000" / "host1" / "stress_ng"
-    run_root.mkdir(parents=True)
-    (output_root / "run-20240101-000000" / "host1" / "exports").mkdir(parents=True)
-    config_path = tmp_path / "config.json"
-    BenchmarkConfig(
-        output_dir=output_root,
-        report_dir=tmp_path / "reports",
-        data_export_dir=tmp_path / "exports",
-    ).save(config_path)
+    def invoke(*args: str):
+        return CliRunner().invoke(
+            cli.app, ["runs", "analyze", *args, "--config", str(config)]
+        )
 
-    results = [
-        {
-            "test_name": "stress_ng",
-            "repetition": 1,
-            "start_time": "2024-01-01T00:00:00",
-            "end_time": "2024-01-01T00:00:01",
-            "metrics": {
-                "PSUtilCollector": [
-                    {"timestamp": "2024-01-01T00:00:00", "cpu_percent": 1.0},
-                    {"timestamp": "2024-01-01T00:00:01", "cpu_percent": 2.0},
-                ]
-            },
-        }
-    ]
-    (run_root / "stress_ng_results.json").write_text(json.dumps(results))
-
-    res_list = runner.invoke(
-        app,
-        ["runs", "list", "--root", str(output_root), "--config", str(config_path)],
-    )
-    assert res_list.exit_code == 0
-
-    res_analyze = runner.invoke(
-        app,
-        [
-            "runs",
-            "analyze",
-            "run-20240101-000000",
-            "--root",
-            str(output_root),
-            "--config",
-            str(config_path),
-        ],
-    )
-    assert res_analyze.exit_code == 0
-    out_csv = (
-        output_root
-        / "run-20240101-000000"
-        / "host1"
-        / "exports"
-        / "stress_ng_aggregated.csv"
-    )
-    assert out_csv.exists()
+    return invoke, tmp_path / "exports"
 
 
-def test_runs_list_no_interactive_flag_exits_after_table(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """With --no-interactive the command exits after printing the table."""
-    runner = CliRunner()
-    import lb_ui.api as cli
+def test_an_experiment_is_unified(setup):
+    invoke, exports = setup
+    result = invoke("--experiment", "tuning")
+    assert result.exit_code == 0, result.output
+    assert (exports / "tuning" / "results.parquet").exists()
+    assert "Equivalent command" in result.output
 
-    monkeypatch.setattr(
-        cli.ctx_store,
-        "config_service",
-        ConfigService(config_home=tmp_path / "config"),
-    )
-    output_root = tmp_path / "benchmark_results"
-    (output_root / "run-ABC" / "host1" / "stress_ng").mkdir(parents=True)
 
-    res = runner.invoke(
-        app,
-        ["runs", "list", "--root", str(output_root), "--no-interactive"],
-    )
-    assert res.exit_code == 0
-    assert "run-ABC" in res.output
+def test_the_folder_is_unified(setup):
+    invoke, exports = setup
+    result = invoke("--folder")
+    assert result.exit_code == 0, result.output
+    assert (exports / "benchmark_results" / "runs.parquet").exists()
+
+
+def test_experiment_and_folder_are_exclusive(setup):
+    invoke, _ = setup
+    result = invoke("--experiment", "tuning", "--folder")
+    assert result.exit_code == 1
+    assert "not both" in result.output
+
+
+def test_without_a_terminal_a_target_is_required(setup):
+    invoke, _ = setup
+    result = invoke()
+    assert result.exit_code == 1
+    assert "--experiment ID or --folder" in result.output
+
+
+def test_an_unknown_experiment_lists_recent_ones(setup):
+    invoke, _ = setup
+    result = invoke("--experiment", "nope")
+    assert result.exit_code == 1
+    assert "tuning" in result.output
+
+
+def test_filters_that_leave_nothing_fail(setup):
+    invoke, exports = setup
+    result = invoke("--experiment", "tuning", "--host", "nobody")
+    assert result.exit_code == 1
+    assert "Nothing to unify" in result.output
+    assert not (exports / "tuning").exists()
+
+
+def test_load_errors_warn_but_still_write(setup, tmp_path):
+    invoke, exports = setup
+    broken = tmp_path / "benchmark_results" / "run-1" / "h1" / "fio" / "fio_plugin.csv"
+    broken.write_text('"unterminated\n')
+    result = invoke("--experiment", "tuning")
+    assert result.exit_code == 0, result.output
+    assert "load error" in result.output
+    assert (exports / "tuning" / "results.parquet").exists()
