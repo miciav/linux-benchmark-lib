@@ -1,0 +1,225 @@
+"""Log-linear models of one target over machine features.
+
+With 3 to 15 machines every model is validated by leaving one machine out and
+compared with two baselines: the mean of the other machines and the nearest
+one on the chosen features.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import warnings
+from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from lb_analytics.predict.features import BINARY_FEATURES, FEATURES, to_number
+
+METHODS = ("model", "mean", "nearest")
+
+
+class PredictionError(ValueError):
+    """A model cannot be fitted or used; the message is meant for the user."""
+
+
+@dataclass(frozen=True)
+class Model:
+    target: str
+    unit: str
+    features: tuple[str, ...]
+    intercept: float
+    coefficients: dict[str, float]
+    machines: tuple[str, ...]
+    feature_ranges: dict[str, tuple[float, float]]
+    max_log_error: float
+    rel_iqr: float
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self))
+
+    @classmethod
+    def from_json(cls, text: str) -> Model:
+        raw = json.loads(text)
+        raw["features"] = tuple(raw["features"])
+        raw["machines"] = tuple(raw["machines"])
+        raw["feature_ranges"] = {k: tuple(v) for k, v in raw["feature_ranges"].items()}
+        return cls(**raw)
+
+
+@dataclass(frozen=True)
+class Prediction:
+    value: float
+    low: float
+    high: float
+    unit: str
+    extrapolated: bool
+
+
+def fit(
+    machines: pd.DataFrame,
+    targets: pd.DataFrame,
+    target: str,
+    features: Sequence[str],
+) -> Model:
+    """Fit ``log(median) = b0 + Σ bᵢ·log(featureᵢ)`` for one target.
+
+    ``disk_rotational`` enters as 0/1 instead of its log. The returned model
+    carries its leave-one-machine-out error, which sets the range of
+    ``predict``.
+    """
+    features = list(features)
+    table = _table(machines, targets, target, features)
+    coef = _solve(_design(table, features), np.log(table["median"].to_numpy(float)))
+    held_out = _loo(table, features)
+    held_out = held_out[held_out["method"] == "model"]
+    ratios = held_out["predicted"].to_numpy(float) / held_out["actual"].to_numpy(float)
+    log_errors = np.abs(np.log(ratios))
+    rel_iqr = (table["iqr"] / table["median"]).fillna(0.0)
+    return Model(
+        target=target,
+        unit=_unit(table),
+        features=tuple(features),
+        intercept=float(coef[0]),
+        coefficients={f: float(c) for f, c in zip(features, coef[1:], strict=True)},
+        machines=tuple(table["machine"]),
+        feature_ranges={
+            f: (float(table[f].min()), float(table[f].max())) for f in features
+        },
+        max_log_error=float(log_errors.max()),
+        rel_iqr=float(rel_iqr.median()),
+    )
+
+
+def predict(model: Model, machine: Mapping[str, Any] | pd.Series) -> Prediction:
+    """Predict ``model.target`` for one machine, with the model's range.
+
+    The range is the worst leave-one-machine-out error plus the target's
+    run-to-run noise. A feature outside the training range warns and sets
+    ``extrapolated``.
+    """
+    log_value = model.intercept
+    extrapolated = False
+    for feature in model.features:
+        x = to_number(machine.get(feature))
+        if math.isnan(x) or (x <= 0 and feature not in BINARY_FEATURES):
+            raise PredictionError(
+                f"Feature '{feature}' is missing or not positive "
+                f"({machine.get(feature)!r})."
+            )
+        low, high = model.feature_ranges[feature]
+        if not low <= x <= high:
+            extrapolated = True
+            warnings.warn(
+                f"{feature}={x:g} is outside the training range "
+                f"[{low:g}, {high:g}]: the prediction is an extrapolation.",
+                stacklevel=2,
+            )
+        term = x if feature in BINARY_FEATURES else math.log(x)
+        log_value += model.coefficients[feature] * term
+    value = math.exp(log_value)
+    spread = math.exp(model.max_log_error + math.log1p(model.rel_iqr))
+    return Prediction(value, value / spread, value * spread, model.unit, extrapolated)
+
+
+def _table(
+    machines: pd.DataFrame, targets: pd.DataFrame, target: str, features: list[str]
+) -> pd.DataFrame:
+    """The target's rows joined to the machines' features, checked for fitting."""
+    if not features:
+        raise PredictionError("Pick at least one feature.")
+    unknown = [f for f in features if f not in FEATURES]
+    if unknown:
+        raise PredictionError(
+            f"Unknown feature '{unknown[0]}'; available: {', '.join(FEATURES)}."
+        )
+    rows = targets[targets["target"] == target]
+    if rows.empty:
+        similar = sorted(t for t in targets["target"].unique() if target in t)[:5]
+        hint = f"; similar: {', '.join(similar)}" if similar else ""
+        raise PredictionError(f"Unknown target '{target}'{hint}.")
+    table = rows.merge(machines[["machine", *features]], on="machine", how="left")
+    needed = len(features) + 2
+    if len(table) < needed:
+        raise PredictionError(
+            f"'{target}' was measured on {len(table)} machine(s); "
+            f"{len(features)} feature(s) need at least {needed}."
+        )
+    for feature in features:
+        missing = table.loc[table[feature].isna(), "machine"].tolist()
+        if missing:
+            raise PredictionError(
+                f"Feature '{feature}' is missing on {', '.join(missing)}."
+            )
+        if feature not in BINARY_FEATURES:
+            bad = table.loc[table[feature] <= 0, "machine"].tolist()
+            if bad:
+                raise PredictionError(
+                    f"Feature '{feature}' is not positive on {', '.join(bad)}."
+                )
+        if table[feature].nunique() < 2:
+            raise PredictionError(
+                f"Feature '{feature}' has the same value on every machine, "
+                "so it cannot explain differences between them."
+            )
+    bad = table.loc[table["median"] <= 0, "machine"].tolist()
+    if bad:
+        raise PredictionError(
+            f"'{target}' is not positive on {', '.join(bad)}; "
+            "a log model needs positive values."
+        )
+    return table.reset_index(drop=True)
+
+
+def _design(table: pd.DataFrame, features: list[str]) -> np.ndarray:
+    columns = [
+        table[f].to_numpy(float)
+        if f in BINARY_FEATURES
+        else np.log(table[f].to_numpy(float))
+        for f in features
+    ]
+    return np.column_stack([np.ones(len(table)), *columns])
+
+
+def _solve(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    return np.linalg.lstsq(x, y, rcond=None)[0]
+
+
+def _loo(table: pd.DataFrame, features: list[str]) -> pd.DataFrame:
+    """Predict each machine from the others with the model and both baselines."""
+    y = np.log(table["median"].to_numpy(float))
+    x = _design(table, features)
+    z = x[:, 1:]
+    rows = []
+    for i in range(len(table)):
+        rest = np.arange(len(table)) != i
+        sd = z[rest].std(axis=0)
+        use = sd > 0
+        # ponytail: with every feature constant on the rest, nearest is the first one
+        distance = (((z[rest][:, use] - z[i, use]) / sd[use]) ** 2).sum(axis=1)
+        guesses = {
+            "model": float(x[i] @ _solve(x[rest], y[rest])),
+            "mean": float(y[rest].mean()),
+            "nearest": float(y[rest][int(np.argmin(distance))]),
+        }
+        actual = math.exp(y[i])
+        for method, log_guess in guesses.items():
+            predicted = math.exp(log_guess)
+            rows.append(
+                {
+                    "machine": table["machine"].iat[i],
+                    "method": method,
+                    "actual": actual,
+                    "predicted": predicted,
+                    "pct_error": 100 * (predicted - actual) / actual,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _unit(table: pd.DataFrame) -> str:
+    unit = table["unit"].dropna()
+    return str(unit.iloc[0]) if not unit.empty else ""
