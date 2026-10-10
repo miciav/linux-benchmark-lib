@@ -114,7 +114,9 @@ def _load_cli(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     return importlib.import_module("lb_ui.api")
 
 
-@pytest.mark.parametrize(("flag", "forced"), [([], False), (["--analyze"], True)])
+@pytest.mark.parametrize(
+    ("flag", "forced"), [([], False), (["--analyze"], True), (["--no-analyze"], None)]
+)
 def test_lb_run_hands_the_journal_to_the_end_of_run_step(
     cfg, tmp_path, monkeypatch, flag, forced
 ):
@@ -152,6 +154,10 @@ def test_lb_run_hands_the_journal_to_the_end_of_run_step(
         ),
     )
     result = CliRunner().invoke(cli.app, ["run", "-c", str(cfg_path), *flag])
+    if forced is None:  # --no-analyze: never ask, never unify
+        assert calls == []
+        assert result.exit_code == 0, result.output
+        return
     assert calls == [(journal, forced)]
     # --analyze with a failed unification exits 1; the prompt path never does.
     assert result.exit_code == (1 if forced else 0), result.output
@@ -174,3 +180,11 @@ def test_runs_list_analyze_starts_the_flow_at_the_summary(cfg, tmp_path, monkeyp
     result = CliRunner().invoke(cli.app, ["runs", "list", "-c", str(cfg_path)])
     assert result.exit_code == 0, result.output
     assert (tmp_path / "exports" / "tuning" / "results.parquet").exists()
+
+
+def test_a_write_failure_after_yes_is_reported_not_raised(cfg, tmp_path, monkeypatch):
+    monkeypatch.setattr(unification, "is_tty_available", lambda: True)
+    (tmp_path / "exports").write_text("not a folder")
+    ctx = _ctx(headless=False, confirm=True)
+    assert not unification.unify_after_run(ctx, cfg, _journal(cfg), None, forced=False)
+    assert any("Could not write" in m for m in ctx.ui.recorded_messages)

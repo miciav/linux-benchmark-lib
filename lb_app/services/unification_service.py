@@ -121,7 +121,7 @@ class UnificationService:
             data=data,
             hosts=host_filter,
             workloads=workload_filter,
-            out_dir=self._export_root / experiment.id,
+            out_dir=self._out_dir(experiment),
             command=self._command(experiment, host_filter, workload_filter),
         )
 
@@ -132,7 +132,17 @@ class UnificationService:
                 f"Nothing to unify for {preview.experiment.id}: "
                 "no results or samples after the filters"
             )
-        return preview.data.to_parquet(preview.out_dir)
+        try:
+            return preview.data.to_parquet(preview.out_dir)
+        except Exception as exc:  # disk, permissions, pyarrow: say why, no traceback
+            raise UnificationError(f"Could not write {preview.out_dir}: {exc}") from exc
+
+    def _out_dir(self, experiment: ExperimentInfo) -> Path:
+        # Experiment ids start with a letter or digit, so "_folders" can never
+        # be one: a folder and an experiment sharing a name stay apart.
+        if experiment.kind == "folder":
+            return self._export_root / "_folders" / experiment.id
+        return self._export_root / experiment.id
 
     def _command(
         self,

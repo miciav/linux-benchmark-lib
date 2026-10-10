@@ -22,7 +22,7 @@ finer grain.
 | Old `aggregate` analytics | Removed, not kept beside the new flow (user's choice). |
 | Where the logic lives | One `UnificationService` in `lb_app`; CLI, TUI and GUI only present it. |
 | Summary before writing | The data is loaded once; the summary is built from the loaded tables (exact, not an estimate); confirming writes what was loaded. |
-| Output | `data_exports/<experiment id>/` (the config's `data_export_dir`), one Parquet per table plus `load_report.json`, overwriting the previous unification of the same experiment. |
+| Output | `data_exports/<experiment id>/` (the config's `data_export_dir`), one Parquet per table plus `load_report.json`, overwriting the previous unification of the same experiment. The folder entry writes to `data_exports/_folders/<folder name>/`: experiment ids start with a letter or digit, so a folder and an experiment sharing a name never overwrite each other. |
 | Filters | Optional host and workload filters, applied to every table that has the column before writing. Selecting every host (or workload) is the same as no filter. |
 
 ## `lb_app`: `UnificationService`
@@ -35,7 +35,7 @@ File `lb_app/services/unification_service.py`, exported from `lb_app.api`.
 | `list_targets() -> list[ExperimentInfo]` | Experiments newest first, then the folder entry; the folder entry only when the folder has runs. Empty folder: `[]`. |
 | `find(experiment_id: str \| None) -> ExperimentInfo` | `None` means the folder. Unknown id: `UnificationError` naming up to five recent ids. Folder with no runs: `UnificationError("no runs in <dir>")`. |
 | `prepare(experiment, hosts=(), workloads=()) -> UnificationPreview` | Checks `pyarrow` is importable (else `UnificationError` naming `pip install 'linux-benchmark-lib[controller]'`), runs `load_experiment(experiment.runs)`, applies the filters. |
-| `write(preview) -> list[Path]` | Refuses an empty preview (`UnificationError`), else `preview.data.to_parquet(preview.out_dir)`. |
+| `write(preview) -> list[Path]` | Refuses an empty preview (`UnificationError`), else `preview.data.to_parquet(preview.out_dir)`; a write failure (disk, permissions, pyarrow) becomes a `UnificationError` naming the folder, never a traceback. |
 | `UnificationPreview` | `experiment`, `data: ExperimentData` (filtered), `hosts`, `workloads` (the filters, empty = all), `out_dir`, `command` (the equivalent `lb runs analyze …`, shell-quoted, with `--root` and the filters), `row_counts` (table → rows), `is_empty`, `summary_rows()` (label/value pairs every UI renders). |
 | `UnificationError(Exception)` | Every user-facing failure; the message is shown as is. |
 
@@ -85,6 +85,7 @@ end of `lb run`.
 | `lb runs list` → **Analyze** | The flow with that run's experiment preselected (starts at the summary). |
 | End of `lb run`, interactive terminal | "Unify experiment <id> now?", default **No**; yes unifies the whole experiment (earlier runs included) and prints the result. |
 | `lb run --analyze` | Unifies at the end without asking, headless included. |
+| `lb run --no-analyze` | Never asks and never unifies (unattended loops in a terminal). |
 
 Both run after "Run completed."; a run that did not start never gets there.
 

@@ -83,3 +83,37 @@ def test_prepare_without_selection_fails(vm):
     vm.analytics_failed.connect(failed.append)
     vm.prepare()
     assert failed == ["No experiment selected"]
+
+
+def test_a_late_preview_for_an_old_selection_is_dropped(vm):
+    service = vm._run_catalog.unification.return_value
+    real_prepare = service.prepare
+
+    def user_moves_on_while_loading(*args, **kwargs):
+        assert vm.is_busy  # Prepare and Unify are disabled meanwhile
+        preview = real_prepare(*args, **kwargs)
+        vm.select_experiment(0)  # the user picks the folder during the load
+        return preview
+
+    service.prepare = user_moves_on_while_loading
+    vm.select_experiment(1)
+    vm.prepare()
+    assert vm.preview is None
+    assert not vm.can_unify
+    assert not vm.is_busy
+
+
+def test_refresh_clears_the_selection(vm):
+    vm.select_experiment(1)
+    vm.prepare()
+    vm.refresh_runs()
+    assert vm.selected_experiment is None
+    assert vm.preview is None
+
+
+def test_the_written_preview_is_kept_for_the_result(vm):
+    vm.select_experiment(1)
+    vm.prepare()
+    prepared = vm.preview
+    vm.unify()
+    assert vm.last_written is prepared

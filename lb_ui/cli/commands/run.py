@@ -59,10 +59,14 @@ def register_run_command(
                 "generated when omitted."
             ),
         ),
-        analyze: bool = typer.Option(
-            False,
-            "--analyze",
-            help="Unify the run's experiment into Parquet tables when the run ends.",
+        analyze: bool | None = typer.Option(
+            None,
+            "--analyze/--no-analyze",
+            help=(
+                "Unify the run's experiment into Parquet tables when the run ends "
+                "(--analyze), or never ask (--no-analyze). Default: ask in an "
+                "interactive terminal."
+            ),
         ),
         remote: bool | None = typer.Option(
             None,
@@ -320,10 +324,11 @@ def register_run_command(
 
         ctx.ui.present.success("Run completed.")
         if (
-            result
+            analyze is not False
+            and result
             and result.journal_path
             and not unify_after_run(
-                ctx, cfg, result.journal_path, resolved, forced=analyze
+                ctx, cfg, result.journal_path, resolved, forced=bool(analyze)
             )
             and analyze
         ):

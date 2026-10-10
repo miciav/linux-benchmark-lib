@@ -30,3 +30,7 @@ def test_the_view_shows_experiments_and_the_summary(qt_app, vm):  # noqa: F811
     assert view._unify_btn.isEnabled()
     vm.unify()
     assert view._command_edit.text().startswith("lb runs analyze --experiment tuning")
+    items = [
+        view._artifacts_list.item(i).text() for i in range(view._artifacts_list.count())
+    ]
+    assert any(text.startswith("results.parquet") and "rows" in text for text in items)

@@ -62,7 +62,8 @@ def test_pick_review_unify(service, tmp_path):
 def test_the_folder_entry_unifies_every_run(service, tmp_path):
     ctx, _ = _ctx(ScriptedPicker(["folder:tuning", "unify"]))
     run_unification_flow(ctx, service)
-    runs = pd.read_parquet(tmp_path / "exports" / "tuning" / "runs.parquet")
+    folder_out = tmp_path / "exports" / "_folders" / "tuning"
+    runs = pd.read_parquet(folder_out / "runs.parquet")
     assert set(runs.run_id) == {"run-1", "run-2"}
 
 

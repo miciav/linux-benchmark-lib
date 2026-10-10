@@ -49,6 +49,13 @@ class AnalyticsViewModel(QObject):
         self._last_artifacts: list[Path] = []
         self._worker: AnalyticsWorker | None = None
         self._pending: Callable[[object], None] | None = None
+        self._busy = False
+        # Bumped on every selection or filter change; a preview prepared for
+        # an older generation arrives stale and is dropped.
+        self._generation = 0
+        self._prepared_for = -1
+        self._last_written: UnificationPreview | None = None
+        self._writing: UnificationPreview | None = None
         self._is_configured: bool = config_service is None
 
     @property
@@ -97,6 +104,15 @@ class AnalyticsViewModel(QObject):
     def last_artifacts(self) -> list[Path]:
         return self._last_artifacts
 
+    @property
+    def last_written(self) -> UnificationPreview | None:
+        """The preview the last successful unify wrote."""
+        return self._last_written
+
+    @property
+    def is_busy(self) -> bool:
+        return self._busy
+
     def refresh_runs(self) -> None:
         """Reload the experiments list (folder entry first)."""
         if not self._is_configured and not self.configure():
@@ -110,6 +126,8 @@ class AnalyticsViewModel(QObject):
         folder = [t for t in targets if t.kind == "folder"]
         self._experiments = folder + [t for t in targets if t.kind != "folder"]
         self.experiments_changed.emit(self._experiments)
+        # Rows may have moved: never keep an old selection behind a new table.
+        self.select_experiment(None)
 
     def configure(self, config_path: Path | None = None) -> bool:
         """Configure the run catalog service using the benchmark config."""
@@ -159,6 +177,7 @@ class AnalyticsViewModel(QObject):
             return
         service = self._run_catalog.unification()
         hosts, workloads = list(self._selected_hosts), list(self._selected_workloads)
+        self._prepared_for = self._generation
         self._start(
             lambda: service.prepare(experiment, hosts, workloads), self._on_prepared
         )
@@ -170,6 +189,7 @@ class AnalyticsViewModel(QObject):
             self.analytics_failed.emit("Prepare a non-empty unification first")
             return
         service = self._run_catalog.unification()
+        self._writing = preview
         self._start(lambda: service.write(preview), self._on_written)
 
     def get_experiment_rows(self) -> list[list[str]]:
@@ -192,27 +212,37 @@ class AnalyticsViewModel(QObject):
         return rows
 
     def _set_preview(self, preview: UnificationPreview | None) -> None:
+        if preview is None:
+            self._generation += 1
         self._preview = preview
         self.preview_changed.emit(preview)
 
     def _on_prepared(self, preview: object) -> None:
+        if self._prepared_for != self._generation:
+            return  # the selection or filters changed while it was loading
         self._set_preview(preview)  # type: ignore[arg-type]
 
     def _on_written(self, paths: object) -> None:
+        self._last_written = self._writing
         self._last_artifacts = list(paths)  # type: ignore[call-overload]
         self.analytics_completed.emit(self._last_artifacts)
 
     def _start(
         self, job: Callable[[], object], on_done: Callable[[object], None]
     ) -> None:
-        if self._worker is not None and self._worker.is_running():
+        if self._busy or (self._worker is not None and self._worker.is_running()):
             return
+        self._busy = True
         self.analytics_started.emit()
         if QCoreApplication.instance() is None or os.environ.get("PYTEST_CURRENT_TEST"):
             try:
-                on_done(job())
+                result = job()
             except Exception as exc:
+                self._busy = False
                 self.analytics_failed.emit(str(exc))
+                return
+            self._busy = False
+            on_done(result)
             return
         self._pending = on_done
         self._worker = AnalyticsWorker(job)
@@ -221,11 +251,13 @@ class AnalyticsViewModel(QObject):
         self._worker.signals.failed.connect(self._on_worker_failed)
         self._worker.start()
 
+    # The worker reference is kept until the next job: dropping it here could
+    # destroy its QThread while that thread is still leaving its event loop.
     def _on_worker_finished(self, result: object) -> None:
-        self._worker = None
+        self._busy = False
         if self._pending is not None:
             self._pending(result)
 
     def _on_worker_failed(self, error: str) -> None:
-        self._worker = None
+        self._busy = False
         self.analytics_failed.emit(error)

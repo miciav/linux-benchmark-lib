@@ -183,6 +183,9 @@ class AnalyticsView(QWidget):
         ]
 
     def _on_experiments_changed(self, experiments: list) -> None:
+        self._experiment_table.blockSignals(True)
+        self._experiment_table.clearSelection()  # the VM dropped its selection
+        self._experiment_table.blockSignals(False)
         rows = self._vm.get_experiment_rows()
         self._experiment_table.setRowCount(len(rows))
         for i, row in enumerate(rows):
@@ -228,13 +231,16 @@ class AnalyticsView(QWidget):
 
     def _on_completed(self, paths: list) -> None:
         self._progress.setVisible(False)
-        preview = self._vm.preview
+        written = self._vm.last_written
+        counts = written.row_counts if written else {}
         self._artifacts_list.clear()
-        if preview is not None:
-            self._artifacts_list.addItem(str(preview.out_dir))
-            self._command_edit.setText(preview.command)
+        if written is not None:
+            self._add_artifact(str(written.out_dir), written.out_dir)
+            self._command_edit.setText(written.command)
         for path in paths:
-            self._artifacts_list.addItem(str(path))
+            rows = counts.get(path.stem)
+            label = f"{path.name} — {rows} rows" if rows is not None else path.name
+            self._add_artifact(label, path)
         self._sync_buttons()
         self._set_status(f"Unified into {len(paths)} file(s)", "status-success")
 
@@ -247,15 +253,21 @@ class AnalyticsView(QWidget):
         self._set_status(message, "status-error")
 
     def _sync_buttons(self) -> None:
-        self._prepare_btn.setEnabled(self._vm.selected_experiment is not None)
-        self._unify_btn.setEnabled(self._vm.can_unify)
+        idle = not self._vm.is_busy
+        self._prepare_btn.setEnabled(idle and self._vm.selected_experiment is not None)
+        self._unify_btn.setEnabled(idle and self._vm.can_unify)
+
+    def _add_artifact(self, label: str, path: Path) -> None:
+        item = QListWidgetItem(label)
+        item.setData(Qt.ItemDataRole.UserRole, str(path))
+        self._artifacts_list.addItem(item)
 
     def _set_status(self, text: str, role: str) -> None:
         self._status_label.setText(text)
         set_widget_role(self._status_label, role)
 
     def _on_artifact_double_clicked(self, item: QListWidgetItem) -> None:
-        path = Path(item.text())
+        path = Path(item.data(Qt.ItemDataRole.UserRole) or item.text())
         if path.exists():
             self._open_path(path)
         else:

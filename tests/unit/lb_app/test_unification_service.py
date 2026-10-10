@@ -123,3 +123,21 @@ def test_missing_pyarrow_is_reported_before_loading(root, tmp_path, monkeypatch)
     service = _service(root, tmp_path)
     with pytest.raises(UnificationError, match=r"linux-benchmark-lib\[controller\]"):
         service.prepare(service.find("tuning"))
+
+
+def test_a_write_failure_is_a_unification_error(root, tmp_path):
+    (tmp_path / "exports").write_text("not a folder")
+    service = _service(root, tmp_path)
+    preview = service.prepare(service.find("tuning"))
+    with pytest.raises(UnificationError, match="Could not write"):
+        service.write(preview)
+
+
+def test_a_folder_and_an_experiment_with_one_name_write_apart(tmp_path):
+    root = tmp_path / "tuning"
+    collected_run(root, "run-1", "tuning", "fio")
+    service = _service(root, tmp_path)
+    folder = service.prepare(service.find(None))
+    experiment = service.prepare(service.find("tuning"))
+    assert experiment.out_dir == tmp_path / "exports" / "tuning"
+    assert folder.out_dir == tmp_path / "exports" / "_folders" / "tuning"

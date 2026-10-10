@@ -48,7 +48,7 @@ def test_the_folder_is_unified(setup):
     invoke, exports = setup
     result = invoke("--folder")
     assert result.exit_code == 0, result.output
-    assert (exports / "benchmark_results" / "runs.parquet").exists()
+    assert (exports / "_folders" / "benchmark_results" / "runs.parquet").exists()
 
 
 def test_experiment_and_folder_are_exclusive(setup):
