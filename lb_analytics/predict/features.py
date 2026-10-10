@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import re
+import warnings
 from collections import Counter
 from typing import Any
 
@@ -129,8 +130,10 @@ def machines(*data: ExperimentData) -> pd.DataFrame:
 def targets(*data: ExperimentData) -> pd.DataFrame:
     """Median, IQR and count of every target on every machine.
 
-    Failed repetitions are left out, and so are results of hosts with no
-    ``host_info`` (they have no features to model).
+    Failed repetitions are left out. A run whose ``host_info`` is missing
+    counts for its host's machine when the host has only one; otherwise (a
+    host never described, or one with several sizes) its results are left out
+    with a warning, since they have no features to model.
     """
     found = machines(*data)
     owner = {
@@ -149,9 +152,19 @@ def targets(*data: ExperimentData) -> pd.DataFrame:
         key not in failed for key in results[keys].itertuples(index=False, name=None)
     ]
     results = results[keep].copy()
+    by_host = found.groupby("host")["machine"].unique()
     results["machine"] = [
-        owner.get(key) for key in zip(results["run_id"], results["host"], strict=True)
+        owner.get((run_id, host))
+        or (by_host[host][0] if host in by_host and len(by_host[host]) == 1 else None)
+        for run_id, host in zip(results["run_id"], results["host"], strict=True)
     ]
+    unowned = results.loc[results["machine"].isna(), "host"].unique().tolist()
+    if unowned:
+        warnings.warn(
+            f"Results of {', '.join(map(str, unowned))} are left out: no "
+            "host_info tells which machine produced them.",
+            stacklevel=2,
+        )
     results["value"] = pd.to_numeric(results["value"], errors="coerce")
     results = results.dropna(subset=["machine", "value"])
     if results.empty:
@@ -209,7 +222,7 @@ def _largest_disk(raw: list[Any]) -> dict[str, Any]:
             disk = json.loads(text)
         except (TypeError, ValueError):
             continue
-        if isinstance(disk, dict):
+        if isinstance(disk, dict) and not math.isnan(to_number(disk.get("size_bytes"))):
             disks.append(disk)
     return max(disks, key=lambda d: to_number(d.get("size_bytes")), default={})
 

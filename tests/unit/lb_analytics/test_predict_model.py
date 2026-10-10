@@ -1,4 +1,5 @@
 import math
+import warnings
 
 import pandas as pd
 import pytest
@@ -205,3 +206,42 @@ def test_a_fold_blind_to_a_feature_predicts_the_mean() -> None:
     held_out = loo_predictions(machines, targets, TARGET, ["physical_cpus"])
     d = held_out[held_out.machine == "d"].set_index("method")["predicted"]
     assert d["model"] == pytest.approx(d["mean"])
+
+
+def test_evaluate_refuses_a_bad_feature_list_once() -> None:
+    with pytest.raises(PredictionError, match="Unknown feature 'cores'"):
+        evaluate(*_frames(), ["cores"])
+    with pytest.raises(PredictionError, match="at least one feature"):
+        evaluate(*_frames(), [])
+
+
+def test_single_repetitions_leave_the_noise_unknown() -> None:
+    machines, targets = _frames()
+    targets["n"] = 1
+    targets["iqr"] = 0.0
+    model = fit(machines, targets, TARGET, ["physical_cpus"])
+    assert model.rel_iqr is None
+    assert Model.from_json(model.to_json()) == model
+    with pytest.warns(UserWarning, match="noise"):
+        predict(model, {"physical_cpus": 6})
+
+
+def _two_feature_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
+    machines, targets = _frames()
+    machines["mem_bytes"] = [2.0, 2.0, 8.0, 8.0, 32.0]
+    return machines, targets
+
+
+def test_predict_warns_on_an_unseen_combination_of_features() -> None:
+    model = fit(*_two_feature_frames(), TARGET, ["physical_cpus", "mem_bytes"])
+    with pytest.warns(UserWarning, match="combination"):
+        prediction = predict(model, {"physical_cpus": 16, "mem_bytes": 2})
+    assert prediction.extrapolated
+
+
+def test_predict_inside_the_training_machines_does_not_warn() -> None:
+    model = fit(*_two_feature_frames(), TARGET, ["physical_cpus", "mem_bytes"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        prediction = predict(model, {"physical_cpus": 3, "mem_bytes": 8})
+    assert not prediction.extrapolated

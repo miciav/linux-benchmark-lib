@@ -231,8 +231,32 @@ def test_targets_name_includes_dimensions() -> None:
 
 def test_targets_skip_hosts_without_host_info() -> None:
     results = [("r1", "h1", 1, 10.0), ("r1", "load-generator", 1, 99.0)]
-    found = targets(_data(_info("r1", "h1", 2), results))
+    with pytest.warns(UserWarning, match="load-generator"):
+        found = targets(_data(_info("r1", "h1", 2), results))
     assert found["machine"].tolist() == ["h1"]
+
+
+def test_targets_use_the_host_machine_for_a_run_without_host_info() -> None:
+    data = _data(_info("r1", "h1", 2), [("r1", "h1", 1, 10.0)])
+    data.results = pd.concat(
+        [data.results, data.results.assign(run_id="r2", value=30.0)],
+        ignore_index=True,
+    )
+    found = targets(data)
+    assert found["machine"].tolist() == ["h1"]
+    assert found["n"].tolist() == [2]
+
+
+def test_targets_drop_an_ambiguous_run_without_host_info_and_warn() -> None:
+    info = _info("r1", "h1", 2) + _info("r2", "h1", 4)
+    data = _data(info, [("r1", "h1", 1, 10.0), ("r2", "h1", 1, 40.0)])
+    data.results = pd.concat(
+        [data.results, data.results.head(1).assign(run_id="r3")],
+        ignore_index=True,
+    )
+    with pytest.warns(UserWarning, match="h1"):
+        found = targets(data)
+    assert found["n"].tolist() == [1, 1]
 
 
 def test_targets_combine_several_experiments() -> None:
@@ -247,3 +271,11 @@ def test_targets_merge_datasets_named_per_repetition() -> None:
     found = targets(data)
     assert found["target"].tolist() == ["fio/fio/metrics-abc-iter1/iops"]
     assert found["n"].tolist() == [2]
+
+
+def test_machines_ignore_a_disk_without_size() -> None:
+    info = [
+        ("r1", "h1", "disk", "sr0", json.dumps({"name": "sr0"})),
+        ("r1", "h1", "disk", "vda", json.dumps({"name": "vda", "size_bytes": 500})),
+    ]
+    assert machines(_data(info)).iloc[0]["disk_bytes"] == 500

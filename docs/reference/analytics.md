@@ -66,15 +66,20 @@ joined on the `machine` name.
   size is another machine (`host#<hash>`); small drifts (a few KiB of
   MemTotal, bogomips, swap) do not split a host.
 - `targets` has one row per machine and target, with the median over the
-  successful repetitions, the IQR and the count.
+  successful repetitions, the IQR and the count. A run whose `host_info` is
+  missing counts for its host's machine when the host has only one; otherwise
+  its results are left out with a warning.
 - `fit` is a log-linear regression: a coefficient of 0.9 on `physical_cpus`
   means doubling the cores multiplies the metric by about 1.87.
 - `evaluate` leaves each machine out in turn and compares the model with the
   mean of the other machines and with the nearest one on the chosen features.
   A model is worth using only where `beats_baselines` is true.
 - `predict` gives a range: the worst error seen leaving machines out, plus the
-  run-to-run noise. A feature outside the training range warns that the
-  prediction is an extrapolation.
+  run-to-run noise. With one repetition per machine the noise is unknown, and
+  `predict` warns that the range covers only the validation error. A feature
+  outside the training range, or a combination of features unlike any training
+  machine (16 cores with the smallest memory), warns that the prediction is an
+  extrapolation.
 
 Limits: the machines must differ in the chosen features (identical VMs explain
 nothing), and features that move together (cores and memory on VM sizes that

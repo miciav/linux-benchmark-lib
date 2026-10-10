@@ -62,7 +62,7 @@ Numeric features (NaN when absent):
 | `l2_bytes`, `l3_bytes` | cpu `l2_cache`, `l3_cache` ("1 MiB (4 instances)" → total bytes; "512 KiB" → bytes) |
 | `mem_bytes` | memory `total_bytes` |
 | `swap_bytes` | memory `swap_total_bytes` |
-| `disk_bytes`, `disk_rotational` | the `disk` entry with the largest `size_bytes` (JSON value); `rotational` as 0/1 |
+| `disk_bytes`, `disk_rotational` | the `disk` entry with the largest `size_bytes` (JSON value; entries without a size are ignored); `rotational` as 0/1 |
 
 Descriptive columns, not used as model inputs: `machine`, `host`, `arch`
 (kernel `machine`), `cpu_model` (cpu `model_name`), `cpu_vendor` (cpu
@@ -81,7 +81,10 @@ string `target` (`fio/fio/results/iops[block_size=4k,mode=randread]`).
 A trailing `-rep<N>` is dropped from the dataset name: dfaas and peva_faas
 write one dataset per repetition (`metrics-<config>-iter1-rep2`), and without
 this each repetition would be a target of its own.
-Repetitions whose `repetitions.success` is false are excluded. Columns:
+Repetitions whose `repetitions.success` is false are excluded. A run whose
+`host_info` is missing counts for its host's machine when the host has only one;
+otherwise (a host never described, such as a load generator, or one with
+several sizes) its results are left out with a warning. Columns:
 `machine`, `target`, `workload`, `metric`, `unit`, `median`, `iqr`, `n`
 (repetitions used). Targets are not pre-filtered: the notebook chooses which
 ones matter.
@@ -112,7 +115,9 @@ the cores multiplies the metric by about 1.87.
 `Model` is a frozen dataclass: `target`, `unit`, `features`, `intercept`,
 `coefficients` (feature → value), `machines` (training machine ids),
 `feature_ranges` (feature → min, max), `max_log_error` (from validation, below),
-`rel_iqr` (median of `iqr / median` across the training machines).
+`rel_iqr` (median of `iqr / median` across the training machines measured at
+least twice; `None` when none was), `xtx_inv` (the inverse of XᵀX of the design
+matrix) and `max_leverage` (the largest leverage of a training machine).
 `to_json()` / `Model.from_json(text)` round-trip it.
 
 `fit` runs the leave-one-machine-out loop itself to fill `max_log_error`, so a
@@ -136,7 +141,9 @@ One row per target and method (`model`, `mean`, `nearest`): `target`,
 `method`, `machines`, `median_abs_pct_error`, `max_abs_pct_error`. A
 `beats_baselines` column is true on the `model` row when its median error is
 below both baselines'. Targets skipped for the reasons `fit` would raise are
-listed in a row with `method = "skipped"` and the reason in `note`.
+listed in a row with `method = "skipped"` and the reason in `note`. An empty
+or unknown feature list is not per target: `evaluate` raises `PredictionError`
+once.
 
 ### `loo_predictions(machines, targets, target, features) -> pd.DataFrame`
 
@@ -156,7 +163,11 @@ values. `Prediction` is a frozen dataclass: `value`, `low`, `high`, `unit`,
   With at most 15 machines a quantile has no statistical meaning; the observed
   maximum is the honest, conservative choice.
 - A feature outside the training range sets `extrapolated = True` and emits a
-  `warnings.warn` naming the feature.
+  `warnings.warn` naming the feature. A point whose leverage `x₀ᵀ(XᵀX)⁻¹x₀`
+  exceeds `max_leverage` (a combination of features unlike any training
+  machine, each one in range) does the same.
+- When `rel_iqr` is `None` the noise term is 0 and `predict` warns that the
+  range covers only the validation error.
 - A missing or non-positive feature raises `PredictionError`.
 
 A machine that was never benchmarked gets its features from any run on it:
