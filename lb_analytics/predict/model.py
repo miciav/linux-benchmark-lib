@@ -20,6 +20,15 @@ import pandas as pd
 from lb_analytics.predict.features import BINARY_FEATURES, FEATURES, to_number
 
 METHODS = ("model", "mean", "nearest")
+EVALUATE_COLUMNS = [
+    "target",
+    "method",
+    "machines",
+    "median_abs_pct_error",
+    "max_abs_pct_error",
+    "beats_baselines",
+    "note",
+]
 
 
 class PredictionError(ValueError):
@@ -123,6 +132,69 @@ def predict(model: Model, machine: Mapping[str, Any] | pd.Series) -> Prediction:
     value = math.exp(log_value)
     spread = math.exp(model.max_log_error + math.log1p(model.rel_iqr))
     return Prediction(value, value / spread, value * spread, model.unit, extrapolated)
+
+
+def loo_predictions(
+    machines: pd.DataFrame,
+    targets: pd.DataFrame,
+    target: str,
+    features: Sequence[str],
+) -> pd.DataFrame:
+    """Every held-out prediction behind ``evaluate`` for one target.
+
+    One row per machine and method: ``actual``, ``predicted``, ``pct_error``.
+    """
+    features = list(features)
+    return _loo(_table(machines, targets, target, features), features)
+
+
+def evaluate(
+    machines: pd.DataFrame,
+    targets: pd.DataFrame,
+    features: Sequence[str],
+    targets_filter: str | None = None,
+) -> pd.DataFrame:
+    """Leave-one-machine-out errors of the model and both baselines.
+
+    One row per target and method. Targets that cannot be fitted get one
+    ``skipped`` row with the reason in ``note``.
+    """
+    features = list(features)
+    names = sorted(targets["target"].unique())
+    if targets_filter:
+        names = [name for name in names if targets_filter in name]
+    rows: list[dict[str, Any]] = []
+    for name in names:
+        count = int((targets["target"] == name).sum())
+        try:
+            table = _table(machines, targets, name, features)
+        except PredictionError as exc:
+            rows.append(
+                {
+                    "target": name,
+                    "method": "skipped",
+                    "machines": count,
+                    "note": str(exc),
+                }
+            )
+            continue
+        errors = _loo(table, features).groupby("method")["pct_error"]
+        medians = errors.apply(lambda e: e.abs().median())
+        maxima = errors.apply(lambda e: e.abs().max())
+        wins = bool(medians["model"] < min(medians["mean"], medians["nearest"]))
+        rows.extend(
+            {
+                "target": name,
+                "method": method,
+                "machines": count,
+                "median_abs_pct_error": float(medians[method]),
+                "max_abs_pct_error": float(maxima[method]),
+                "beats_baselines": wins if method == "model" else None,
+                "note": "",
+            }
+            for method in METHODS
+        )
+    return pd.DataFrame(rows, columns=EVALUATE_COLUMNS)
 
 
 def _table(

@@ -3,7 +3,14 @@ import math
 import pandas as pd
 import pytest
 
-from lb_analytics.api import Model, PredictionError, fit, predict
+from lb_analytics.api import (
+    Model,
+    PredictionError,
+    evaluate,
+    fit,
+    loo_predictions,
+    predict,
+)
 
 pytestmark = pytest.mark.unit_analytics
 
@@ -130,3 +137,44 @@ def test_binary_feature_enters_without_log() -> None:
     model = fit(machines, targets, TARGET, ["physical_cpus", "disk_rotational"])
     assert set(model.coefficients) == {"physical_cpus", "disk_rotational"}
     assert predict(model, {"physical_cpus": 2, "disk_rotational": 0}).value > 0
+
+
+def test_nearest_baseline_uses_the_closest_machine() -> None:
+    machines, targets = _frames()
+    held_out = loo_predictions(machines, targets, TARGET, ["physical_cpus"])
+    row = held_out[(held_out.machine == "m3") & (held_out.method == "nearest")]
+    m2 = targets.loc[targets.machine == "m2", "median"].item()
+    assert row["predicted"].item() == pytest.approx(m2)
+
+
+def test_loo_predictions_has_every_machine_and_method() -> None:
+    held_out = loo_predictions(*_frames(), TARGET, ["physical_cpus"])
+    assert len(held_out) == len(CORES) * 3
+    assert set(held_out.method) == {"model", "mean", "nearest"}
+
+
+def test_evaluate_says_the_model_beats_the_baselines() -> None:
+    report = evaluate(*_frames(), ["physical_cpus"])
+    model_row = report[report.method == "model"].iloc[0]
+    assert model_row["beats_baselines"]
+    assert model_row["median_abs_pct_error"] < 5
+    assert model_row["machines"] == len(CORES)
+    assert set(report.method) == {"model", "mean", "nearest"}
+
+
+def test_evaluate_skips_targets_it_cannot_fit() -> None:
+    machines, targets = _frames()
+    sparse = targets.head(2).assign(target="dd/dd/results/bw")
+    zero = targets.assign(target="stream/stream/results/errors", median=0.0)
+    report = evaluate(machines, pd.concat([targets, sparse, zero]), ["physical_cpus"])
+    skipped = report[report.method == "skipped"].set_index("target")
+    assert "at least 3" in skipped.loc["dd/dd/results/bw", "note"]
+    assert "not positive" in skipped.loc["stream/stream/results/errors", "note"]
+    assert (report[report.target == TARGET].method != "skipped").all()
+
+
+def test_evaluate_filters_targets_by_text() -> None:
+    machines, targets = _frames()
+    other = targets.assign(target="dd/dd/results/bw")
+    report = evaluate(machines, pd.concat([targets, other]), ["physical_cpus"], "dd/")
+    assert set(report.target) == {"dd/dd/results/bw"}

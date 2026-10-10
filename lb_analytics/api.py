@@ -5,7 +5,9 @@ from lb_analytics.predict.model import (
     Model,
     Prediction,
     PredictionError,
+    evaluate,
     fit,
+    loo_predictions,
     predict,
 )
 from lb_analytics.unify.experiment import ExperimentData
@@ -18,8 +20,10 @@ __all__ = [
     "Model",
     "Prediction",
     "PredictionError",
+    "evaluate",
     "fit",
     "load_experiment",
+    "loo_predictions",
     "machines",
     "predict",
     "targets",
