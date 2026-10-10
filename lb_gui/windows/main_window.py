@@ -149,7 +149,6 @@ class MainWindow(QMainWindow):
             self.services.config_service,
         )
         analytics_vm = AnalyticsViewModel(
-            self.services.analytics_service,
             self.services.run_catalog,
             self.services.config_service,
         )

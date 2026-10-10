@@ -1,9 +1,6 @@
 """Stable application-layer API surface."""
 
 from lb_analytics.api import (
-    AnalyticsKind,
-    AnalyticsRequest,
-    AnalyticsService,
     ExperimentData,
     LoadReport,
     load_experiment,
@@ -30,6 +27,11 @@ from lb_app.services.run_service import RunService
 from lb_app.services.run_system_info import summarize_system_info
 from lb_app.services.run_types import RunContext, RunResult
 from lb_app.services.test_service import TestService
+from lb_app.services.unification_service import (
+    UnificationError,
+    UnificationPreview,
+    UnificationService,
+)
 from lb_app.ui_interfaces import (
     DashboardHandle,
     NoOpDashboardHandle,
@@ -80,9 +82,6 @@ AppClient = ApplicationClient
 
 __all__ = [
     "MAX_NODES",
-    "AnalyticsKind",
-    "AnalyticsRequest",
-    "AnalyticsService",
     "AnsibleOutputFormatter",
     "AppClient",
     "ApplicationClient",
@@ -126,6 +125,9 @@ __all__ = [
     "TestService",
     "UIAdapter",
     "UIHooks",
+    "UnificationError",
+    "UnificationPreview",
+    "UnificationService",
     "WorkloadConfig",
     "WorkloadIntensity",
     "_extract_lb_event_data",

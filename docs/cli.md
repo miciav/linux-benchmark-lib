@@ -23,8 +23,9 @@ Order used by commands that need a config:
 
 ## Top-level commands
 
-- `lb run [WORKLOAD ...] [-c FILE] [--run-id ID] [--experiment/-e NAME] [--remote/--no-remote] [--repetitions N] [--intensity LEVEL] [--setup/--no-setup] [--stop-file PATH] [--debug]`
+- `lb run [WORKLOAD ...] [-c FILE] [--run-id ID] [--experiment/-e NAME] [--analyze/--no-analyze] [--remote/--no-remote] [--repetitions N] [--intensity LEVEL] [--setup/--no-setup] [--stop-file PATH] [--debug]`
   Run workloads remotely via Ansible. Local execution is not supported by the CLI.
+  `--analyze` unifies the run's experiment into `data_exports/<experiment>/` when the run ends, without asking; an interactive run asks instead (default No), and `--no-analyze` never asks.
   `--experiment` adds the run to an experiment (also settable as `experiment_id` in the config file; the command line wins). Without one, a new `exp-<date>-<time>` id is generated and printed at the end of the run. Allowed: 1-64 letters, digits, `.`, `_`, `-`, starting with a letter or digit; the `run-` prefix is reserved for run ids.
 - `lb run ... --docker [--docker-engine docker|podman] [--nodes N]`
   Dev-only: provision containers and run via Ansible (requires `.lb_dev_cli` or `LB_ENABLE_TEST_CLI=1`).
@@ -34,8 +35,8 @@ Order used by commands that need a config:
   Resume a previous run; without RUN_ID, pick interactively from `benchmark_results/`.
 - `lb runs list [--root PATH] [-c FILE]` / `lb runs show RUN_ID [--root PATH] [-c FILE]`
   Inspect stored runs under `benchmark_results/`.
-- `lb runs analyze [RUN_ID] [--kind aggregate] [--root PATH] [--workload NAME] [--host NAME]`
-  Run analytics on an existing run.
+- `lb runs analyze [--experiment/-e ID | --folder] [--root PATH] [-c FILE] [--host NAME ...] [--workload NAME ...]`
+  Unify an experiment's datasets (or every run of the folder, with `--folder`) into Parquet tables under `data_exports/<experiment>/` (`data_exports/_folders/<folder>/` for `--folder`). Without `--experiment` or `--folder`, an interactive terminal opens a picker with a preview, then a summary to unify, filter or cancel; headless, one of the two is required. Prints the equivalent command at the end. In `lb runs list`, the *Analyze* action opens the same flow on the selected run's experiment.
 - `lb plugin ...`
   Inspect and manage workload plugins.
 - `lb provision loki-grafana install|remove|status [--mode local|docker] [--grafana-url URL] [--grafana-api-key KEY] [--loki-endpoint URL] [--no-configure]`

@@ -26,15 +26,9 @@ def _safe_import(module: str, attr: str) -> tuple[Any | None, Exception | None]:
 PSUtilCollector, PSUTIL_IMPORT_ERROR = _safe_import(
     "lb_runner.metric_collectors.psutil_collector", "PSUtilCollector"
 )
-PSUTIL_AGGREGATOR, _ = _safe_import(
-    "lb_runner.metric_collectors.aggregators", "aggregate_psutil"
-)
 
 CLICollector, CLI_IMPORT_ERROR = _safe_import(
     "lb_runner.metric_collectors.cli_collector", "CLICollector"
-)
-CLI_AGGREGATOR, _ = _safe_import(
-    "lb_runner.metric_collectors.aggregators", "aggregate_cli"
 )
 
 
@@ -66,7 +60,6 @@ PSUTIL_COLLECTOR = CollectorPlugin(
     name="PSUtilCollector",
     description="System metrics via psutil",
     factory=_create_psutil,
-    aggregator=PSUTIL_AGGREGATOR,
     should_run=lambda cfg: True,
 )
 
@@ -74,7 +67,6 @@ CLI_COLLECTOR = CollectorPlugin(
     name="CLICollector",
     description="Metrics via CLI commands",
     factory=_create_cli,
-    aggregator=CLI_AGGREGATOR,
     should_run=lambda cfg: bool(cfg.collectors.cli_commands),
 )
 

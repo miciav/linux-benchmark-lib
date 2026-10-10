@@ -130,7 +130,7 @@ linux-benchmark-lib/
 |-- lb_app/           # Stable API for CLI/UI integrations
 |-- lb_ui/            # CLI/TUI implementation
 |-- lb_gui/           # Graphical UI (Qt)
-|-- lb_analytics/     # Reporting and analytics
+|-- lb_analytics/     # Dataset unification for analysis
 |-- lb_plugins/       # Workload plugins and registry
 |-- lb_provisioner/   # Docker/Multipass helpers
 |-- lb_common/        # Shared API helpers

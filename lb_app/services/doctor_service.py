@@ -51,8 +51,7 @@ class DoctorService:
             ("psutil", self._check_import("psutil"), True),
             ("pandas", self._check_import("pandas"), True),
             ("numpy", self._check_import("numpy"), True),
-            ("matplotlib", self._check_import("matplotlib"), True),
-            ("seaborn", self._check_import("seaborn"), True),
+            ("pyarrow", self._check_import("pyarrow"), True),
             ("jc", self._check_import("jc"), True),
             (
                 "influxdb-client (optional)",

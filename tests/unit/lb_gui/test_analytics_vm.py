@@ -1,245 +1,153 @@
-"""Unit tests for AnalyticsViewModel."""
+"""Unit tests for AnalyticsViewModel (experiment unification)."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
+from lb_app.api import RunCatalogService, UnificationService
+from tests.helpers.analytics_runs import collected_run
 
-class TestAnalyticsViewModel:
-    """Tests for AnalyticsViewModel."""
+pytest.importorskip("PySide6")
 
-    @pytest.fixture
-    def mock_services(self) -> tuple[MagicMock, MagicMock]:
-        """Create mock services."""
-        analytics_service = MagicMock()
-        analytics_service.get_available_kinds.return_value = ["aggregate"]
-        run_catalog = MagicMock()
-        return analytics_service, run_catalog
+pytestmark = pytest.mark.unit
 
-    @pytest.fixture
-    def mock_run_info(self) -> MagicMock:
-        """Create a mock RunInfo."""
-        run = MagicMock()
-        run.run_id = "test-run-123"
-        run.output_root = Path("/output/test-run-123")
-        run.hosts = ["host1", "host2"]
-        run.workloads = ["stress_ng", "fio"]
-        run.created_at = datetime(2024, 1, 15, 10, 30, 0)
-        return run
 
-    def test_initial_state(self, mock_services: tuple[MagicMock, MagicMock]) -> None:
-        """Test initial viewmodel state."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
+@pytest.fixture
+def vm(tmp_path: Path):
+    from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
 
-        analytics, run_catalog = mock_services
-        vm = AnalyticsViewModel(analytics, run_catalog)
+    root = tmp_path / "benchmark_results"
+    collected_run(root, "run-1", "tuning", "fio", "2026-10-09T10:00:00")
+    collected_run(root, "run-2", "tuning", "stress_ng", "2026-10-09T11:00:00")
+    catalog = MagicMock()
+    catalog.unification.return_value = UnificationService(
+        RunCatalogService(root), tmp_path / "exports"
+    )
+    model = AnalyticsViewModel(catalog)
+    model.refresh_runs()
+    return model
 
-        assert vm.runs == []
-        assert vm.selected_run is None
-        assert vm.selected_workloads == []
-        assert vm.selected_hosts == []
-        assert vm.last_artifacts == []
 
-    def test_refresh_runs_updates_list(
-        self,
-        mock_services: tuple[MagicMock, MagicMock],
-        mock_run_info: MagicMock,
-    ) -> None:
-        """Test refresh_runs() updates the runs list."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
+def test_the_folder_is_listed_first(vm):
+    assert [(e.kind, e.id) for e in vm.experiments] == [
+        ("folder", "benchmark_results"),
+        ("experiment", "tuning"),
+    ]
+    assert vm.get_experiment_rows()[0][0] == "Folder benchmark_results (all runs)"
 
-        analytics, run_catalog = mock_services
-        run_catalog.list_runs.return_value = [mock_run_info]
 
-        vm = AnalyticsViewModel(analytics, run_catalog)
-        vm.refresh_runs()
+def test_selecting_defaults_the_filters_to_everything(vm):
+    vm.select_experiment(1)
+    assert vm.selected_experiment.id == "tuning"
+    assert vm.selected_hosts == ["h1"]
+    assert vm.selected_workloads == ["fio", "stress_ng"]
+    assert vm.preview is None
 
-        assert len(vm.runs) == 1
-        assert vm.runs[0] == mock_run_info
 
-    def test_select_run_populates_filters(
-        self,
-        mock_services: tuple[MagicMock, MagicMock],
-        mock_run_info: MagicMock,
-    ) -> None:
-        """Test select_run() populates workloads and hosts filters."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
+def test_prepare_then_unify_writes(vm, tmp_path):
+    completed: list[list[Path]] = []
+    vm.analytics_completed.connect(completed.append)
+    vm.select_experiment(1)
+    vm.prepare()
+    assert vm.preview is not None and vm.can_unify
+    vm.unify()
+    assert completed and (tmp_path / "exports" / "tuning" / "results.parquet").exists()
 
-        analytics, run_catalog = mock_services
 
-        vm = AnalyticsViewModel(analytics, run_catalog)
-        vm._runs = [mock_run_info]
+def test_changing_a_filter_drops_the_preview(vm):
+    vm.select_experiment(1)
+    vm.prepare()
+    vm.selected_workloads = ["fio"]
+    assert vm.preview is None
+    assert not vm.can_unify
 
-        vm.select_run("test-run-123")
 
-        assert vm.selected_run == mock_run_info
-        assert vm.selected_workloads == ["stress_ng", "fio"]
-        assert vm.selected_hosts == ["host1", "host2"]
+def test_an_empty_preview_cannot_be_unified(vm, tmp_path):
+    failed: list[str] = []
+    vm.analytics_failed.connect(failed.append)
+    service = vm._run_catalog.unification.return_value
+    real_prepare = service.prepare
+    service.prepare = lambda *args: (
+        preview := real_prepare(*args),
+        replace(preview, data=preview.data.filter(hosts=["nobody"])),
+    )[1]
+    vm.select_experiment(1)
+    vm.prepare()
+    assert vm.preview is not None and vm.preview.is_empty
+    assert not vm.can_unify
+    vm.unify()
+    assert failed
+    assert not (tmp_path / "exports").exists()
 
-    def test_select_run_none_clears_state(
-        self,
-        mock_services: tuple[MagicMock, MagicMock],
-        mock_run_info: MagicMock,
-    ) -> None:
-        """Test select_run(None) clears selection state."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
 
-        analytics, run_catalog = mock_services
+def test_prepare_without_selection_fails(vm):
+    failed: list[str] = []
+    vm.analytics_failed.connect(failed.append)
+    vm.prepare()
+    assert failed == ["No experiment selected"]
 
-        vm = AnalyticsViewModel(analytics, run_catalog)
-        vm._runs = [mock_run_info]
-        vm._selected_run = mock_run_info
-        vm._selected_workloads = ["stress_ng"]
-        vm._selected_hosts = ["host1"]
 
-        vm.select_run(None)
+def test_a_late_preview_for_an_old_selection_is_dropped(vm):
+    service = vm._run_catalog.unification.return_value
+    real_prepare = service.prepare
 
-        assert vm.selected_run is None
-        assert vm.selected_workloads == []
-        assert vm.selected_hosts == []
+    def user_moves_on_while_loading(*args, **kwargs):
+        assert vm.is_busy  # Prepare and Unify are disabled meanwhile
+        preview = real_prepare(*args, **kwargs)
+        vm.select_experiment(0)  # the user picks the folder during the load
+        return preview
 
-    def test_can_run_analytics_requires_run(
-        self, mock_services: tuple[MagicMock, MagicMock]
-    ) -> None:
-        """Test can_run_analytics() requires selected run."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
+    service.prepare = user_moves_on_while_loading
+    vm.select_experiment(1)
+    vm.prepare()
+    assert vm.preview is None
+    assert not vm.can_unify
+    assert not vm.is_busy
 
-        analytics, run_catalog = mock_services
 
-        vm = AnalyticsViewModel(analytics, run_catalog)
+def test_refresh_clears_the_selection(vm):
+    vm.select_experiment(1)
+    vm.prepare()
+    vm.refresh_runs()
+    assert vm.selected_experiment is None
+    assert vm.preview is None
 
-        can_run, error = vm.can_run_analytics()
 
-        assert can_run is False
-        assert "No run selected" in error
+def test_the_written_preview_is_kept_for_the_result(vm):
+    vm.select_experiment(1)
+    vm.prepare()
+    prepared = vm.preview
+    vm.unify()
+    assert vm.last_written is prepared
 
-    def test_can_run_analytics_requires_output_root(
-        self,
-        mock_services: tuple[MagicMock, MagicMock],
-        mock_run_info: MagicMock,
-    ) -> None:
-        """Test can_run_analytics() requires output_root."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
 
-        analytics, run_catalog = mock_services
-        mock_run_info.output_root = None
+def test_deselecting_every_host_is_not_all_hosts(vm):
+    failed: list[str] = []
+    vm.analytics_failed.connect(failed.append)
+    vm.select_experiment(1)
+    vm.selected_hosts = []
+    vm.prepare()
+    assert vm.preview is None
+    assert failed == ["Select at least one host and one workload"]
 
-        vm = AnalyticsViewModel(analytics, run_catalog)
-        vm._selected_run = mock_run_info
 
-        can_run, error = vm.can_run_analytics()
+def test_the_gui_command_names_the_loaded_config(tmp_path):
+    from lb_gui.services.run_catalog import RunCatalogServiceWrapper
+    from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
+    from lb_runner.api import BenchmarkConfig
 
-        assert can_run is False
-        assert "output directory" in error.lower()
-
-    def test_can_run_analytics_passes_with_valid_state(
-        self,
-        mock_services: tuple[MagicMock, MagicMock],
-        mock_run_info: MagicMock,
-    ) -> None:
-        """Test can_run_analytics() passes with valid state."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
-
-        analytics, run_catalog = mock_services
-
-        vm = AnalyticsViewModel(analytics, run_catalog)
-        vm._selected_run = mock_run_info
-
-        can_run, error = vm.can_run_analytics()
-
-        assert can_run is True
-        assert error == ""
-
-    def test_run_analytics_calls_service(
-        self,
-        mock_services: tuple[MagicMock, MagicMock],
-        mock_run_info: MagicMock,
-    ) -> None:
-        """Test run_analytics() calls the analytics service."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
-
-        analytics, run_catalog = mock_services
-        expected_artifacts = [Path("/report.html")]
-        analytics.run_analytics.return_value = expected_artifacts
-
-        vm = AnalyticsViewModel(analytics, run_catalog)
-        vm._selected_run = mock_run_info
-        vm._selected_workloads = ["stress_ng"]
-        vm._selected_hosts = ["host1"]
-
-        vm.run_analytics()
-
-        analytics.run_analytics.assert_called_once()
-        call_kwargs = analytics.run_analytics.call_args.kwargs
-        assert call_kwargs["run_info"] == mock_run_info
-        assert call_kwargs["workloads"] == ["stress_ng"]
-        assert call_kwargs["hosts"] == ["host1"]
-
-    def test_run_analytics_updates_artifacts(
-        self,
-        mock_services: tuple[MagicMock, MagicMock],
-        mock_run_info: MagicMock,
-    ) -> None:
-        """Test run_analytics() updates last_artifacts."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
-
-        analytics, run_catalog = mock_services
-        expected_artifacts = [Path("/report.html"), Path("/data.csv")]
-        analytics.run_analytics.return_value = expected_artifacts
-
-        vm = AnalyticsViewModel(analytics, run_catalog)
-        vm._selected_run = mock_run_info
-
-        vm.run_analytics()
-
-        assert vm.last_artifacts == expected_artifacts
-
-    def test_available_workloads_from_selected_run(
-        self,
-        mock_services: tuple[MagicMock, MagicMock],
-        mock_run_info: MagicMock,
-    ) -> None:
-        """Test available_workloads comes from selected run."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
-
-        analytics, run_catalog = mock_services
-
-        vm = AnalyticsViewModel(analytics, run_catalog)
-        vm._selected_run = mock_run_info
-
-        assert vm.available_workloads == ["stress_ng", "fio"]
-
-    def test_available_workloads_empty_without_run(
-        self, mock_services: tuple[MagicMock, MagicMock]
-    ) -> None:
-        """Test available_workloads is empty without selected run."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
-
-        analytics, run_catalog = mock_services
-
-        vm = AnalyticsViewModel(analytics, run_catalog)
-
-        assert vm.available_workloads == []
-
-    def test_get_run_table_rows(
-        self,
-        mock_services: tuple[MagicMock, MagicMock],
-        mock_run_info: MagicMock,
-    ) -> None:
-        """Test get_run_table_rows() formats runs correctly."""
-        from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
-
-        analytics, run_catalog = mock_services
-
-        vm = AnalyticsViewModel(analytics, run_catalog)
-        vm._runs = [mock_run_info]
-
-        rows = vm.get_run_table_rows()
-
-        assert len(rows) == 1
-        assert rows[0][0] == "test-run-123"
-        assert "2024-01-15" in rows[0][1]
+    root = tmp_path / "benchmark_results"
+    collected_run(root, "run-1", "tuning", "fio")
+    cfg = BenchmarkConfig(output_dir=root, data_export_dir=tmp_path / "exports")
+    config_service = MagicMock()
+    config_service.get_current_config.return_value = (cfg, tmp_path / "lb.yaml")
+    model = AnalyticsViewModel(RunCatalogServiceWrapper(), config_service)
+    model.configure_with_config(cfg)
+    model.refresh_runs()
+    model.select_experiment(1)
+    model.prepare()
+    assert f"--config {tmp_path / 'lb.yaml'}" in model.preview.command

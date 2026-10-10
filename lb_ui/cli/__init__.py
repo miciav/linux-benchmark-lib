@@ -16,8 +16,6 @@ def __getattr__(name: str) -> Any:
         return ctx_store.doctor_service
     if name == "test_service":
         return ctx_store.test_service
-    if name == "analytics_service":
-        return ctx_store.analytics_service
     if name == "app_client":
         return ctx_store.app_client
     if name == "ui":

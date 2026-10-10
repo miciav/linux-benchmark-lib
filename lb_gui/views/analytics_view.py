@@ -1,4 +1,4 @@
-"""Analytics view for running analytics on benchmark results."""
+"""Analytics view: unify an experiment's datasets into Parquet tables."""
 
 from __future__ import annotations
 
@@ -10,12 +10,12 @@ from typing import TYPE_CHECKING, ClassVar
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox,
-    QFormLayout,
+    QApplication,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
@@ -28,282 +28,251 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from lb_gui.utils import set_widget_role
+from lb_gui.utils import format_datetime, set_widget_role
 
 if TYPE_CHECKING:
-    from lb_common.api import RunInfo
+    from lb_app.api import ExperimentInfo, UnificationPreview
     from lb_gui.viewmodels.analytics_vm import AnalyticsViewModel
 
 
 class AnalyticsView(QWidget):
-    """View for running analytics on benchmark results."""
+    """Pick an experiment, prepare its unification, write it."""
 
-    RUN_HEADERS: ClassVar[list[str]] = ["Run ID", "Created", "Workloads"]
+    EXPERIMENT_HEADERS: ClassVar[list[str]] = [
+        "Experiment",
+        "Runs",
+        "Hosts",
+        "Workloads",
+        "Last run",
+    ]
 
     def __init__(
-        self,
-        viewmodel: AnalyticsViewModel,
-        parent: QWidget | None = None,
+        self, viewmodel: AnalyticsViewModel, parent: QWidget | None = None
     ) -> None:
         super().__init__(parent)
         self._vm = viewmodel
-
         self._setup_ui()
         self._connect_signals()
-        self._initial_load()
-
-    def _initial_load(self) -> None:
-        """Load runs on first render."""
         self._vm.refresh_runs()
+        self._on_experiments_changed(self._vm.experiments)
 
     def _setup_ui(self) -> None:
-        """Set up the UI layout."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(16)
-
-        # Title
         title = QLabel("Analytics")
         title.setProperty("role", "title")
         layout.addWidget(title)
-
-        # Main splitter
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Left: Run selection
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Refresh button
-        refresh_btn = QPushButton("Refresh Runs")
-        refresh_btn.clicked.connect(self._on_refresh)
+        left = QWidget()
+        left_layout = QVBoxLayout(left)
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.clicked.connect(self._vm.refresh_runs)
         left_layout.addWidget(refresh_btn)
-
-        # Run table
-        run_group = QGroupBox("Select Run")
-        run_layout = QVBoxLayout(run_group)
-        self._run_table = QTableWidget()
-        self._run_table.setColumnCount(len(self.RUN_HEADERS))
-        self._run_table.setHorizontalHeaderLabels(self.RUN_HEADERS)
-        self._run_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self._run_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self._run_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
+        group = QGroupBox("Experiments")
+        group_layout = QVBoxLayout(group)
+        self._experiment_table = QTableWidget(0, len(self.EXPERIMENT_HEADERS))
+        self._experiment_table.setHorizontalHeaderLabels(self.EXPERIMENT_HEADERS)
+        self._experiment_table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
         )
-        self._run_table.horizontalHeader().setStretchLastSection(True)
-        self._run_table.verticalHeader().setVisible(False)
-        self._run_table.setAlternatingRowColors(True)
-        self._run_table.setShowGrid(False)
-        self._run_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._run_table.itemSelectionChanged.connect(self._on_run_selection_changed)
-        run_layout.addWidget(self._run_table)
-        left_layout.addWidget(run_group, 1)
-
-        splitter.addWidget(left_widget)
-
-        # Right: Options and execution  # noqa: ERA001 (section header, not dead code)
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Options group
-        options_group = QGroupBox("Options")
-        options_layout = QFormLayout(options_group)
-
-        # Analytics kind
-        self._kind_combo = QComboBox()
-        for kind in self._vm.available_kinds:
-            self._kind_combo.addItem(str(kind), kind)
-        self._kind_combo.currentIndexChanged.connect(self._on_kind_changed)
-        options_layout.addRow("Type:", self._kind_combo)
-
-        right_layout.addWidget(options_group)
-
-        # Filters group
-        filters_group = QGroupBox("Filters (optional)")
-        filters_layout = QHBoxLayout(filters_group)
-
-        # Workloads filter
-        workloads_layout = QVBoxLayout()
-        workloads_layout.addWidget(QLabel("Workloads:"))
-        self._workloads_list = QListWidget()
-        self._workloads_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
-        self._workloads_list.itemSelectionChanged.connect(
-            self._on_workloads_selection_changed
+        self._experiment_table.setSelectionMode(
+            QTableWidget.SelectionMode.SingleSelection
         )
-        workloads_layout.addWidget(self._workloads_list)
-        filters_layout.addLayout(workloads_layout)
+        self._experiment_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._experiment_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self._experiment_table.itemSelectionChanged.connect(self._on_row_changed)
+        group_layout.addWidget(self._experiment_table)
+        left_layout.addWidget(group, 1)
+        splitter.addWidget(left)
 
-        # Hosts filter
-        hosts_layout = QVBoxLayout()
-        hosts_layout.addWidget(QLabel("Hosts:"))
-        self._hosts_list = QListWidget()
-        self._hosts_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
-        self._hosts_list.itemSelectionChanged.connect(self._on_hosts_selection_changed)
-        hosts_layout.addWidget(self._hosts_list)
-        filters_layout.addLayout(hosts_layout)
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        runs_group = QGroupBox("Runs in the selection")
+        runs_layout = QVBoxLayout(runs_group)
+        self._runs_list = QListWidget()
+        runs_layout.addWidget(self._runs_list)
+        right_layout.addWidget(runs_group)
 
-        right_layout.addWidget(filters_group, 1)
+        filters = QGroupBox("Filters")
+        filters_layout = QHBoxLayout(filters)
+        self._hosts_list = self._filter_list(filters_layout, "Hosts:")
+        self._workloads_list = self._filter_list(filters_layout, "Workloads:")
+        self._hosts_list.itemSelectionChanged.connect(self._on_hosts_changed)
+        self._workloads_list.itemSelectionChanged.connect(self._on_workloads_changed)
+        right_layout.addWidget(filters)
 
-        # Run button and progress
-        action_layout = QHBoxLayout()
-
-        self._run_btn = QPushButton("Run Analytics")
-        self._run_btn.setEnabled(False)
-        self._run_btn.clicked.connect(self._on_run_analytics)
-        action_layout.addWidget(self._run_btn)
-
+        actions = QHBoxLayout()
+        self._prepare_btn = QPushButton("Prepare")
+        self._prepare_btn.clicked.connect(self._vm.prepare)
+        self._unify_btn = QPushButton("Unify")
+        self._unify_btn.clicked.connect(self._vm.unify)
         self._progress = QProgressBar()
+        self._progress.setRange(0, 0)
         self._progress.setVisible(False)
-        self._progress.setRange(0, 0)  # Indeterminate
-        action_layout.addWidget(self._progress)
+        for widget in (self._prepare_btn, self._unify_btn, self._progress):
+            actions.addWidget(widget)
+        right_layout.addLayout(actions)
 
-        action_layout.addStretch()
-        right_layout.addLayout(action_layout)
+        summary = QGroupBox("Summary")
+        summary_layout = QVBoxLayout(summary)
+        self._summary_table = QTableWidget(0, 2)
+        self._summary_table.setHorizontalHeaderLabels(["Field", "Value"])
+        self._summary_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._summary_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        summary_layout.addWidget(self._summary_table)
+        right_layout.addWidget(summary, 1)
 
-        # Results group
-        results_group = QGroupBox("Generated Artifacts")
-        results_layout = QVBoxLayout(results_group)
+        result = QGroupBox("Result")
+        result_layout = QVBoxLayout(result)
         self._artifacts_list = QListWidget()
         self._artifacts_list.itemDoubleClicked.connect(self._on_artifact_double_clicked)
-        results_layout.addWidget(self._artifacts_list)
-        right_layout.addWidget(results_group)
+        result_layout.addWidget(self._artifacts_list)
+        command_row = QHBoxLayout()
+        self._command_edit = QLineEdit()
+        self._command_edit.setReadOnly(True)
+        copy_btn = QPushButton("Copy")
+        copy_btn.clicked.connect(
+            lambda: QApplication.clipboard().setText(self._command_edit.text())
+        )
+        command_row.addWidget(self._command_edit)
+        command_row.addWidget(copy_btn)
+        result_layout.addLayout(command_row)
+        right_layout.addWidget(result)
 
-        splitter.addWidget(right_widget)
-
-        # Set splitter sizes
-        splitter.setSizes([400, 600])
-
+        splitter.addWidget(right)
         layout.addWidget(splitter, 1)
-
-        # Status label
         self._status_label = QLabel("")
-        self._status_label.setProperty("role", "muted")
         layout.addWidget(self._status_label)
+        self._sync_buttons()
+
+    @staticmethod
+    def _filter_list(parent: QHBoxLayout, label: str) -> QListWidget:
+        column = QVBoxLayout()
+        column.addWidget(QLabel(label))
+        widget = QListWidget()
+        widget.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+        column.addWidget(widget)
+        parent.addLayout(column)
+        return widget
 
     def _connect_signals(self) -> None:
-        """Connect viewmodel signals."""
-        self._vm.runs_changed.connect(self._on_runs_changed)
-        self._vm.run_selected.connect(self._on_vm_run_selected)
-        self._vm.analytics_started.connect(self._on_analytics_started)
-        self._vm.analytics_completed.connect(self._on_analytics_completed)
-        self._vm.analytics_failed.connect(self._on_analytics_failed)
+        self._vm.experiments_changed.connect(self._on_experiments_changed)
+        self._vm.experiment_selected.connect(self._on_experiment_selected)
+        self._vm.preview_changed.connect(self._on_preview_changed)
+        self._vm.analytics_started.connect(self._on_started)
+        self._vm.analytics_completed.connect(self._on_completed)
+        self._vm.analytics_failed.connect(self._on_failed)
         self._vm.error_occurred.connect(self._on_error)
 
-    def _on_refresh(self) -> None:
-        """Handle refresh button click."""
-        self._vm.refresh_runs()
+    def _on_row_changed(self) -> None:
+        rows = self._experiment_table.selectionModel().selectedRows()
+        self._vm.select_experiment(rows[0].row() if rows else None)
 
-    def _on_run_selection_changed(self) -> None:
-        """Handle run table selection change."""
-        selected = self._run_table.selectedItems()
-        if selected:
-            row = selected[0].row()
-            item = self._run_table.item(row, 0)
-            if item is None:
-                return
-            run_id = item.text()
-            self._vm.select_run(run_id)
-        else:
-            self._vm.select_run(None)
+    def _on_hosts_changed(self) -> None:
+        self._vm.selected_hosts = [i.text() for i in self._hosts_list.selectedItems()]
 
-    def _on_kind_changed(self, index: int) -> None:
-        """Handle analytics kind change."""
-        kind = self._kind_combo.itemData(index)
-        if kind:
-            self._vm.selected_kind = kind
+    def _on_workloads_changed(self) -> None:
+        self._vm.selected_workloads = [
+            i.text() for i in self._workloads_list.selectedItems()
+        ]
 
-    def _on_workloads_selection_changed(self) -> None:
-        """Handle workloads filter selection change."""
-        selected = [item.text() for item in self._workloads_list.selectedItems()]
-        self._vm.selected_workloads = selected
-
-    def _on_hosts_selection_changed(self) -> None:
-        """Handle hosts filter selection change."""
-        selected = [item.text() for item in self._hosts_list.selectedItems()]
-        self._vm.selected_hosts = selected
-
-    def _on_run_analytics(self) -> None:
-        """Handle run analytics button click."""
-        self._vm.run_analytics()
-
-    def _on_runs_changed(self, runs: list) -> None:
-        """Handle runs list update."""
-        rows = self._vm.get_run_table_rows()
-        self._run_table.setRowCount(len(rows))
-
+    def _on_experiments_changed(self, experiments: list) -> None:
+        self._experiment_table.blockSignals(True)
+        self._experiment_table.clearSelection()  # the VM dropped its selection
+        self._experiment_table.blockSignals(False)
+        rows = self._vm.get_experiment_rows()
+        self._experiment_table.setRowCount(len(rows))
         for i, row in enumerate(rows):
             for j, cell in enumerate(row):
-                item = QTableWidgetItem(str(cell))
-                self._run_table.setItem(i, j, item)
+                self._experiment_table.setItem(i, j, QTableWidgetItem(cell))
+        self._set_status(f"{len(experiments)} experiment(s) available", "muted")
 
-        self._status_label.setText(f"{len(runs)} run(s) available")
-        set_widget_role(self._status_label, "muted")
-
-    def _on_vm_run_selected(self, run: RunInfo | None) -> None:
-        """Handle run selection in viewmodel."""
-        # Update filter lists
-        self._workloads_list.clear()
-        self._hosts_list.clear()
-
-        if run is not None:
-            for workload in self._vm.available_workloads:
-                item = QListWidgetItem(workload)
+    def _on_experiment_selected(self, experiment: ExperimentInfo | None) -> None:
+        self._runs_list.clear()
+        for widget, names in (
+            (self._hosts_list, self._vm.available_hosts),
+            (self._workloads_list, self._vm.available_workloads),
+        ):
+            widget.blockSignals(True)
+            widget.clear()
+            for name in names:
+                item = QListWidgetItem(name)
+                widget.addItem(item)
                 item.setSelected(True)
-                self._workloads_list.addItem(item)
+            widget.blockSignals(False)
+        if experiment is not None:
+            for run in experiment.runs:
+                self._runs_list.addItem(
+                    f"{run.run_id}  {format_datetime(run.created_at)}  "
+                    f"{', '.join(run.workloads)}"
+                )
+        self._sync_buttons()
 
-            for host in self._vm.available_hosts:
-                item = QListWidgetItem(host)
-                item.setSelected(True)
-                self._hosts_list.addItem(item)
+    def _on_preview_changed(self, preview: UnificationPreview | None) -> None:
+        rows = preview.summary_rows() if preview else []
+        self._summary_table.setRowCount(len(rows))
+        for i, (label, value) in enumerate(rows):
+            self._summary_table.setItem(i, 0, QTableWidgetItem(label))
+            self._summary_table.setItem(i, 1, QTableWidgetItem(value))
+        self._progress.setVisible(False)
+        self._sync_buttons()
 
-        # Update run button state
-        can_run, _ = self._vm.can_run_analytics()
-        self._run_btn.setEnabled(can_run)
-
-    def _on_analytics_started(self) -> None:
-        """Handle analytics started."""
-        self._run_btn.setEnabled(False)
+    def _on_started(self) -> None:
         self._progress.setVisible(True)
-        self._status_label.setText("Running analytics...")
-        set_widget_role(self._status_label, "status-info")
-        self._artifacts_list.clear()
+        self._prepare_btn.setEnabled(False)
+        self._unify_btn.setEnabled(False)
+        self._set_status("Working...", "status-info")
 
-    def _on_analytics_completed(self, artifacts: list) -> None:
-        """Handle analytics completed."""
-        self._run_btn.setEnabled(True)
+    def _on_completed(self, paths: list) -> None:
         self._progress.setVisible(False)
-
+        written = self._vm.last_written
+        counts = written.row_counts if written else {}
         self._artifacts_list.clear()
-        for path in artifacts:
-            self._artifacts_list.addItem(str(path))
+        if written is not None:
+            self._add_artifact(str(written.out_dir), written.out_dir)
+            self._command_edit.setText(written.command)
+        for path in paths:
+            rows = counts.get(path.stem)
+            label = f"{path.name} — {rows} rows" if rows is not None else path.name
+            self._add_artifact(label, path)
+        self._sync_buttons()
+        self._set_status(f"Unified into {len(paths)} file(s)", "status-success")
 
-        self._status_label.setText(f"Analytics completed: {len(artifacts)} artifact(s)")
-        set_widget_role(self._status_label, "status-success")
-
-    def _on_analytics_failed(self, error: str) -> None:
-        """Handle analytics failure."""
-        self._run_btn.setEnabled(True)
+    def _on_failed(self, error: str) -> None:
         self._progress.setVisible(False)
-        self._status_label.setText(f"Analytics failed: {error}")
-        set_widget_role(self._status_label, "status-error")
+        self._sync_buttons()
+        self._set_status(f"Failed: {error}", "status-error")
 
     def _on_error(self, message: str) -> None:
-        """Handle error from viewmodel."""
-        self._status_label.setText(message)
-        set_widget_role(self._status_label, "status-error")
+        self._set_status(message, "status-error")
+
+    def _sync_buttons(self) -> None:
+        idle = not self._vm.is_busy
+        self._prepare_btn.setEnabled(idle and self._vm.selected_experiment is not None)
+        self._unify_btn.setEnabled(idle and self._vm.can_unify)
+
+    def _add_artifact(self, label: str, path: Path) -> None:
+        item = QListWidgetItem(label)
+        item.setData(Qt.ItemDataRole.UserRole, str(path))
+        self._artifacts_list.addItem(item)
+
+    def _set_status(self, text: str, role: str) -> None:
+        self._status_label.setText(text)
+        set_widget_role(self._status_label, role)
 
     def _on_artifact_double_clicked(self, item: QListWidgetItem) -> None:
-        """Handle artifact double-click to open."""
-        path = Path(item.text())
+        path = Path(item.data(Qt.ItemDataRole.UserRole) or item.text())
         if path.exists():
             self._open_path(path)
         else:
             QMessageBox.warning(
-                self,
-                "File Not Found",
-                f"The file does not exist:\n{path}",
+                self, "File Not Found", f"The file does not exist:\n{path}"
             )
 
     def _open_path(self, path: Path) -> None:

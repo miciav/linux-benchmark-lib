@@ -4,7 +4,14 @@ from pathlib import Path
 
 import typer
 
-from lb_app.api import AnalyticsRequest, RunCatalogService
+from lb_app.api import RunCatalogService, UnificationError
+from lb_ui.flows.unification import (
+    build_unification_service,
+    is_interactive,
+    run_unification_flow,
+    show_summary,
+    write_and_report,
+)
 from lb_ui.tui.system.models import PickItem, TableModel
 from lb_ui.wiring.dependencies import UIContext
 
@@ -34,7 +41,7 @@ def _show_run_details(
 
 
 def create_runs_app(ctx: UIContext) -> typer.Typer:
-    """Build the runs Typer app (list/show)."""
+    """Build the runs Typer app (list/show/analyze)."""
     app = typer.Typer(help="Inspect past benchmark runs.", no_args_is_help=True)
 
     @app.command("list")
@@ -58,7 +65,7 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
         ),
     ) -> None:
         """List available benchmark runs."""
-        cfg, _, _ = ctx.config_service.load_for_read(config)
+        cfg, resolved, _ = ctx.config_service.load_for_read(config)
         output_root = root or cfg.output_dir
         catalog = RunCatalogService(
             output_dir=output_root,
@@ -117,7 +124,17 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
         if action.id == "show":
             _show_run_details(ctx, selected.id, catalog)
         elif action.id == "analyze":
-            ctx.ui.present.info(f"Run: lb runs analyze {selected.id}")
+            run = catalog.get_run(selected.id)
+            if run is None:
+                return
+            service = build_unification_service(cfg, output_root, resolved)
+            try:
+                run_unification_flow(
+                    ctx, service, service.find(run.experiment_id or run.run_id)
+                )
+            except UnificationError as exc:
+                ctx.ui.present.error(str(exc))
+                raise typer.Exit(1) from exc
 
     @app.command("show")
     def runs_show(
@@ -147,14 +164,13 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
 
     @app.command("analyze")
     def analyze(
-        run_id: str | None = typer.Argument(
-            None, help="Run identifier (folder name). If omitted, prompt to select."
+        experiment: str | None = typer.Option(
+            None, "--experiment", "-e", help="Experiment to unify."
         ),
-        kind: str | None = typer.Option(
-            None,
-            "--kind",
-            "-k",
-            help="Analytics kind to run (currently: aggregate).",
+        folder: bool = typer.Option(
+            False,
+            "--folder",
+            help="Unify every run of the output folder as one experiment.",
         ),
         root: Path | None = typer.Option(
             None,
@@ -166,13 +182,13 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
             None,
             "--workload",
             "-w",
-            help="Workload(s) to analyze (repeatable). Default: all in run.",
+            help="Workload(s) to keep (repeatable). Default: all.",
         ),
         host: list[str] | None = typer.Option(
             None,
             "--host",
             "-H",
-            help="Host(s) to analyze (repeatable). Default: all in run.",
+            help="Host(s) to keep (repeatable). Default: all.",
         ),
         config: Path | None = typer.Option(
             None,
@@ -181,81 +197,28 @@ def create_runs_app(ctx: UIContext) -> typer.Typer:
             help="Config file to infer output/report/export roots.",
         ),
     ) -> None:
-        """Run analytics on an existing benchmark run."""
-        cfg, _, _ = ctx.config_service.load_for_read(config)
-        output_root = root or cfg.output_dir
-        catalog = RunCatalogService(
-            output_dir=output_root,
-            report_dir=cfg.report_dir,
-            data_export_dir=cfg.data_export_dir,
-        )
-
-        selected_run_id = run_id
-        if selected_run_id is None:
-            runs = catalog.list_runs()
-            if not runs:
-                ctx.ui.present.error(f"No runs found under {output_root}")
-                raise typer.Exit(1)
-            if ctx.headless:
-                ctx.ui.present.error(
-                    "Run selection requires a TTY. Provide a run id in headless mode."
-                )
-                raise typer.Exit(1)
-
-            items = [
-                PickItem(id=r.run_id, title=f"{r.run_id} ({r.created_at})")
-                for r in runs
-            ]
-            selection = ctx.ui.picker.pick_one(items, title="Select a benchmark run")
-            if selection is None:
-                raise typer.Exit(1)
-            selected_run_id = selection.id
-            ctx.ui.present.info(f"Selected run: {selected_run_id}")
-
-        run = catalog.get_run(selected_run_id)
-        if not run:
-            ctx.ui.present.error(
-                f"Run '{selected_run_id}' not found under {output_root}"
-            )
+        """Unify an experiment's datasets into Parquet tables."""
+        if experiment is not None and folder:
+            ctx.ui.present.error("Use --experiment or --folder, not both.")
             raise typer.Exit(1)
-
-        selected_kind = kind or "aggregate"
-
-        if selected_kind != "aggregate":
-            ctx.ui.present.error(f"Unsupported analytics kind: {selected_kind}")
-            raise typer.Exit(1)
-
-        selected_workloads = workload
-        if selected_workloads is None:
-            w_items = [PickItem(id=w, title=w) for w in list(run.workloads)]
-            w_sel = ctx.ui.picker.pick_many(
-                w_items, title="Select workloads to analyze"
+        cfg, resolved, _ = ctx.config_service.load_for_read(config)
+        service = build_unification_service(cfg, root, resolved)
+        try:
+            if experiment is None and not folder:
+                if not is_interactive(ctx):
+                    ctx.ui.present.error(
+                        "Choose what to unify: --experiment ID or --folder."
+                    )
+                    raise typer.Exit(1)
+                run_unification_flow(ctx, service)
+                return
+            preview = service.prepare(
+                service.find(experiment), host or (), workload or ()
             )
-            selected_workloads = sorted([s.id for s in w_sel]) if w_sel else None
-
-        selected_hosts = host
-        if selected_hosts is None:
-            h_items = [PickItem(id=h, title=h) for h in list(run.hosts)]
-            h_sel = ctx.ui.picker.pick_many(h_items, title="Select hosts to analyze")
-            selected_hosts = sorted([s.id for s in h_sel]) if h_sel else None
-
-        req = AnalyticsRequest(
-            run=run,
-            kind="aggregate",
-            hosts=selected_hosts,
-            workloads=selected_workloads,
-        )
-        with ctx.ui.progress.status(
-            f"Running analytics '{selected_kind}' on {run.run_id}"
-        ):
-            produced = ctx.analytics_service.run(req)
-        if not produced:
-            ctx.ui.present.warning("No analytics artifacts produced.")
-            return
-        rows = [[str(p)] for p in produced]
-        ctx.ui.tables.show(
-            TableModel(title="Analytics Artifacts", columns=["Path"], rows=rows)
-        )
-        ctx.ui.present.success("Analytics completed.")
+            show_summary(ctx, preview)
+            write_and_report(ctx, service, preview)
+        except UnificationError as exc:
+            ctx.ui.present.error(str(exc))
+            raise typer.Exit(1) from exc
 
     return app

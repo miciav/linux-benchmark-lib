@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from functools import cached_property
 
-from lb_gui.services.analytics_service import AnalyticsServiceWrapper
 from lb_gui.services.app_client import AppClientService
 from lb_gui.services.config_service import GUIConfigService
 from lb_gui.services.doctor_service import DoctorServiceWrapper
@@ -32,10 +31,6 @@ class ServiceContainer:
     @cached_property
     def run_catalog(self) -> RunCatalogServiceWrapper:
         return RunCatalogServiceWrapper()
-
-    @cached_property
-    def analytics_service(self) -> AnalyticsServiceWrapper:
-        return AnalyticsServiceWrapper()
 
     @cached_property
     def doctor_service(self) -> DoctorServiceWrapper:

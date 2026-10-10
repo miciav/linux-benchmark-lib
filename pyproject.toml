@@ -44,8 +44,6 @@ ui = [
 controller = [
     "ansible-runner>=2.4.0",
     "ansible-core>=2.15.0",
-    "matplotlib>=3.7.0",
-    "seaborn>=0.12.0",
     "pyarrow>=17.0.0",
 ]
 dev = [
@@ -479,7 +477,6 @@ dev = [
     "tenacity>=9.1.2",
     "types-PyYAML>=6.0.12.20250822",
     "types-psutil>=7.0.0.20250601",
-    "types-seaborn>=0.13.2.20250914",
 ]
 
 [tool.deptry]
