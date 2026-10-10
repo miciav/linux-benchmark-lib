@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lb_app.api import (
-    AnalyticsService,
     ApplicationClient,
     ConfigService,
     DoctorService,
@@ -31,7 +30,6 @@ class UIContext:
     _config_service: ConfigService | None = None
     _doctor_service: DoctorService | None = None
     _test_service: TestService | None = None
-    _analytics_service: AnalyticsService | None = None
     _app_client: ApplicationClient | None = None
 
     @property
@@ -88,16 +86,6 @@ class UIContext:
     @test_service.setter
     def test_service(self, value: TestService) -> None:
         self._test_service = value
-
-    @property
-    def analytics_service(self) -> AnalyticsService:
-        if self._analytics_service is None:
-            self._analytics_service = AnalyticsService()
-        return self._analytics_service
-
-    @analytics_service.setter
-    def analytics_service(self, value: AnalyticsService) -> None:
-        self._analytics_service = value
 
     @property
     def app_client(self) -> ApplicationClient:

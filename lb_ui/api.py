@@ -32,6 +32,6 @@ __all__ = [
     "main",
     "plugin_commands",
     # Dynamic exports via __getattr__ forwarding to lb_ui.cli:
-    # config_service, doctor_service, test_service, analytics_service,
+    # config_service, doctor_service, test_service,
     # app_client, ui, ui_adapter, DEV_MODE, subprocess
 ]

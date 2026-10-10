@@ -7,7 +7,7 @@ reaching into private internals.
 - **Controller**: orchestration, Ansible execution, journals.
 - **App & UI**: Application client plus UI wiring helpers.
 - **Provisioning**: helpers to clean up provisioned nodes safely.
-- **Analytics**: post-processing of stored runs.
+- **Analytics**: unification of experiment datasets into tables.
 - **Plugins**: workload interface and registry (see Workloads & Plugins for details).
 
 Use the navigation to open each section, or jump directly:

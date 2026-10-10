@@ -1,9 +1,25 @@
 # Analytics
 
-Services for running post-processing on stored benchmark runs.
+Unify the datasets of an experiment (one run or many) into analysis-ready
+tables.
 
-::: lb_analytics.engine.service.AnalyticsService
-::: lb_analytics.engine.service.AnalyticsRequest
+## From the CLI, TUI and GUI
+
+- `lb runs analyze --experiment ID` (or `--folder` for every run of the output
+  folder) writes the tables to `data_exports/<experiment>/`, after printing a
+  summary; `--host` and `--workload` filter them. Without either option, an
+  interactive terminal opens a picker with a preview, then the summary with
+  *Unify*, *Filters* and *Cancel*. The result ends with the equivalent command.
+- `lb runs list` → *Analyze* opens the same flow on the run's experiment.
+- `lb run --analyze` unifies the run's experiment when the run ends; an
+  interactive `lb run` asks instead (default No).
+- The GUI *Analytics* view lists the experiments, prepares the same summary and
+  unifies in the background.
+
+All of them use `UnificationService` from `lb_app.api`.
+
+::: lb_app.services.unification_service.UnificationService
+::: lb_app.services.unification_service.UnificationPreview
 
 ## Unified datasets
 

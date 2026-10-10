@@ -23,7 +23,6 @@ class CollectorPlugin:
     name: str
     description: str
     factory: Callable[[BenchmarkConfig], BaseCollector]
-    aggregator: Callable[[Any], dict[str, float]] | None = None
     should_run: Callable[[BenchmarkConfig], bool] = lambda _: True
 
 

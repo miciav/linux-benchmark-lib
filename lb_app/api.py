@@ -1,9 +1,6 @@
 """Stable application-layer API surface."""
 
 from lb_analytics.api import (
-    AnalyticsKind,
-    AnalyticsRequest,
-    AnalyticsService,
     ExperimentData,
     LoadReport,
     load_experiment,
@@ -85,9 +82,6 @@ AppClient = ApplicationClient
 
 __all__ = [
     "MAX_NODES",
-    "AnalyticsKind",
-    "AnalyticsRequest",
-    "AnalyticsService",
     "AnsibleOutputFormatter",
     "AppClient",
     "ApplicationClient",

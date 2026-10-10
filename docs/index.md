@@ -49,7 +49,7 @@ lb run --remote --run-id demo-run</pre>
 | `lb_controller` | Orchestrate remote runs via Ansible and manage state. |
 | `lb_app` | Stable API for CLIs/UIs and integrations. |
 | `lb_ui` | CLI/TUI implementation. |
-| `lb_analytics` | Reporting and post-processing. |
+| `lb_analytics` | Unifies experiment datasets into tables. |
 | `lb_provisioner` | Docker/Multipass helpers for the CLI. |
 
 ## Where to go next
