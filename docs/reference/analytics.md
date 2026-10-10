@@ -38,3 +38,60 @@ whose `runs` feed `load_experiment` directly:
 
     experiment = RunCatalogService(output_dir).get_experiment("exp-20261009-151200")
     data = load_experiment(experiment.runs)
+
+## Prediction
+
+`lb_analytics.api` can answer, per benchmark metric, how much of a machine's
+performance its specifications explain, and predict a machine that was not
+benchmarked. It is a library for notebooks; there is no command.
+
+    from lb_analytics.api import evaluate, fit, load_experiment, machines, predict, targets
+    from lb_app.api import RunCatalogService
+
+    catalog = RunCatalogService(output_dir)
+    data = [load_experiment(catalog.get_experiment(e).runs) for e in experiment_ids]
+    m, t = machines(*data), targets(*data)
+    report = evaluate(m, t, ["physical_cpus"], targets_filter="stress_ng")
+    target = "stress_ng/stress_ng/stress_ng_plugin/bogo_ops_per_s_real[stressor=cpu]"
+    model = fit(m, t, target, ["physical_cpus"])
+
+    new = machines(load_experiment(catalog.get_experiment("exp-new-host").runs))
+    predict(model, new.iloc[0])  # Prediction(value, low, high, unit, extrapolated)
+
+Pass the same experiments to `machines` and `targets`: the two tables are
+joined on the `machine` name.
+
+- `machines` has one row per machine: a host with one set of features
+  (cores, MHz, caches, memory, disk). The same host re-created with another
+  size is another machine (`host#<hash>`); small drifts (a few KiB of
+  MemTotal, bogomips, swap) do not split a host.
+- `targets` has one row per machine and target, with the median over the
+  successful repetitions, the IQR and the count. A run whose `host_info` is
+  missing counts for its host's machine when the host has only one; otherwise
+  its results are left out with a warning.
+- `fit` is a log-linear regression: a coefficient of 0.9 on `physical_cpus`
+  means doubling the cores multiplies the metric by about 1.87.
+- `evaluate` leaves each machine out in turn and compares the model with the
+  mean of the other machines and with the nearest one on the chosen features.
+  A model is worth using only where `beats_baselines` is true.
+- `predict` gives a range: the worst error seen leaving machines out, plus the
+  run-to-run noise. With one repetition per machine the noise is unknown, and
+  `predict` warns that the range covers only the validation error. A feature
+  outside the training range, or a combination of features unlike any training
+  machine (16 cores with the smallest memory), warns that the prediction is an
+  extrapolation.
+
+Limits: the machines must differ in the chosen features (identical VMs explain
+nothing), and features that move together (cores and memory on VM sizes that
+scale both) are refused as collinear; use one to three features with fewer than
+15 machines; the kernel
+reports virtio disks as rotational, so `disk_rotational` is unreliable on VMs.
+The features of a machine come from any run on it, so a short `baseline` run is
+enough to predict it.
+
+::: lb_analytics.predict.features.machines
+::: lb_analytics.predict.features.targets
+::: lb_analytics.predict.model.fit
+::: lb_analytics.predict.model.evaluate
+::: lb_analytics.predict.model.loo_predictions
+::: lb_analytics.predict.model.predict
