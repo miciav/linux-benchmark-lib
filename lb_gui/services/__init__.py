@@ -1,6 +1,5 @@
 """Service layer wrappers around lb_app.api."""
 
-from lb_gui.services.analytics_service import AnalyticsServiceWrapper
 from lb_gui.services.app_client import AppClientService
 from lb_gui.services.config_service import GUIConfigService
 from lb_gui.services.doctor_service import DoctorServiceWrapper
@@ -9,7 +8,6 @@ from lb_gui.services.run_catalog import RunCatalogServiceWrapper
 from lb_gui.services.run_controller import RunControllerService
 
 __all__ = [
-    "AnalyticsServiceWrapper",
     "AppClientService",
     "DoctorServiceWrapper",
     "GUIConfigService",

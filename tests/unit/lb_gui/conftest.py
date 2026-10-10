@@ -2,6 +2,10 @@
 
 from pathlib import Path
 
+# Load lb_app (and with it ansible) before any test imports PySide6: PySide6's
+# import hook inspects modules as they load and trips ansible's lazy error
+# attributes into a circular import when ansible comes second.
+import lb_app.api  # noqa: F401
 from tests.helpers.optional_imports import module_available
 
 HAS_PYSIDE6 = module_available("PySide6")

@@ -32,7 +32,7 @@ def test_analytics_worker_has_no_cleanup_thread_method(qt_app):
 
     from lb_gui.workers.analytics_worker import AnalyticsWorker
 
-    worker = AnalyticsWorker(MagicMock(), MagicMock(), MagicMock())
+    worker = AnalyticsWorker(MagicMock())
     assert not hasattr(worker, "_cleanup_thread")
 
 
@@ -73,7 +73,7 @@ def test_analytics_worker_thread_ref_cleared_by_clear_thread(qt_app):
 
     from lb_gui.workers.analytics_worker import AnalyticsWorker
 
-    worker = AnalyticsWorker(MagicMock(), MagicMock(), MagicMock())
+    worker = AnalyticsWorker(MagicMock())
     worker._thread = QThread()
     assert worker.is_running()
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from lb_app.api import BenchmarkConfig, RunCatalogService
+from lb_app.api import BenchmarkConfig, RunCatalogService, UnificationService
 
 if TYPE_CHECKING:
     from lb_common.api import RunInfo
@@ -17,10 +17,12 @@ class RunCatalogServiceWrapper:
     def __init__(self) -> None:
         self._service: RunCatalogService | None = None
         self._config: BenchmarkConfig | None = None
+        self._export_root: Path | None = None
 
     def configure(self, config: BenchmarkConfig) -> None:
         """Configure the service with a benchmark config."""
         self._config = config
+        self._export_root = Path(config.data_export_dir)
         self._service = RunCatalogService(
             config.output_dir,
             report_dir=config.report_dir,
@@ -50,3 +52,8 @@ class RunCatalogServiceWrapper:
         if self._config is None:
             return None
         return Path(self._config.output_dir)
+
+    def unification(self) -> UnificationService:
+        """The unification service over the configured output folder."""
+        service = self._ensure_configured()
+        return UnificationService(service, self._export_root or service.output_dir)
