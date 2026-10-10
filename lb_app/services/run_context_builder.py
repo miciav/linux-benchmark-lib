@@ -15,6 +15,7 @@ from lb_controller.api import (
     apply_playbook_defaults,
 )
 from lb_plugins.api import PluginRegistry, apply_plugin_assets, create_registry
+from lb_runner.api import validate_experiment_id
 
 
 def apply_overrides(cfg: BenchmarkConfig, intensity: str | None, debug: bool) -> None:
@@ -123,6 +124,7 @@ class RunContextBuilder:
         run_id: str | None = None,
         resume: str | None = None,
         repetitions: int | None = None,
+        experiment_id: str | None = None,
         debug: bool = False,
         intensity: str | None = None,
         ui_adapter: UIAdapter | None = None,
@@ -145,6 +147,7 @@ class RunContextBuilder:
         self._apply_setup_overrides(
             cfg, setup, repetitions, intensity, ui_adapter, debug
         )
+        self._apply_experiment(cfg, experiment_id)
         target_tests = resolve_target_tests(cfg, tests, platform_config, ui_adapter)
         context = self.build_context(
             cfg,
@@ -223,6 +226,13 @@ class RunContextBuilder:
         if not setup:
             cfg.remote_execution.run_teardown = False
         cfg.remote_execution.enabled = True
+
+    @staticmethod
+    def _apply_experiment(cfg: BenchmarkConfig, experiment_id: str | None) -> None:
+        """--experiment wins over the config file; validated before any run."""
+        if experiment_id is None:
+            return
+        cfg.experiment_id = validate_experiment_id(experiment_id)
 
     @staticmethod
     def _apply_repetitions(

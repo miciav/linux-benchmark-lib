@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from lb_controller.services.paths import generate_experiment_id
 from lb_runner.api import BenchmarkConfig, RunEvent
 
 
@@ -252,12 +253,24 @@ def _config_dump(config: Any) -> dict[str, Any]:
 
 
 def _config_hash(cfg_dump: dict[str, Any]) -> str:
-    """Stable hash for config dumps."""
+    """Stable hash for config dumps.
+
+    The experiment id is a label, not an execution parameter: hashing it would
+    make a run with a generated id impossible to resume with its own config.
+    """
+    hashed = {k: v for k, v in cfg_dump.items() if k != "experiment_id"}
     try:
-        payload = json.dumps(cfg_dump, sort_keys=True, default=str).encode("utf-8")
+        payload = json.dumps(hashed, sort_keys=True, default=str).encode("utf-8")
     except Exception:
-        payload = str(cfg_dump).encode("utf-8")
+        payload = str(hashed).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def hash_config(config: Any | None) -> str:
+    """The config hash a journal records; the single definition for resume."""
+    if config is None:
+        return ""
+    return _config_hash(_config_dump(config))
 
 
 def _build_metadata(config: Any) -> dict[str, Any]:
@@ -269,6 +282,8 @@ def _build_metadata(config: Any) -> dict[str, Any]:
         "system_info": {},
         "config_dump": cfg_dump,
         "config_hash": _config_hash(cfg_dump),
+        "experiment_id": getattr(config, "experiment_id", None)
+        or generate_experiment_id(),
     }
 
 

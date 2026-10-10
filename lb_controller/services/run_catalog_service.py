@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
-from lb_common.api import RunInfo
+from lb_common.api import ExperimentInfo, RunInfo
 
 
 class RunCatalogService:
@@ -73,6 +73,33 @@ class RunCatalogService:
             workloads=sorted(workloads),
             created_at=created_at,
             journal_path=journal_path if journal_path.exists() else None,
+            experiment_id=_experiment_of(journal_data),
+        )
+
+    def list_experiments(self) -> list[ExperimentInfo]:
+        """Group the folder's runs by experiment, newest experiment first.
+
+        Runs without an id (journals older than experiment ids) are one-run
+        experiments named after their run_id.
+        """
+        groups: dict[str, list[RunInfo]] = {}
+        for run in self.list_runs():
+            groups.setdefault(run.experiment_id or run.run_id, []).append(run)
+        experiments = [
+            ExperimentInfo(id=key, kind="experiment", runs=_oldest_first(runs))
+            for key, runs in groups.items()
+        ]
+        return sorted(experiments, key=lambda e: _stamp(e.last_created), reverse=True)
+
+    def get_experiment(self, experiment_id: str) -> ExperimentInfo | None:
+        return next((e for e in self.list_experiments() if e.id == experiment_id), None)
+
+    def folder_experiment(self) -> ExperimentInfo:
+        """Every run of the folder as one experiment named after the folder."""
+        return ExperimentInfo(
+            id=self.output_dir.name,
+            kind="folder",
+            runs=_oldest_first(self.list_runs()),
         )
 
     def _resolve_output_root(self, run_id: str) -> Path | None:
@@ -204,3 +231,17 @@ def _task_list(journal_data: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _task_field(tasks: Iterable[dict[str, Any]], field: str) -> Iterable[Any]:
     return (task.get(field) for task in tasks)
+
+
+def _experiment_of(journal_data: dict[str, Any]) -> str | None:
+    metadata = journal_data.get("metadata", {}) if journal_data else {}
+    value = metadata.get("experiment_id") if isinstance(metadata, dict) else None
+    return value if isinstance(value, str) and value else None
+
+
+def _stamp(created: datetime | None) -> float:
+    return created.timestamp() if created else 0.0
+
+
+def _oldest_first(runs: list[RunInfo]) -> list[RunInfo]:
+    return sorted(runs, key=lambda run: _stamp(run.created_at))

@@ -6,10 +6,18 @@ from typing import Any
 
 import typer
 
-from lb_app.api import MAX_NODES
+from lb_app.api import MAX_NODES, validate_experiment_id
 from lb_ui.cli.commands.run_helpers import print_run_journal_summary, resolve_stop_file
 from lb_ui.presenters.plan import build_run_plan_table
 from lb_ui.wiring.dependencies import UIContext
+
+
+def _check_experiment(value: str | None) -> str | None:
+    """Reject a bad --experiment while parsing, before any run output."""
+    try:
+        return validate_experiment_id(value)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
 
 def register_run_command(
@@ -39,6 +47,16 @@ def register_run_command(
             None,
             "--run-id",
             help="Optional run identifier for tracking results.",
+        ),
+        experiment: str | None = typer.Option(
+            None,
+            "--experiment",
+            "-e",
+            callback=_check_experiment,
+            help=(
+                "Experiment to add this run to; a new exp-<date>-<time> id is "
+                "generated when omitted."
+            ),
         ),
         remote: bool | None = typer.Option(
             None,
@@ -218,6 +236,7 @@ def register_run_command(
                 stop_file=stop_file_resolved,
                 execution_mode=execution_mode,
                 repetitions=repetitions,
+                experiment_id=experiment,
                 node_count=resolved_node_count,
                 docker_engine=docker_engine,
                 ui_adapter=ctx.ui_adapter,

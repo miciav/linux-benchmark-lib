@@ -23,8 +23,9 @@ Order used by commands that need a config:
 
 ## Top-level commands
 
-- `lb run [WORKLOAD ...] [-c FILE] [--run-id ID] [--remote/--no-remote] [--repetitions N] [--intensity LEVEL] [--setup/--no-setup] [--stop-file PATH] [--debug]`
+- `lb run [WORKLOAD ...] [-c FILE] [--run-id ID] [--experiment/-e NAME] [--remote/--no-remote] [--repetitions N] [--intensity LEVEL] [--setup/--no-setup] [--stop-file PATH] [--debug]`
   Run workloads remotely via Ansible. Local execution is not supported by the CLI.
+  `--experiment` adds the run to an experiment (also settable as `experiment_id` in the config file; the command line wins). Without one, a new `exp-<date>-<time>` id is generated and printed at the end of the run. Allowed: 1-64 letters, digits, `.`, `_`, `-`, starting with a letter or digit; the `run-` prefix is reserved for run ids.
 - `lb run ... --docker [--docker-engine docker|podman] [--nodes N]`
   Dev-only: provision containers and run via Ansible (requires `.lb_dev_cli` or `LB_ENABLE_TEST_CLI=1`).
 - `lb run ... --multipass [--nodes N]`

@@ -23,6 +23,11 @@ def generate_run_id() -> str:
     return datetime.now(UTC).strftime("run-%Y%m%d-%H%M%S")
 
 
+def generate_experiment_id() -> str:
+    """Generate an experiment id; same clock as run ids, its own namespace."""
+    return datetime.now(UTC).strftime("exp-%Y%m%d-%H%M%S")
+
+
 def prepare_run_dirs(
     config: BenchmarkConfig,
     run_id: str,

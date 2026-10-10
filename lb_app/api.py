@@ -53,7 +53,7 @@ from lb_app.viewmodels.run_viewmodels import (
     summarize_progress,
     target_repetitions,
 )
-from lb_common.api import RemoteHostSpec, RunInfo
+from lb_common.api import ExperimentInfo, RemoteHostSpec, RunInfo
 from lb_controller.api import (
     BenchmarkConfig,
     PlatformConfig,
@@ -74,6 +74,7 @@ from lb_plugins.api import (
     reset_registry_cache,
 )
 from lb_provisioner.api import MAX_NODES
+from lb_runner.api import validate_experiment_id
 
 AppClient = ApplicationClient
 
@@ -98,6 +99,7 @@ __all__ = [
     "DoctorReport",
     "DoctorService",
     "ExperimentData",
+    "ExperimentInfo",
     "LoadReport",
     "NoOpDashboardHandle",
     "NoOpProgressHandle",
@@ -142,4 +144,5 @@ __all__ = [
     "summarize_system_info",
     "target_repetitions",
     "test_service_module",
+    "validate_experiment_id",
 ]

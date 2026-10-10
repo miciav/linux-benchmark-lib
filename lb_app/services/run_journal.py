@@ -3,18 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from lb_app.services.run_config import hash_config
 from lb_app.services.run_types import RunContext
 from lb_controller.api import (
     BenchmarkConfig,
     RunJournal,
     RunStatus,
     TaskState,
+    hash_config,
     workload_output_dir,
 )
 
@@ -38,11 +39,30 @@ def load_resume_journal(
     """Load an existing journal and reconcile configuration for resume."""
     run_identifier, journal_path = _resolve_resume_identifier(context)
     journal = _load_or_rebuild_journal(context, run_identifier, journal_path)
+    _warn_on_experiment_mismatch(context.config, journal)
 
     rehydrate_resume_config(context, journal)
     ensure_resume_tasks(context, journal)
     _validate_run_id(run_id, journal.run_id)
     return journal, journal_path, journal.run_id
+
+
+def _warn_on_experiment_mismatch(config: BenchmarkConfig, journal: RunJournal) -> None:
+    """A resumed run stays in the experiment its journal records.
+
+    The config file's experiment_id is for new runs; ``lb resume`` has no way to
+    move a run, so a different value is reported rather than refused.
+    """
+    recorded = (journal.metadata or {}).get("experiment_id")
+    requested = config.experiment_id
+    if recorded and requested and requested != recorded:
+        logging.getLogger(__name__).warning(
+            "Run %s stays in experiment %r; the config's experiment_id %r applies "
+            "to new runs only.",
+            journal.run_id,
+            recorded,
+            requested,
+        )
 
 
 def _resolve_resume_identifier(context: RunContext) -> tuple[str, Path]:

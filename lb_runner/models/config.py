@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from lb_plugins.api import PluginAssetConfig
 from lb_runner.models.loki_env import apply_loki_env_fallbacks
@@ -223,6 +224,26 @@ class WorkloadConfig(BaseModel):
     )
 
 
+# Also names a folder (data_exports/<experiment>/), hence the strict alphabet.
+_EXPERIMENT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def validate_experiment_id(value: str | None) -> str | None:
+    """Return ``value`` if it is a valid experiment id (or None), else raise."""
+    if value is not None and value.startswith("run-"):
+        # Older runs without an id are listed as experiments named by run_id.
+        raise ValueError(
+            f"invalid experiment id {value!r}: the 'run-' prefix is reserved "
+            "for run ids"
+        )
+    if value is None or _EXPERIMENT_ID.fullmatch(value):
+        return value
+    raise ValueError(
+        f"invalid experiment id {value!r}: use 1-64 letters, digits, '.', '_' "
+        "or '-', starting with a letter or digit"
+    )
+
+
 class BenchmarkConfig(BaseModel):
     """Main configuration for benchmark tests."""
 
@@ -232,6 +253,19 @@ class BenchmarkConfig(BaseModel):
     repetitions: int = Field(
         default=3, gt=0, description="Number of repetitions for each test"
     )
+    experiment_id: str | None = Field(
+        default=None,
+        description=(
+            "Experiment this run belongs to; generated as exp-<date>-<time> "
+            "when empty. lb run --experiment overrides it."
+        ),
+    )
+
+    @field_validator("experiment_id")
+    @classmethod
+    def _check_experiment_id(cls, value: str | None) -> str | None:
+        return validate_experiment_id(value)
+
     test_duration_seconds: int = Field(
         default=3600, gt=0, description="Default duration for tests in seconds"
     )
